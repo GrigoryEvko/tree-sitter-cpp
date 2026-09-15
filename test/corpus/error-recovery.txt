@@ -1,0 +1,495 @@
+================================================================================
+A directive after a member macro with no semicolon
+================================================================================
+
+class C {
+public:
+   C();
+   ClassDef(C,1)
+#pragma once
+};
+int x;
+
+--------------------------------------------------------------------------------
+
+(translation_unit
+  (class_specifier
+    name: (type_identifier)
+    body: (field_declaration_list
+      (access_specifier)
+      (declaration
+        declarator: (function_declarator
+          declarator: (identifier)
+          parameters: (parameter_list)))
+      (declaration
+        declarator: (function_declarator
+          declarator: (identifier)
+          parameters: (parameter_list
+            (parameter_declaration
+              type: (type_identifier))
+            (ERROR
+              (number_literal))))
+        (preproc_call
+          directive: (preproc_directive)
+          argument: (preproc_arg))
+        (MISSING ";"))))
+  (declaration
+    type: (primitive_type)
+    declarator: (identifier)))
+
+================================================================================
+A member macro with no semicolon before the brace of the class
+================================================================================
+
+class TQObject {
+public:
+   static Bool_t BlockAllSignals(Bool_t b);
+
+   ClassDef(TQObject,1) //Base class for object communication mechanism
+};
+
+class TQObjSender : public TQObject {
+protected:
+   void *fSender;
+};
+
+--------------------------------------------------------------------------------
+
+(translation_unit
+  (class_specifier
+    name: (type_identifier)
+    body: (field_declaration_list
+      (access_specifier)
+      (field_declaration
+        (storage_class_specifier)
+        type: (type_identifier)
+        declarator: (function_declarator
+          declarator: (field_identifier)
+          parameters: (parameter_list
+            (parameter_declaration
+              type: (type_identifier)
+              declarator: (identifier)))))
+      (declaration
+        declarator: (function_declarator
+          declarator: (identifier)
+          parameters: (parameter_list
+            (parameter_declaration
+              type: (type_identifier))
+            (ERROR
+              (number_literal))))
+        (comment)
+        (MISSING ";"))))
+  (class_specifier
+    name: (type_identifier)
+    (base_class_clause
+      (access_specifier)
+      (type_identifier))
+    body: (field_declaration_list
+      (access_specifier)
+      (field_declaration
+        type: (primitive_type)
+        declarator: (pointer_declarator
+          declarator: (field_identifier))))))
+
+================================================================================
+A type as a function argument
+================================================================================
+
+int x = F(typename D::type&&);
+int y;
+
+--------------------------------------------------------------------------------
+
+(translation_unit
+  (declaration
+    type: (primitive_type)
+    declarator: (init_declarator
+      declarator: (identifier)
+      value: (call_expression
+        function: (identifier)
+        arguments: (argument_list
+          (ERROR
+            (dependent_type
+              (qualified_identifier
+                scope: (namespace_identifier)
+                name: (type_identifier))))))))
+  (declaration
+    type: (primitive_type)
+    declarator: (identifier)))
+
+================================================================================
+A function type as a macro argument before a statement
+================================================================================
+
+void f() { M(int (int), false); x = 1; }
+
+--------------------------------------------------------------------------------
+
+(translation_unit
+  (function_definition
+    type: (primitive_type)
+    declarator: (function_declarator
+      declarator: (identifier)
+      parameters: (parameter_list))
+    body: (compound_statement
+      (ERROR
+        (function_declarator
+          declarator: (identifier)
+          parameters: (parameter_list
+            (parameter_declaration
+              type: (primitive_type)
+              declarator: (abstract_function_declarator
+                parameters: (parameter_list
+                  (parameter_declaration
+                    type: (primitive_type)))))
+            (ERROR
+              (false)))))
+      (expression_statement)
+      (expression_statement
+        (assignment_expression
+          left: (identifier)
+          right: (number_literal))))))
+
+================================================================================
+A right brace after a calling convention in a grouping
+================================================================================
+
+typedef void (WINAPI *}
+int x;
+
+--------------------------------------------------------------------------------
+
+(translation_unit
+  (type_definition
+    type: (primitive_type)
+    (ERROR
+      (ERROR
+        (identifier))
+      (primitive_type))
+    declarator: (type_identifier)))
+
+================================================================================
+One unclosed block at the end of the input
+================================================================================
+
+void f() {
+ g();
+
+--------------------------------------------------------------------------------
+
+(translation_unit
+  (function_definition
+    type: (primitive_type)
+    declarator: (function_declarator
+      declarator: (identifier)
+      parameters: (parameter_list))
+    body: (compound_statement
+      (expression_statement
+        (call_expression
+          function: (identifier)
+          arguments: (argument_list)))
+      (MISSING "}"))))
+
+================================================================================
+Two unclosed blocks at the end of the input
+================================================================================
+
+void f() {
+ g();
+ if (x) {
+ h();
+
+--------------------------------------------------------------------------------
+
+(translation_unit
+  (function_definition
+    type: (primitive_type)
+    declarator: (function_declarator
+      declarator: (identifier)
+      parameters: (parameter_list))
+    body: (compound_statement
+      (expression_statement
+        (call_expression
+          function: (identifier)
+          arguments: (argument_list)))
+      (if_statement
+        condition: (condition_clause
+          value: (identifier))
+        consequence: (compound_statement
+          (expression_statement
+            (call_expression
+              function: (identifier)
+              arguments: (argument_list)))
+          (MISSING "}")))
+      (MISSING "}"))))
+
+================================================================================
+Unclosed blocks of a namespace and a function at the end of the input
+================================================================================
+
+namespace n {
+void f() {
+  g();
+
+--------------------------------------------------------------------------------
+
+(translation_unit
+  (namespace_definition
+    name: (namespace_identifier)
+    body: (declaration_list
+      (function_definition
+        type: (primitive_type)
+        declarator: (function_declarator
+          declarator: (identifier)
+          parameters: (parameter_list))
+        body: (compound_statement
+          (expression_statement
+            (call_expression
+              function: (identifier)
+              arguments: (argument_list)))
+          (MISSING "}")))
+      (MISSING "}"))))
+
+================================================================================
+Unclosed blocks of a switch and a loop at the end of the input
+================================================================================
+
+void f() {
+  switch (x) {
+  case 1:
+    for (;;) {
+      g();
+
+--------------------------------------------------------------------------------
+
+(translation_unit
+  (function_definition
+    type: (primitive_type)
+    declarator: (function_declarator
+      declarator: (identifier)
+      parameters: (parameter_list))
+    body: (compound_statement
+      (switch_statement
+        condition: (condition_clause
+          value: (identifier))
+        body: (compound_statement
+          (case_statement
+            value: (number_literal)
+            (for_statement
+              body: (compound_statement
+                (expression_statement
+                  (call_expression
+                    function: (identifier)
+                    arguments: (argument_list)))
+                (MISSING "}"))))
+          (MISSING "}")))
+      (MISSING "}"))))
+
+================================================================================
+Unclosed blocks of a namespace, a class, and a function at the end of the input
+================================================================================
+
+namespace n {
+struct S {
+  int a;
+  int b;
+  int c;
+  int d;
+  int e;
+  int f;
+  void set(int v) {
+    a = v;
+
+--------------------------------------------------------------------------------
+
+(translation_unit
+  (namespace_definition
+    name: (namespace_identifier)
+    body: (declaration_list
+      (struct_specifier
+        name: (type_identifier)
+        body: (field_declaration_list
+          (field_declaration
+            type: (primitive_type)
+            declarator: (field_identifier))
+          (field_declaration
+            type: (primitive_type)
+            declarator: (field_identifier))
+          (field_declaration
+            type: (primitive_type)
+            declarator: (field_identifier))
+          (field_declaration
+            type: (primitive_type)
+            declarator: (field_identifier))
+          (field_declaration
+            type: (primitive_type)
+            declarator: (field_identifier))
+          (field_declaration
+            type: (primitive_type)
+            declarator: (field_identifier))
+          (function_definition
+            type: (primitive_type)
+            declarator: (function_declarator
+              declarator: (field_identifier)
+              parameters: (parameter_list
+                (parameter_declaration
+                  type: (primitive_type)
+                  declarator: (identifier))))
+            body: (compound_statement
+              (expression_statement
+                (assignment_expression
+                  left: (identifier)
+                  right: (identifier)))
+              (MISSING "}")))
+          (MISSING "}")))
+      (MISSING ";")
+      (MISSING "}"))))
+
+================================================================================
+Unclosed blocks of a namespace and an enumeration at the end of the input
+================================================================================
+
+namespace n {
+enum Color {
+  red,
+  green,
+  blue,
+  cyan,
+  magenta,
+  yellow,
+  black,
+  white,
+
+--------------------------------------------------------------------------------
+
+(translation_unit
+  (namespace_definition
+    name: (namespace_identifier)
+    body: (declaration_list
+      (enum_specifier
+        name: (type_identifier)
+        body: (enumerator_list
+          (enumerator
+            name: (identifier))
+          (enumerator
+            name: (identifier))
+          (enumerator
+            name: (identifier))
+          (enumerator
+            name: (identifier))
+          (enumerator
+            name: (identifier))
+          (enumerator
+            name: (identifier))
+          (enumerator
+            name: (identifier))
+          (enumerator
+            name: (identifier))
+          (MISSING "}")))
+      (MISSING ";")
+      (MISSING "}"))))
+
+================================================================================
+A conversion function with no parameter list
+================================================================================
+
+struct S { operator int {} };
+struct R { operator int; int x; };
+
+--------------------------------------------------------------------------------
+
+(translation_unit
+  (struct_specifier
+    name: (type_identifier)
+    body: (field_declaration_list
+      (ERROR
+        (primitive_type))))
+  (struct_specifier
+    name: (type_identifier)
+    body: (field_declaration_list
+      (ERROR
+        (primitive_type))
+      (field_declaration
+        type: (primitive_type)
+        declarator: (field_identifier)))))
+
+================================================================================
+The GNU keyword __extension__ between the specifiers of a declaration
+================================================================================
+
+int __extension__ a;
+const __extension__ int b = 1;
+void f(__extension__ int c);
+struct S { int __extension__ d; };
+
+--------------------------------------------------------------------------------
+
+(translation_unit
+  (declaration
+    type: (primitive_type)
+    declarator: (identifier)
+    (ERROR
+      (identifier)))
+  (ERROR)
+  (declaration
+    type: (primitive_type)
+    declarator: (init_declarator
+      declarator: (identifier)
+      value: (number_literal)))
+  (declaration
+    type: (primitive_type)
+    declarator: (init_declarator
+      declarator: (identifier)
+      value: (argument_list
+        (extension_expression
+          (ERROR
+            (primitive_type))
+          (identifier)))))
+  (struct_specifier
+    name: (type_identifier)
+    body: (field_declaration_list
+      (field_declaration
+        type: (primitive_type)
+        declarator: (field_identifier)
+        (ERROR
+          (identifier))))))
+
+================================================================================
+The GNU keyword __label__ outside the start of a block
+================================================================================
+
+__label__ a;
+struct S { __label__ b; };
+void f() { int x = 0; __label__ c; (void)x; }
+
+--------------------------------------------------------------------------------
+
+(translation_unit
+  (ERROR)
+  (expression_statement
+    (identifier))
+  (struct_specifier
+    name: (type_identifier)
+    body: (field_declaration_list
+      (ERROR)
+      (field_declaration
+        type: (type_identifier))))
+  (function_definition
+    type: (primitive_type)
+    declarator: (function_declarator
+      declarator: (identifier)
+      parameters: (parameter_list))
+    body: (compound_statement
+      (declaration
+        type: (primitive_type)
+        declarator: (init_declarator
+          declarator: (identifier)
+          value: (number_literal)))
+      (ERROR)
+      (expression_statement
+        (identifier))
+      (expression_statement
+        (cast_expression
+          type: (type_descriptor
+            type: (primitive_type))
+          value: (identifier))))))

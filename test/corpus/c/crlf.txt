@@ -10,4 +10,172 @@ this_is_not a_comment;
 
 (translation_unit
   (comment)
-  (declaration (type_identifier) (identifier)))
+  (declaration
+    (type_identifier)
+    (identifier)))
+
+============================================
+A directive line that a carriage return ends
+============================================
+
+#define A 1int x = A;
+
+---
+
+(translation_unit
+  (preproc_def
+    name: (identifier)
+    value: (preproc_arg))
+  (declaration
+    type: (primitive_type)
+    declarator: (init_declarator
+      declarator: (identifier)
+      value: (identifier))))
+
+=============================================
+An include directive that a carriage return ends
+=============================================
+
+#include <a.h>int x;
+
+---
+
+(translation_unit
+  (preproc_include
+    path: (system_lib_string))
+  (declaration
+    type: (primitive_type)
+    declarator: (identifier)))
+
+============================================
+A line splice before a carriage return
+============================================
+
+int \y = 2;
+
+---
+
+(translation_unit
+  (declaration
+    type: (primitive_type)
+    declarator: (init_declarator
+      declarator: (identifier)
+      value: (number_literal))))
+
+==================================================
+A line splice with spaces before a carriage return
+==================================================
+
+int \  z = 3;
+
+---
+
+(translation_unit
+  (declaration
+    type: (primitive_type)
+    declarator: (init_declarator
+      declarator: (identifier)
+      value: (number_literal))))
+
+==================================================================
+A line splice before a carriage return and a line feed
+======================================================
+
+int \
+a = 5;
+b = 6;
+
+
+---
+
+(translation_unit
+  (declaration
+    type: (primitive_type)
+    declarator: (init_declarator
+      declarator: (identifier)
+      value: (number_literal)))
+  (expression_statement
+    (assignment_expression
+      left: (identifier)
+      right: (number_literal))))
+
+=====================================================
+A macro value that a line splice continues over a carriage return
+=================================================================
+
+#define A 1 \2int x = A;
+
+---
+
+(translation_unit
+  (preproc_def
+    name: (identifier)
+    value: (preproc_arg))
+  (declaration
+    type: (primitive_type)
+    declarator: (init_declarator
+      declarator: (identifier)
+      value: (identifier))))
+
+====================================================================
+A string literal that a line splice continues over a carriage return
+====================================================================
+
+const char *s = "a\b";
+
+---
+
+(translation_unit
+  (declaration
+    (type_qualifier)
+    type: (primitive_type)
+    declarator: (init_declarator
+      declarator: (pointer_declarator
+        declarator: (identifier))
+      value: (string_literal
+        (string_content)
+        (string_content)))))
+
+============================================
+A line comment that a carriage return ends
+============================================
+
+// cint x;
+
+---
+
+(translation_unit
+  (comment)
+  (declaration
+    type: (primitive_type)
+    declarator: (identifier)))
+
+==================================================================
+A line comment that a line splice continues over a carriage return
+==================================================================
+
+// x \int x;int y;
+
+---
+
+(translation_unit
+  (comment)
+  (declaration
+    type: (primitive_type)
+    declarator: (identifier)))
+
+=====================================================================
+A line feed and a carriage return after a backslash in a line comment
+=====================================================================
+
+// x \
+int x;
+
+
+---
+
+(translation_unit
+  (comment)
+  (declaration
+    type: (primitive_type)
+    declarator: (identifier)))

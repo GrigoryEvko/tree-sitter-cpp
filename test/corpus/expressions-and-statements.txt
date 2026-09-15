@@ -1,0 +1,960 @@
+================================================================================
+New expressions with a new-type-id
+================================================================================
+
+a = new const char *[2];
+p = new void *;
+q = new (int*);
+s = new APFloat[]{};
+
+--------------------------------------------------------------------------------
+
+(translation_unit
+  (expression_statement
+    (assignment_expression
+      left: (identifier)
+      right: (new_expression
+        (type_qualifier)
+        type: (primitive_type)
+        declarator: (abstract_pointer_declarator
+          declarator: (new_declarator
+            length: (number_literal))))))
+  (expression_statement
+    (assignment_expression
+      left: (identifier)
+      right: (new_expression
+        type: (primitive_type)
+        declarator: (abstract_pointer_declarator))))
+  (expression_statement
+    (assignment_expression
+      left: (identifier)
+      right: (new_expression
+        type: (type_descriptor
+          type: (primitive_type)
+          declarator: (abstract_pointer_declarator)))))
+  (expression_statement
+    (assignment_expression
+      left: (identifier)
+      right: (new_expression
+        type: (type_identifier)
+        declarator: (new_declarator)
+        arguments: (initializer_list)))))
+
+================================================================================
+A comma expression as the array bound of a new expression
+================================================================================
+
+a = new int[n, 1];
+b = new int[n + 1][3];
+
+--------------------------------------------------------------------------------
+
+(translation_unit
+  (expression_statement
+    (assignment_expression
+      left: (identifier)
+      right: (new_expression
+        type: (primitive_type)
+        declarator: (new_declarator
+          length: (comma_expression
+            left: (identifier)
+            right: (number_literal))))))
+  (expression_statement
+    (assignment_expression
+      left: (identifier)
+      right: (new_expression
+        type: (primitive_type)
+        declarator: (new_declarator
+          length: (binary_expression
+            left: (identifier)
+            right: (number_literal))
+          (new_declarator
+            length: (number_literal)))))))
+
+================================================================================
+Delete expressions of an array with a parenthesized operand
+================================================================================
+
+delete[] (char*)buffers[i];
+delete [] (temp);
+
+--------------------------------------------------------------------------------
+
+(translation_unit
+  (expression_statement
+    (delete_expression
+      (cast_expression
+        type: (type_descriptor
+          type: (primitive_type)
+          declarator: (abstract_pointer_declarator))
+        value: (subscript_expression
+          argument: (identifier)
+          indices: (subscript_argument_list
+            (identifier))))))
+  (expression_statement
+    (delete_expression
+      (parenthesized_expression
+        (identifier)))))
+
+================================================================================
+Throw expressions and yield expressions as operands
+================================================================================
+
+int f() {
+  throw x;
+  x = c ? v : throw 0;
+  return throw e, v;
+  auto p = co_yield x;
+  co_return {a, b};
+  co_yield {1, 2};
+}
+
+--------------------------------------------------------------------------------
+
+(translation_unit
+  (function_definition
+    (primitive_type)
+    (function_declarator
+      (identifier)
+      (parameter_list))
+    (compound_statement
+      (throw_statement
+        (identifier))
+      (expression_statement
+        (assignment_expression
+          (identifier)
+          (conditional_expression
+            (identifier)
+            (identifier)
+            (throw_expression
+              (number_literal)))))
+      (return_statement
+        (comma_expression
+          (throw_expression
+            (identifier))
+          (identifier)))
+      (declaration
+        (placeholder_type_specifier
+          (auto))
+        (init_declarator
+          (identifier)
+          (co_yield_expression
+            (identifier))))
+      (co_return_statement
+        (initializer_list
+          (identifier)
+          (identifier)))
+      (co_yield_statement
+        (initializer_list
+          (number_literal)
+          (number_literal))))))
+
+================================================================================
+Init-captures with parentheses and braces
+================================================================================
+
+auto a = [x(42)] { return x; };
+auto b = [m{std::move(m)}] {};
+
+--------------------------------------------------------------------------------
+
+(translation_unit
+  (declaration
+    (placeholder_type_specifier
+      (auto))
+    (init_declarator
+      (identifier)
+      (lambda_expression
+        (lambda_capture_specifier
+          (lambda_capture_initializer
+            (identifier)
+            (argument_list
+              (number_literal))))
+        (compound_statement
+          (return_statement
+            (identifier))))))
+  (declaration
+    (placeholder_type_specifier
+      (auto))
+    (init_declarator
+      (identifier)
+      (lambda_expression
+        (lambda_capture_specifier
+          (lambda_capture_initializer
+            (identifier)
+            (initializer_list
+              (call_expression
+                (qualified_identifier
+                  (namespace_identifier)
+                  (identifier))
+                (argument_list
+                  (identifier))))))
+        (compound_statement)))))
+
+================================================================================
+Functional casts of decltype and typeid of a comma expression
+================================================================================
+
+void f() {
+  decltype(foo())();
+  auto d = decltype(i){};
+  typeid(false, *x);
+}
+
+--------------------------------------------------------------------------------
+
+(translation_unit
+  (function_definition
+    (primitive_type)
+    (function_declarator
+      (identifier)
+      (parameter_list))
+    (compound_statement
+      (expression_statement
+        (call_expression
+          (decltype
+            (call_expression
+              (identifier)
+              (argument_list)))
+          (argument_list)))
+      (declaration
+        (placeholder_type_specifier
+          (auto))
+        (init_declarator
+          (identifier)
+          (compound_literal_expression
+            (decltype
+              (identifier))
+            (initializer_list))))
+      (expression_statement
+        (typeid_expression
+          (comma_expression
+            (false)
+            (pointer_expression
+              (identifier))))))))
+
+================================================================================
+Noexcept operator and functional casts of size keywords
+================================================================================
+
+bool b = noexcept(f());
+void g() noexcept(noexcept(h())) {}
+void k() {
+  if (unsigned(e) >= n) {}
+  x = long{y};
+}
+
+--------------------------------------------------------------------------------
+
+(translation_unit
+  (declaration
+    (primitive_type)
+    (init_declarator
+      (identifier)
+      (noexcept_expression
+        (call_expression
+          (identifier)
+          (argument_list)))))
+  (function_definition
+    (primitive_type)
+    (function_declarator
+      (identifier)
+      (parameter_list)
+      (noexcept
+        (noexcept_expression
+          (call_expression
+            (identifier)
+            (argument_list)))))
+    (compound_statement))
+  (function_definition
+    (primitive_type)
+    (function_declarator
+      (identifier)
+      (parameter_list))
+    (compound_statement
+      (if_statement
+        (condition_clause
+          (binary_expression
+            (call_expression
+              (sized_type_specifier)
+              (argument_list
+                (identifier)))
+            (identifier)))
+        (compound_statement))
+      (expression_statement
+        (assignment_expression
+          (identifier)
+          (compound_literal_expression
+            (sized_type_specifier)
+            (initializer_list
+              (identifier))))))))
+
+================================================================================
+Conversion functions and template destructors after a member access
+================================================================================
+
+void f() {
+  this->operator bool();
+  s = p->operator const char *();
+  x.A::operator int();
+  iter->~Base<Slice>();
+}
+
+--------------------------------------------------------------------------------
+
+(translation_unit
+  (function_definition
+    (primitive_type)
+    (function_declarator
+      (identifier)
+      (parameter_list))
+    (compound_statement
+      (expression_statement
+        (call_expression
+          (field_expression
+            (this)
+            (operator_cast
+              (primitive_type)))
+          (argument_list)))
+      (expression_statement
+        (assignment_expression
+          (identifier)
+          (call_expression
+            (field_expression
+              (identifier)
+              (operator_cast
+                (type_qualifier)
+                (primitive_type)
+                (abstract_pointer_declarator)))
+            (argument_list))))
+      (expression_statement
+        (call_expression
+          (field_expression
+            (identifier)
+            (qualified_identifier
+              (namespace_identifier)
+              (operator_cast
+                (primitive_type))))
+          (argument_list)))
+      (expression_statement
+        (call_expression
+          (field_expression
+            (identifier)
+            (destructor_name
+              (template_type
+                (type_identifier)
+                (template_argument_list
+                  (type_descriptor
+                    (type_identifier))))))
+          (argument_list))))))
+
+================================================================================
+Member pointer operators with an expression operand
+================================================================================
+
+void f() {
+  (this->*(it->second))();
+  b = x.*&S::a == 5;
+}
+
+--------------------------------------------------------------------------------
+
+(translation_unit
+  (function_definition
+    (primitive_type)
+    (function_declarator
+      (identifier)
+      (parameter_list))
+    (compound_statement
+      (expression_statement
+        (call_expression
+          (parenthesized_expression
+            (field_expression
+              (this)
+              (parenthesized_expression
+                (field_expression
+                  (identifier)
+                  (field_identifier)))))
+          (argument_list)))
+      (expression_statement
+        (assignment_expression
+          (identifier)
+          (binary_expression
+            (field_expression
+              (identifier)
+              (pointer_expression
+                (qualified_identifier
+                  (namespace_identifier)
+                  (identifier))))
+            (number_literal)))))))
+
+================================================================================
+Member pointer operators between the multiplicative and the cast operators
+================================================================================
+
+void f() {
+  a = *p.*m;
+  a = -o.*m;
+  a = (T)o.*m;
+  a = w.*t[i];
+  a = wp->*get();
+  a = (wp->*w.mf)();
+  a = wp->*(PM)t[0];
+  a = o->*~b;
+  a = t.*m.*n;
+  a = s.*m * 2 + 2 * s.*m;
+  s.*m = 3;
+  a = sp->*ns::pm;
+}
+
+--------------------------------------------------------------------------------
+
+(translation_unit
+  (function_definition
+    type: (primitive_type)
+    declarator: (function_declarator
+      declarator: (identifier)
+      parameters: (parameter_list))
+    body: (compound_statement
+      (expression_statement
+        (assignment_expression
+          left: (identifier)
+          right: (field_expression
+            argument: (pointer_expression
+              argument: (identifier))
+            field: (identifier))))
+      (expression_statement
+        (assignment_expression
+          left: (identifier)
+          right: (field_expression
+            argument: (unary_expression
+              argument: (identifier))
+            field: (identifier))))
+      (expression_statement
+        (assignment_expression
+          left: (identifier)
+          right: (field_expression
+            argument: (cast_expression
+              type: (type_descriptor
+                type: (type_identifier))
+              value: (identifier))
+            field: (identifier))))
+      (expression_statement
+        (assignment_expression
+          left: (identifier)
+          right: (field_expression
+            argument: (identifier)
+            field: (subscript_expression
+              argument: (identifier)
+              indices: (subscript_argument_list
+                (identifier))))))
+      (expression_statement
+        (assignment_expression
+          left: (identifier)
+          right: (field_expression
+            argument: (identifier)
+            field: (call_expression
+              function: (identifier)
+              arguments: (argument_list)))))
+      (expression_statement
+        (assignment_expression
+          left: (identifier)
+          right: (call_expression
+            function: (parenthesized_expression
+              (field_expression
+                argument: (identifier)
+                field: (field_expression
+                  argument: (identifier)
+                  field: (field_identifier))))
+            arguments: (argument_list))))
+      (expression_statement
+        (assignment_expression
+          left: (identifier)
+          right: (field_expression
+            argument: (identifier)
+            field: (cast_expression
+              type: (type_descriptor
+                type: (type_identifier))
+              value: (subscript_expression
+                argument: (identifier)
+                indices: (subscript_argument_list
+                  (number_literal)))))))
+      (expression_statement
+        (assignment_expression
+          left: (identifier)
+          right: (field_expression
+            argument: (identifier)
+            field: (unary_expression
+              argument: (identifier)))))
+      (expression_statement
+        (assignment_expression
+          left: (identifier)
+          right: (field_expression
+            argument: (field_expression
+              argument: (identifier)
+              field: (identifier))
+            field: (identifier))))
+      (expression_statement
+        (assignment_expression
+          left: (identifier)
+          right: (binary_expression
+            left: (binary_expression
+              left: (field_expression
+                argument: (identifier)
+                field: (identifier))
+              right: (number_literal))
+            right: (binary_expression
+              left: (number_literal)
+              right: (field_expression
+                argument: (identifier)
+                field: (identifier))))))
+      (expression_statement
+        (assignment_expression
+          left: (field_expression
+            argument: (identifier)
+            field: (identifier))
+          right: (number_literal)))
+      (expression_statement
+        (assignment_expression
+          left: (identifier)
+          right: (field_expression
+            argument: (identifier)
+            field: (qualified_identifier
+              scope: (namespace_identifier)
+              name: (identifier))))))))
+
+================================================================================
+The left operand of an assignment is a logical-or expression
+================================================================================
+
+void f() {
+  ++x = 5;
+  --x += 2;
+  (int &)x = 5;
+  a + b = c;
+  x++ = y;
+  -v = w;
+  a || b = c;
+  const V &r = a * b >>= c;
+  x = ++y = 4;
+  T *p = q;
+  A<B> c = d;
+}
+
+--------------------------------------------------------------------------------
+
+(translation_unit
+  (function_definition
+    type: (primitive_type)
+    declarator: (function_declarator
+      declarator: (identifier)
+      parameters: (parameter_list))
+    body: (compound_statement
+      (expression_statement
+        (assignment_expression
+          left: (update_expression
+            argument: (identifier))
+          right: (number_literal)))
+      (expression_statement
+        (assignment_expression
+          left: (update_expression
+            argument: (identifier))
+          right: (number_literal)))
+      (expression_statement
+        (assignment_expression
+          left: (cast_expression
+            type: (type_descriptor
+              type: (primitive_type)
+              declarator: (abstract_reference_declarator))
+            value: (identifier))
+          right: (number_literal)))
+      (expression_statement
+        (assignment_expression
+          left: (binary_expression
+            left: (identifier)
+            right: (identifier))
+          right: (identifier)))
+      (expression_statement
+        (assignment_expression
+          left: (update_expression
+            argument: (identifier))
+          right: (identifier)))
+      (expression_statement
+        (assignment_expression
+          left: (unary_expression
+            argument: (identifier))
+          right: (identifier)))
+      (expression_statement
+        (assignment_expression
+          left: (binary_expression
+            left: (identifier)
+            right: (identifier))
+          right: (identifier)))
+      (declaration
+        (type_qualifier)
+        type: (type_identifier)
+        declarator: (init_declarator
+          declarator: (reference_declarator
+            (identifier))
+          value: (assignment_expression
+            left: (binary_expression
+              left: (identifier)
+              right: (identifier))
+            right: (identifier))))
+      (expression_statement
+        (assignment_expression
+          left: (identifier)
+          right: (assignment_expression
+            left: (update_expression
+              argument: (identifier))
+            right: (number_literal))))
+      (declaration
+        type: (type_identifier)
+        declarator: (init_declarator
+          declarator: (pointer_declarator
+            declarator: (identifier))
+          value: (identifier)))
+      (declaration
+        type: (template_type
+          name: (type_identifier)
+          arguments: (template_argument_list
+            (type_descriptor
+              type: (type_identifier))))
+        declarator: (init_declarator
+          declarator: (identifier)
+          value: (identifier))))))
+
+================================================================================
+The third operand of a conditional is an assignment expression
+================================================================================
+
+void f() {
+  a ? b : c = d;
+  x = (a ? b : c = d);
+  (a ? b : c) = d;
+  a = b ? c : d;
+  a ? b : c ? d : e = f;
+  a ?: b = c;
+  a ? b = c : d;
+  t((throw a = b, 1));
+  x = y = z;
+}
+
+--------------------------------------------------------------------------------
+
+(translation_unit
+  (function_definition
+    type: (primitive_type)
+    declarator: (function_declarator
+      declarator: (identifier)
+      parameters: (parameter_list))
+    body: (compound_statement
+      (expression_statement
+        (conditional_expression
+          condition: (identifier)
+          consequence: (identifier)
+          alternative: (assignment_expression
+            left: (identifier)
+            right: (identifier))))
+      (expression_statement
+        (assignment_expression
+          left: (identifier)
+          right: (parenthesized_expression
+            (conditional_expression
+              condition: (identifier)
+              consequence: (identifier)
+              alternative: (assignment_expression
+                left: (identifier)
+                right: (identifier))))))
+      (expression_statement
+        (assignment_expression
+          left: (parenthesized_expression
+            (conditional_expression
+              condition: (identifier)
+              consequence: (identifier)
+              alternative: (identifier)))
+          right: (identifier)))
+      (expression_statement
+        (assignment_expression
+          left: (identifier)
+          right: (conditional_expression
+            condition: (identifier)
+            consequence: (identifier)
+            alternative: (identifier))))
+      (expression_statement
+        (conditional_expression
+          condition: (identifier)
+          consequence: (identifier)
+          alternative: (conditional_expression
+            condition: (identifier)
+            consequence: (identifier)
+            alternative: (assignment_expression
+              left: (identifier)
+              right: (identifier)))))
+      (expression_statement
+        (conditional_expression
+          condition: (identifier)
+          alternative: (assignment_expression
+            left: (identifier)
+            right: (identifier))))
+      (expression_statement
+        (conditional_expression
+          condition: (identifier)
+          consequence: (assignment_expression
+            left: (identifier)
+            right: (identifier))
+          alternative: (identifier)))
+      (expression_statement
+        (call_expression
+          function: (identifier)
+          arguments: (argument_list
+            (parenthesized_expression
+              (comma_expression
+                left: (throw_expression
+                  (assignment_expression
+                    left: (identifier)
+                    right: (identifier)))
+                right: (number_literal))))))
+      (expression_statement
+        (assignment_expression
+          left: (identifier)
+          right: (assignment_expression
+            left: (identifier)
+            right: (identifier)))))))
+
+================================================================================
+A pack expansion in a list expands a full assignment expression
+================================================================================
+
+template <class... Ts> void f(Ts... args) {
+  sink(args = args...);
+  sink(c ? args : args...);
+  sink(args += 1 ...);
+  sink((args = args)...);
+  sink(args + 1 ...);
+  int a[] = {args = 1 ..., 0};
+  N<Bs ? 1 : 2 ...> n;
+}
+
+--------------------------------------------------------------------------------
+
+(translation_unit
+  (template_declaration
+    parameters: (template_parameter_list
+      (variadic_type_parameter_declaration
+        (type_identifier)))
+    (function_definition
+      type: (primitive_type)
+      declarator: (function_declarator
+        declarator: (identifier)
+        parameters: (parameter_list
+          (variadic_parameter_declaration
+            type: (type_identifier)
+            declarator: (variadic_declarator
+              (identifier)))))
+      body: (compound_statement
+        (expression_statement
+          (call_expression
+            function: (identifier)
+            arguments: (argument_list
+              (parameter_pack_expansion
+                pattern: (assignment_expression
+                  left: (identifier)
+                  right: (identifier))))))
+        (expression_statement
+          (call_expression
+            function: (identifier)
+            arguments: (argument_list
+              (parameter_pack_expansion
+                pattern: (conditional_expression
+                  condition: (identifier)
+                  consequence: (identifier)
+                  alternative: (identifier))))))
+        (expression_statement
+          (call_expression
+            function: (identifier)
+            arguments: (argument_list
+              (parameter_pack_expansion
+                pattern: (assignment_expression
+                  left: (identifier)
+                  right: (number_literal))))))
+        (expression_statement
+          (call_expression
+            function: (identifier)
+            arguments: (argument_list
+              (parameter_pack_expansion
+                pattern: (parenthesized_expression
+                  (assignment_expression
+                    left: (identifier)
+                    right: (identifier)))))))
+        (expression_statement
+          (call_expression
+            function: (identifier)
+            arguments: (argument_list
+              (parameter_pack_expansion
+                pattern: (binary_expression
+                  left: (identifier)
+                  right: (number_literal))))))
+        (declaration
+          type: (primitive_type)
+          declarator: (init_declarator
+            declarator: (array_declarator
+              declarator: (identifier))
+            value: (initializer_list
+              (parameter_pack_expansion
+                pattern: (assignment_expression
+                  left: (identifier)
+                  right: (number_literal)))
+              (number_literal))))
+        (declaration
+          type: (template_type
+            name: (type_identifier)
+            arguments: (template_argument_list
+              (parameter_pack_expansion
+                pattern: (conditional_expression
+                  condition: (identifier)
+                  consequence: (number_literal)
+                  alternative: (number_literal)))))
+          declarator: (identifier))))))
+
+================================================================================
+The operand of a delete expression is a cast expression
+================================================================================
+
+void f() {
+  delete p + 1;
+  delete[] p * 2;
+  ::delete p << 1;
+  delete s->*m;
+  delete p ? p : p;
+  delete p, q;
+  delete *pp++;
+  delete (T *)p;
+  delete[] (char *)p;
+  delete p->q;
+  delete a[i];
+}
+
+--------------------------------------------------------------------------------
+
+(translation_unit
+  (function_definition
+    type: (primitive_type)
+    declarator: (function_declarator
+      declarator: (identifier)
+      parameters: (parameter_list))
+    body: (compound_statement
+      (expression_statement
+        (binary_expression
+          left: (delete_expression
+            (identifier))
+          right: (number_literal)))
+      (expression_statement
+        (binary_expression
+          left: (delete_expression
+            (identifier))
+          right: (number_literal)))
+      (expression_statement
+        (binary_expression
+          left: (delete_expression
+            (identifier))
+          right: (number_literal)))
+      (expression_statement
+        (field_expression
+          argument: (delete_expression
+            (identifier))
+          field: (identifier)))
+      (expression_statement
+        (conditional_expression
+          condition: (delete_expression
+            (identifier))
+          consequence: (identifier)
+          alternative: (identifier)))
+      (expression_statement
+        (comma_expression
+          left: (delete_expression
+            (identifier))
+          right: (identifier)))
+      (expression_statement
+        (delete_expression
+          (pointer_expression
+            argument: (update_expression
+              argument: (identifier)))))
+      (expression_statement
+        (delete_expression
+          (cast_expression
+            type: (type_descriptor
+              type: (type_identifier)
+              declarator: (abstract_pointer_declarator))
+            value: (identifier))))
+      (expression_statement
+        (delete_expression
+          (cast_expression
+            type: (type_descriptor
+              type: (primitive_type)
+              declarator: (abstract_pointer_declarator))
+            value: (identifier))))
+      (expression_statement
+        (delete_expression
+          (field_expression
+            argument: (identifier)
+            field: (field_identifier))))
+      (expression_statement
+        (delete_expression
+          (subscript_expression
+            argument: (identifier)
+            indices: (subscript_argument_list
+              (identifier))))))))
+
+================================================================================
+A declaration with a pointer to a function before a top-level assignment
+================================================================================
+
+IP *(*IP::_create)() = nullptr;
+TGLManager *(*gPtr2GLManager)() = nullptr;
+++x = 1;
+x->y += 2;
+x = y = z;
+
+--------------------------------------------------------------------------------
+
+(translation_unit
+  (declaration
+    type: (type_identifier)
+    declarator: (init_declarator
+      declarator: (pointer_declarator
+        declarator: (function_declarator
+          declarator: (parenthesized_declarator
+            (pointer_declarator
+              declarator: (qualified_identifier
+                scope: (namespace_identifier)
+                name: (identifier))))
+          parameters: (parameter_list)))
+      value: (null)))
+  (declaration
+    type: (type_identifier)
+    declarator: (init_declarator
+      declarator: (pointer_declarator
+        declarator: (function_declarator
+          declarator: (parenthesized_declarator
+            (pointer_declarator
+              declarator: (identifier)))
+          parameters: (parameter_list)))
+      value: (null)))
+  (expression_statement
+    (assignment_expression
+      left: (update_expression
+        argument: (identifier))
+      right: (number_literal)))
+  (expression_statement
+    (assignment_expression
+      left: (field_expression
+        argument: (identifier)
+        field: (field_identifier))
+      right: (number_literal)))
+  (expression_statement
+    (assignment_expression
+      left: (identifier)
+      right: (assignment_expression
+        left: (identifier)
+        right: (identifier)))))

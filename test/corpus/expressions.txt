@@ -210,6 +210,105 @@ int main() {
             (identifier)))))))
 
 ================================================================================
+Class and enumeration specifiers in a new expression
+================================================================================
+
+struct A { int a; };
+union U { int a; };
+enum E { e };
+template <class T> struct B { T t; };
+void f() {
+  (void) new struct A {};
+  (void) new enum E { e };
+  (void) new struct B<int>{};
+  (void) new union U;
+  (void) new struct A *[3];
+}
+
+--------------------------------------------------------------------------------
+
+(translation_unit
+  (struct_specifier
+    name: (type_identifier)
+    body: (field_declaration_list
+      (field_declaration
+        type: (primitive_type)
+        declarator: (field_identifier))))
+  (union_specifier
+    name: (type_identifier)
+    body: (field_declaration_list
+      (field_declaration
+        type: (primitive_type)
+        declarator: (field_identifier))))
+  (enum_specifier
+    name: (type_identifier)
+    body: (enumerator_list
+      (enumerator
+        name: (identifier))))
+  (template_declaration
+    parameters: (template_parameter_list
+      (type_parameter_declaration
+        (type_identifier)))
+    (struct_specifier
+      name: (type_identifier)
+      body: (field_declaration_list
+        (field_declaration
+          type: (type_identifier)
+          declarator: (field_identifier)))))
+  (function_definition
+    type: (primitive_type)
+    declarator: (function_declarator
+      declarator: (identifier)
+      parameters: (parameter_list))
+    body: (compound_statement
+      (expression_statement
+        (cast_expression
+          type: (type_descriptor
+            type: (primitive_type))
+          value: (new_expression
+            type: (struct_specifier
+              name: (type_identifier))
+            arguments: (initializer_list))))
+      (expression_statement
+        (cast_expression
+          type: (type_descriptor
+            type: (primitive_type))
+          value: (new_expression
+            type: (enum_specifier
+              name: (type_identifier))
+            arguments: (initializer_list
+              (identifier)))))
+      (expression_statement
+        (cast_expression
+          type: (type_descriptor
+            type: (primitive_type))
+          value: (new_expression
+            type: (struct_specifier
+              name: (template_type
+                name: (type_identifier)
+                arguments: (template_argument_list
+                  (type_descriptor
+                    type: (primitive_type)))))
+            arguments: (initializer_list))))
+      (expression_statement
+        (cast_expression
+          type: (type_descriptor
+            type: (primitive_type))
+          value: (new_expression
+            type: (union_specifier
+              name: (type_identifier)))))
+      (expression_statement
+        (cast_expression
+          type: (type_descriptor
+            type: (primitive_type))
+          value: (new_expression
+            type: (struct_specifier
+              name: (type_identifier))
+            declarator: (abstract_pointer_declarator
+              declarator: (new_declarator
+                length: (number_literal)))))))))
+
+================================================================================
 Initializer lists as arguments
 ================================================================================
 
@@ -521,33 +620,166 @@ auto f = [](int i) consteval static noexcept -> int { return i + 1; }(5);
               (identifier))))
         (compound_statement
           (throw_statement
-                (number_literal))))))
-      (declaration
-        (placeholder_type_specifier
-          (auto))
-        (init_declarator
-          (identifier)
-          (call_expression
-            (lambda_expression
-              (lambda_capture_specifier)
-              (lambda_declarator
-                (parameter_list
-                  (parameter_declaration
-                    (primitive_type)
-                    (identifier)))
-                (lambda_specifier)
-                (lambda_specifier)
-                (noexcept)
-                (trailing_return_type
-                  (type_descriptor
-                    (primitive_type))))
-              (compound_statement
-                (return_statement
-                  (binary_expression
-                    (identifier)
-                    (number_literal)))))
+            (number_literal))))))
+  (declaration
+    (placeholder_type_specifier
+      (auto))
+    (init_declarator
+      (identifier)
+      (call_expression
+        (lambda_expression
+          (lambda_capture_specifier)
+          (lambda_declarator
+            (parameter_list
+              (parameter_declaration
+                (primitive_type)
+                (identifier)))
+            (lambda_specifier)
+            (lambda_specifier)
+            (noexcept)
+            (trailing_return_type
+              (type_descriptor
+                (primitive_type))))
+          (compound_statement
+            (return_statement
+              (binary_expression
+                (identifier)
+                (number_literal)))))
+        (argument_list
+          (number_literal))))))
+
+================================================================================
+Lambdas with GNU attributes and no parameter list
+================================================================================
+
+auto a = [] __attribute__((noinline)) { return 1; };
+auto b = [] __attribute__((noinline)) mutable { return 1; };
+auto c = [] [[nodiscard]] __attribute__((cold)) static noexcept -> int { return 1; };
+auto d = [] __attribute__((noinline)) [[deprecated]] { return 1; };
+auto e = [] <class T> __attribute__((noinline)) { return sizeof(T); };
+auto f = [] mutable { return 1; };
+auto g = [](int x) __attribute__((noinline)) { return x; };
+
+--------------------------------------------------------------------------------
+
+(translation_unit
+  (declaration
+    type: (placeholder_type_specifier
+      (auto))
+    declarator: (init_declarator
+      declarator: (identifier)
+      value: (lambda_expression
+        captures: (lambda_capture_specifier)
+        declarator: (lambda_declarator
+          (attribute_specifier
             (argument_list
-              (number_literal))))))
+              (identifier))))
+        body: (compound_statement
+          (return_statement
+            (number_literal))))))
+  (declaration
+    type: (placeholder_type_specifier
+      (auto))
+    declarator: (init_declarator
+      declarator: (identifier)
+      value: (lambda_expression
+        captures: (lambda_capture_specifier)
+        declarator: (lambda_declarator
+          (attribute_specifier
+            (argument_list
+              (identifier)))
+          (lambda_specifier))
+        body: (compound_statement
+          (return_statement
+            (number_literal))))))
+  (declaration
+    type: (placeholder_type_specifier
+      (auto))
+    declarator: (init_declarator
+      declarator: (identifier)
+      value: (lambda_expression
+        captures: (lambda_capture_specifier)
+        declarator: (lambda_declarator
+          (attribute_declaration
+            (attribute
+              name: (identifier)))
+          (attribute_specifier
+            (argument_list
+              (identifier)))
+          (lambda_specifier)
+          (noexcept)
+          (trailing_return_type
+            (type_descriptor
+              type: (primitive_type))))
+        body: (compound_statement
+          (return_statement
+            (number_literal))))))
+  (declaration
+    type: (placeholder_type_specifier
+      (auto))
+    declarator: (init_declarator
+      declarator: (identifier)
+      value: (lambda_expression
+        captures: (lambda_capture_specifier)
+        declarator: (lambda_declarator
+          (attribute_specifier
+            (argument_list
+              (identifier)))
+          (attribute_declaration
+            (attribute
+              name: (identifier))))
+        body: (compound_statement
+          (return_statement
+            (number_literal))))))
+  (declaration
+    type: (placeholder_type_specifier
+      (auto))
+    declarator: (init_declarator
+      declarator: (identifier)
+      value: (lambda_expression
+        captures: (lambda_capture_specifier)
+        template_parameters: (template_parameter_list
+          (type_parameter_declaration
+            (type_identifier)))
+        declarator: (lambda_declarator
+          (attribute_specifier
+            (argument_list
+              (identifier))))
+        body: (compound_statement
+          (return_statement
+            (sizeof_expression
+              type: (type_descriptor
+                type: (type_identifier))))))))
+  (declaration
+    type: (placeholder_type_specifier
+      (auto))
+    declarator: (init_declarator
+      declarator: (identifier)
+      value: (lambda_expression
+        captures: (lambda_capture_specifier)
+        declarator: (lambda_declarator
+          (lambda_specifier))
+        body: (compound_statement
+          (return_statement
+            (number_literal))))))
+  (declaration
+    type: (placeholder_type_specifier
+      (auto))
+    declarator: (init_declarator
+      declarator: (identifier)
+      value: (lambda_expression
+        captures: (lambda_capture_specifier)
+        declarator: (lambda_declarator
+          parameters: (parameter_list
+            (parameter_declaration
+              type: (primitive_type)
+              declarator: (identifier)))
+          (attribute_specifier
+            (argument_list
+              (identifier))))
+        body: (compound_statement
+          (return_statement
+            (identifier)))))))
 
 ================================================================================
 Nested template calls
@@ -788,6 +1020,185 @@ int main() { a(), b(); }
           (call_expression
             (identifier)
             (argument_list)))))))
+
+================================================================================
+The comma operator groups left to right
+================================================================================
+
+int g() {
+  a, b, c;
+  (a = 1, b, c);
+  (a, b = 2, c);
+  for (a = 0, b = 0, c = 0; a < 1; a++, b++, c++) {}
+  if (a, b, c) {}
+  x = a ? b, c, d : e;
+  decltype(a, b, c) y = a;
+  return f(a), b, c;
+}
+
+--------------------------------------------------------------------------------
+
+(translation_unit
+  (function_definition
+    type: (primitive_type)
+    declarator: (function_declarator
+      declarator: (identifier)
+      parameters: (parameter_list))
+    body: (compound_statement
+      (expression_statement
+        (comma_expression
+          left: (comma_expression
+            left: (identifier)
+            right: (identifier))
+          right: (identifier)))
+      (expression_statement
+        (parenthesized_expression
+          (comma_expression
+            left: (comma_expression
+              left: (assignment_expression
+                left: (identifier)
+                right: (number_literal))
+              right: (identifier))
+            right: (identifier))))
+      (expression_statement
+        (parenthesized_expression
+          (comma_expression
+            left: (comma_expression
+              left: (identifier)
+              right: (assignment_expression
+                left: (identifier)
+                right: (number_literal)))
+            right: (identifier))))
+      (for_statement
+        initializer: (comma_expression
+          left: (comma_expression
+            left: (assignment_expression
+              left: (identifier)
+              right: (number_literal))
+            right: (assignment_expression
+              left: (identifier)
+              right: (number_literal)))
+          right: (assignment_expression
+            left: (identifier)
+            right: (number_literal)))
+        condition: (binary_expression
+          left: (identifier)
+          right: (number_literal))
+        update: (comma_expression
+          left: (comma_expression
+            left: (update_expression
+              argument: (identifier))
+            right: (update_expression
+              argument: (identifier)))
+          right: (update_expression
+            argument: (identifier)))
+        body: (compound_statement))
+      (if_statement
+        condition: (condition_clause
+          value: (comma_expression
+            left: (comma_expression
+              left: (identifier)
+              right: (identifier))
+            right: (identifier)))
+        consequence: (compound_statement))
+      (expression_statement
+        (assignment_expression
+          left: (identifier)
+          right: (conditional_expression
+            condition: (identifier)
+            consequence: (comma_expression
+              left: (comma_expression
+                left: (identifier)
+                right: (identifier))
+              right: (identifier))
+            alternative: (identifier))))
+      (declaration
+        type: (decltype
+          (comma_expression
+            left: (comma_expression
+              left: (identifier)
+              right: (identifier))
+            right: (identifier)))
+        declarator: (init_declarator
+          declarator: (identifier)
+          value: (identifier)))
+      (return_statement
+        (comma_expression
+          left: (comma_expression
+            left: (call_expression
+              function: (identifier)
+              arguments: (argument_list
+                (identifier)))
+            right: (identifier))
+          right: (identifier))))))
+
+================================================================================
+A postfix increment binds more tightly than a prefix keyword operator
+================================================================================
+
+Task g() {
+  b = not n--;
+  b = compl a++;
+  b = -v[i]++;
+  b = co_await it++;
+  b = x ? y++ : -n--;
+  delete p++;
+  throw x++;
+}
+
+--------------------------------------------------------------------------------
+
+(translation_unit
+  (function_definition
+    type: (type_identifier)
+    declarator: (function_declarator
+      declarator: (identifier)
+      parameters: (parameter_list))
+    body: (compound_statement
+      (expression_statement
+        (assignment_expression
+          left: (identifier)
+          right: (unary_expression
+            argument: (update_expression
+              argument: (identifier)))))
+      (expression_statement
+        (assignment_expression
+          left: (identifier)
+          right: (unary_expression
+            argument: (update_expression
+              argument: (identifier)))))
+      (expression_statement
+        (assignment_expression
+          left: (identifier)
+          right: (unary_expression
+            argument: (update_expression
+              argument: (subscript_expression
+                argument: (identifier)
+                indices: (subscript_argument_list
+                  (identifier)))))))
+      (expression_statement
+        (assignment_expression
+          left: (identifier)
+          right: (co_await_expression
+            argument: (update_expression
+              argument: (identifier)))))
+      (expression_statement
+        (assignment_expression
+          left: (identifier)
+          right: (conditional_expression
+            condition: (identifier)
+            consequence: (update_expression
+              argument: (identifier))
+            alternative: (unary_expression
+              argument: (update_expression
+                argument: (identifier))))))
+      (expression_statement
+        (delete_expression
+          (update_expression
+            argument: (identifier))))
+      (throw_statement
+        (update_expression
+          argument: (identifier))))))
 
 ================================================================================
 Nullptr
@@ -1283,6 +1694,135 @@ User-defined literals
       (literal_suffix))))
 
 ================================================================================
+A sign before a user-defined literal
+================================================================================
+
+a = -1_k;
+b = -1.5_km;
+c = +5ms;
+d = - 1_k;
+e = (-3ms);
+f = 1_k + -2_k;
+g = -0x10_u;
+h = -1'000_k;
+
+--------------------------------------------------------------------------------
+
+(translation_unit
+  (expression_statement
+    (assignment_expression
+      (identifier)
+      (unary_expression
+        (user_defined_literal
+          (number_literal)
+          (literal_suffix)))))
+  (expression_statement
+    (assignment_expression
+      (identifier)
+      (unary_expression
+        (user_defined_literal
+          (number_literal)
+          (literal_suffix)))))
+  (expression_statement
+    (assignment_expression
+      (identifier)
+      (unary_expression
+        (user_defined_literal
+          (number_literal)
+          (literal_suffix)))))
+  (expression_statement
+    (assignment_expression
+      (identifier)
+      (unary_expression
+        (user_defined_literal
+          (number_literal)
+          (literal_suffix)))))
+  (expression_statement
+    (assignment_expression
+      (identifier)
+      (parenthesized_expression
+        (unary_expression
+          (user_defined_literal
+            (number_literal)
+            (literal_suffix))))))
+  (expression_statement
+    (assignment_expression
+      (identifier)
+      (binary_expression
+        (user_defined_literal
+          (number_literal)
+          (literal_suffix))
+        (unary_expression
+          (user_defined_literal
+            (number_literal)
+            (literal_suffix))))))
+  (expression_statement
+    (assignment_expression
+      (identifier)
+      (unary_expression
+        (user_defined_literal
+          (number_literal)
+          (literal_suffix)))))
+  (expression_statement
+    (assignment_expression
+      (identifier)
+      (unary_expression
+        (user_defined_literal
+          (number_literal)
+          (literal_suffix))))))
+
+================================================================================
+A number that keeps its sign
+================================================================================
+
+a = -1;
+b = -1ull;
+c = -1.5;
+d = -1i64;
+e = x -1;
+f = -0x1.8p3;
+g = -1.0f128;
+h = -.5;
+
+--------------------------------------------------------------------------------
+
+(translation_unit
+  (expression_statement
+    (assignment_expression
+      (identifier)
+      (number_literal)))
+  (expression_statement
+    (assignment_expression
+      (identifier)
+      (number_literal)))
+  (expression_statement
+    (assignment_expression
+      (identifier)
+      (number_literal)))
+  (expression_statement
+    (assignment_expression
+      (identifier)
+      (number_literal)))
+  (expression_statement
+    (assignment_expression
+      (identifier)
+      (binary_expression
+        (identifier)
+        (number_literal))))
+  (expression_statement
+    (assignment_expression
+      (identifier)
+      (number_literal)))
+  (expression_statement
+    (assignment_expression
+      (identifier)
+      (number_literal)))
+  (expression_statement
+    (assignment_expression
+      (identifier)
+      (number_literal))))
+
+================================================================================
 Primitive types ctor
 ================================================================================
 
@@ -1723,3 +2263,50 @@ template <typename... Args> void negateValues(Args... args) {
                     (identifier)))
                 (string_literal
                   (string_content))))))))))
+
+================================================================================
+By-reference init-capture and array designator in a braced list
+================================================================================
+
+void f() {
+  auto h{[&r = v]() {}};
+  int a[2] = {[&r = v] = 1};
+}
+
+--------------------------------------------------------------------------------
+
+(translation_unit
+  (function_definition
+    type: (primitive_type)
+    declarator: (function_declarator
+      declarator: (identifier)
+      parameters: (parameter_list))
+    body: (compound_statement
+      (declaration
+        type: (placeholder_type_specifier
+          (auto))
+        declarator: (init_declarator
+          declarator: (identifier)
+          value: (initializer_list
+            (lambda_expression
+              captures: (lambda_capture_specifier
+                (lambda_capture_initializer
+                  left: (identifier)
+                  right: (identifier)))
+              declarator: (lambda_declarator
+                parameters: (parameter_list))
+              body: (compound_statement)))))
+      (declaration
+        type: (primitive_type)
+        declarator: (init_declarator
+          declarator: (array_declarator
+            declarator: (identifier)
+            size: (number_literal))
+          value: (initializer_list
+            (initializer_pair
+              designator: (subscript_designator
+                (assignment_expression
+                  left: (pointer_expression
+                    argument: (identifier))
+                  right: (identifier)))
+              value: (number_literal))))))))

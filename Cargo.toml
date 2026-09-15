@@ -29,10 +29,24 @@ path = "bindings/rust/lib.rs"
 
 [dependencies]
 tree-sitter-language = "0.1"
-tree-sitter = { version = "0.26", optional = true }
+tree-sitter = { version = "0.27", optional = true }
 
 [build-dependencies]
 cc = "1.2"
 
 [dev-dependencies]
-tree-sitter = "0.26.5"
+tree-sitter = "0.27.0"
+# Grammars with 16-bit parse tables, ABI 15 and ABI 14, for the test that the runtime in vendor/tree-sitter
+# reads them next to this grammar.
+tree-sitter-c = "=0.24.2"
+tree-sitter-typescript = "=0.23.2"
+
+[workspace]
+members = ["grammar", "xtask"]
+exclude = ["vendor"]
+
+# The tree-sitter runtime with higher GLR limits (vendor/tree-sitter/src/parser.c and stack.c). With
+# the limits of the published runtime, the parser drops the correct parse of deep template argument
+# lists.
+[patch.crates-io]
+tree-sitter = { path = "vendor/tree-sitter" }

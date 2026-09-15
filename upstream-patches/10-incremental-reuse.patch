@@ -1,0 +1,193 @@
+Subject: Give an incremental parse the tree of a fresh parse
+
+Give an incremental parse the tree of a fresh parse.
+
+The copy of the runtime of the tree-sitter-cpp fork has this repair. The fork commit is
+643c888.
+
+After an edit, the incremental tree of a text must be the same as the
+fresh tree of the text. At f0adac0, the incremental test of 23,768 edits
+of 2,971 files had 11 different trees, and the undo test had 1
+difference. The test of 43,560 edits of 1,452 snippets had 11 different
+trees. The runtime had four causes.
+
+- A fresh parse lexes the token after a node in the state after the last
+  leaf of the node. Then it reduces the node with that token as the
+  lookahead. The incremental parse pushed a reused node as one subtree,
+  and it lexed the next token in the state after the node. The token
+  kind, for example the `>` that closes a template argument list, and
+  the keyword check of `inline` were then different. The parser now
+  pushes the right spine of a reused node, until its last leaf.
+- The parser reuses a node only when the stack has one version. The
+  reductions for the node can make more versions. One version shifted
+  the full node, and the versions did not merge where a fresh parse
+  merges them. With more than one version, the parser now shifts the
+  first leaf of the node.
+- A node was fragile only when its first or last child was fragile. A
+  child in the middle can come from more than one version. The order and
+  the merges of those versions are related to the versions outside the
+  node. Each fragile child now makes its parent fragile.
+- A node with an ERROR or a MISSING node in a child in the middle was
+  reusable. Error recovery uses the stack outside the node. The parser
+  now parses such a node again.
+
+These changes apply only to a parse with an old tree. The tree hashes of
+the 329,387 corpus files and of the 7,646 compiler test files do not
+change.
+
+With AddressSanitizer and UndefinedBehaviorSanitizer, the incremental
+test of the files, the undo test, and the test of the snippets give 0
+differences. The 25 saved cases give the same trees. The unit tests in
+bindings/rust/lib.rs hold five reduced cases.
+
+The repair is not specific to a language. It has four parts that upstream can accept one at a time:
+
+- A node with an error cost is not reused as one subtree
+- A node with a fragile child becomes fragile
+- A reused node that the parser shifts goes onto the stack as the subtrees of its right spine
+- A reused node with more than one stack version breaks down to its first leaf
+
+Risk for upstream: medium, because of the size.
+
+The patch applies to the upstream tag v0.27.0, after the patches with a smaller number. The
+series compiles with `-Wall -Wextra` and no warning.
+
+The comments hold the marker "(tree-sitter-cpp fork)". Remove the marker before you send the
+patch upstream.
+
+diff -ruN a/lib/src/parser.c b/lib/src/parser.c
+--- a/lib/src/parser.c	2026-09-15 19:00:45.802261928 +0200
++++ b/lib/src/parser.c	2026-09-15 19:00:45.817490848 +0200
+@@ -811,6 +811,12 @@
+       reason = "is_missing";
+     } else if (ts_subtree_is_fragile(result)) {
+       reason = "is_fragile";
++    } else if (ts_subtree_error_cost(result) > 0) {
++      // A node is fragile only when its first or last child is fragile. A node can have an ERROR
++      // or a MISSING node in a different child. Error recovery uses the other versions and the
++      // stack below the node, and a parse with no old tree can recover differently. Parse the
++      // node again (tree-sitter-cpp fork).
++      reason = "has_error";
+     } else if (ts_parser__has_included_range_difference(
+                  self,
+                  byte_offset,
+@@ -927,6 +933,64 @@
+   );
+ }
+ 
++// Push a node of an old tree onto the stack as the subtrees of its right spine: the children
++// before the last child as subtrees, and the last child in the same way, until the last leaf.
++// `state` is the state before the node.
++//
++// A parse with no old tree lexes the token after the node in the state after the last leaf. Then
++// it reduces the spine with that token as the lookahead. The token kind, the keyword check, and
++// the reductions depend on that state and on that token. After this push, the incremental parse
++// has the same stack when it lexes the next token.
++//
++// Return false and push nothing if a child of the spine is an ERROR node, if a node of the spine
++// ends with an extra, or if the table has no state for a child. O(d * c) in the depth and the
++// child count of the node (tree-sitter-cpp fork).
++static bool ts_parser__shift_right_spine(
++  TSParser *self,
++  StackVersion version,
++  TSStateId state,
++  Subtree tree
++) {
++  Subtree node = tree;
++  while (ts_subtree_child_count(node) > 0) {
++    uint32_t count = ts_subtree_child_count(node);
++    const Subtree *children = ts_subtree_children(node);
++    if (ts_subtree_extra(children[count - 1])) return false;
++    for (uint32_t i = 0; i < count; i++) {
++      Subtree child = children[i];
++      if (ts_subtree_is_error(child)) return false;
++      if (i + 1 < count && !ts_subtree_extra(child)) {
++        state = ts_language_next_state(self->language, state, ts_subtree_symbol(child));
++        if (state == 0) return false;
++      }
++    }
++    node = children[count - 1];
++  }
++  if (ts_language_next_state(self->language, state, ts_subtree_symbol(node)) == 0) return false;
++
++  for (node = tree; ts_subtree_child_count(node) > 0;) {
++    uint32_t count = ts_subtree_child_count(node);
++    const Subtree *children = ts_subtree_children(node);
++    for (uint32_t i = 0; i < count; i++) {
++      Subtree child = children[i];
++      if (i + 1 == count && ts_subtree_child_count(child) > 0) break;
++      TSStateId previous = ts_stack_state(self->stack, version);
++      TSStateId next = ts_subtree_extra(child)
++        ? previous
++        : ts_language_next_state(self->language, previous, ts_subtree_symbol(child));
++      ts_subtree_retain(child);
++      ts_stack_push(self->stack, version, child, ts_subtree_child_count(child) > 0, next);
++    }
++    node = children[count - 1];
++  }
++
++  if (ts_subtree_has_external_tokens(tree)) {
++    ts_stack_set_last_external_token(self->stack, version, ts_subtree_last_external_token(tree));
++  }
++  ts_subtree_release(&self->tree_pool, tree);
++  return true;
++}
++
+ static void ts_parser__shift(
+   TSParser *self,
+   StackVersion version,
+@@ -1862,12 +1926,34 @@
+             LOG("shift state:%u", next_state);
+           }
+ 
++          // The parser reuses a node of the old tree only when the stack has one version. The
++          // reductions for the node can make more versions. A parse with no old tree shifts the
++          // first leaf of the node in each version, and the versions can merge after that leaf.
++          // If one version shifts the full node, the versions do not merge at the same position,
++          // and a different link or a different tree stays. Shift the first leaf
++          // (tree-sitter-cpp fork).
++          if (ts_subtree_child_count(lookahead) > 0 && ts_stack_version_count(self->stack) > 1) {
++            LOG("breakdown_lookahead_with_versions sym:%s", TREE_NAME(lookahead));
++            ts_subtree_release(&self->tree_pool, lookahead);
++            while (reusable_node_descend(&self->reusable_node)) {}
++            lookahead = reusable_node_tree(&self->reusable_node);
++            ts_subtree_retain(lookahead);
++          }
++
+           if (ts_subtree_child_count(lookahead) > 0) {
+             ts_parser__breakdown_lookahead(self, &lookahead, state, &self->reusable_node);
+             next_state = ts_language_next_state(self->language, state, ts_subtree_symbol(lookahead));
+           }
+ 
+-          ts_parser__shift(self, version, next_state, lookahead, action.shift.extra);
++          if (
++            !action.shift.extra &&
++            ts_subtree_child_count(lookahead) > 0 &&
++            ts_parser__shift_right_spine(self, version, state, lookahead)
++          ) {
++            LOG("shift_right_spine state:%u", ts_stack_state(self->stack, version));
++          } else {
++            ts_parser__shift(self, version, next_state, lookahead, action.shift.extra);
++          }
+           if (did_reuse) reusable_node_advance(&self->reusable_node);
+           return true;
+         }
+diff -ruN a/lib/src/subtree.c b/lib/src/subtree.c
+--- a/lib/src/subtree.c	2026-09-15 19:00:45.771824642 +0200
++++ b/lib/src/subtree.c	2026-09-15 19:00:45.817188259 +0200
+@@ -531,6 +531,15 @@
+       self.ptr->parse_state = TS_TREE_STATE_NONE;
+     }
+ 
++    // A child in the middle is fragile when the parser made it with more than one version. The
++    // order and the merges of those versions depend on the versions outside the node, and a
++    // different parse can select a different tree for the same text. The incremental parse then
++    // must not reuse this node as one subtree. Only the reuse of nodes reads these flags
++    // (tree-sitter-cpp fork).
++    if (ts_subtree_is_fragile(child)) {
++      self.ptr->fragile_left = self.ptr->fragile_right = true;
++    }
++
+     if (!ts_subtree_extra(child)) structural_index++;
+   }
+ 

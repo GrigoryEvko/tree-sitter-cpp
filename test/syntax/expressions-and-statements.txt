@@ -1,0 +1,218 @@
+Snippets for the expressions and the statements of C++98 to C++20, and for the GNU
+expression forms that have no keyword. Each snippet must parse with no ERROR node and no
+MISSING node.
+
+### lambda_init_captures
+auto f = [x = 1, &y = z, ...ps = std::move(args)]() mutable noexcept -> int { return 0; };
+### lambda_capture_paren_init
+int g() { if ([x(42)]{ return x; }() != 42) return 1; return 0; }
+### lambda_capture_brace_init
+auto f = [this, message2 { move(message) }](auto&) -> int { return 0; };
+### lambda_capture_pack_paren_init
+void f(Ts... args) { [ts (args ...)] { return ts; } (); }
+### lambda_capture_designator_call
+S s = { [f(1)] = 2, [k] = 3 };
+### lambda_nsdmi_decltype_call
+struct A { int i = [] { return decltype(i)(); }(); };
+### lambda_capture_this_star
+void S::f() { auto a = [=, this] {}; auto b = [=, *this] {}; auto c = [&, this]() {}; }
+### lambda_template_requires
+auto f = []<typename T>(T t) requires C<T> { return t; };
+### lambda_attributes
+auto f = [] [[nodiscard]] () { return 1; };
+### lambda_trailing_attributes
+auto f = [] () [[deprecated]] { return 1; };
+### lambda_no_parens_specifiers
+auto f = [] constexpr { return 1; };
+### lambda_decltype_auto
+auto f = [&]() noexcept(true) -> decltype(auto) { return (x); };
+### lambda_in_template_argument
+using T = decltype([] {});
+### lambda_immediately_called
+int x = [] { return 1; }();
+### coroutine_co_await_forms
+task<int> f() { co_await x; auto v = co_await g(); return co_await h(); }
+### coroutine_co_await_in_comma
+task<void> f() { (a = counter++, b = counter++, co_await s(&c), d = counter++); }
+### coroutine_co_return_braces
+task<S> f() { co_return {}; }
+### coroutine_co_return_braces_list
+task<S> f() { co_return {error_code{}, pool}; }
+### gnu_label_declarations
+void f() { __label__ a, b; __label__ c; goto a; a: b: c: { __label__ d; goto d; d:; } }
+### gnu_attribute_fallthrough_statement
+void f(int s) { switch (s) { case 1: f(0); __attribute__((fallthrough)); case 2: break; } }
+### gnu_attribute_label_before_semicolon
+void f(void) { g(); out: __attribute__((unused)); __attribute__((cleanup(c))) int x = 0; }
+### gnu_attribute_label_before_statement
+int f(void) { g(); out: __attribute__((unused)) return 0; done: __attribute__((cold)) h(); }
+### coroutine_co_yield_expression
+gen f() { auto p = co_yield x; }
+### coroutine_co_yield_member
+gen f() { (co_yield 0).j; }
+### coroutine_co_yield_paren_compare
+gen f() { if (g (5 == (co_yield 42))) {} }
+### coroutine_co_yield_braces
+gen f() { co_yield {1, 2}; }
+### coroutine_co_yield_qualified_template
+gen f() { OutputType* ptr = co_yield task<TArg>::yield_private_data(); }
+### throw_in_conditional
+int f() { return true ? m : throw 0; }
+### throw_in_conditional_statement
+void f() { x=="" ? x : throw 1; (argc+1 ? has_destructor() : throw 0); }
+### throw_in_condition
+void f() { if (y < 10 && (x ? true : throw 1)) {} }
+### throw_in_comma_return
+int f() { return throw std::runtime_error("test"), v1 + v2; }
+### throw_in_comma_paren
+void f() { (throw 0, 1 + 2); assert((throw 1, false)); }
+### throw_in_noexcept
+void f() { b = noexcept(throw 0); }
+### throw_as_argument
+void f() { g(throw 0); }
+### throw_unary_operand
+void f() { c ? throw *p : throw -1; }
+### fold_unary_binary
+auto a = (... + args); auto b = (args + ...); auto c = (0 + ... + args); auto d = (args + ... + 0);
+### fold_comma_assign
+bool f() { return ((std::get<I>(r) = std::get<I>(a).match(v[I], _m), v[I]) && ...); }
+### fold_stream
+void f() { (std::cout << ... << args); }
+### fold_right_comma
+void f() { (args , ...); (... , args); }
+### new_placement
+void f() { new (buf) T; ::new (p) T(args); new (std::nothrow) T[n]{}; }
+### new_auto
+auto p = new auto(x);
+### new_array_value_init
+auto p = new T[n]();
+### delete_forms
+void f() { delete[] p; ::delete p; delete [] q; }
+### new_placement_call_paren
+void f() { new (&union_) T(); }
+### new_multi_dimension
+auto p = new int[n][4][5];
+### new_template_type
+auto p = new std::vector<int>(3);
+### new_typename
+auto p = new typename T::type;
+### new_pointer_array
+void f() { a = new const char *[2]; b = new int*[n]; c = new bool* [my_num_threads]; }
+### new_const_type
+void f() { const A* p = new const A[2]; }
+### new_void_pointer
+void f() { p = new void *; }
+### new_parenthesized_type
+void f() { p = new (int*); q = new(int(*[2])); }
+### new_placement_and_parenthesized_type
+void f() { p = new (buf) (int); }
+### new_empty_array_bound
+S::S() : Floats(Floats ? new APFloat[]{} : nullptr) {}
+### new_qualified_pointer_array
+S::S() : stages(new detail::guard_task*[n]) {}
+### delete_cast
+void f() { delete[] (char*)buffers[i]; delete[](char *)&*p; delete [] (temp); delete (void*)q; }
+### cast_c_style
+int x = (int)y; long l = (long long)x; char* p = (char*)q; void g() { (void)0; }
+### cast_paren_minus
+int x = (a) - b; int y = (a) * b; int z = (a) & b;
+### cast_compound_literal
+auto s = (S){1, 2};
+### cast_named_nested_templates
+auto v = static_cast<std::vector<std::pair<int, int>>>(x);
+### cast_functional_long
+auto x = long(y) + short(z) + signed(w);
+### cast_functional_sized
+void f() { if (unsigned(Elt) >= SrcNumElts*2) {} switch (unsigned(Kind)) {} if (unsigned(-1) == Value) {} }
+### cast_functional_sized_braces
+auto x = unsigned{y} + long{z};
+### cast_functional_sized_declaration
+void f() { long (*fp)(int) = g; unsigned long (*gp)(void) = h; }
+### noexcept_operator
+bool b = noexcept(f()); void g() noexcept(noexcept(h())) {}
+### cast_functional_braces
+auto x = T{1}; auto y = int{2};
+### cast_functional_decltype
+void f() { decltype(foo())(); auto d = decltype(i){}; }
+### typeid_forms
+void f(A* x) { typeid(x); typeid(int); typeid(false, *x); }
+### sizeof_forms
+auto a = sizeof x; auto b = sizeof(int); auto c = sizeof...(Ts); auto d = alignof(T); auto e = noexcept(f());
+### comma_in_condition
+void f() { if (a && (b = f(), !b.x)) {} while (!s.at_end() && (ch = *s, ch >= '0')) {} }
+### comma_in_initializer
+void f() { A c = (bar (2), foo (k, 2)); }
+### comma_assign_first
+void f() { pc = (ps->data[0]='A', ps->data); }
+### comma_compound_assign_first
+void f() { x = (n += 2, n * 3); }
+### comma_for_header
+void f() { for (i = 0, j = 1; i < n; ++i, --j) {} }
+### comma_subscript
+void f() { a[(i, j)] = 1; }
+### member_template
+void f() { x.template f<int>(); p->template g<T>(); }
+### pseudo_destructor
+void f() { p->~T(); x.T::~T(); x.~T(); }
+### pseudo_destructor_template
+void f() { iter_->~Base<Slice>(); ptr->~shared_data<T>(); }
+### destructor_declarations_stay
+struct S { ~S(); virtual ~S() = default; }; S::~S() {} void g() { x.~S(); }
+### member_conversion_function
+void f() { return this->operator bool(); x = p.operator Dictionary(); v6.operator t1<float> *(); }
+### member_conversion_function_qualified
+void f() { x.A::operator int(); s = p->operator const char *(); r = q.operator T&(); }
+### member_pointer_access
+void f() { p->*pm; (p->*pmf)(args); x.*pm; s->*(&S::a); }
+### member_pointer_after_paren
+void f() { (cond ? get (v_ko) : get (v_ko)).*(&Foo::x) = 2; }
+### member_pointer_address_operand
+bool b = A(5).*&A::n == 5; void f() { (_1 ->* &my_struct::mem)(y); }
+### three_way
+auto r = a <=> b;
+### gnu_statement_expression
+int x = ({ int y = 1; y; });
+### gnu_elvis
+int x = a ?: b;
+### gnu_designated_initializers
+S s = { .x = 1, .a.b = 1, [0] = 1, [0 ... 3] = 1, x: 1 };
+### gnu_label_address
+void f() { void *t[] = { &&a, &&b }; goto *t[0]; a: ; b: ; }
+### statement_if_init
+void f() { if (int x = f(); x > 0) {} switch (auto v = g(); v) {} }
+### statement_range_for_init
+void f() { for (auto v = get(); auto& x : v) {} }
+### statement_range_for_bindings
+void f() { for (auto [a, b] : m) {} for (const auto& [k, v] : m) {} }
+### statement_case_range
+void f() { switch (c) { case 'a' ... 'z': break; case 1 ... 5: break; } }
+### statement_label_declaration
+void f() { lbl: int x = 1; }
+### statement_label_end_of_block
+void f() { { lbl: } }
+### statement_try_catch
+void f() { try {} catch (...) {} try {} catch (const std::exception& e) {} catch (int) {} catch (std::exception&) {} }
+### statement_do_while
+void f() { do x++; while (x < 10); do {} while (0); }
+### statement_empty
+void f() { ;; if (x) ; else ; }
+### statement_else_if
+void f() { if (a) {} else if (b) {} else if (c) g(); else {} }
+### statement_while_declaration
+void f() { while (auto p = next()) {} if (A* a = dynamic_cast<A*>(b)) {} if (T x{1}) {} }
+### statement_declaration_substatements
+void f() { if (c) int x = 1; else static_assert(false, "m"); while (c) int y{2}; do int w; while (0); for (;;) using T = int; }
+### statement_declaration_substatements_templates
+void g() { if (c) Ref<Shape> s = new S; if (c) auto [a, b] = p; for (auto v : r) extern int x; }
+### statement_label_block_declarations
+void f() { a: typedef int T; b: using U = int; c: static_assert(true); d: struct L {}; e: namespace A = N; g: using namespace N; }
+### new_elaborated_struct
+void f() { (void) new struct S {}; }
+### new_elaborated_enum
+void f() { (void) new enum E { e }; }
+### new_elaborated_template
+void f() { (void) new struct B<int>{}; }
+### new_elaborated_conditional
+void f() { struct A *c = (1 == 1) ? new struct A {} : new struct A {}; }
+### new_elaborated_pointer_array
+void f() { (void) new struct S *[3]; }

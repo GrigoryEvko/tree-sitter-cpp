@@ -1,0 +1,156 @@
+### cxx23_if_not_consteval
+constexpr bool f() { if not consteval { return true; } else { return false; } }
+### cxx26_splice_template_call
+static_assert (template [:foo1:] (1, 1.0f) == 42);
+### cxx26_splice_template_member_call
+void f(S s, S *pc) { s.template [: ^^S::tfn :](42); pc->template [:f1:](42); }
+### cxx26_splice_template_address
+void (C::*p1)(int) = &template [:f1:];
+### cxx26_oxford_comma
+void d(auto......); void f(auto x...); void h(auto... x...); void n(int x...); void g(int = {}...);
+### cxx26_oxford_comma_template
+template <class... Ts> void j(Ts... t...) {}
+### cxx26_oxford_comma_this
+struct S { void p(this S...) {} };
+### cxx26_pack_index_base
+template <class... T> struct S : T...[1] { S() : T...[1]() { } };
+### cxx26_splice_base_typename
+struct C : typename [: ^^A :] {}; struct G : public typename [: ^^A :] {};
+### cxx26_splice_member_initializer
+struct B : A { B () : typename [: x :] () {} }; struct C : A { C () : [: x :] () {} };
+### cxx26_pack_index_braced_temporary
+template <class... T> void f() { auto _ = l.template operator()<T...[0]{}>({0}); }
+### cxx26_pack_index_assignment
+template <typename T> int big_test() { auto &[...an] = a; an...[0] = 5; }
+### cxx26_variadic_friend_fundamental
+class A { friend int, long, char; };
+### cxx26_annotation_namespace
+namespace [[=1, =2U]] [[=3L, =4.0]] N {}
+### cxx23_auto_cast_decltype
+void f1 (decltype(auto(0))); void f2 (decltype(auto{0})); void f5 (decltype(auto(0)) = auto(42));
+### cxx23_auto_cast_template_default
+template<int = auto(1)> void g(); template<typename = decltype(auto(1))> void h();
+### cxx23_auto_cast_argument
+A b1(auto(a), 42); void f() { g(auto(x)); auto y = auto{x}; }
+### cxx23_auto_cast_sizeof
+void f12 (int[sizeof(auto{10})]); void f13 (int[sizeof(auto(10))]);
+### cxx26_splice_less
+static_assert ([:r:] < 43); static_assert ([:r:] < 43 > 0); static_assert ([:r:] < 86 >> 1);
+### cxx26_splice_less_member
+bool f() { return l.[:field_at<i,T>:] < r.[:field_at<i,T>:]; }
+### cxx26_splice_less_greater
+int f() { return [: R :]<42>0; }
+### cxx26_splice_less_template_argument
+S<[:r:] < 43> s1;
+### cxx26_reflect_operator_template
+auto a = ^^operator||<int>; auto b = ^^S::operator-<int>; auto c = ^^W::operator = <0>;
+### cxx26_reflect_conversion_function
+auto a = ^^S::operator int; auto b = ^^operator bool;
+### cxx26_reflect_literal_operator_template
+auto b = ^^operator ""_fm<'a'>; auto c = ^^::operator ""_fm<'a'>;
+### cxx26_reflect_template_operator
+template <class T> void f() { constexpr auto r3 = ^^T::template operator|; }
+### cxx26_contract_assert_statement
+void f(int x) { contract_assert(x > 0); contract_assert [[vendor::a]] (x); }
+### cxx26_postcondition_result_attribute
+int f() post(r [[maybe_unused]]: r > 0);
+### cxx26_splice_assignment
+void f() { [: r6 :] = 1; [: r7 :] += 2; }
+### cxx23_if_not_consteval_else
+void f() { if !consteval { g(); } else { h(); } }
+### cxx23_deducing_this
+struct S { void f(this S& self); template<class Self> void g(this Self&& self, int); void h(this auto&&, int); };
+### cxx23_deducing_this_lambda
+auto l = [](this auto&& self, int n) { return n ? self(n - 1) : 0; };
+### cxx23_deducing_this_attributes
+struct S { void f([[maybe_unused]] this S& self); void g([[maybe_unused]] [[deprecated]] this auto&&); };
+auto l = []([[maybe_unused]] this auto self) {};
+### cxx23_multidimensional_subscript
+struct S { int operator[](int, int); int& operator[](); }; void f() { a[1, 2] = 3; b[] = 1; }
+### cxx23_static_call_operator
+struct S { static int operator()(int x); static int operator[](int x); }; auto l = []() static { return 1; };
+### cxx23_assume
+void f(int x) { [[assume(x > 0)]]; }
+### cxx23_label_at_end
+void f() { goto l; l: }
+### cxx23_alias_in_init_statement
+void f() { for (using T = int; T e : v) {} if (using T = int; true) {} }
+### cxx23_size_literal_suffix
+auto a = 0uz; auto b = 1z; auto c = 2UZ; auto d = 3ZU;
+### cxx23_lambda_attributes
+auto l = [] [[nodiscard]] (int x) { return x; }; auto m = [] [[nodiscard]] { return 1; };
+### cxx23_lambda_no_parentheses
+auto a = [] mutable {}; auto b = [] constexpr {}; auto c = [] noexcept {}; auto d = [] -> int { return 1; }; auto e = [&] <auto m> { return m; };
+### cxx23_extended_float_suffix
+auto a = 1.0f16; auto b = 1.0f32; auto c = 1.0F64; auto d = 1.0f128; auto e = 1.0bf16;
+### cxx23_delimited_escapes
+auto s = "\x{41}\o{101}\u{1F600}\N{LATIN CAPITAL LETTER A}";
+### cxx26_delete_reason
+void f() = delete("use g"); struct S { S(int) = delete("no"); };
+### cxx26_placeholder_variable
+void f() { auto _ = g(); auto [_, _] = p; auto l = [_ = 1] {}; }
+### cxx26_pack_index_type
+template <class... Ts> void f(Ts... args) { Ts...[0] x; using T = Ts...[1]; decltype(args...[0]) y; typename Ts...[0]::type z; }
+### cxx26_structured_binding_pack
+void f() { auto [a, ...rest] = t; auto &&[...ap, aq] = a; }
+### cxx26_structured_binding_attributes
+void f() { auto [a [[maybe_unused]], b] = t; }
+### cxx26_structured_binding_condition
+void f() { if (auto [a, b] = g()) {} while (auto [a, b] = g()) {} for (; auto [a, b] = g(); ) {} }
+### cxx26_constexpr_structured_binding
+constexpr auto [a, b] = t;
+### cxx26_structured_binding_condition_initializers
+void f() { if (auto [a, b]{g()}) {} switch (auto& [a, b](g())) {} }
+### s17_structured_binding_space_between_tokens
+void f() {
+  auto /* c */ && /* d */
+    [a, b] = g();
+  auto const __attribute__((unused)) [c, d] = g();
+  auto const [[gnu::unused]] & [e, f] = g();
+  static auto &__attribute__((used))[h, i] = g();
+}
+### s17_attribute_after_auto_is_not_a_binding
+void f(P x) { auto *[[gnu::unused]] p = &x; auto [[gnu::unused]] n = 1; for (auto&& y : x) {} auto z = [n]() {}; }
+### cxx26_variadic_friend
+template <class... Ts> class A { friend Ts...; friend T, U; friend class E, F; };
+### cxx26_contracts_function
+int f(int x) pre(x > 0) post(r: r > 0); auto g(int x) -> int pre [[vendor::a]] (x > 0);
+### cxx26_contracts_lambda
+auto l = [](int x) pre(x > 0) post(r: r > 0) { return x; };
+### cxx26_contracts_member
+struct S { virtual void f() const & noexcept pre(x) post(y) = 0; void g() override pre(x) final; S() pre(true) = default; };
+### cxx26_concept_template_parameter
+template <template <class> concept C, template <class> auto V> void f();
+### cxx26_reflect_operands
+auto a = ^^int; auto b = ^^::; auto c = ^^std; auto d = ^^std::vector; auto e = ^^x; auto f = ^^S::m; auto g = ^^f<int>;
+### cxx26_splice_forms
+typename [:r:] x; int y = [:r:]::s; int z = template [:r:]<2>::s; namespace N = [:r:]; using namespace [:r:];
+### cxx26_annotations
+[[nodiscard, =1]] [[=2]] int f(); void g([[=1]] int x); enum class [[=1]] E { A [[=2]] };
+### cxx26_expansion_statement_forms
+void f() { template for (auto x : {a, b}) {} template for (int i = 0; constexpr auto x : r) {} template for (auto [a, b] : r) {} }
+### cxx26_static_assert_message
+static_assert(cond, std::string_view("x")); static_assert(sizeof(T) == 4, msg);
+### cxx26_static_assert_message_braced
+static_assert(true, Msg{}); static_assert(true, arr<char, 2>{'O', 'K'});
+### cxx26_static_assert_message_operator
+static_assert(false, "Literal" + string_view("test")); static_assert(true, b ? m1 : m2);
+### cxx26_static_assert_message_member
+static_assert(true, w.get()); static_assert(true, ns::M::msg); static_assert(true, "abc"_m);
+### cxx26_template_parameter_initialization
+template<S s = {1, 2}> void f();
+### cxx26_indeterminate_attribute
+void f() { int x [[indeterminate]]; }
+### cxx26_class_property_specifiers
+struct S final {}; struct T trivially_relocatable_if_eligible {}; struct U replaceable_if_eligible final : B {};
+### cxx2d_pack_index_template_name
+template <template <class> class... TT> void f() { TT...[0]<int> x; }
+template <template <class> concept... Cs, class T> requires Cs...[0]<T> void g();
+### cxx2d_defaulted_postfix_increment
+struct S { S operator++(int) = default; S operator--(int) = default; };
+### cxx2d_noexcept_compound_requirement
+template <class T> concept C = requires(T t) { { t.f() } noexcept(true) -> same_as<int>; };
+### cxx2d_contracts_virtual
+struct S { virtual void f() pre(x) post(y); };
+### cxx26_reflect_typename_splice_template_arguments
+void f() { constexpr auto r24 = ^^typename [: rc :]<int>::type; constexpr auto r = ^^[: r :] < 1; }

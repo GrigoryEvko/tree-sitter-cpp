@@ -1,0 +1,137 @@
+### attr_macro_before_declaration
+LLVM_ABI PreservedAnalyses run(Module &M, ModuleAnalysisManager &AM);
+TEST_CONSTEXPR_CXX20 void test(S s1, const S& s2) {}
+WEBVIEW_API ClassifiedUserInput classify_user_input(StringView, AppendTLD = AppendTLD::No);
+### attr_macro_between_specifiers
+constexpr EVE_FORCEINLINE T operator()(as<T> v) const { return v; }
+static _FORCE_INLINE_ bool f() { return true; }
+FOLLY_NOINLINE inline void A::add(int x) {}
+### attr_macro_after_linkage
+extern "C" LLVM_ABI LLVM_EXTERNAL_VISIBILITY void LLVMInitializeTarget() {}
+### attr_macro_lowercase
+simdjson_inline uint64_t prefix_xor(uint64_t bitmask) { return bitmask; }
+### attr_macro_before_constructor
+class A {
+  LLVM_ABI explicit Argument(Type *Ty, const Twine &Name = "");
+  DUCKDB_API virtual ~StreamWrapper();
+  LIBC_INLINE operator uint32_t() const { return 0; }
+};
+### attr_macro_in_class_head
+class LLVM_ABI formatted_raw_ostream : public raw_ostream { public: int x; };
+class WEB_API BlobURLObject final : public URL::BlobURLEntry::OpaqueObject {};
+class MOZ_STACK_CLASS JS_PUBLIC_API AutoStableStringChars final {};
+struct V8_NODISCARD IsolateWrapper { int x; };
+### attr_macro_call_in_class_head
+class TSA_CAPABILITY("SharedMutex") SharedMutex final : absl::Mutex {};
+struct EA_ALIGN(16) AlignTestVec4 { float x; };
+### attr_macro_class_without_body_is_a_declaration
+struct stat st;
+typedef struct _GBytes GBytes;
+static struct sigaction old_actions[3]{};
+### attr_macro_after_function_declarator
+struct S {
+  virtual void start() PURE;
+  const String& message() const LIFETIME_BOUND { return m_message; }
+  RegExpMacroAssembler(const RegExpMacroAssembler& other) V8_NOEXCEPT = default;
+  small_iter_allocator() TEST_NOEXCEPT {}
+  SourceLocation getLocation() const override LLVM_READONLY { return Loc; }
+  virtual ~bad_type_exception() BOOST_NOEXCEPT_OR_NOTHROW {}
+};
+### attr_macro_call_after_function_declarator
+void checkIfQueryCanceled(QueryState & state) TSA_REQUIRES(callback_mutex);
+void IncrementBy(int count) LOCKS_EXCLUDED(mu_) {}
+bool do_op_validation() const override ORT_MUST_USE_RESULT;
+### attr_macro_after_lambda_declarator
+auto f = [find_first_of](auto& st) TEST_ALIGN_BENCHMARK { return st; };
+### gnu_attr_in_lambda_with_no_parameter_list
+auto a = [] __attribute__((noinline)) { return 1; };
+auto b = [] __attribute__((noinline)) mutable { return 1; };
+auto c = [] [[nodiscard]] __attribute__((cold)) static noexcept -> int { return 1; };
+auto d = [] __attribute__((noinline)) [[deprecated]] { return 1; };
+auto e = [] <class T> __attribute__((noinline)) { return sizeof(T); };
+auto g = [] __attribute__((noinline)) -> int { return 1; };
+auto h = [] __attribute__((noinline)) noexcept { return 1; };
+### attr_macro_before_template
+HPX_CXX_CORE_EXPORT template <typename T, std::size_t N, typename Abi>
+struct vector_pack_type;
+BOOST_DECIMAL_EXPORT template <typename T> constexpr auto frexp10(T num) noexcept -> int;
+### attr_macro_after_namespace_name
+namespace std _GLIBCXX_VISIBILITY(default) {
+int x;
+}
+namespace buffer CEPH_BUFFER_API { int x; }
+### attr_before_class_without_declarator
+HPX_CXX_CORE_EXPORT class thread_mapper;
+HPX_CXX_CORE_EXPORT struct binary_filter { int x; };
+[[gnu::deprecated]] enum E { E0 };
+namespace n { [[nodiscard]] struct R { int v; }; }
+### attr_macro_before_declarator
+DWORD WINAPI wince_thread_function(LPVOID arg);
+struct S { bool NODELETE addDerivedHash(Hasher&) const; static bool NODELETE isIn(char16_t) { return true; } };
+TBB_EXPORT void __TBB_EXPORTED_FUNC spawn(d1::task& t, d1::task_group_context& ctx);
+U_CAPI void U_EXPORT2
+ucnv_cbFromUWriteBytes(UConverterFromUnicodeArgs *args, int32_t offset) {}
+extern "C" JNIEXPORT void JNICALL
+Java_org_Service_nativeInit(JNIEnv* env, jobject thiz) {}
+### attr_macro_after_pointer_or_reference
+static UStringEnumeration * U_EXPORT2 fromUEnumeration(UEnumeration* enumToAdopt, UErrorCode& status);
+TBB_EXPORT d1::task_group_context* __TBB_EXPORTED_FUNC current_context();
+struct S { static SelectorQueryCache& NODELETE singleton(); const Cell * ALWAYS_INLINE firstPopulatedCell() const { return c; } };
+### attr_macro_uppercase_declarator_stays_a_declarator
+const int MAX_SIZE = 8;
+int FLAGS(int);
+static unsigned long long COUNTER;
+### std_attr_empty_entries
+[[]] [[]];
+void Dummy() [[ , ]];
+auto a[[]] [[]]();
+### std_attr_pack_expansion
+template <class T> struct S { [[foobar(alignof(T))...]] char t; };
+### std_attr_keyword_as_name
+int j [[using, using::baz, bar::using, using::using (2)]];
+### std_attr_after_pointer_operator
+int **** [[gnu::format(printf, 1, 2)]] foo(const char *, ...);
+void f() { static_cast<float *[[gnu::unused]]>(0); }
+### std_attr_after_reference_operator
+int &[[vendor::a]] r = x;
+void f(int &[[vendor::a]] p, int &&[[vendor::a]]);
+struct W { W& [[vendor::a]] get() { return *this; } int &[[vendor::a]] m; };
+using R = int &[[vendor::a]];
+void (&[[vendor::a]] fr)() = fn;
+template <class... A> void u(A&& [[]] ... a) {}
+void g(int && [[]] a);
+### std_attr_after_member_pointer_operator
+int C::*[[vendor::a]] p = &C::i;
+void f(int C::*[[vendor::a]]);
+typedef void (C::*[[vendor::a]] F)();
+struct S { int C::*[[vendor::a]] p; int C::* __attribute__((unused)) q; };
+template <class... A> void v(int A::*[[vendor::a]]... b);
+### std_attr_after_pointer_operator_with_parenthesized_initializer
+void f() { int &[[a]] r(x); int *[[a]] p(&x); int C::*[[a]] m(&C::i); }
+### std_attr_after_structured_binding_ref_qualifier
+void f() { auto & [[gnu::used]] [i, j] = ary; for (auto && [[a]] [k, l] : v) {} }
+### std_attr_after_new_and_conversion_pointer_operator
+int **np = new int *[[a]][3];
+int *cp = v.operator int *[[a]]();
+int &cr = v.operator int &[[a]]();
+### std_attr_after_new_array_bound
+auto a = new int [n] [[gnu::deprecated]];
+### attr_macro_in_parameter
+void f(UNUSED const Font_Ptr &p, NOESCAPE Function<void()>&& g);
+### attr_macro_after_data_declarator
+class WTFSemaphore {
+  unsigned m_value WTF_GUARDED_BY_LOCK(m_lock) { 0 };
+  State m_state WTF_GUARDED_BY_LOCK(m_lock) { State::Stop };
+  ExecutionState execution_state_ TF_GUARDED_BY(execution_mutex_) =
+      ExecutionState::kIdle;
+  mutable absl::Mutex mu_;
+  std::vector<int> items_ ABSL_GUARDED_BY(mu_);
+};
+ABSL_CONST_INIT static absl::Mutex g_mu(absl::kConstInit);
+static int g_count ABSL_GUARDED_BY(g_mu) = 0;
+### attr_bracket_comment_gap
+[ /* c */ [nodiscard]] int f(); [[nodiscard] /* c */ ] int g();
+### attr_bracket_directive_gap
+[
+#pragma probe
+[deprecated]] int h();

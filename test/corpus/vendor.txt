@@ -1,0 +1,1522 @@
+================================
+Qt access specifiers
+================================
+
+class A : public QObject {
+public slots:
+  void f();
+private Q_SLOTS:
+  void g();
+signals:
+  void changed(int x);
+public:
+  int x;
+};
+
+---
+
+(translation_unit
+  (class_specifier
+    (type_identifier)
+    (base_class_clause
+      (access_specifier)
+      (type_identifier))
+    (field_declaration_list
+      (access_specifier)
+      (field_declaration
+        (primitive_type)
+        (function_declarator
+          (field_identifier)
+          (parameter_list)))
+      (access_specifier)
+      (field_declaration
+        (primitive_type)
+        (function_declarator
+          (field_identifier)
+          (parameter_list)))
+      (access_specifier)
+      (field_declaration
+        (primitive_type)
+        (function_declarator
+          (field_identifier)
+          (parameter_list
+            (parameter_declaration
+              (primitive_type)
+              (identifier)))))
+      (access_specifier)
+      (field_declaration
+        (primitive_type)
+        (field_identifier)))))
+
+================================
+Qt emit statements
+================================
+
+void A::f() {
+  emit changed(1);
+  Q_EMIT q->done();
+  emit(x);
+}
+
+---
+
+(translation_unit
+  (function_definition
+    (primitive_type)
+    (function_declarator
+      (qualified_identifier
+        (namespace_identifier)
+        (identifier))
+      (parameter_list))
+    (compound_statement
+      (qt_emit_statement
+        (call_expression
+          (identifier)
+          (argument_list
+            (number_literal))))
+      (qt_emit_statement
+        (call_expression
+          (field_expression
+            (identifier)
+            (field_identifier))
+          (argument_list)))
+      (expression_statement
+        (call_expression
+          (identifier)
+          (argument_list
+            (identifier)))))))
+
+================================
+Qt foreach and forever statements
+================================
+
+void f() {
+  foreach (const QString &s, list)
+    g(s);
+  Q_FOREACH (s, keys) {
+  }
+  forever {
+  }
+}
+
+---
+
+(translation_unit
+  (function_definition
+    (primitive_type)
+    (function_declarator
+      (identifier)
+      (parameter_list))
+    (compound_statement
+      (qt_foreach_statement
+        (type_qualifier)
+        (type_identifier)
+        (reference_declarator
+          (identifier))
+        (identifier)
+        (expression_statement
+          (call_expression
+            (identifier)
+            (argument_list
+              (identifier)))))
+      (qt_foreach_statement
+        (identifier)
+        (identifier)
+        (compound_statement))
+      (qt_forever_statement
+        (compound_statement)))))
+
+================================
+MS calling conventions in members and after a pointer
+================================
+
+struct A {
+  ULONG __stdcall AddRef();
+  int __cdecl f() { return 1; }
+};
+void* __regcall g();
+
+---
+
+(translation_unit
+  (struct_specifier
+    (type_identifier)
+    (field_declaration_list
+      (field_declaration
+        (type_identifier)
+        (ms_call_modifier)
+        (function_declarator
+          (field_identifier)
+          (parameter_list)))
+      (function_definition
+        (primitive_type)
+        (ms_call_modifier)
+        (function_declarator
+          (field_identifier)
+          (parameter_list))
+        (compound_statement
+          (return_statement
+            (number_literal))))))
+  (declaration
+    (primitive_type)
+    (pointer_declarator
+      (ms_call_modifier)
+      (function_declarator
+        (identifier)
+        (parameter_list)))))
+
+================================
+MS calling conventions after a reference, in a type-id, and in a typedef
+================================
+
+int & __cdecl r1();
+struct S { S & __thiscall operator=(const S &); };
+template <class R, class... A> struct is_function<R __stdcall(A...)> {};
+typedef long __stdcall F(long);
+typedef void __cdecl G(void), __cdecl H(int);
+
+---
+
+(translation_unit
+  (declaration
+    type: (primitive_type)
+    declarator: (reference_declarator
+      (ms_call_modifier)
+      (function_declarator
+        declarator: (identifier)
+        parameters: (parameter_list))))
+  (struct_specifier
+    name: (type_identifier)
+    body: (field_declaration_list
+      (field_declaration
+        type: (type_identifier)
+        declarator: (reference_declarator
+          (ms_call_modifier)
+          (function_declarator
+            declarator: (operator_name)
+            parameters: (parameter_list
+              (parameter_declaration
+                (type_qualifier)
+                type: (type_identifier)
+                declarator: (abstract_reference_declarator))))))))
+  (template_declaration
+    parameters: (template_parameter_list
+      (type_parameter_declaration
+        (type_identifier))
+      (variadic_type_parameter_declaration
+        (type_identifier)))
+    (struct_specifier
+      name: (template_type
+        name: (type_identifier)
+        arguments: (template_argument_list
+          (type_descriptor
+            type: (type_identifier)
+            (ms_call_modifier)
+            declarator: (abstract_function_declarator
+              parameters: (parameter_list
+                (variadic_parameter_declaration
+                  type: (type_identifier)
+                  declarator: (variadic_declarator)))))))
+      body: (field_declaration_list)))
+  (type_definition
+    type: (sized_type_specifier)
+    (ms_call_modifier)
+    declarator: (function_declarator
+      declarator: (type_identifier)
+      parameters: (parameter_list
+        (parameter_declaration
+          type: (sized_type_specifier)))))
+  (type_definition
+    type: (primitive_type)
+    (ms_call_modifier)
+    declarator: (function_declarator
+      declarator: (type_identifier)
+      parameters: (parameter_list
+        (parameter_declaration
+          type: (primitive_type))))
+    (ms_call_modifier)
+    declarator: (function_declarator
+      declarator: (type_identifier)
+      parameters: (parameter_list
+        (parameter_declaration
+          type: (primitive_type))))))
+
+================================
+MS calling conventions before a declaration and a constructor
+================================
+
+__cdecl int f2(int);
+__thiscall I::I() {}
+__thiscall I::~I() {}
+
+---
+
+(translation_unit
+  (declaration
+    (ms_call_modifier)
+    type: (primitive_type)
+    declarator: (function_declarator
+      declarator: (identifier)
+      parameters: (parameter_list
+        (parameter_declaration
+          type: (primitive_type)))))
+  (function_definition
+    (ms_call_modifier)
+    declarator: (function_declarator
+      declarator: (qualified_identifier
+        scope: (namespace_identifier)
+        name: (identifier))
+      parameters: (parameter_list))
+    body: (compound_statement))
+  (function_definition
+    (ms_call_modifier)
+    declarator: (function_declarator
+      declarator: (qualified_identifier
+        scope: (namespace_identifier)
+        name: (destructor_name
+          (identifier)))
+      parameters: (parameter_list))
+    body: (compound_statement)))
+
+================================
+GNU restrict after a type and after a reference
+================================
+
+void f(AggregateDataPtr __restrict place, size_t & __restrict pos, char * __restrict p);
+
+---
+
+(translation_unit
+  (declaration
+    (primitive_type)
+    (function_declarator
+      (identifier)
+      (parameter_list
+        (parameter_declaration
+          (type_identifier)
+          (type_qualifier)
+          (identifier))
+        (parameter_declaration
+          (primitive_type)
+          (reference_declarator
+            (type_qualifier)
+            (identifier)))
+        (parameter_declaration
+          (primitive_type)
+          (pointer_declarator
+            (ms_pointer_modifier
+              (ms_restrict_modifier))
+            (identifier)))))))
+
+================================
+GNU attributes in a type-id, after a pointer, and on a lambda
+================================
+
+using V = uint32_t __attribute__((vector_size(16)));
+void* __attribute__((weak)) f(size_t n);
+auto l = [](int i) __attribute__((noinline)) { return i; };
+
+---
+
+(translation_unit
+  (alias_declaration
+    (type_identifier)
+    (type_descriptor
+      (primitive_type)
+      (attribute_specifier
+        (argument_list
+          (call_expression
+            (identifier)
+            (argument_list
+              (number_literal)))))))
+  (declaration
+    (primitive_type)
+    (pointer_declarator
+      (attribute_specifier
+        (argument_list
+          (identifier)))
+      (function_declarator
+        (identifier)
+        (parameter_list
+          (parameter_declaration
+            (primitive_type)
+            (identifier))))))
+  (declaration
+    (placeholder_type_specifier
+      (auto))
+    (init_declarator
+      (identifier)
+      (lambda_expression
+        (lambda_capture_specifier)
+        (lambda_declarator
+          (parameter_list
+            (parameter_declaration
+              (primitive_type)
+              (identifier)))
+          (attribute_specifier
+            (argument_list
+              (identifier))))
+        (compound_statement
+          (return_statement
+            (identifier)))))))
+
+================================
+Clang block pointers and block literals
+================================
+
+typedef void (^callback_t)(int);
+void f(void (^)(void));
+void g() {
+  run(^(int x) { use(x); }, ^{ });
+}
+
+---
+
+(translation_unit
+  (type_definition
+    (primitive_type)
+    (function_declarator
+      (parenthesized_declarator
+        (block_pointer_declarator
+          (type_identifier)))
+      (parameter_list
+        (parameter_declaration
+          (primitive_type)))))
+  (declaration
+    (primitive_type)
+    (function_declarator
+      (identifier)
+      (parameter_list
+        (parameter_declaration
+          (primitive_type)
+          (abstract_function_declarator
+            (abstract_parenthesized_declarator
+              (abstract_block_pointer_declarator))
+            (parameter_list
+              (parameter_declaration
+                (primitive_type))))))))
+  (function_definition
+    (primitive_type)
+    (function_declarator
+      (identifier)
+      (parameter_list))
+    (compound_statement
+      (expression_statement
+        (call_expression
+          (identifier)
+          (argument_list
+            (block_literal
+              (parameter_list
+                (parameter_declaration
+                  (primitive_type)
+                  (identifier)))
+              (compound_statement
+                (expression_statement
+                  (call_expression
+                    (identifier)
+                    (argument_list
+                      (identifier))))))
+            (block_literal
+              (compound_statement))))))))
+
+================================
+CUDA function specifiers and kernel calls
+================================
+
+__host__ __device__ int f(int x);
+void g() {
+  kernel<<<grid, block>>>(a);
+}
+
+---
+
+(translation_unit
+  (declaration
+    (primitive_type)
+    (function_declarator
+      (identifier)
+      (parameter_list
+        (parameter_declaration
+          (primitive_type)
+          (identifier)))))
+  (function_definition
+    (primitive_type)
+    (function_declarator
+      (identifier)
+      (parameter_list))
+    (compound_statement
+      (expression_statement
+        (call_expression
+          (identifier)
+          (cuda_execution_configuration
+            (identifier)
+            (identifier))
+          (argument_list
+            (identifier)))))))
+
+================================
+MS declspec with arguments and more than one specifier
+================================
+
+struct __declspec(align(16)) D {};
+__declspec(dllexport noinline) void f();
+
+---
+
+(translation_unit
+  (struct_specifier
+    (ms_declspec_modifier
+      (identifier)
+      (argument_list
+        (number_literal)))
+    (type_identifier)
+    (field_declaration_list))
+  (declaration
+    (ms_declspec_modifier
+      (identifier)
+      (identifier))
+    (primitive_type)
+    (function_declarator
+      (identifier)
+      (parameter_list))))
+
+================================
+MS declspec in a typedef, a type-id, and an enumeration head
+================================
+
+typedef __declspec(align(16)) struct { int x; } S16;
+typedef int __declspec(dllexport) T;
+typedef struct __declspec(dllexport) R {} U;
+using A = __declspec(align(16)) const S;
+int i = (__declspec(align(16)) int)12;
+enum __declspec(deprecated) E1 { A1 };
+enum class __declspec(deprecated) E2 : int { A2 };
+enum struct __declspec(deprecated) E3;
+__declspec(deprecated) enum class E4 { A4 };
+
+---
+
+(translation_unit
+  (type_definition
+    (ms_declspec_modifier
+      (identifier)
+      (argument_list
+        (number_literal)))
+    type: (struct_specifier
+      body: (field_declaration_list
+        (field_declaration
+          type: (primitive_type)
+          declarator: (field_identifier))))
+    declarator: (type_identifier))
+  (type_definition
+    type: (primitive_type)
+    (ms_declspec_modifier
+      (identifier))
+    declarator: (type_identifier))
+  (type_definition
+    type: (struct_specifier
+      (ms_declspec_modifier
+        (identifier))
+      name: (type_identifier)
+      body: (field_declaration_list))
+    declarator: (type_identifier))
+  (alias_declaration
+    name: (type_identifier)
+    type: (type_descriptor
+      (ms_declspec_modifier
+        (identifier)
+        (argument_list
+          (number_literal)))
+      (type_qualifier)
+      type: (type_identifier)))
+  (declaration
+    type: (primitive_type)
+    declarator: (init_declarator
+      declarator: (identifier)
+      value: (cast_expression
+        type: (type_descriptor
+          (ms_declspec_modifier
+            (identifier)
+            (argument_list
+              (number_literal)))
+          type: (primitive_type))
+        value: (number_literal))))
+  (enum_specifier
+    (ms_declspec_modifier
+      (identifier))
+    name: (type_identifier)
+    body: (enumerator_list
+      (enumerator
+        name: (identifier))))
+  (enum_specifier
+    (ms_declspec_modifier
+      (identifier))
+    name: (type_identifier)
+    base: (primitive_type)
+    body: (enumerator_list
+      (enumerator
+        name: (identifier))))
+  (enum_specifier
+    (ms_declspec_modifier
+      (identifier))
+    name: (type_identifier))
+  (declaration
+    (ms_declspec_modifier
+      (identifier))
+    type: (enum_specifier
+      name: (type_identifier)
+      body: (enumerator_list
+        (enumerator
+          name: (identifier))))))
+
+================================
+MS interface class key
+================================
+
+__interface IFoo { void f(); int g(int); };
+__interface __declspec(uuid("00000000-0000-0000-C000-000000000046")) I2 : public IFoo {};
+__interface I3;
+template <class T> __interface I4 { void f(T); };
+void use(__interface IFoo *p);
+struct S { friend __interface I3; };
+int interface = 1;
+
+---
+
+(translation_unit
+  (interface_specifier
+    name: (type_identifier)
+    body: (field_declaration_list
+      (field_declaration
+        type: (primitive_type)
+        declarator: (function_declarator
+          declarator: (field_identifier)
+          parameters: (parameter_list)))
+      (field_declaration
+        type: (primitive_type)
+        declarator: (function_declarator
+          declarator: (field_identifier)
+          parameters: (parameter_list
+            (parameter_declaration
+              type: (primitive_type)))))))
+  (interface_specifier
+    (ms_declspec_modifier
+      (identifier)
+      (argument_list
+        (string_literal
+          (string_content))))
+    name: (type_identifier)
+    (base_class_clause
+      (access_specifier)
+      (type_identifier))
+    body: (field_declaration_list))
+  (interface_specifier
+    name: (type_identifier))
+  (template_declaration
+    parameters: (template_parameter_list
+      (type_parameter_declaration
+        (type_identifier)))
+    (interface_specifier
+      name: (type_identifier)
+      body: (field_declaration_list
+        (field_declaration
+          type: (primitive_type)
+          declarator: (function_declarator
+            declarator: (field_identifier)
+            parameters: (parameter_list
+              (parameter_declaration
+                type: (type_identifier))))))))
+  (declaration
+    type: (primitive_type)
+    declarator: (function_declarator
+      declarator: (identifier)
+      parameters: (parameter_list
+        (parameter_declaration
+          type: (interface_specifier
+            name: (type_identifier))
+          declarator: (pointer_declarator
+            declarator: (identifier))))))
+  (struct_specifier
+    name: (type_identifier)
+    body: (field_declaration_list
+      (friend_declaration
+        (type_identifier))))
+  (declaration
+    type: (primitive_type)
+    declarator: (init_declarator
+      declarator: (identifier)
+      value: (number_literal))))
+
+================================
+MS if_exists and if_not_exists blocks
+================================
+
+__if_exists(A::x) { int y1; }
+__if_not_exists(A::z) { int y2; }
+namespace N { __if_exists(::y1) { void g(); } }
+template <int N> struct B {
+  __if_exists(counter<N + 1>) {
+    __if_not_exists(A::y) { int m; }
+  public:
+    typedef int type;
+  }
+};
+void f() {
+  __if_exists(A::x) { int z = 0; (void)z; }
+  __if_not_exists(A::operator int) { f(); }
+}
+
+---
+
+(translation_unit
+  (ms_if_exists
+    name: (qualified_identifier
+      scope: (namespace_identifier)
+      name: (identifier))
+    (declaration
+      type: (primitive_type)
+      declarator: (identifier)))
+  (ms_if_exists
+    name: (qualified_identifier
+      scope: (namespace_identifier)
+      name: (identifier))
+    (declaration
+      type: (primitive_type)
+      declarator: (identifier)))
+  (namespace_definition
+    name: (namespace_identifier)
+    body: (declaration_list
+      (ms_if_exists
+        name: (qualified_identifier
+          name: (identifier))
+        (declaration
+          type: (primitive_type)
+          declarator: (function_declarator
+            declarator: (identifier)
+            parameters: (parameter_list))))))
+  (template_declaration
+    parameters: (template_parameter_list
+      (parameter_declaration
+        type: (primitive_type)
+        declarator: (identifier)))
+    (struct_specifier
+      name: (type_identifier)
+      body: (field_declaration_list
+        (ms_if_exists
+          name: (template_function
+            name: (identifier)
+            arguments: (template_argument_list
+              (binary_expression
+                left: (identifier)
+                right: (number_literal))))
+          (ms_if_exists
+            name: (qualified_identifier
+              scope: (namespace_identifier)
+              name: (identifier))
+            (field_declaration
+              type: (primitive_type)
+              declarator: (field_identifier)))
+          (access_specifier)
+          (type_definition
+            type: (primitive_type)
+            declarator: (type_identifier))))))
+  (function_definition
+    type: (primitive_type)
+    declarator: (function_declarator
+      declarator: (identifier)
+      parameters: (parameter_list))
+    body: (compound_statement
+      (ms_if_exists
+        name: (qualified_identifier
+          scope: (namespace_identifier)
+          name: (identifier))
+        (declaration
+          type: (primitive_type)
+          declarator: (init_declarator
+            declarator: (identifier)
+            value: (number_literal)))
+        (expression_statement
+          (cast_expression
+            type: (type_descriptor
+              type: (primitive_type))
+            value: (identifier))))
+      (ms_if_exists
+        name: (qualified_identifier
+          scope: (namespace_identifier)
+          name: (operator_cast
+            type: (primitive_type)))
+        (expression_statement
+          (call_expression
+            function: (identifier)
+            arguments: (argument_list)))))))
+
+================================
+Built-ins with a type argument or a member designator
+================================
+
+int f(va_list ap) {
+  if (__builtin_available(android 26, *)) {}
+  return va_arg(ap, int) + offsetof(S, a.b[1]);
+}
+
+---
+
+(translation_unit
+  (function_definition
+    (primitive_type)
+    (function_declarator
+      (identifier)
+      (parameter_list
+        (parameter_declaration
+          (type_identifier)
+          (identifier))))
+    (compound_statement
+      (if_statement
+        (condition_clause
+          (availability_check_expression
+            (identifier)
+            (number_literal)))
+        (compound_statement))
+      (return_statement
+        (binary_expression
+          (va_arg_expression
+            (identifier)
+            (type_descriptor
+              (primitive_type)))
+          (offsetof_expression
+            (type_descriptor
+              (type_identifier))
+            (field_identifier)
+            (field_designator
+              (field_identifier))
+            (subscript_designator
+              (number_literal))))))))
+
+================================
+GCC and Clang type traits
+================================
+
+bool b = __is_same(int, T) && !__is_constructible(T, Args...);
+
+---
+
+(translation_unit
+  (declaration
+    (primitive_type)
+    (init_declarator
+      (identifier)
+      (binary_expression
+        (type_trait_expression
+          (identifier)
+          (type_descriptor
+            (primitive_type))
+          (type_descriptor
+            (type_identifier)))
+        (unary_expression
+          (type_trait_expression
+            (identifier)
+            (type_descriptor
+              (type_identifier))
+            (parameter_pack_expansion
+              (type_descriptor
+                (type_identifier)))))))))
+
+================================
+GCC and Clang type traits that give a type
+================================
+
+using X = __underlying_type(E);
+__remove_cv(const int) v;
+S<__add_pointer(T)> s;
+void f(__decay(T) p);
+struct C { __remove_reference(T) m; };
+auto g() -> __remove_cvref(T);
+static_assert(__is_same(__underlying_type(E), int));
+template <class T> using Bs = L<__bases(T)...>;
+using Y = __type_pack_element<0, int, char>;
+using Z = __make_signed<T>;
+
+---
+
+(translation_unit
+  (alias_declaration
+    (type_identifier)
+    (type_descriptor
+      (type_trait_specifier
+        (identifier)
+        (type_descriptor
+          (type_identifier)))))
+  (declaration
+    (type_trait_specifier
+      (identifier)
+      (type_descriptor
+        (type_qualifier)
+        (primitive_type)))
+    (identifier))
+  (declaration
+    (template_type
+      (type_identifier)
+      (template_argument_list
+        (type_descriptor
+          (type_trait_specifier
+            (identifier)
+            (type_descriptor
+              (type_identifier))))))
+    (identifier))
+  (declaration
+    (primitive_type)
+    (function_declarator
+      (identifier)
+      (parameter_list
+        (parameter_declaration
+          (type_trait_specifier
+            (identifier)
+            (type_descriptor
+              (type_identifier)))
+          (identifier)))))
+  (struct_specifier
+    (type_identifier)
+    (field_declaration_list
+      (field_declaration
+        (type_trait_specifier
+          (identifier)
+          (type_descriptor
+            (type_identifier)))
+        (field_identifier))))
+  (declaration
+    (placeholder_type_specifier
+      (auto))
+    (function_declarator
+      (identifier)
+      (parameter_list)
+      (trailing_return_type
+        (type_descriptor
+          (type_trait_specifier
+            (identifier)
+            (type_descriptor
+              (type_identifier)))))))
+  (static_assert_declaration
+    (type_trait_expression
+      (identifier)
+      (type_descriptor
+        (type_trait_specifier
+          (identifier)
+          (type_descriptor
+            (type_identifier))))
+      (type_descriptor
+        (primitive_type))))
+  (template_declaration
+    (template_parameter_list
+      (type_parameter_declaration
+        (type_identifier)))
+    (alias_declaration
+      (type_identifier)
+      (type_descriptor
+        (template_type
+          (type_identifier)
+          (template_argument_list
+            (parameter_pack_expansion
+              (type_descriptor
+                (type_trait_specifier
+                  (identifier)
+                  (type_descriptor
+                    (type_identifier))))))))))
+  (alias_declaration
+    (type_identifier)
+    (type_descriptor
+      (template_type
+        (type_identifier)
+        (template_argument_list
+          (number_literal)
+          (type_descriptor
+            (primitive_type))
+          (type_descriptor
+            (primitive_type))))))
+  (alias_declaration
+    (type_identifier)
+    (type_descriptor
+      (template_type
+        (type_identifier)
+        (template_argument_list
+          (type_descriptor
+            (type_identifier)))))))
+
+================================
+GCC and Clang qualifier spellings
+================================
+
+void f(__const char *s, __signed__ char c, int * _Nullable_result p);
+
+---
+
+(translation_unit
+  (declaration
+    (primitive_type)
+    (function_declarator
+      (identifier)
+      (parameter_list
+        (parameter_declaration
+          (type_qualifier)
+          (primitive_type)
+          (pointer_declarator
+            (identifier)))
+        (parameter_declaration
+          (sized_type_specifier
+            (primitive_type))
+          (identifier))
+        (parameter_declaration
+          (primitive_type)
+          (pointer_declarator
+            (type_qualifier)
+            (identifier)))))))
+
+================================
+GNU alignof with an expression operand
+================================
+
+struct S { int m; } s;
+int *p;
+unsigned long a = __alignof__ s;
+unsigned long b = __alignof__(s.m);
+unsigned long c = __alignof(*p);
+unsigned long d = __alignof__(int *);
+unsigned long e = __alignof__ s.m + 1;
+unsigned long f = alignof(S);
+unsigned long g = __alignof__(locale);
+unsigned long h = __alignof__(id(s));
+
+---
+
+(translation_unit
+  (declaration
+    (struct_specifier
+      (type_identifier)
+      (field_declaration_list
+        (field_declaration
+          (primitive_type)
+          (field_identifier))))
+    (identifier))
+  (declaration
+    (primitive_type)
+    (pointer_declarator
+      (identifier)))
+  (declaration
+    (sized_type_specifier)
+    (init_declarator
+      (identifier)
+      (alignof_expression
+        (identifier))))
+  (declaration
+    (sized_type_specifier)
+    (init_declarator
+      (identifier)
+      (alignof_expression
+        (parenthesized_expression
+          (field_expression
+            (identifier)
+            (field_identifier))))))
+  (declaration
+    (sized_type_specifier)
+    (init_declarator
+      (identifier)
+      (alignof_expression
+        (parenthesized_expression
+          (pointer_expression
+            (identifier))))))
+  (declaration
+    (sized_type_specifier)
+    (init_declarator
+      (identifier)
+      (alignof_expression
+        (type_descriptor
+          (primitive_type)
+          (abstract_pointer_declarator)))))
+  (declaration
+    (sized_type_specifier)
+    (init_declarator
+      (identifier)
+      (binary_expression
+        (alignof_expression
+          (field_expression
+            (identifier)
+            (field_identifier)))
+        (number_literal))))
+  (declaration
+    (sized_type_specifier)
+    (init_declarator
+      (identifier)
+      (alignof_expression
+        (type_descriptor
+          (type_identifier)))))
+  (declaration
+    (sized_type_specifier)
+    (init_declarator
+      (identifier)
+      (alignof_expression
+        (type_descriptor
+          (type_identifier)))))
+  (declaration
+    (sized_type_specifier)
+    (init_declarator
+      (identifier)
+      (alignof_expression
+        (parenthesized_expression
+          (call_expression
+            (identifier)
+            (argument_list
+              (identifier))))))))
+
+================================
+GNU real part and imaginary part operators
+================================
+
+_Complex double z;
+double v;
+void f() {
+  __real__ z = v;
+  double a = __imag__ z * 2;
+  double *p = &__real__ z;
+  double c = __real (z);
+  double d = __imag z;
+}
+
+---
+
+(translation_unit
+  (declaration
+    (type_qualifier)
+    (primitive_type)
+    (identifier))
+  (declaration
+    (primitive_type)
+    (identifier))
+  (function_definition
+    (primitive_type)
+    (function_declarator
+      (identifier)
+      (parameter_list))
+    (compound_statement
+      (expression_statement
+        (assignment_expression
+          (unary_expression
+            (identifier))
+          (identifier)))
+      (declaration
+        (primitive_type)
+        (init_declarator
+          (identifier)
+          (binary_expression
+            (unary_expression
+              (identifier))
+            (number_literal))))
+      (declaration
+        (primitive_type)
+        (init_declarator
+          (pointer_declarator
+            (identifier))
+          (pointer_expression
+            (unary_expression
+              (identifier)))))
+      (declaration
+        (primitive_type)
+        (init_declarator
+          (identifier)
+          (unary_expression
+            (parenthesized_expression
+              (identifier)))))
+      (declaration
+        (primitive_type)
+        (init_declarator
+          (identifier)
+          (unary_expression
+            (identifier)))))))
+
+================================
+MS inline assembly block
+================================
+
+void f() {
+  __asm {
+    mov eax, 1 ; set eax }
+  }
+}
+
+---
+
+(translation_unit
+  (function_definition
+    (primitive_type)
+    (function_declarator
+      (identifier)
+      (parameter_list))
+    (compound_statement
+      (ms_asm_statement
+        (ms_asm_code)))))
+
+================================
+MS sealed and abstract
+================================
+
+class B abstract { virtual void g() sealed; };
+
+---
+
+(translation_unit
+  (class_specifier
+    (type_identifier)
+    (virtual_specifier)
+    (field_declaration_list
+      (field_declaration
+        (primitive_type)
+        (function_declarator
+          (field_identifier)
+          (parameter_list)
+          (virtual_specifier))))))
+
+================================================================================
+The GNU keyword __extension__ before a declaration
+================================================================================
+
+__extension__ template <class T> struct S { T t; };
+__extension__ extern template struct S<int>;
+__extension__ extern "C" { int f(void); }
+__extension__ namespace N { int g; }
+__extension__ namespace A = N;
+__extension__ using N::g;
+__extension__ static_assert(true, "m");
+struct C : S<int> {
+  __extension__ using S<int>::t;
+  __extension__ template <class T> void h(T) {}
+};
+
+--------------------------------------------------------------------------------
+
+(translation_unit
+  (template_declaration
+    parameters: (template_parameter_list
+      (type_parameter_declaration
+        (type_identifier)))
+    (struct_specifier
+      name: (type_identifier)
+      body: (field_declaration_list
+        (field_declaration
+          type: (type_identifier)
+          declarator: (field_identifier)))))
+  (template_instantiation
+    type: (struct_specifier
+      name: (template_type
+        name: (type_identifier)
+        arguments: (template_argument_list
+          (type_descriptor
+            type: (primitive_type))))))
+  (linkage_specification
+    value: (string_literal
+      (string_content))
+    body: (declaration_list
+      (declaration
+        type: (primitive_type)
+        declarator: (function_declarator
+          declarator: (identifier)
+          parameters: (parameter_list
+            (parameter_declaration
+              type: (primitive_type)))))))
+  (namespace_definition
+    name: (namespace_identifier)
+    body: (declaration_list
+      (declaration
+        type: (primitive_type)
+        declarator: (identifier))))
+  (namespace_alias_definition
+    name: (namespace_identifier)
+    (namespace_identifier))
+  (using_declaration
+    (qualified_identifier
+      scope: (namespace_identifier)
+      name: (identifier)))
+  (static_assert_declaration
+    condition: (true)
+    message: (string_literal
+      (string_content)))
+  (struct_specifier
+    name: (type_identifier)
+    (base_class_clause
+      (template_type
+        name: (type_identifier)
+        arguments: (template_argument_list
+          (type_descriptor
+            type: (primitive_type)))))
+    body: (field_declaration_list
+      (using_declaration
+        (qualified_identifier
+          scope: (template_type
+            name: (type_identifier)
+            arguments: (template_argument_list
+              (type_descriptor
+                type: (primitive_type))))
+          name: (identifier)))
+      (template_declaration
+        parameters: (template_parameter_list
+          (type_parameter_declaration
+            (type_identifier)))
+        (function_definition
+          type: (primitive_type)
+          declarator: (function_declarator
+            declarator: (identifier)
+            parameters: (parameter_list
+              (parameter_declaration
+                type: (type_identifier))))
+          body: (compound_statement))))))
+
+================================================================================
+The GNU keyword __extension__ before the specifiers of a declaration
+================================================================================
+
+__extension__ long long a;
+__extension__ __extension__ const int b = 1;
+__extension__ static void f() {}
+__extension__ enum E { E0 };
+struct S {
+  __extension__ int x;
+  __extension__ S();
+  __extension__ operator int();
+  __extension__ friend void g();
+  __extension__ enum F { F0 };
+};
+void h() { __extension__ __extension__ int y = 0; }
+
+--------------------------------------------------------------------------------
+
+(translation_unit
+  (declaration
+    type: (sized_type_specifier)
+    declarator: (identifier))
+  (declaration
+    (type_qualifier)
+    type: (primitive_type)
+    declarator: (init_declarator
+      declarator: (identifier)
+      value: (number_literal)))
+  (function_definition
+    (storage_class_specifier)
+    type: (primitive_type)
+    declarator: (function_declarator
+      declarator: (identifier)
+      parameters: (parameter_list))
+    body: (compound_statement))
+  (declaration
+    type: (enum_specifier
+      name: (type_identifier)
+      body: (enumerator_list
+        (enumerator
+          name: (identifier)))))
+  (struct_specifier
+    name: (type_identifier)
+    body: (field_declaration_list
+      (field_declaration
+        type: (primitive_type)
+        declarator: (field_identifier))
+      (declaration
+        declarator: (function_declarator
+          declarator: (identifier)
+          parameters: (parameter_list)))
+      (declaration
+        declarator: (operator_cast
+          type: (primitive_type)
+          declarator: (abstract_function_declarator
+            parameters: (parameter_list))))
+      (friend_declaration
+        (declaration
+          type: (primitive_type)
+          declarator: (function_declarator
+            declarator: (identifier)
+            parameters: (parameter_list))))
+      (field_declaration
+        type: (enum_specifier
+          name: (type_identifier)
+          body: (enumerator_list
+            (enumerator
+              name: (identifier)))))))
+  (function_definition
+    type: (primitive_type)
+    declarator: (function_declarator
+      declarator: (identifier)
+      parameters: (parameter_list))
+    body: (compound_statement
+      (declaration
+        type: (primitive_type)
+        declarator: (init_declarator
+          declarator: (identifier)
+          value: (number_literal))))))
+
+================================================================================
+The GNU keyword __extension__ before an empty declaration and before an export
+================================================================================
+
+__extension__ ;
+__extension__ __extension__ ;
+namespace N { __extension__ ; int x; }
+extern "C" { __extension__ ; }
+struct S { __extension__ ; int y; };
+
+--------------------------------------------------------------------------------
+
+(translation_unit
+  (namespace_definition
+    name: (namespace_identifier)
+    body: (declaration_list
+      (declaration
+        type: (primitive_type)
+        declarator: (identifier))))
+  (linkage_specification
+    value: (string_literal
+      (string_content))
+    body: (declaration_list))
+  (struct_specifier
+    name: (type_identifier)
+    body: (field_declaration_list
+      (field_declaration
+        type: (primitive_type)
+        declarator: (field_identifier)))))
+
+================================================================================
+A GNU asm label before an initializer and on a member
+================================================================================
+
+int a asm("s1") = 1;
+int b asm("s2") __attribute__((used)) = 2;
+int c asm("s3") = 3, d asm("s4") = 4;
+void f(unsigned long p) { register unsigned long r asm("rdi") = p; (void)r; }
+struct S {
+  static int x asm("s5");
+  void g() asm("s6");
+};
+
+--------------------------------------------------------------------------------
+
+(translation_unit
+  (declaration
+    type: (primitive_type)
+    declarator: (init_declarator
+      declarator: (identifier)
+      (gnu_asm_expression
+        assembly_code: (string_literal
+          (string_content)))
+      value: (number_literal)))
+  (declaration
+    type: (primitive_type)
+    declarator: (init_declarator
+      declarator: (identifier)
+      (gnu_asm_expression
+        assembly_code: (string_literal
+          (string_content)))
+      (attribute_specifier
+        (argument_list
+          (identifier)))
+      value: (number_literal)))
+  (declaration
+    type: (primitive_type)
+    declarator: (init_declarator
+      declarator: (identifier)
+      (gnu_asm_expression
+        assembly_code: (string_literal
+          (string_content)))
+      value: (number_literal))
+    declarator: (init_declarator
+      declarator: (identifier)
+      (gnu_asm_expression
+        assembly_code: (string_literal
+          (string_content)))
+      value: (number_literal)))
+  (function_definition
+    type: (primitive_type)
+    declarator: (function_declarator
+      declarator: (identifier)
+      parameters: (parameter_list
+        (parameter_declaration
+          type: (sized_type_specifier)
+          declarator: (identifier))))
+    body: (compound_statement
+      (declaration
+        (storage_class_specifier)
+        type: (sized_type_specifier)
+        declarator: (init_declarator
+          declarator: (identifier)
+          (gnu_asm_expression
+            assembly_code: (string_literal
+              (string_content)))
+          value: (identifier)))
+      (expression_statement
+        (cast_expression
+          type: (type_descriptor
+            type: (primitive_type))
+          value: (identifier)))))
+  (struct_specifier
+    name: (type_identifier)
+    body: (field_declaration_list
+      (field_declaration
+        (storage_class_specifier)
+        type: (primitive_type)
+        declarator: (field_identifier)
+        (gnu_asm_expression
+          assembly_code: (string_literal
+            (string_content))))
+      (field_declaration
+        type: (primitive_type)
+        declarator: (function_declarator
+          declarator: (field_identifier)
+          parameters: (parameter_list))
+        (gnu_asm_expression
+          assembly_code: (string_literal
+            (string_content)))))))
+
+================================================================================
+A GNU attribute before a linkage specification
+================================================================================
+
+__attribute__((weak)) extern "C" void foo() {}
+__attribute__((weak, visibility("hidden"))) extern "C" char bar;
+__attribute__((weak)) extern "C" { int baz(void); }
+
+--------------------------------------------------------------------------------
+
+(translation_unit
+  (linkage_specification
+    (attribute_specifier
+      (argument_list
+        (identifier)))
+    value: (string_literal
+      (string_content))
+    body: (function_definition
+      type: (primitive_type)
+      declarator: (function_declarator
+        declarator: (identifier)
+        parameters: (parameter_list))
+      body: (compound_statement)))
+  (linkage_specification
+    (attribute_specifier
+      (argument_list
+        (identifier)
+        (call_expression
+          function: (identifier)
+          arguments: (argument_list
+            (string_literal
+              (string_content))))))
+    value: (string_literal
+      (string_content))
+    body: (declaration
+      type: (primitive_type)
+      declarator: (identifier)))
+  (linkage_specification
+    (attribute_specifier
+      (argument_list
+        (identifier)))
+    value: (string_literal
+      (string_content))
+    body: (declaration_list
+      (declaration
+        type: (primitive_type)
+        declarator: (function_declarator
+          declarator: (identifier)
+          parameters: (parameter_list
+            (parameter_declaration
+              type: (primitive_type))))))))

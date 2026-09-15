@@ -1,0 +1,294 @@
+Subject: Give a cost to right brackets that an ERROR node does not match
+
+Give a cost to each right bracket that has no left bracket in an ERROR node.
+
+The copy of the runtime of the tree-sitter-cpp fork has this repair. The fork commit is
+ef148db.
+
+After a syntax error, GCC and Clang skip tokens, and they stop before a
+right bracket if they did not skip its left bracket
+(cp_parser_skip_to_end_of_statement in gcc/cp/parser.cc, Parser::SkipUntil
+in clang/lib/Parse/Parser.cpp). The error costs of the runtime did not
+agree. To skip a right brace cost 101. The construct of the brace then
+stayed open until the end of the file or of the include guard. There,
+error recovery put the full construct into one ERROR node.
+
+An ERROR node now records its brackets that have no match in the node.
+Each right brace with no left brace costs 10000. Each right parenthesis
+or square bracket with no left one costs 1000. The skip of a token
+includes this cost before the parser keeps the version. The products of
+ts_parser__compare_versions use 64 bits. The larger costs then do not
+overflow.
+
+On the corpus at e944ebb, the ERROR bytes go from 32.72 MB to 11.76 MB.
+The files with an ERROR over 90% of the file go from 338 to 96. No file
+without an error changes. A benchmark puts one error into each of 4,000
+files without an error. For errors that keep the brackets balanced, the
+named nodes outside the edit that change go from 22,647 to 17,141. For
+errors that add or remove a bracket, they go from 68,241 to 63,964.
+
+The repair reads the names of the token symbols to find the brackets. Upstream can reject a
+heuristic that reads token names in the runtime of each language. An alternative gives the
+bracket symbols in the language, or in a field of the parser.
+
+The patch also adds 8 bytes to `SubtreeHeapData`.
+
+Risk for upstream: high, because of the two points above.
+
+The patch applies to the upstream tag v0.27.0, after the patches with a smaller number. The
+series compiles with `-Wall -Wextra` and no warning.
+
+The comments hold the marker "(tree-sitter-cpp fork)". Remove the marker before you send the
+patch upstream.
+
+diff -ruN a/lib/src/error_costs.h b/lib/src/error_costs.h
+--- a/lib/src/error_costs.h	2026-08-30 18:49:12.000000000 +0200
++++ b/lib/src/error_costs.h	2026-09-15 19:00:45.713044138 +0200
+@@ -8,4 +8,14 @@
+ #define ERROR_COST_PER_SKIPPED_LINE 30
+ #define ERROR_COST_PER_SKIPPED_CHAR 1
+ 
++// An ERROR node has the first cost for each right brace with no left brace before it in the node.
++// It has the second cost for each right parenthesis or right square bracket with no left one.
++// After a syntax error, GCC and Clang skip tokens. They stop before a right bracket if they did
++// not skip its left bracket (cp_parser_skip_to_end_of_statement in gcc/cp/parser.cc, and
++// Parser::SkipUntil in clang/lib/Parse/Parser.cpp). An ERROR node with such a right brace keeps
++// the construct of the brace open. The error region can then continue until the end of the file
++// (tree-sitter-cpp fork).
++#define ERROR_COST_PER_UNMATCHED_BRACE 10000
++#define ERROR_COST_PER_UNMATCHED_PARENTHESIS 1000
++
+ #endif
+diff -ruN a/lib/src/parser.c b/lib/src/parser.c
+--- a/lib/src/parser.c	2026-09-15 19:00:45.697706219 +0200
++++ b/lib/src/parser.c	2026-09-15 19:00:45.713775622 +0200
+@@ -268,8 +268,10 @@
+     }
+   }
+ 
++  // The products use 64 bits. The costs of unmatched brackets make a product of 32 bits overflow
++  // in a large file (tree-sitter-cpp fork).
+   if (a.cost < b.cost) {
+-    if ((b.cost - a.cost) * (1 + a.node_count) > MAX_COST_DIFFERENCE) {
++    if ((uint64_t)(b.cost - a.cost) * (1 + (uint64_t)a.node_count) > MAX_COST_DIFFERENCE) {
+       return ErrorComparisonTakeLeft;
+     } else {
+       return ErrorComparisonPreferLeft;
+@@ -277,7 +279,7 @@
+   }
+ 
+   if (b.cost < a.cost) {
+-    if ((a.cost - b.cost) * (1 + b.node_count) > MAX_COST_DIFFERENCE) {
++    if ((uint64_t)(a.cost - b.cost) * (1 + (uint64_t)b.node_count) > MAX_COST_DIFFERENCE) {
+       return ErrorComparisonTakeRight;
+     } else {
+       return ErrorComparisonPreferRight;
+@@ -1407,10 +1409,16 @@
+   }
+ 
+   // Do not recover if the result would clearly be worse than some existing stack version.
++  // The ERROR at the top of the stack and the lookahead become one ERROR. Include the cost of the
++  // right brackets of the lookahead that this ERROR does not match (tree-sitter-cpp fork).
++  Subtree top_error = node_count_since_error > 0
++    ? ts_stack_top_subtree(self->stack, version)
++    : NULL_SUBTREE;
+   unsigned new_cost =
+     current_error_cost + ERROR_COST_PER_SKIPPED_TREE +
+     ts_subtree_total_bytes(lookahead) * ERROR_COST_PER_SKIPPED_CHAR +
+-    ts_subtree_total_size(lookahead).extent.row * ERROR_COST_PER_SKIPPED_LINE;
++    ts_subtree_total_size(lookahead).extent.row * ERROR_COST_PER_SKIPPED_LINE +
++    ts_subtree_unmatched_bracket_cost_after(top_error, lookahead, self->language);
+   if (ts_parser__better_version_exists(self, version, false, new_cost)) {
+     ts_stack_halt(self->stack, version);
+     ts_subtree_release(&self->tree_pool, lookahead);
+diff -ruN a/lib/src/stack.c b/lib/src/stack.c
+--- a/lib/src/stack.c	2026-09-15 19:00:45.697209603 +0200
++++ b/lib/src/stack.c	2026-09-15 19:00:45.713293491 +0200
+@@ -509,6 +509,17 @@
+   return head->node->node_count - head->node_count_at_last_error;
+ }
+ 
++Subtree ts_stack_top_subtree(const Stack *self, StackVersion version) {
++  const StackNode *node = array_get(&self->heads, version)->node;
++  while (node->link_count > 0) {
++    Subtree subtree = node->links[0].subtree;
++    if (!subtree.ptr) break;
++    if (!ts_subtree_extra(subtree)) return subtree;
++    node = node->links[0].node;
++  }
++  return NULL_SUBTREE;
++}
++
+ void ts_stack_push(
+   Stack *self,
+   StackVersion version,
+diff -ruN a/lib/src/stack.h b/lib/src/stack.h
+--- a/lib/src/stack.h	2026-09-15 19:00:45.697270127 +0200
++++ b/lib/src/stack.h	2026-09-15 19:00:45.713341133 +0200
+@@ -79,6 +79,11 @@
+ // since the last error was detected.
+ unsigned ts_stack_node_count_since_error(const Stack *self, StackVersion version);
+ 
++// Get the subtree at the top of the given version of the stack, below the extras at the top.
++// Get NULL_SUBTREE when there is no such subtree. For a merged stack node, use its first link
++// (tree-sitter-cpp fork).
++Subtree ts_stack_top_subtree(const Stack *self, StackVersion version);
++
+ int ts_stack_dynamic_precedence(Stack *self, StackVersion version);
+ 
+ bool ts_stack_has_advanced_since_error(const Stack *self, StackVersion version);
+diff -ruN a/lib/src/subtree.c b/lib/src/subtree.c
+--- a/lib/src/subtree.c	2026-08-30 18:49:12.000000000 +0200
++++ b/lib/src/subtree.c	2026-09-15 19:00:45.713406687 +0200
+@@ -344,6 +344,68 @@
+     ERROR_COST_PER_SKIPPED_LINE * size.extent.row;
+ }
+ 
++static inline bool ts_subtree__is_error_symbol(TSSymbol symbol) {
++  return symbol == ts_builtin_sym_error || symbol == ts_builtin_sym_error_repeat;
++}
++
++// The unmatched brackets of a subtree in an ERROR node. A token counts if its name is a bracket.
++// An ERROR node gives its own counts. Other nodes give zero (tree-sitter-cpp fork).
++static UnmatchedBrackets ts_subtree__unmatched_brackets(Subtree self, const TSLanguage *language) {
++  UnmatchedBrackets result = {0, 0, 0, 0};
++  TSSymbol symbol = ts_subtree_symbol(self);
++  if (ts_subtree_child_count(self) > 0) {
++    if (ts_subtree__is_error_symbol(symbol)) result = self.ptr->unmatched;
++    return result;
++  }
++  if (symbol >= language->token_count) return result;
++  const char *name = ts_language_symbol_name(language, symbol);
++  if (!name || name[0] == 0 || name[1] != 0) return result;
++  switch (name[0]) {
++    case '{': result.left_braces = 1; break;
++    case '}': result.right_braces = 1; break;
++    case '(': case '[': result.left_parentheses = 1; break;
++    case ')': case ']': result.right_parentheses = 1; break;
++    default: break;
++  }
++  return result;
++}
++
++static inline uint16_t ts_subtree__saturate(uint32_t count) {
++  return count > UINT16_MAX ? UINT16_MAX : (uint16_t)count;
++}
++
++// Append the unmatched brackets of a following subtree. The right brackets of `next` match the
++// left brackets of `self` first (tree-sitter-cpp fork).
++static void ts_subtree__append_unmatched(UnmatchedBrackets *self, UnmatchedBrackets next) {
++  uint16_t braces = self->left_braces < next.right_braces ? self->left_braces : next.right_braces;
++  self->left_braces = ts_subtree__saturate((uint32_t)self->left_braces - braces + next.left_braces);
++  self->right_braces = ts_subtree__saturate((uint32_t)self->right_braces + next.right_braces - braces);
++  uint16_t parentheses =
++    self->left_parentheses < next.right_parentheses ? self->left_parentheses : next.right_parentheses;
++  self->left_parentheses = ts_subtree__saturate((uint32_t)self->left_parentheses - parentheses + next.left_parentheses);
++  self->right_parentheses = ts_subtree__saturate((uint32_t)self->right_parentheses + next.right_parentheses - parentheses);
++}
++
++static inline uint32_t ts_subtree__unmatched_cost(UnmatchedBrackets unmatched) {
++  return
++    ERROR_COST_PER_UNMATCHED_BRACE * unmatched.right_braces +
++    ERROR_COST_PER_UNMATCHED_PARENTHESIS * unmatched.right_parentheses;
++}
++
++// The increase of the unmatched bracket cost of an ERROR node that also holds `tree` after its
++// children. `error` can be NULL_SUBTREE, or a subtree that is not an ERROR node. O(1)
++// (tree-sitter-cpp fork).
++uint32_t ts_subtree_unmatched_bracket_cost_after(Subtree error, Subtree tree, const TSLanguage *language) {
++  UnmatchedBrackets unmatched = {0, 0, 0, 0};
++  if (error.ptr && ts_subtree_child_count(error) > 0 && ts_subtree__is_error_symbol(ts_subtree_symbol(error))) {
++    unmatched = error.ptr->unmatched;
++  }
++  uint32_t before = ts_subtree__unmatched_cost(unmatched);
++  ts_subtree__append_unmatched(&unmatched, ts_subtree__unmatched_brackets(tree, language));
++  uint32_t after = ts_subtree__unmatched_cost(unmatched);
++  return after > before ? after - before : 0;
++}
++
+ // Assign all of the node's properties that depend on its children.
+ void ts_subtree_summarize_children(
+   MutableSubtree self,
+@@ -360,15 +422,30 @@
+   self.ptr->depends_on_column = false;
+   self.ptr->has_external_scanner_state_change = false;
+   self.ptr->dynamic_precedence = 0;
++  self.ptr->unmatched = (UnmatchedBrackets) {0, 0, 0, 0};
+ 
+   uint32_t structural_index = 0;
+   const TSSymbol *alias_sequence = ts_language_alias_sequence(language, self.ptr->production_id);
+   uint32_t lookahead_end_byte = 0;
++  bool is_error = ts_subtree__is_error_symbol(self.ptr->symbol);
++  UnmatchedBrackets unmatched = {0, 0, 0, 0};
++  uint32_t unmatched_cost_of_children = 0;
+ 
+   const Subtree *children = ts_subtree_children(self);
+   for (uint32_t i = 0; i < self.ptr->child_count; i++) {
+     Subtree child = children[i];
+ 
++    // The unmatched brackets of an ERROR child can match brackets of the other children. This
++    // node removes the bracket costs of its children, and adds the cost of the brackets that stay
++    // unmatched (tree-sitter-cpp fork).
++    if (is_error) {
++      UnmatchedBrackets child_unmatched = ts_subtree__unmatched_brackets(child, language);
++      if (ts_subtree_child_count(child) > 0) {
++        unmatched_cost_of_children += ts_subtree__unmatched_cost(child_unmatched);
++      }
++      ts_subtree__append_unmatched(&unmatched, child_unmatched);
++    }
++
+     if (
+       self.ptr->size.extent.row == 0 &&
+       ts_subtree_depends_on_column(child)
+@@ -460,6 +537,13 @@
+     self.ptr->error_cost += ts_subtree__error_extent_cost(self.ptr->size);
+   }
+ 
++  if (is_error) {
++    ts_assert(self.ptr->error_cost >= unmatched_cost_of_children);
++    self.ptr->error_cost -= unmatched_cost_of_children;
++    self.ptr->error_cost += ts_subtree__unmatched_cost(unmatched);
++    self.ptr->unmatched = unmatched;
++  }
++
+   if (self.ptr->child_count > 0) {
+     Subtree first_child = children[0];
+     Subtree last_child = children[self.ptr->child_count - 1];
+diff -ruN a/lib/src/subtree.h b/lib/src/subtree.h
+--- a/lib/src/subtree.h	2026-08-30 18:49:12.000000000 +0200
++++ b/lib/src/subtree.h	2026-09-15 19:00:45.713468102 +0200
+@@ -103,6 +103,16 @@
+ #undef SUBTREE_BITS
+ #undef SUBTREE_SIZE
+ 
++// The left and right brackets of a sequence of tokens that have no match in the sequence. Braces
++// have two counts. Parentheses and square brackets have the two other counts. A count stops at
++// UINT16_MAX (tree-sitter-cpp fork).
++typedef struct {
++  uint16_t left_braces;
++  uint16_t right_braces;
++  uint16_t left_parentheses;
++  uint16_t right_parentheses;
++} UnmatchedBrackets;
++
+ // A heap-allocated representation of a subtree.
+ //
+ // This representation is used for parent nodes, external tokens,
+@@ -143,6 +153,9 @@
+         TSSymbol symbol;
+         TSStateId parse_state;
+       } first_leaf;
++      // The brackets of an ERROR node that have no match in the node. Zero in other nodes
++      // (tree-sitter-cpp fork).
++      UnmatchedBrackets unmatched;
+     };
+ 
+     // External terminal subtrees (`child_count == 0 && has_external_tokens`)
+@@ -223,6 +236,7 @@
+ void ts_subtree_set_symbol(MutableSubtree *self, TSSymbol symbol, const TSLanguage *language);
+ void ts_subtree_compress(MutableSubtree self, unsigned count, const TSLanguage *language, MutableSubtreeArray *stack);
+ void ts_subtree_summarize_children(MutableSubtree self, const TSLanguage *language);
++uint32_t ts_subtree_unmatched_bracket_cost_after(Subtree error, Subtree tree, const TSLanguage *language);
+ Subtree ts_subtree_edit(Subtree self, const TSInputEdit *edit, SubtreePool *pool);
+ char *ts_subtree_string(Subtree self, TSSymbol alias_symbol, bool alias_is_named, const TSLanguage *language, bool include_all);
+ void ts_subtree_print_dot_graph(Subtree self, const TSLanguage *language, FILE *f);

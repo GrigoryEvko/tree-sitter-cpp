@@ -365,8 +365,8 @@ template<class T> T foo() noexcept(sizeof(T) < 4);
         (noexcept
           (binary_expression
             (sizeof_expression
-              (parenthesized_expression
-                (identifier)))
+              (type_descriptor
+                (type_identifier)))
             (number_literal)))))))
 
 ================================================================================
@@ -417,6 +417,51 @@ void foo() throw(float) { }
         (type_descriptor
           (primitive_type))))
     (compound_statement)))
+
+================================================================================
+Pack expansions in a throw specifier
+================================================================================
+
+template <class... T> void f() throw(T...);
+template <class... T> void g() throw(int, const T &..., T *...);
+
+--------------------------------------------------------------------------------
+
+(translation_unit
+  (template_declaration
+    (template_parameter_list
+      (variadic_type_parameter_declaration
+        (type_identifier)))
+    (declaration
+      (primitive_type)
+      (function_declarator
+        (identifier)
+        (parameter_list)
+        (throw_specifier
+          (parameter_pack_expansion
+            (type_descriptor
+              (type_identifier)))))))
+  (template_declaration
+    (template_parameter_list
+      (variadic_type_parameter_declaration
+        (type_identifier)))
+    (declaration
+      (primitive_type)
+      (function_declarator
+        (identifier)
+        (parameter_list)
+        (throw_specifier
+          (type_descriptor
+            (primitive_type))
+          (parameter_pack_expansion
+            (type_descriptor
+              (type_qualifier)
+              (type_identifier)
+              (abstract_reference_declarator)))
+          (parameter_pack_expansion
+            (type_descriptor
+              (type_identifier)
+              (abstract_pointer_declarator))))))))
 
 ================================================================================
 Assignment
@@ -620,6 +665,121 @@ void foo(int a) {
               (identifier))))))))
 
 ================================================================================
+Declarations of a block in a case body
+================================================================================
+
+void f(int s) {
+  switch (s) {
+  case 1:
+    using T = int;
+    static_assert(sizeof(T) == 4);
+    break;
+  default:
+    int *p(&s);
+    break;
+  }
+}
+
+--------------------------------------------------------------------------------
+
+(translation_unit
+  (function_definition
+    type: (primitive_type)
+    declarator: (function_declarator
+      declarator: (identifier)
+      parameters: (parameter_list
+        (parameter_declaration
+          type: (primitive_type)
+          declarator: (identifier))))
+    body: (compound_statement
+      (switch_statement
+        condition: (condition_clause
+          value: (identifier))
+        body: (compound_statement
+          (case_statement
+            value: (number_literal)
+            (alias_declaration
+              name: (type_identifier)
+              type: (type_descriptor
+                type: (primitive_type)))
+            (static_assert_declaration
+              condition: (binary_expression
+                left: (sizeof_expression
+                  type: (type_descriptor
+                    type: (type_identifier)))
+                right: (number_literal)))
+            (break_statement))
+          (case_statement
+            (declaration
+              type: (primitive_type)
+              declarator: (init_declarator
+                declarator: (pointer_declarator
+                  declarator: (identifier))
+                value: (argument_list
+                  (pointer_expression
+                    argument: (identifier)))))
+            (break_statement)))))))
+
+================================================================================
+Empty block at the start of a function body and a braced list in a braced list
+================================================================================
+
+void f() {
+  {}
+}
+void g() {
+#pragma omp target
+  {}
+  h({ {} });
+}
+std::vector<std::vector<int>> v{ {} };
+
+--------------------------------------------------------------------------------
+
+(translation_unit
+  (function_definition
+    type: (primitive_type)
+    declarator: (function_declarator
+      declarator: (identifier)
+      parameters: (parameter_list))
+    body: (compound_statement
+      (compound_statement)))
+  (function_definition
+    type: (primitive_type)
+    declarator: (function_declarator
+      declarator: (identifier)
+      parameters: (parameter_list))
+    body: (compound_statement
+      (preproc_call
+        directive: (preproc_directive)
+        argument: (preproc_arg))
+      (compound_statement)
+      (expression_statement
+        (call_expression
+          function: (identifier)
+          arguments: (argument_list
+            (initializer_list
+              (initializer_list)))))))
+  (declaration
+    type: (qualified_identifier
+      scope: (namespace_identifier)
+      name: (template_type
+        name: (type_identifier)
+        arguments: (template_argument_list
+          (type_descriptor
+            type: (qualified_identifier
+              scope: (namespace_identifier)
+              name: (template_type
+                name: (type_identifier)
+                arguments: (template_argument_list
+                  (type_descriptor
+                    type: (primitive_type)))))))))
+    declarator: (init_declarator
+      declarator: (identifier)
+      value: (initializer_list
+        (initializer_list)))))
+
+================================================================================
 Explicit calls to overloaded operators
 ================================================================================
 
@@ -652,3 +812,811 @@ void foo() {
             (operator_name))
           (argument_list
             (number_literal)))))))
+
+================================================================================
+Qualified name statements and declarations without declarators
+================================================================================
+
+template <int N>
+void f() {
+  A<N>::X::Y;
+  ::noop;
+  C::x;
+  int;
+  unsigned;
+  struct S;
+  enum class E : int;
+}
+
+--------------------------------------------------------------------------------
+
+(translation_unit
+  (template_declaration
+    parameters: (template_parameter_list
+      (parameter_declaration
+        type: (primitive_type)
+        declarator: (identifier)))
+    (function_definition
+      type: (primitive_type)
+      declarator: (function_declarator
+        declarator: (identifier)
+        parameters: (parameter_list))
+      body: (compound_statement
+        (expression_statement
+          (qualified_identifier
+            scope: (template_type
+              name: (type_identifier)
+              arguments: (template_argument_list
+                (type_descriptor
+                  type: (type_identifier))))
+            name: (qualified_identifier
+              scope: (namespace_identifier)
+              name: (identifier))))
+        (expression_statement
+          (qualified_identifier
+            name: (identifier)))
+        (expression_statement
+          (qualified_identifier
+            scope: (namespace_identifier)
+            name: (identifier)))
+        (primitive_type)
+        (sized_type_specifier)
+        (struct_specifier
+          name: (type_identifier))
+        (enum_specifier
+          name: (type_identifier)
+          base: (primitive_type))))))
+
+================================================================================
+Lambda with a by-reference init-capture and a labeled block as the first statement
+================================================================================
+
+void f() { [&r = v]() { r = 1; }(); }
+struct S {
+  S() {
+    [&r = v] { r = 1; }();
+  }
+};
+void g() {
+  lab: {}
+}
+
+--------------------------------------------------------------------------------
+
+(translation_unit
+  (function_definition
+    type: (primitive_type)
+    declarator: (function_declarator
+      declarator: (identifier)
+      parameters: (parameter_list))
+    body: (compound_statement
+      (expression_statement
+        (call_expression
+          function: (lambda_expression
+            captures: (lambda_capture_specifier
+              (lambda_capture_initializer
+                left: (identifier)
+                right: (identifier)))
+            declarator: (lambda_declarator
+              parameters: (parameter_list))
+            body: (compound_statement
+              (expression_statement
+                (assignment_expression
+                  left: (identifier)
+                  right: (number_literal)))))
+          arguments: (argument_list)))))
+  (struct_specifier
+    name: (type_identifier)
+    body: (field_declaration_list
+      (function_definition
+        declarator: (function_declarator
+          declarator: (identifier)
+          parameters: (parameter_list))
+        body: (compound_statement
+          (expression_statement
+            (call_expression
+              function: (lambda_expression
+                captures: (lambda_capture_specifier
+                  (lambda_capture_initializer
+                    left: (identifier)
+                    right: (identifier)))
+                body: (compound_statement
+                  (expression_statement
+                    (assignment_expression
+                      left: (identifier)
+                      right: (number_literal)))))
+              arguments: (argument_list)))))))
+  (function_definition
+    type: (primitive_type)
+    declarator: (function_declarator
+      declarator: (identifier)
+      parameters: (parameter_list))
+    body: (compound_statement
+      (labeled_statement
+        label: (statement_identifier)
+        (compound_statement)))))
+
+================================================================================
+Declarations as substatements
+================================================================================
+
+void f(bool c, P p) {
+  if (c) int x = 1;
+  else static_assert(true, "m");
+  while (c) int y{2};
+  if (c) Ref<S> s = new S;
+  if (c) using T = int;
+  if (c) auto [a, b] = p;
+  for (;;) extern int z;
+  do int w; while (0);
+  for (int i : v) int k = i;
+  if (c) typedef int U;
+  if (c) using namespace N;
+  if (c) int *q(&x);
+}
+
+--------------------------------------------------------------------------------
+
+(translation_unit
+  (function_definition
+    type: (primitive_type)
+    declarator: (function_declarator
+      declarator: (identifier)
+      parameters: (parameter_list
+        (parameter_declaration
+          type: (primitive_type)
+          declarator: (identifier))
+        (parameter_declaration
+          type: (type_identifier)
+          declarator: (identifier))))
+    body: (compound_statement
+      (if_statement
+        condition: (condition_clause
+          value: (identifier))
+        consequence: (declaration
+          type: (primitive_type)
+          declarator: (init_declarator
+            declarator: (identifier)
+            value: (number_literal)))
+        alternative: (else_clause
+          (static_assert_declaration
+            condition: (true)
+            message: (string_literal
+              (string_content)))))
+      (while_statement
+        condition: (condition_clause
+          value: (identifier))
+        body: (declaration
+          type: (primitive_type)
+          declarator: (init_declarator
+            declarator: (identifier)
+            value: (initializer_list
+              (number_literal)))))
+      (if_statement
+        condition: (condition_clause
+          value: (identifier))
+        consequence: (declaration
+          type: (template_type
+            name: (type_identifier)
+            arguments: (template_argument_list
+              (type_descriptor
+                type: (type_identifier))))
+          declarator: (init_declarator
+            declarator: (identifier)
+            value: (new_expression
+              type: (type_identifier)))))
+      (if_statement
+        condition: (condition_clause
+          value: (identifier))
+        consequence: (alias_declaration
+          name: (type_identifier)
+          type: (type_descriptor
+            type: (primitive_type))))
+      (if_statement
+        condition: (condition_clause
+          value: (identifier))
+        consequence: (declaration
+          type: (placeholder_type_specifier
+            (auto))
+          declarator: (init_declarator
+            declarator: (structured_binding_declarator
+              (identifier)
+              (identifier))
+            value: (identifier))))
+      (for_statement
+        body: (declaration
+          (storage_class_specifier)
+          type: (primitive_type)
+          declarator: (identifier)))
+      (do_statement
+        body: (declaration
+          type: (primitive_type)
+          declarator: (identifier))
+        condition: (parenthesized_expression
+          (number_literal)))
+      (for_range_loop
+        type: (primitive_type)
+        declarator: (identifier)
+        right: (identifier)
+        body: (declaration
+          type: (primitive_type)
+          declarator: (init_declarator
+            declarator: (identifier)
+            value: (identifier))))
+      (if_statement
+        condition: (condition_clause
+          value: (identifier))
+        consequence: (type_definition
+          type: (primitive_type)
+          declarator: (type_identifier)))
+      (if_statement
+        condition: (condition_clause
+          value: (identifier))
+        consequence: (using_declaration
+          (identifier)))
+      (if_statement
+        condition: (condition_clause
+          value: (identifier))
+        consequence: (declaration
+          type: (primitive_type)
+          declarator: (init_declarator
+            declarator: (pointer_declarator
+              declarator: (identifier))
+            value: (argument_list
+              (pointer_expression
+                argument: (identifier)))))))))
+
+================================================================================
+Declaration and expression readings of a substatement
+================================================================================
+
+void f(bool c) {
+  if (c) T(x);
+  if (c) a * b;
+  if (c) f(x);
+  if (c) x = y;
+  if (c) std::string(x);
+  while (c) a[i] = 1;
+}
+
+--------------------------------------------------------------------------------
+
+(translation_unit
+  (function_definition
+    type: (primitive_type)
+    declarator: (function_declarator
+      declarator: (identifier)
+      parameters: (parameter_list
+        (parameter_declaration
+          type: (primitive_type)
+          declarator: (identifier))))
+    body: (compound_statement
+      (if_statement
+        condition: (condition_clause
+          value: (identifier))
+        consequence: (expression_statement
+          (call_expression
+            function: (identifier)
+            arguments: (argument_list
+              (identifier)))))
+      (if_statement
+        condition: (condition_clause
+          value: (identifier))
+        consequence: (declaration
+          type: (type_identifier)
+          declarator: (pointer_declarator
+            declarator: (identifier))))
+      (if_statement
+        condition: (condition_clause
+          value: (identifier))
+        consequence: (expression_statement
+          (call_expression
+            function: (identifier)
+            arguments: (argument_list
+              (identifier)))))
+      (if_statement
+        condition: (condition_clause
+          value: (identifier))
+        consequence: (expression_statement
+          (assignment_expression
+            left: (identifier)
+            right: (identifier))))
+      (if_statement
+        condition: (condition_clause
+          value: (identifier))
+        consequence: (expression_statement
+          (call_expression
+            function: (qualified_identifier
+              scope: (namespace_identifier)
+              name: (identifier))
+            arguments: (argument_list
+              (identifier)))))
+      (while_statement
+        condition: (condition_clause
+          value: (identifier))
+        body: (expression_statement
+          (assignment_expression
+            left: (subscript_expression
+              argument: (identifier)
+              indices: (subscript_argument_list
+                (identifier)))
+            right: (number_literal)))))))
+
+================================================================================
+Block declarations after labels
+================================================================================
+
+void f(int s) {
+lab1:
+  typedef int T;
+lab2: using U = int;
+lab3: static_assert(true);
+lab4: __extension__ typedef long long ll;
+lab5: struct L {};
+lab6: namespace A = N;
+lab7: using namespace N;
+lab8: int *p(&s);
+lab9: x; y;
+  { lab10: }
+}
+
+--------------------------------------------------------------------------------
+
+(translation_unit
+  (function_definition
+    type: (primitive_type)
+    declarator: (function_declarator
+      declarator: (identifier)
+      parameters: (parameter_list
+        (parameter_declaration
+          type: (primitive_type)
+          declarator: (identifier))))
+    body: (compound_statement
+      (labeled_statement
+        label: (statement_identifier)
+        (type_definition
+          type: (primitive_type)
+          declarator: (type_identifier)))
+      (labeled_statement
+        label: (statement_identifier)
+        (alias_declaration
+          name: (type_identifier)
+          type: (type_descriptor
+            type: (primitive_type))))
+      (labeled_statement
+        label: (statement_identifier)
+        (static_assert_declaration
+          condition: (true)))
+      (labeled_statement
+        label: (statement_identifier)
+        (type_definition
+          type: (sized_type_specifier)
+          declarator: (type_identifier)))
+      (labeled_statement
+        label: (statement_identifier)
+        (struct_specifier
+          name: (type_identifier)
+          body: (field_declaration_list)))
+      (labeled_statement
+        label: (statement_identifier)
+        (namespace_alias_definition
+          name: (namespace_identifier)
+          (namespace_identifier)))
+      (labeled_statement
+        label: (statement_identifier)
+        (using_declaration
+          (identifier)))
+      (labeled_statement
+        label: (statement_identifier)
+        (declaration
+          type: (primitive_type)
+          declarator: (init_declarator
+            declarator: (pointer_declarator
+              declarator: (identifier))
+            value: (argument_list
+              (pointer_expression
+                argument: (identifier))))))
+      (labeled_statement
+        label: (statement_identifier)
+        (expression_statement
+          (identifier)))
+      (expression_statement
+        (identifier))
+      (compound_statement
+        (labeled_statement
+          label: (statement_identifier))))))
+
+================================================================================
+GNU label declarations in a function body, a lambda, and a try block
+================================================================================
+
+void f() {
+  __label__ a, b;
+  goto a;
+a:
+b:;
+  auto l = [] { __label__ done; goto done; done: return; };
+  try { __label__ t; goto t; t:; } catch (int) {}
+}
+
+--------------------------------------------------------------------------------
+
+(translation_unit
+  (function_definition
+    type: (primitive_type)
+    declarator: (function_declarator
+      declarator: (identifier)
+      parameters: (parameter_list))
+    body: (compound_statement
+      (label_declaration
+        label: (statement_identifier)
+        label: (statement_identifier))
+      (goto_statement
+        label: (statement_identifier))
+      (labeled_statement
+        label: (statement_identifier)
+        (labeled_statement
+          label: (statement_identifier)
+          (expression_statement)))
+      (declaration
+        type: (placeholder_type_specifier
+          (auto))
+        declarator: (init_declarator
+          declarator: (identifier)
+          value: (lambda_expression
+            captures: (lambda_capture_specifier)
+            body: (compound_statement
+              (label_declaration
+                label: (statement_identifier))
+              (goto_statement
+                label: (statement_identifier))
+              (labeled_statement
+                label: (statement_identifier)
+                (return_statement))))))
+      (try_statement
+        body: (compound_statement
+          (label_declaration
+            label: (statement_identifier))
+          (goto_statement
+            label: (statement_identifier))
+          (labeled_statement
+            label: (statement_identifier)
+            (expression_statement)))
+        (catch_clause
+          parameters: (parameter_list
+            (parameter_declaration
+              type: (primitive_type)))
+          body: (compound_statement))))))
+
+================================================================================
+GNU attributes on statements and after labels
+================================================================================
+
+void g(int);
+void f(int n) {
+  switch (n) {
+  case 1:
+    g(1);
+    __attribute__((fallthrough));
+  case 2:
+    g(2);
+    __attribute__((__fallthrough__));
+  default:
+    break;
+  }
+lbl: __attribute__((unused));
+lab2: __attribute__((unused)) __attribute__((cold));
+  __attribute__((nomerge)) g(3);
+  [[clang::nomerge]] __attribute__((nomerge)) g(4);
+lab3: __attribute__((nomerge)) g(5);
+lab4: __attribute__((unused)) int x = 0;
+  __attribute__((unused)) int y = 0;
+}
+
+--------------------------------------------------------------------------------
+
+(translation_unit
+  (declaration
+    type: (primitive_type)
+    declarator: (function_declarator
+      declarator: (identifier)
+      parameters: (parameter_list
+        (parameter_declaration
+          type: (primitive_type)))))
+  (function_definition
+    type: (primitive_type)
+    declarator: (function_declarator
+      declarator: (identifier)
+      parameters: (parameter_list
+        (parameter_declaration
+          type: (primitive_type)
+          declarator: (identifier))))
+    body: (compound_statement
+      (switch_statement
+        condition: (condition_clause
+          value: (identifier))
+        body: (compound_statement
+          (case_statement
+            value: (number_literal)
+            (expression_statement
+              (call_expression
+                function: (identifier)
+                arguments: (argument_list
+                  (number_literal))))
+            (attributed_statement
+              (attribute_specifier
+                (argument_list
+                  (identifier)))
+              (expression_statement)))
+          (case_statement
+            value: (number_literal)
+            (expression_statement
+              (call_expression
+                function: (identifier)
+                arguments: (argument_list
+                  (number_literal))))
+            (attributed_statement
+              (attribute_specifier
+                (argument_list
+                  (identifier)))
+              (expression_statement)))
+          (case_statement
+            (break_statement))))
+      (labeled_statement
+        label: (statement_identifier)
+        (attribute_specifier
+          (argument_list
+            (identifier)))
+        (expression_statement))
+      (labeled_statement
+        label: (statement_identifier)
+        (attribute_specifier
+          (argument_list
+            (identifier)))
+        (attribute_specifier
+          (argument_list
+            (identifier)))
+        (expression_statement))
+      (attributed_statement
+        (attribute_specifier
+          (argument_list
+            (identifier)))
+        (expression_statement
+          (call_expression
+            function: (identifier)
+            arguments: (argument_list
+              (number_literal)))))
+      (attributed_statement
+        (attribute_declaration
+          (attribute
+            prefix: (identifier)
+            name: (identifier)))
+        (attributed_statement
+          (attribute_specifier
+            (argument_list
+              (identifier)))
+          (expression_statement
+            (call_expression
+              function: (identifier)
+              arguments: (argument_list
+                (number_literal))))))
+      (labeled_statement
+        label: (statement_identifier)
+        (attributed_statement
+          (attribute_specifier
+            (argument_list
+              (identifier)))
+          (expression_statement
+            (call_expression
+              function: (identifier)
+              arguments: (argument_list
+                (number_literal))))))
+      (labeled_statement
+        label: (statement_identifier)
+        (declaration
+          (attribute_specifier
+            (argument_list
+              (identifier)))
+          type: (primitive_type)
+          declarator: (init_declarator
+            declarator: (identifier)
+            value: (number_literal))))
+      (declaration
+        (attribute_specifier
+          (argument_list
+            (identifier)))
+        type: (primitive_type)
+        declarator: (init_declarator
+          declarator: (identifier)
+          value: (number_literal))))))
+
+================================================================================
+GNU attributes before declarations at file scope, in a namespace, and in a block
+================================================================================
+
+__attribute__((visibility("default"))) Foo *create();
+__attribute__((unused)) Foo *p;
+__attribute__((constructor)) static void init(void) {}
+namespace n { __attribute__((visibility("hidden"))) Foo *make(); __attribute__((unused)) f(y); }
+void f() { __attribute__((unused)) Foo *q; __attribute__((unused)) a * b; __attribute__((unused)) T(x); }
+
+--------------------------------------------------------------------------------
+
+(translation_unit
+  (declaration
+    (attribute_specifier
+      (argument_list
+        (call_expression
+          function: (identifier)
+          arguments: (argument_list
+            (string_literal
+              (string_content))))))
+    type: (type_identifier)
+    declarator: (pointer_declarator
+      declarator: (function_declarator
+        declarator: (identifier)
+        parameters: (parameter_list))))
+  (declaration
+    (attribute_specifier
+      (argument_list
+        (identifier)))
+    type: (type_identifier)
+    declarator: (pointer_declarator
+      declarator: (identifier)))
+  (function_definition
+    (attribute_specifier
+      (argument_list
+        (identifier)))
+    (storage_class_specifier)
+    type: (primitive_type)
+    declarator: (function_declarator
+      declarator: (identifier)
+      parameters: (parameter_list
+        (parameter_declaration
+          type: (primitive_type))))
+    body: (compound_statement))
+  (namespace_definition
+    name: (namespace_identifier)
+    body: (declaration_list
+      (declaration
+        (attribute_specifier
+          (argument_list
+            (call_expression
+              function: (identifier)
+              arguments: (argument_list
+                (string_literal
+                  (string_content))))))
+        type: (type_identifier)
+        declarator: (pointer_declarator
+          declarator: (function_declarator
+            declarator: (identifier)
+            parameters: (parameter_list))))
+      (declaration
+        (attribute_specifier
+          (argument_list
+            (identifier)))
+        type: (type_identifier)
+        declarator: (parenthesized_declarator
+          (identifier)))))
+  (function_definition
+    type: (primitive_type)
+    declarator: (function_declarator
+      declarator: (identifier)
+      parameters: (parameter_list))
+    body: (compound_statement
+      (declaration
+        (attribute_specifier
+          (argument_list
+            (identifier)))
+        type: (type_identifier)
+        declarator: (pointer_declarator
+          declarator: (identifier)))
+      (declaration
+        (attribute_specifier
+          (argument_list
+            (identifier)))
+        type: (type_identifier)
+        declarator: (pointer_declarator
+          declarator: (identifier)))
+      (declaration
+        (attribute_specifier
+          (argument_list
+            (identifier)))
+        type: (type_identifier)
+        declarator: (parenthesized_declarator
+          (identifier))))))
+
+================================================================================
+GNU attributes before a macro line and a declaration
+================================================================================
+
+namespace n {
+  __attribute__((__nonnull__))
+  _GLIBCXX20_CONSTEXPR
+  void f(int *p);
+}
+void k() {
+  __attribute__((unused))
+  MACRO_X
+  int x = 0;
+}
+
+--------------------------------------------------------------------------------
+
+(translation_unit
+  (namespace_definition
+    name: (namespace_identifier)
+    body: (declaration_list
+      (declaration
+        (attribute_specifier
+          (argument_list
+            (identifier)))
+        (attribute_macro
+          name: (identifier))
+        type: (primitive_type)
+        declarator: (function_declarator
+          declarator: (identifier)
+          parameters: (parameter_list
+            (parameter_declaration
+              type: (primitive_type)
+              declarator: (pointer_declarator
+                declarator: (identifier))))))))
+  (function_definition
+    type: (primitive_type)
+    declarator: (function_declarator
+      declarator: (identifier)
+      parameters: (parameter_list))
+    body: (compound_statement
+      (declaration
+        (attribute_specifier
+          (argument_list
+            (identifier)))
+        (attribute_macro
+          name: (identifier))
+        type: (primitive_type)
+        declarator: (init_declarator
+          declarator: (identifier)
+          value: (number_literal))))))
+
+================================================================================
+A macro in the place of constexpr in an if statement
+================================================================================
+
+void f(int x) {
+  if PLF_CONSTEXPR (x > 0) {
+    g();
+  } else {
+    h();
+  }
+}
+
+--------------------------------------------------------------------------------
+
+(translation_unit
+  (function_definition
+    type: (primitive_type)
+    declarator: (function_declarator
+      declarator: (identifier)
+      parameters: (parameter_list
+        (parameter_declaration
+          type: (primitive_type)
+          declarator: (identifier))))
+    body: (compound_statement
+      (if_statement
+        (attribute_macro
+          name: (identifier))
+        condition: (condition_clause
+          value: (binary_expression
+            left: (identifier)
+            right: (number_literal)))
+        consequence: (compound_statement
+          (expression_statement
+            (call_expression
+              function: (identifier)
+              arguments: (argument_list))))
+        alternative: (else_clause
+          (compound_statement
+            (expression_statement
+              (call_expression
+                function: (identifier)
+                arguments: (argument_list)))))))))

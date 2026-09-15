@@ -1,0 +1,118 @@
+Subject: Do the reductions of each added version in error recovery
+
+Do the reductions of each version that a reduction adds.
+
+The copy of the runtime of the tree-sitter-cpp fork has this repair. The fork commit is
+ad3fefc.
+
+ts_parser__do_all_potential_reductions does the reductions of a version
+for one lookahead. A state with more than one reduce action makes more
+versions. After the starting version, the loop went to the index after
+the added versions, and it did not reduce them. After the removal of a
+version, the loop also went past the next version.
+
+Error recovery then kept a version with a MISSING token that could not
+shift the lookahead. That version detected the same error at the same
+position again. The skip of a right brace costs 10000, and the version
+had a lower cost than the skip. Each recovery added one more MISSING
+token at that position. For `b<C>(b<D>(e"x` and a `}` on the next line,
+the parse did not end. After 35 s, it used 1.4 GB, and the sum of the
+error costs became larger than 32 bits.
+
+The loop now does the reductions of each added version, and it removes
+each version that cannot shift the lookahead. The four files of the
+report, from 16 bytes to 4,520 bytes, parse in less than 0.01 s with
+12 MB. `xtask fuzz --file-changes 256` on the 3,000-file sample finds
+no failure in 2,178,566 changes.
+
+On the corpus at 4c3f5d2, the files with an error stay at 17,256, and
+the ERROR bytes go from 7,953,194 to 7,954,077. The tree hashes of the
+files with no error do not change. 18 corpus files and 1 compiler test
+file with an error get a different tree. In the benchmark of one error
+in each of 3,997 files, the named nodes outside the edit that change go
+from 80,906 to 80,872, and the ERROR bytes go from 1,984,437 to
+1,984,242. With AddressSanitizer and UndefinedBehaviorSanitizer, the
+incremental test of the files, the undo test, and the test of the
+snippets give 0 differences.
+
+The repair is not specific to a language. Upstream v0.27.0 has the defect: the loop of
+`ts_parser__do_all_potential_reductions` goes to `version_count` after the starting version, and
+it does not do the reductions of the versions that the starting version added. A removal of a
+version also moves the versions after it, and the loop then skips one.
+
+Risk for upstream: low. This is the strongest candidate of the series.
+
+The patch applies to the upstream tag v0.27.0, after the patches with a smaller number. The
+series compiles with `-Wall -Wextra` and no warning.
+
+The comments hold the marker "(tree-sitter-cpp fork)". Remove the marker before you send the
+patch upstream.
+
+diff -ruN a/lib/src/parser.c b/lib/src/parser.c
+--- a/lib/src/parser.c	2026-09-15 19:00:45.743077499 +0200
++++ b/lib/src/parser.c	2026-09-15 19:00:45.757671815 +0200
+@@ -1144,6 +1144,19 @@
+   return has_shift_action;
+ }
+ 
++// Do the reductions of `starting_version` for `lookahead_symbol`, or for all symbols if it is 0.
++// Return true if a version can shift the lookahead symbol.
++//
++// A state with more than one reduce action, or a stack node with more than one link, makes more
++// than one version. The version of the last reduction replaces the current version, and the other
++// versions go after the initial versions. After the starting version, the loop does the reductions
++// of each added version. With a lookahead symbol, the loop removes each version that cannot shift
++// the symbol.
++//
++// Error recovery keeps a version with a MISSING token only if the version can shift the lookahead.
++// A version that cannot shift it detects the same error at the same position again. The skip of a
++// right brace has a higher cost than the MISSING token. Each recovery then adds one more MISSING
++// token at that position, and the error costs become larger than 32 bits (tree-sitter-cpp fork).
+ static bool ts_parser__do_all_potential_reductions(
+   TSParser *self,
+   StackVersion starting_version,
+@@ -1152,13 +1165,15 @@
+   uint32_t initial_version_count = ts_stack_version_count(self->stack);
+ 
+   bool can_shift_lookahead_symbol = false;
++  bool is_starting_version = true;
++  StackVersion first_added_version = initial_version_count;
+   StackVersion version = starting_version;
+   for (unsigned i = 0; true; i++) {
+     uint32_t version_count = ts_stack_version_count(self->stack);
+     if (version >= version_count) break;
+ 
+     bool merged = false;
+-    for (StackVersion j = initial_version_count; j < version; j++) {
++    for (StackVersion j = first_added_version; j < version; j++) {
+       if (ts_stack_merge(self->stack, j, version)) {
+         merged = true;
+         break;
+@@ -1211,6 +1226,7 @@
+       );
+     }
+ 
++    bool did_remove = false;
+     if (has_shift_action) {
+       can_shift_lookahead_symbol = true;
+     } else if (reduction_version != STACK_VERSION_NONE && i < MAX_VERSION_COUNT) {
+@@ -1218,11 +1234,16 @@
+       continue;
+     } else if (lookahead_symbol != 0) {
+       ts_stack_remove_version(self->stack, version);
++      did_remove = true;
+     }
+ 
+-    if (version == starting_version) {
+-      version = version_count;
+-    } else {
++    // The added versions start at `first_added_version`. A removal moves each version after the
++    // removed version down by one index (tree-sitter-cpp fork).
++    if (is_starting_version) {
++      is_starting_version = false;
++      if (did_remove) first_added_version--;
++      version = first_added_version;
++    } else if (!did_remove) {
+       version++;
+     }
+   }

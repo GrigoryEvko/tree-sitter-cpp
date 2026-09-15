@@ -1,0 +1,85 @@
+THE RUNTIME REPAIRS OF THE FORK, AS PATCHES FOR UPSTREAM
+
+The fork changes its copy of the tree-sitter runtime in vendor/tree-sitter. This directory holds one
+patch file for each repair that upstream can accept. The 32-bit parse tables of the fork (ABI 1015)
+are not here, because upstream does not want a second ABI.
+
+Each patch applies to the upstream tag v0.27.0 of https://github.com/tree-sitter/tree-sitter, after
+the patches with a smaller number. The full series applies with `git apply` and no fuzz, and the
+result compiles with `-Wall -Wextra` and no warning:
+
+    git archive v0.27.0 | tar -x -C /tmp/ts
+    cd /tmp/ts && for p in upstream-patches/*.patch; do git apply "$p"; done
+
+Each patch file gives the fork commit, the measurement from that commit, and the risk for upstream.
+
+BEFORE A SUBMISSION
+
+The comments of the fork hold the marker "(tree-sitter-cpp fork)". Remove the marker from each
+comment before you send a patch upstream.
+
+THE PATCHES
+
+06-reduce-each-added-version.patch is the strongest candidate. Upstream v0.27.0 still has the
+defect at lib/src/parser.c:1212: the loop of `ts_parser__do_all_potential_reductions` goes to
+`version_count` after the starting version, so it does not do the reductions of the versions that
+the starting version added. A removal of a version also moves the versions after it, and the loop
+then skips one. The patch repairs the two errors. Risk: low.
+
+The other patches, in the order of the series:
+
+01-summary-depth.patch
+    Raise the depth of the stack summary of error recovery from 16 to 256. A better form for
+    upstream puts `#ifndef` around each of the five limits of lib/src/parser.c and lib/src/stack.c,
+    so that a build flag sets them. Risk: low.
+
+02-summary-for-version-with-none.patch
+    Record a summary for a version in the error state that has none. Without a summary, the version
+    skips each token until the end of the input. Risk: low.
+
+03-unmatched-bracket-cost.patch
+    Give a cost to each right bracket that has no left bracket in an ERROR node. The patch reads the
+    names of the token symbols to find the brackets, and it adds 8 bytes to `SubtreeHeapData`.
+    An alternative gives the bracket symbols in the language. Risk: HIGH.
+
+04-recover-to-three-states.patch
+    Recover to three previous states for one lookahead token, and not only to the nearest one. The
+    value 3 comes from a measurement on 329,387 C++ files. Risk: medium.
+
+05-breakdown-lookahead-with-no-action.patch
+    Read a reused lookahead node with no action as its first leaf. An incremental parse then gives
+    the tree of a fresh parse in more inputs. Risk: low.
+
+07-saturate-error-costs.patch
+    Stop the sums of the error costs at the maximum of 32 bits. A sum in 32 bits can become smaller
+    than one of its parts, and a stack version then gets a cost that is too small. Risk: low.
+
+08-missing-braces-at-end-of-input.patch
+    Close each open block with a MISSING `}` at the end of the input. The patch reads the names of
+    the token symbols to find `}` and `;`. An alternative gives the symbols of the missing tokens in
+    the language. Risk: HIGH.
+
+09-missing-semicolon-after-class.patch
+    Close a class body at the end of the input with a MISSING `;`. The patch follows patch 08 and
+    has the same risk. Risk: HIGH.
+
+10-incremental-reuse.patch
+    Give an incremental parse the tree of a fresh parse. The patch has four parts that upstream can
+    accept one at a time: a node with an error cost is not reused as one subtree, a node with a
+    fragile child becomes fragile, a reused node that the parser shifts goes onto the stack as the
+    subtrees of its right spine, and a reused node with more than one stack version breaks down to
+    its first leaf. Risk: medium, because of the size.
+
+11-merge-finished-version.patch
+    Merge a stack version with an equivalent version before it, as soon as the version loop
+    completes the work of that version. Without the merge, the list holds more versions than the
+    mid-step limit of `ts_parser__reduce`, and that limit removes a reduction by the index of its
+    version. The reading of a deep ambiguity then depends on the state numbers, with no ERROR node.
+    The patch text says why a removal at the same place is not safe, because an upstream reader will
+    otherwise propose one. Risk: medium.
+
+WHAT UPSTREAM ALREADY HAS
+
+Upstream v0.27.0 has its own non-recursive S-expression writer, and it replaces the writer of the
+fork. Upstream v0.26.13 has the repair of the wide error nodes (#5801 and #5855) and the repair of
+the error costs through hidden error nodes. The patches of this directory sit on top of those.

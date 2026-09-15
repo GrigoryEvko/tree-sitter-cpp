@@ -1,0 +1,210 @@
+Subject: Close a class body at the end of the input with a MISSING semicolon
+
+Close a class body at the end of the input with a MISSING semicolon.
+
+The copy of the runtime of the tree-sitter-cpp fork has this repair. The fork commit is
+ff079a4.
+
+93d3bcd closes each open block at the end of the input with a MISSING
+`}`. The `}` of a class, a union, or an enumeration ends no declaration.
+After that `}`, the state has no reduce action for the end of the input
+or for one more `}`, and the sequence stopped. Error recovery then put
+the full namespace into one ERROR node.
+
+After such a `}`, ts_parser__insert_missing_braces now does the
+reductions for a `;` lookahead and pushes a MISSING `;`. GCC reports
+"expected ';' after class definition" (cp_parser_class_specifier in
+gcc/cp/parser.cc), and Clang reports "expected ';' after struct"
+(Parser::ParseClassSpecifier in clang/lib/Parse/ParseDeclCXX.cpp). A new
+function does the reductions for one MISSING token, for the `}` and for
+the `;`.
+
+A MISSING token has the cost of a recovery. An ERROR node over a short
+text has a lower cost than four MISSING tokens, and it stays. In a
+namespace, a struct with six members and an unclosed function body gets
+the MISSING tokens.
+
+On the corpus at f8b702b, the files with an error stay at 17,242, and
+the ERROR bytes go from 7,934,844 to 7,933,324. No file gets more ERROR
+bytes. The tree hashes of the files with no error do not change. In the
+benchmark of one error in each of 3,997 files, the ERROR bytes go from
+1,984,250 to 1,665,132, and the named nodes outside the edit that change
+go from 80,870 to 80,858. For the edits that remove a brace, the ERROR
+bytes go from 1,327,970 to 1,064,510. `xtask fuzz --file-changes 256`
+finds no failure in 2,188,519 changes. With AddressSanitizer and
+UndefinedBehaviorSanitizer, the incremental test of the files, the undo
+test, and the test of the snippets give 0 differences.
+
+The patch follows patch 08, and it has the same risk.
+
+Risk for upstream: high.
+
+The patch applies to the upstream tag v0.27.0, after the patches with a smaller number. The
+series compiles with `-Wall -Wextra` and no warning.
+
+The comments hold the marker "(tree-sitter-cpp fork)". Remove the marker before you send the
+patch upstream.
+
+diff -ruN a/lib/src/parser.c b/lib/src/parser.c
+--- a/lib/src/parser.c	2026-09-15 19:00:45.786330910 +0200
++++ b/lib/src/parser.c	2026-09-15 19:00:45.802261928 +0200
+@@ -1538,6 +1538,47 @@
+   self->has_error = has_error;
+ }
+ 
++// On the copy `copy` of a version, do the reductions for a `symbol` lookahead. Return the state after
++// a shift of `symbol`, or 0 if the reductions get to no shift. In each state, the reductions use the
++// shift action if the state has one, and the first reduce action if not. The reductions do not
++// merge the copy with other versions. A stack with more than one path gives more than one version,
++// and the copy keeps the first version. O(r * s) in the reductions and the stack size
++// (tree-sitter-cpp fork).
++static TSStateId ts_parser__reduce_for_missing_token(
++  TSParser *self,
++  StackVersion copy,
++  TSSymbol symbol
++) {
++  TSStateId state = ts_stack_state(self->stack, copy);
++  for (unsigned reductions = 0; reductions < MAX_MISSING_BRACE_REDUCTION_COUNT; reductions++) {
++    TableEntry entry;
++    ts_language_table_entry(self->language, state, symbol, &entry);
++    const TSParseAction *reduce = NULL;
++    for (uint32_t i = 0; i < entry.action_count; i++) {
++      const TSParseAction *action = &entry.actions[i];
++      if (action->type == TSParseActionTypeShift && !action->shift.extra && !action->shift.repetition) {
++        return action->shift.state;
++      } else if (action->type == TSParseActionTypeReduce && !reduce) {
++        reduce = action;
++      }
++    }
++    if (!reduce) return 0;
++
++    StackVersion reduced = ts_parser__reduce(
++      self, copy, reduce->reduce.symbol, reduce->reduce.child_count,
++      reduce->reduce.dynamic_precedence, reduce->reduce.production_id,
++      entry.action_count > 1, false, false
++    );
++    if (reduced == STACK_VERSION_NONE) return 0;
++    ts_stack_renumber_version(self->stack, reduced, copy);
++    while (ts_stack_version_count(self->stack) > copy + 1) {
++      ts_stack_remove_version(self->stack, copy + 1);
++    }
++    state = ts_stack_state(self->stack, copy);
++  }
++  return 0;
++}
++
+ // Close the open braces of a version at the end of the input with MISSING `}` tokens.
+ //
+ // A single missing token closes one construct only. For each unclosed block, GCC reports
+@@ -1550,10 +1591,15 @@
+ // the end of the input or for one more `}`. Keep the copy only when the sequence gets to such a
+ // state. Return true if the copy stays.
+ //
+-// In each state, the reductions use the shift action if the state has one, and the first reduce
+-// action if not. The reductions do not merge the copy with other versions. When the sequence
+-// stops, the other versions are the same as before. O(n * s) in the missing tokens and the stack
+-// size (tree-sitter-cpp fork).
++// The `}` of a class, an enumeration, or an initializer list ends no declaration. The state after
++// that `}` has no reduce action for the end of the input or for `}`. Then do the reductions for a
++// `;` lookahead, and push a missing `;`. GCC reports "expected ';' after class definition"
++// (cp_parser_class_specifier in gcc/cp/parser.cc), and Clang reports "expected ';' after struct"
++// (Parser::ParseClassSpecifier in clang/lib/Parse/ParseDeclCXX.cpp).
++//
++// The reductions do not merge the copy with other versions. When the sequence stops, the other
++// versions are the same as before. O(n * s) in the missing tokens and the stack size
++// (tree-sitter-cpp fork).
+ static bool ts_parser__insert_missing_braces(
+   TSParser *self,
+   StackVersion version,
+@@ -1561,12 +1607,12 @@
+   Subtree lookahead
+ ) {
+   TSSymbol brace = 0;
++  TSSymbol semicolon = 0;
+   for (TSSymbol symbol = 1; symbol < self->language->token_count; symbol++) {
+     const char *name = ts_language_symbol_name(self->language, symbol);
+-    if (name && name[0] == '}' && name[1] == 0) {
+-      brace = symbol;
+-      break;
+-    }
++    if (!name || name[0] == 0 || name[1] != 0) continue;
++    if (name[0] == '}' && brace == 0) brace = symbol;
++    if (name[0] == ';' && semicolon == 0) semicolon = symbol;
+   }
+   if (brace == 0) return false;
+ 
+@@ -1574,50 +1620,40 @@
+   ts_lexer_mark_end(&self->lexer);
+   Length padding = length_sub(self->lexer.token_end_position, position);
+   uint32_t lookahead_bytes = ts_subtree_total_bytes(lookahead) + ts_subtree_lookahead_bytes(lookahead);
++  TSSymbol end_symbol = ts_subtree_leaf_symbol(lookahead);
+ 
+   StackVersion copy = ts_stack_copy_version(self->stack, version);
+   for (unsigned count = 0; count < MAX_MISSING_BRACE_COUNT; count++) {
+-    TSStateId state = ts_stack_state(self->stack, copy);
+-    TSStateId state_after_brace = 0;
+-    for (unsigned reductions = 0; reductions < MAX_MISSING_BRACE_REDUCTION_COUNT; reductions++) {
+-      TableEntry entry;
+-      ts_language_table_entry(self->language, state, brace, &entry);
+-      const TSParseAction *reduce = NULL;
+-      for (uint32_t i = 0; i < entry.action_count; i++) {
+-        const TSParseAction *action = &entry.actions[i];
+-        if (action->type == TSParseActionTypeShift && !action->shift.extra && !action->shift.repetition) {
+-          state_after_brace = action->shift.state;
+-        } else if (action->type == TSParseActionTypeReduce && !reduce) {
+-          reduce = action;
+-        }
+-      }
+-      if (state_after_brace != 0 || !reduce) break;
+-
+-      // A stack with more than one path gives more than one version. Keep the first version.
+-      StackVersion reduced = ts_parser__reduce(
+-        self, copy, reduce->reduce.symbol, reduce->reduce.child_count,
+-        reduce->reduce.dynamic_precedence, reduce->reduce.production_id,
+-        entry.action_count > 1, false, false
+-      );
+-      if (reduced == STACK_VERSION_NONE) break;
+-      ts_stack_renumber_version(self->stack, reduced, copy);
+-      while (ts_stack_version_count(self->stack) > copy + 1) {
+-        ts_stack_remove_version(self->stack, copy + 1);
+-      }
+-      state = ts_stack_state(self->stack, copy);
+-    }
+-    if (state_after_brace == 0 || state_after_brace == state) break;
++    TSStateId state_after_brace = ts_parser__reduce_for_missing_token(self, copy, brace);
++    TSStateId state_before_brace = ts_stack_state(self->stack, copy);
++    if (state_after_brace == 0 || state_after_brace == state_before_brace) break;
+ 
+     Subtree missing_tree = ts_subtree_new_missing_leaf(
+-      &self->tree_pool, brace, padding, lookahead_bytes, self->language
++      &self->tree_pool, brace, state_before_brace, padding, lookahead_bytes, self->language
+     );
+     ts_stack_push(self->stack, copy, missing_tree, false, state_after_brace);
++    TSStateId state = state_after_brace;
++
++    if (
++      semicolon != 0 &&
++      !ts_language_has_reduce_action(self->language, state, end_symbol) &&
++      !ts_language_has_reduce_action(self->language, state, brace)
++    ) {
++      TSStateId state_after_semicolon = ts_parser__reduce_for_missing_token(self, copy, semicolon);
++      TSStateId state_before_semicolon = ts_stack_state(self->stack, copy);
++      if (state_after_semicolon == 0 || state_after_semicolon == state_before_semicolon) break;
++      Subtree missing_semicolon = ts_subtree_new_missing_leaf(
++        &self->tree_pool, semicolon, state_before_semicolon, padding, lookahead_bytes, self->language
++      );
++      ts_stack_push(self->stack, copy, missing_semicolon, false, state_after_semicolon);
++      state = state_after_semicolon;
++    }
+ 
+-    if (ts_language_has_reduce_action(self->language, state_after_brace, ts_subtree_leaf_symbol(lookahead))) {
+-      LOG("recover_with_missing_braces count:%u, state:%u", count + 1, state_after_brace);
++    if (ts_language_has_reduce_action(self->language, state, end_symbol)) {
++      LOG("recover_with_missing_braces count:%u, state:%u", count + 1, state);
+       return true;
+     }
+-    if (!ts_language_has_reduce_action(self->language, state_after_brace, brace)) break;
++    if (!ts_language_has_reduce_action(self->language, state, brace)) break;
+   }
+ 
+   while (ts_stack_version_count(self->stack) > copy) {

@@ -1,0 +1,18 @@
+[package]
+name = "xtask"
+description = "The development tasks of tree-sitter-cpp"
+version = "0.1.0"
+license = "MIT"
+edition = "2024"
+publish = false
+
+[dependencies]
+rayon = "1"
+regex = "1"
+serde_json = { version = "1", features = ["preserve_order"] }
+tree-sitter = "0.27"
+tree-sitter-cpp = { path = ".." }
+tree-sitter-cpp-grammar = { path = "../grammar" }
+# The generator of the parser, from vendor/tree-sitter-generate. The fork owns the copy and the layout of
+# the tables that it writes. The copy agrees with the runtime in vendor/tree-sitter.
+tree-sitter-generate = { version = "=0.27.0", path = "../vendor/tree-sitter-generate", default-features = false, features = ["load"] }

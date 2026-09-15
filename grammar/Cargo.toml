@@ -1,0 +1,11 @@
+[package]
+name = "tree-sitter-cpp-grammar"
+description = "The C and C++ grammar rules of tree-sitter-cpp, in Rust"
+version = "0.1.0"
+license = "MIT"
+edition = "2024"
+publish = false
+
+[dependencies]
+indexmap = "2"
+serde_json = { version = "1", features = ["preserve_order"] }

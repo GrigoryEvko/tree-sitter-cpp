@@ -102,20 +102,20 @@ int main() {
           (number_literal)))
       (for_statement
         (comma_expression
-          (assignment_expression
-            (identifier)
-            (number_literal))
           (comma_expression
-            (assignment_expression
-              (identifier)
-              (number_literal))
             (comma_expression
               (assignment_expression
                 (identifier)
                 (number_literal))
               (assignment_expression
                 (identifier)
-                (number_literal)))))
+                (number_literal)))
+            (assignment_expression
+              (identifier)
+              (number_literal)))
+          (assignment_expression
+            (identifier)
+            (number_literal)))
         (comma_expression
           (binary_expression
             (identifier)
@@ -124,16 +124,16 @@ int main() {
             (identifier)
             (number_literal)))
         (comma_expression
-          (update_expression
-            (identifier))
           (comma_expression
-            (update_expression
-              (identifier))
             (comma_expression
               (update_expression
                 (identifier))
               (update_expression
-                (identifier)))))
+                (identifier)))
+            (update_expression
+              (identifier)))
+          (update_expression
+            (identifier)))
         (expression_statement
           (number_literal))))))
 
@@ -533,3 +533,288 @@ void f() {
           (compound_statement))
         (parenthesized_expression
           (true))))))
+
+================================================================================
+GNU label declarations at the start of blocks
+================================================================================
+
+void f(int n) {
+  __label__ a, b;
+  __label__ c;
+  goto a;
+a: b: c:;
+  {
+    __label__ d;
+  d: n++;
+  }
+  int y = ({ __label__ e; goto e; e: 1; });
+  switch (n) { __label__ s; case 1: goto s; s: break; }
+}
+
+--------------------------------------------------------------------------------
+
+(translation_unit
+  (function_definition
+    type: (primitive_type)
+    declarator: (function_declarator
+      declarator: (identifier)
+      parameters: (parameter_list
+        (parameter_declaration
+          type: (primitive_type)
+          declarator: (identifier))))
+    body: (compound_statement
+      (label_declaration
+        label: (statement_identifier)
+        label: (statement_identifier))
+      (label_declaration
+        label: (statement_identifier))
+      (goto_statement
+        label: (statement_identifier))
+      (labeled_statement
+        label: (statement_identifier)
+        (labeled_statement
+          label: (statement_identifier)
+          (labeled_statement
+            label: (statement_identifier)
+            (expression_statement))))
+      (compound_statement
+        (label_declaration
+          label: (statement_identifier))
+        (labeled_statement
+          label: (statement_identifier)
+          (expression_statement
+            (update_expression
+              argument: (identifier)))))
+      (declaration
+        type: (primitive_type)
+        declarator: (init_declarator
+          declarator: (identifier)
+          value: (parenthesized_expression
+            (compound_statement
+              (label_declaration
+                label: (statement_identifier))
+              (goto_statement
+                label: (statement_identifier))
+              (labeled_statement
+                label: (statement_identifier)
+                (expression_statement
+                  (number_literal)))))))
+      (switch_statement
+        condition: (condition_clause
+          value: (identifier))
+        body: (compound_statement
+          (label_declaration
+            label: (statement_identifier))
+          (case_statement
+            value: (number_literal)
+            (goto_statement
+              label: (statement_identifier))
+            (labeled_statement
+              label: (statement_identifier)
+              (break_statement))))))))
+
+================================================================================
+GNU attributes on statements and after labels
+================================================================================
+
+void g(int);
+void f(int n) {
+  switch (n) {
+  case 1:
+    g(1);
+    __attribute__((fallthrough));
+  case 2:
+    break;
+  }
+lbl: __attribute__((unused));
+  __attribute__((nomerge)) g(3);
+  __attribute__((unused)) int x = 0;
+}
+
+--------------------------------------------------------------------------------
+
+(translation_unit
+  (declaration
+    type: (primitive_type)
+    declarator: (function_declarator
+      declarator: (identifier)
+      parameters: (parameter_list
+        (parameter_declaration
+          type: (primitive_type)))))
+  (function_definition
+    type: (primitive_type)
+    declarator: (function_declarator
+      declarator: (identifier)
+      parameters: (parameter_list
+        (parameter_declaration
+          type: (primitive_type)
+          declarator: (identifier))))
+    body: (compound_statement
+      (switch_statement
+        condition: (condition_clause
+          value: (identifier))
+        body: (compound_statement
+          (case_statement
+            value: (number_literal)
+            (expression_statement
+              (call_expression
+                function: (identifier)
+                arguments: (argument_list
+                  (number_literal))))
+            (attributed_statement
+              (attribute_specifier
+                (argument_list
+                  (identifier)))
+              (expression_statement)))
+          (case_statement
+            value: (number_literal)
+            (break_statement))))
+      (labeled_statement
+        label: (statement_identifier)
+        (attribute_specifier
+          (argument_list
+            (identifier)))
+        (expression_statement))
+      (attributed_statement
+        (attribute_specifier
+          (argument_list
+            (identifier)))
+        (expression_statement
+          (call_expression
+            function: (identifier)
+            arguments: (argument_list
+              (number_literal)))))
+      (declaration
+        (attribute_specifier
+          (argument_list
+            (identifier)))
+        type: (primitive_type)
+        declarator: (init_declarator
+          declarator: (identifier)
+          value: (number_literal))))))
+
+================================================================================
+Nested function definitions after labels
+================================================================================
+
+void f(void) {
+lab: int inner(int v) { return v; }
+  goto lab;
+}
+
+--------------------------------------------------------------------------------
+
+(translation_unit
+  (function_definition
+    (primitive_type)
+    (function_declarator
+      (identifier)
+      (parameter_list
+        (parameter_declaration
+          (primitive_type))))
+    (compound_statement
+      (labeled_statement
+        (statement_identifier)
+        (function_definition
+          (primitive_type)
+          (function_declarator
+            (identifier)
+            (parameter_list
+              (parameter_declaration
+                (primitive_type)
+                (identifier))))
+          (compound_statement
+            (return_statement
+              (identifier)))))
+      (goto_statement
+        (statement_identifier)))))
+
+================================================================================
+The GNU keyword __extension__ before the declaration of a for statement
+================================================================================
+
+void f(void) {
+  for (__extension__ int i = 0; i < 1; ++i)
+    ;
+}
+
+--------------------------------------------------------------------------------
+
+(translation_unit
+  (function_definition
+    (primitive_type)
+    (function_declarator
+      (identifier)
+      (parameter_list
+        (parameter_declaration
+          (primitive_type))))
+    (compound_statement
+      (for_statement
+        (declaration
+          (primitive_type)
+          (init_declarator
+            (identifier)
+            (number_literal)))
+        (binary_expression
+          (identifier)
+          (number_literal))
+        (update_expression
+          (identifier))
+        (expression_statement)))))
+
+================================================================================
+The GNU label declarations of a block and a nested block
+================================================================================
+
+void f(int n) {
+  __label__ a;
+  __label__ b, c;
+  {
+    __label__ d;
+    goto d;
+    d: ;
+  }
+  goto a;
+  a: b: c: ;
+  (void)n;
+}
+
+--------------------------------------------------------------------------------
+
+(translation_unit
+  (function_definition
+    (primitive_type)
+    (function_declarator
+      (identifier)
+      (parameter_list
+        (parameter_declaration
+          (primitive_type)
+          (identifier))))
+    (compound_statement
+      (label_declaration
+        (statement_identifier))
+      (label_declaration
+        (statement_identifier)
+        (statement_identifier))
+      (compound_statement
+        (label_declaration
+          (statement_identifier))
+        (goto_statement
+          (statement_identifier))
+        (labeled_statement
+          (statement_identifier)
+          (expression_statement)))
+      (goto_statement
+        (statement_identifier))
+      (labeled_statement
+        (statement_identifier)
+        (labeled_statement
+          (statement_identifier)
+          (labeled_statement
+            (statement_identifier)
+            (expression_statement))))
+      (expression_statement
+        (cast_expression
+          (type_descriptor
+            (primitive_type))
+          (identifier))))))

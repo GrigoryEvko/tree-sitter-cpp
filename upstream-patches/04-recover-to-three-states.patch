@@ -1,0 +1,81 @@
+Subject: Recover to three previous states for one lookahead token
+
+Recover to more than one previous state for one lookahead token.
+
+The copy of the runtime of the tree-sitter-cpp fork has this repair. The fork commit is
+be03945.
+
+Error recovery went back only to the nearest state of the summary that
+accepts the lookahead token. That state can be in the construct that has
+the error. In `int x = F(typename D::type&&); int y;`, the `;` recovered
+into the argument list, and one ERROR held the two declarations.
+
+The recovery now goes back to a maximum of three states that accept the
+token, if no better version exists. The error costs then select one of
+the versions. GCC and Clang report errors at `&&` and `)` of the argument
+list, and the ERROR node now holds only the argument.
+
+On the corpus at e944ebb, the ERROR bytes go from 11.76 MB to 8.22 MB.
+The files whose root node is ERROR go from 19 to 1, and the files with an
+ERROR over 90% of the file go from 96 to 21. No file without an error
+changes. In the benchmark of one error in each of 4,000 files, the named
+nodes outside the edit that change go from 17,141 to 14,932 for balanced
+brackets, and from 63,964 to 62,316 for unbalanced brackets. With 2, 4,
+6, or no limit, the ERROR bytes are more.
+
+The new corpus tests have a member macro with no semicolon before a
+directive and before the brace of its class, a type as a function
+argument, and a function type as a macro argument.
+
+The repair is not specific to a language. The value 3 comes from a measurement on a corpus of
+329,387 C++ files. The values 2, 4, 6, and no limit all give more error bytes.
+
+Risk for upstream: medium. The value is a measurement of one language.
+
+The patch applies to the upstream tag v0.27.0, after the patches with a smaller number. The
+series compiles with `-Wall -Wextra` and no warning.
+
+The comments hold the marker "(tree-sitter-cpp fork)". Remove the marker before you send the
+patch upstream.
+
+diff -ruN a/lib/src/parser.c b/lib/src/parser.c
+--- a/lib/src/parser.c	2026-09-15 19:00:45.713775622 +0200
++++ b/lib/src/parser.c	2026-09-15 19:00:45.728015329 +0200
+@@ -80,6 +80,12 @@
+ // 16, a C++ file with an error in a deep construct cannot get back to the translation unit at the end
+ // of the file, and its root node is ERROR (tree-sitter-cpp fork).
+ static const unsigned MAX_SUMMARY_DEPTH = 256;
++// The number of previous states that error recovery goes back to for one lookahead token. The
++// published runtime goes back only to the nearest state that accepts the token. That state can be
++// in the construct that has the error, and a later error then makes a large ERROR node. With more
++// versions, the error costs select the state. On the C++ corpus, 3 gives fewer ERROR bytes than
++// 2, 4, 6, or no limit (tree-sitter-cpp fork).
++static const unsigned MAX_RECOVERY_COUNT = 3;
+ static const unsigned MAX_COST_DIFFERENCE = 18 * ERROR_COST_PER_SKIPPED_TREE;
+ static const unsigned OP_COUNT_PER_PARSER_CALLBACK_CHECK = 100;
+ 
+@@ -1296,6 +1302,7 @@
+   Subtree lookahead
+ ) {
+   bool did_recover = false;
++  unsigned recovery_count = 0;
+   unsigned previous_version_count = ts_stack_version_count(self->stack);
+   Length position = ts_stack_position(self->stack, version);
+   StackSummary *summary = ts_stack_get_summary(self->stack, version);
+@@ -1355,13 +1362,14 @@
+       if (ts_parser__better_version_exists(self, version, false, new_cost)) break;
+ 
+       // If the current lookahead token is valid in some previous state, recover to that state.
+-      // Then stop looking for further recoveries.
++      // Stop after MAX_RECOVERY_COUNT recoveries.
+       if (ts_language_has_actions(self->language, entry.state, ts_subtree_symbol(lookahead))) {
+         if (ts_parser__recover_to_state(self, version, depth, entry.state)) {
+           did_recover = true;
++          recovery_count++;
+           LOG("recover_to_previous state:%u, depth:%u", entry.state, depth);
+           LOG_STACK();
+-          break;
++          if (recovery_count == MAX_RECOVERY_COUNT) break;
+         }
+       }
+     }

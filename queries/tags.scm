@@ -13,3 +13,5 @@
 (enum_specifier name: (type_identifier) @name) @definition.type
 
 (class_specifier name: (type_identifier) @name) @definition.class
+
+(interface_specifier name: (type_identifier) @name body:(_)) @definition.interface

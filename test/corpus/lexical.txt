@@ -1,0 +1,351 @@
+================================================================================
+Characters and string content next to escape sequences
+================================================================================
+
+const char *s = "  \\n";
+char a = '\''; int b = '//'; int c = '/*';
+
+--------------------------------------------------------------------------------
+
+(translation_unit
+  (declaration
+    (type_qualifier)
+    type: (primitive_type)
+    declarator: (init_declarator
+      declarator: (pointer_declarator
+        declarator: (identifier))
+      value: (string_literal
+        (string_content)
+        (escape_sequence)
+        (string_content))))
+  (declaration
+    type: (primitive_type)
+    declarator: (init_declarator
+      declarator: (identifier)
+      value: (char_literal
+        (escape_sequence))))
+  (declaration
+    type: (primitive_type)
+    declarator: (init_declarator
+      declarator: (identifier)
+      value: (char_literal
+        (character)
+        (character))))
+  (declaration
+    type: (primitive_type)
+    declarator: (init_declarator
+      declarator: (identifier)
+      value: (char_literal
+        (character)
+        (character)))))
+
+================================================================================
+Template arguments of operator functions and literal operators
+================================================================================
+
+struct A { friend bool operator== <>(const A&, const A&); };
+auto s = pcg::operator<< <char>(out, value);
+int n = operator""_b<'1'>();
+
+--------------------------------------------------------------------------------
+
+(translation_unit
+  (struct_specifier
+    name: (type_identifier)
+    body: (field_declaration_list
+      (friend_declaration
+        (declaration
+          type: (primitive_type)
+          declarator: (function_declarator
+            declarator: (template_function
+              name: (operator_name)
+              arguments: (template_argument_list))
+            parameters: (parameter_list
+              (parameter_declaration
+                (type_qualifier)
+                type: (type_identifier)
+                declarator: (abstract_reference_declarator))
+              (parameter_declaration
+                (type_qualifier)
+                type: (type_identifier)
+                declarator: (abstract_reference_declarator))))))))
+  (declaration
+    type: (placeholder_type_specifier
+      (auto))
+    declarator: (init_declarator
+      declarator: (identifier)
+      value: (call_expression
+        function: (qualified_identifier
+          scope: (namespace_identifier)
+          name: (template_function
+            name: (operator_name)
+            arguments: (template_argument_list
+              (type_descriptor
+                type: (primitive_type)))))
+        arguments: (argument_list
+          (identifier)
+          (identifier)))))
+  (declaration
+    type: (primitive_type)
+    declarator: (init_declarator
+      declarator: (identifier)
+      value: (call_expression
+        function: (template_function
+          name: (operator_name
+            (identifier))
+          arguments: (template_argument_list
+            (char_literal
+              (character))))
+        arguments: (argument_list)))))
+
+================================================================================
+Alternative token compl in a destructor name
+================================================================================
+
+struct S { compl S(); };
+S::compl S() {}
+
+--------------------------------------------------------------------------------
+
+(translation_unit
+  (struct_specifier
+    name: (type_identifier)
+    body: (field_declaration_list
+      (declaration
+        declarator: (function_declarator
+          declarator: (destructor_name
+            (identifier))
+          parameters: (parameter_list)))))
+  (function_definition
+    declarator: (function_declarator
+      declarator: (qualified_identifier
+        scope: (namespace_identifier)
+        name: (destructor_name
+          (identifier)))
+      parameters: (parameter_list))
+    body: (compound_statement)))
+
+================================================================================
+String concatenation with ud-suffixes
+================================================================================
+
+auto a = "a"_s "b";
+auto b = "a" "b"_s;
+auto c = "PATH="sv DEFAULT_PATH;
+
+--------------------------------------------------------------------------------
+
+(translation_unit
+  (declaration
+    type: (placeholder_type_specifier
+      (auto))
+    declarator: (init_declarator
+      declarator: (identifier)
+      value: (concatenated_string
+        (user_defined_literal
+          (string_literal
+            (string_content))
+          (literal_suffix))
+        (string_literal
+          (string_content)))))
+  (declaration
+    type: (placeholder_type_specifier
+      (auto))
+    declarator: (init_declarator
+      declarator: (identifier)
+      value: (user_defined_literal
+        (concatenated_string
+          (string_literal
+            (string_content))
+          (string_literal
+            (string_content)))
+        (literal_suffix))))
+  (declaration
+    type: (placeholder_type_specifier
+      (auto))
+    declarator: (init_declarator
+      declarator: (identifier)
+      value: (concatenated_string
+        (user_defined_literal
+          (string_literal
+            (string_content))
+          (literal_suffix))
+        (identifier)))))
+
+================================================================================
+Line splices in string literals and character literals
+================================================================================
+
+const char *s = "abc \
+def";
+char c = u8'\
+x';
+auto t = L"a\
+b";
+const char *q = "\ ";
+
+--------------------------------------------------------------------------------
+
+(translation_unit
+  (declaration
+    (type_qualifier)
+    type: (primitive_type)
+    declarator: (init_declarator
+      declarator: (pointer_declarator
+        declarator: (identifier))
+      value: (string_literal
+        (string_content)
+        (string_content))))
+  (declaration
+    type: (primitive_type)
+    declarator: (init_declarator
+      declarator: (identifier)
+      value: (char_literal
+        (character))))
+  (declaration
+    type: (placeholder_type_specifier
+      (auto))
+    declarator: (init_declarator
+      declarator: (identifier)
+      value: (string_literal
+        (string_content)
+        (string_content))))
+  (declaration
+    (type_qualifier)
+    type: (primitive_type)
+    declarator: (init_declarator
+      declarator: (pointer_declarator
+        declarator: (identifier))
+      value: (string_literal
+        (escape_sequence)))))
+
+================================================================================
+A backslash and a line break in a raw string literal
+================================================================================
+
+const char *r = R"(a\
+b)";
+const char *d = R"x(a\
+b)x";
+
+--------------------------------------------------------------------------------
+
+(translation_unit
+  (declaration
+    (type_qualifier)
+    type: (primitive_type)
+    declarator: (init_declarator
+      declarator: (pointer_declarator
+        declarator: (identifier))
+      value: (raw_string_literal
+        (raw_string_content))))
+  (declaration
+    (type_qualifier)
+    type: (primitive_type)
+    declarator: (init_declarator
+      declarator: (pointer_declarator
+        declarator: (identifier))
+      value: (raw_string_literal
+        delimiter: (raw_string_delimiter)
+        (raw_string_content)
+        (raw_string_delimiter)))))
+
+================================================================================
+Line splices in comments, between tokens, and in a definition
+================================================================================
+
+int i = 1
+  // \
+  + 42
+  ;
+int a = 1; \
+int b = 2;
+#define X 1 \
+ + 2
+// path C:\\
+int hidden;
+int y;
+
+--------------------------------------------------------------------------------
+
+(translation_unit
+  (declaration
+    type: (primitive_type)
+    declarator: (init_declarator
+      declarator: (identifier)
+      value: (number_literal))
+    (comment))
+  (declaration
+    type: (primitive_type)
+    declarator: (init_declarator
+      declarator: (identifier)
+      value: (number_literal)))
+  (declaration
+    type: (primitive_type)
+    declarator: (init_declarator
+      declarator: (identifier)
+      value: (number_literal)))
+  (preproc_def
+    name: (identifier)
+    value: (preproc_arg))
+  (comment)
+  (declaration
+    type: (primitive_type)
+    declarator: (identifier)))
+
+================================================================================
+A bracket before a global scope, and a splice
+================================================================================
+
+void g(int *a) { a[::b] = 1; c[::b] += a[::b]; }
+using T = [:::r:];
+int z = members[:i:];
+
+--------------------------------------------------------------------------------
+
+(translation_unit
+  (function_definition
+    type: (primitive_type)
+    declarator: (function_declarator
+      declarator: (identifier)
+      parameters: (parameter_list
+        (parameter_declaration
+          type: (primitive_type)
+          declarator: (pointer_declarator
+            declarator: (identifier)))))
+    body: (compound_statement
+      (expression_statement
+        (assignment_expression
+          left: (subscript_expression
+            argument: (identifier)
+            indices: (subscript_argument_list
+              (qualified_identifier
+                name: (identifier))))
+          right: (number_literal)))
+      (expression_statement
+        (assignment_expression
+          left: (subscript_expression
+            argument: (identifier)
+            indices: (subscript_argument_list
+              (qualified_identifier
+                name: (identifier))))
+          right: (subscript_expression
+            argument: (identifier)
+            indices: (subscript_argument_list
+              (qualified_identifier
+                name: (identifier))))))))
+  (alias_declaration
+    name: (type_identifier)
+    type: (type_descriptor
+      type: (splice_type_specifier
+        (splice_specifier
+          (qualified_identifier
+            name: (identifier))))))
+  (declaration
+    type: (primitive_type)
+    declarator: (init_declarator
+      declarator: (identifier)
+      value: (subscript_expression
+        argument: (identifier)
+        indices: (splice_specifier
+          (identifier))))))

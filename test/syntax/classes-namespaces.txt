@@ -1,0 +1,49 @@
+### linkage_class
+extern "C++" class A { int x; };
+### linkage_struct_base
+extern "C" struct B : A {};
+### linkage_typedef
+extern "C" typedef int T;
+### linkage_template
+extern "C++" template <class T> struct A { using type = T; };
+### linkage_export_class
+export extern "C++" struct Unattached { int x; };
+### anonymous_union_static
+static union { int a; float b; };
+### anonymous_union_static_in_function
+void f() { static union { int a; }; }
+### anonymous_union_in_linkage_block
+extern "C" { static union { int a; }; }
+### anonymous_struct_thread_local
+thread_local struct { int a; };
+### struct_with_gnu_attribute_no_declarator
+__attribute__((packed)) struct A { int x; };
+### bitfield_unnamed
+struct A { int i : 4; int : 0; unsigned char : 6; int j : 2; };
+### bitfield_unnamed_in_list
+struct A { int a : 1, : 0, b : 1; };
+### bitfield_unnamed_constant_width
+class B { uint64_t : NumDeclContextBits; };
+### import_identifier_in_function
+void f() { import->set_disabled(false); import = cast(p); import.x = 1; import(d); }
+### import_identifier_in_member_function
+struct A { void f() { import->run(); } };
+### enum_base_dependent_type
+template <class T> struct S { enum E : typename T::type { val }; };
+### enum_base_decltype
+enum E : decltype(x) { a };
+### enum_base_template_type
+enum class E : underlying_type_t<F> { a };
+### enum_base_opaque_template_type
+enum E : std::make_unsigned_t<int>;
+### base_clause_decltype
+struct A : decltype(f()) {};
+### base_clause_decltype_list
+template <class... Fs> struct overload : public decltype(g), private Fs... { using Fs::operator()...; };
+### using_conversion_function
+struct D : B { using B::operator bool; using base::operator T; using detail::base::operator safe_bool; };
+### export_import_after_module
+export module m;
+export import :part;
+export import std;
+import <vector>;

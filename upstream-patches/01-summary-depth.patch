@@ -1,0 +1,45 @@
+Subject: Search the full depth of the stack in error recovery
+
+Raise the depth of the stack summary of error recovery.
+
+The copy of the runtime of the tree-sitter-cpp fork has this repair. The fork commit is
+27a3142.
+
+The vendored runtime examines 256 stack entries in error recovery, and
+the published runtime examines 16. With 16, a file with an error in a
+deep construct cannot get back to the translation unit at the end of
+the file, and the root node of the tree is ERROR.
+
+On the full corpus, the count of files with an error stays the same.
+The files whose error covers 90% of the file or more go from 733 to
+430, and the error bytes go from 1.539% to 0.940%. In 124 files the
+error shrinks by more than half of the file, and in 2 files it grows.
+
+The patch raises one constant. A better form for upstream puts `#ifndef` around each of the five
+limits of parser.c and stack.c, so that a build flag sets them. The five limits are
+MAX_VERSION_COUNT, MAX_VERSION_COUNT_OVERFLOW, MAX_SUMMARY_DEPTH, MAX_LINK_COUNT, and
+MAX_ITERATOR_COUNT.
+
+Risk for upstream: low. A larger summary costs more time in error recovery only.
+
+The patch applies to the upstream tag v0.27.0, after the patches with a smaller number. The
+series compiles with `-Wall -Wextra` and no warning.
+
+The comments hold the marker "(tree-sitter-cpp fork)". Remove the marker before you send the
+patch upstream.
+
+diff -ruN a/lib/src/parser.c b/lib/src/parser.c
+--- a/lib/src/parser.c	2026-08-30 18:49:12.000000000 +0200
++++ b/lib/src/parser.c	2026-09-15 19:00:45.682701039 +0200
+@@ -76,7 +76,10 @@
+ 
+ static const unsigned MAX_VERSION_COUNT = 6;
+ static const unsigned MAX_VERSION_COUNT_OVERFLOW = 4;
+-static const unsigned MAX_SUMMARY_DEPTH = 16;
++// The depth of the stack that error recovery examines for a state that accepts the lookahead. With
++// 16, a C++ file with an error in a deep construct cannot get back to the translation unit at the end
++// of the file, and its root node is ERROR (tree-sitter-cpp fork).
++static const unsigned MAX_SUMMARY_DEPTH = 256;
+ static const unsigned MAX_COST_DIFFERENCE = 18 * ERROR_COST_PER_SKIPPED_TREE;
+ static const unsigned OP_COUNT_PER_PARSER_CALLBACK_CHECK = 100;
+ 

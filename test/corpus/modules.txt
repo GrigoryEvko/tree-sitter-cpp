@@ -4,10 +4,11 @@ Module Definition
 
 module mod;
 --------------------------------------------------------------------------------
+
 (translation_unit
-     (module_declaration
-       (module_name
-         (identifier))))
+  (module_declaration
+    (module_name
+      (identifier))))
 
 ================================================================================
 Module Definition with Export
@@ -15,10 +16,11 @@ Module Definition with Export
 
 export module mod;
 --------------------------------------------------------------------------------
+
 (translation_unit
-     (module_declaration
-       (module_name
-         (identifier))))
+  (module_declaration
+    (module_name
+      (identifier))))
 
 ================================================================================
 Module Definition with Export and Partition
@@ -28,12 +30,12 @@ export module mod:mod;
 --------------------------------------------------------------------------------
 
 (translation_unit
-     (module_declaration
-       (module_name
-         (identifier))
-      (module_partition
-       (module_name
-         (identifier)))))
+  (module_declaration
+    (module_name
+      (identifier))
+    (module_partition
+      (module_name
+        (identifier)))))
 
 ================================================================================
 Module Definition with Export, Partition and Attribute
@@ -123,7 +125,6 @@ module :private;
 
 (translation_unit
   (private_module_fragment_declaration))
-
 
 ================================================================================
 export declaration
@@ -246,8 +247,8 @@ class Foo;
   (preproc_ifdef
     (identifier)
     (global_module_fragment_declaration)
-      (preproc_include
-        (system_lib_string))
+    (preproc_include
+      (system_lib_string))
     (module_declaration
       (module_name
         (identifier))))
@@ -265,3 +266,27 @@ class Foo;
         (identifier)
         (class_specifier
           (type_identifier))))))
+
+================================================================================
+The GNU keyword __extension__ before an export declaration
+================================================================================
+
+export module m;
+__extension__ export int x;
+__extension__ export { int y; }
+
+--------------------------------------------------------------------------------
+
+(translation_unit
+  (module_declaration
+    name: (module_name
+      (identifier)))
+  (export_declaration
+    (declaration
+      type: (primitive_type)
+      declarator: (identifier)))
+  (export_declaration
+    (declaration_list
+      (declaration
+        type: (primitive_type)
+        declarator: (identifier)))))

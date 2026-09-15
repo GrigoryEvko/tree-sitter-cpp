@@ -1,0 +1,186 @@
+### member_pointer_field_function
+struct character { bool ( item::*filter_func )() const; };
+### member_pointer_field_data
+struct D { const int Derived::*p; int k; };
+### member_pointer_field_space_before_star
+struct S { string_type (predefined_macros:: *generator)() const; };
+### member_pointer_typedef_function
+typedef void (A::*mfptr)();
+### member_pointer_typedef_data
+typedef int C::*mPtr;
+### member_pointer_typedef_space
+typedef int TestType::* Pm;
+### member_pointer_typedef_return_pointer
+typedef X* (Z::*MethO)(int);
+### member_pointer_typedef_nested_scope
+typedef void (ns::Outer<T>::Inner::*fn)(int);
+### member_pointer_typedef_global_scope
+typedef int ::ns::C::*P;
+### member_pointer_const_ref_qualified
+void (C::*const pm)() && = nullptr;
+### member_pointer_parameter
+void f(int C::*p, int (A::B::*q)() const);
+### member_pointer_block_scope
+void g() { int (C::*pm)() const = &C::f; (x.*pm)(); }
+### member_pointer_template_argument
+bool b = std::is_member_pointer<int C::*>::value;
+### member_pointer_cast
+auto q = static_cast<void (C::*)()>(p);
+### member_pointer_template_typedef
+template <class T> struct S { typedef void (T::*PMF)(); };
+### conversion_call_member
+void f() { debugmsg("%d", color.operator int()); }
+### conversion_call_this
+bool f() { return this->operator bool(); }
+### conversion_call_arrow_chain
+double f() { return other->_treeReadBuffer->operator double(); }
+### conversion_call_qualified_type
+void f() { h(ss.operator std::string()); }
+### conversion_call_reference_type
+void f() { h(x.operator const T&()); }
+### conversion_call_on_call
+void f() { aabb.size = cs->call("get_size").operator Vector3(); }
+### operator_call_qualified_member
+void f() { this->TGraph2D::operator=(static_cast<const TGraph2D&>(g)); c.B::operator= (b); }
+### conversion_using_declaration
+struct L : LockType { using LockType::operator bool; };
+### conversion_using_pointer
+template <class T> struct S : T { using T::operator T*; };
+### conversion_using_dependent_type
+template <class T> struct B : A<T> { using A<T>::operator typename A<T>::Nested*; };
+### typedef_function_type_noexcept_expression
+typedef void (type1)() noexcept(10 > 5);
+### typedef_function_reference_noexcept
+typedef void (&ref)() noexcept;
+### typedef_function_pack_noexcept
+typedef R FuncType(ARGS...) noexcept;
+### typedef_abominable_function_type
+typedef int F() const;
+### typedef_function_trailing_return
+typedef auto F() -> int;
+### typedef_function_throw
+typedef void F() throw();
+### typedef_function_pointer_ref_qualifier
+typedef void (*fp)() &&;
+### typedef_member_function_pointer_const
+typedef T* (this_type::*bool_)() const;
+### typedef_member_function_pointer_cv_ref
+typedef void (C::*pmf)() const volatile &&;
+### bitfield_unnamed_zero_width
+struct S { int : 0; char : 2; };
+### bitfield_unnamed_sized_type
+struct B { unsigned a : 1; unsigned : 7; };
+### bitfield_unnamed_between_named
+struct C { int a : 4, : 4, b : 4; };
+### bitfield_unnamed_after_virtual_base
+struct C : virtual B0 { char a : 1; char : 0; };
+### pointer_to_member_parenthesized_operand
+void f() { (this->*(it->second))(); if (!(settings.*(opt.is_enabled))) {} }
+### pointer_to_member_address_operand
+bool b = A(5).*&A::n == 5;
+### pointer_to_member_address_call
+void f(A x) { (x.*&A::g)(); }
+### pointer_to_member_assignment
+void f() { configuration.*(it->second) = value.safeGet<String>(); }
+### reference_declarator_paren_init_member
+void f(const UniValue& v) { const std::string& strHex(v.get_str()); }
+### reference_declarator_paren_init_field
+void f() { const int& cr(s.i); }
+### reference_declarator_paren_init_move
+void f() { T&& r(std::move(x)); }
+### pointer_declarator_paren_init_address
+void f() { int* p(&x); }
+### pointer_declarator_paren_init_const
+void f() { char* const buf(data.get()); }
+### decltype_functional_cast_assignment
+void f() { iter = decltype(iter)(worn.erase(--iter.base())); }
+### decltype_functional_cast_initializer
+void f() { auto h2 = decltype(h)(h); }
+### decltype_functional_cast_return
+int f() { return decltype(func(args.front()))(); }
+### decltype_functional_cast_statement
+void f() { decltype(foo())(); decltype(sparseChunks)().swap(sparseChunks); }
+### decltype_functional_cast_argument
+F v1(int(x), decltype(x)(42));
+### decltype_braced_initializer
+G::G() { n = decltype(n){{0, ""}, {1, ".unoLineArrowEnd"}}; }
+### decltype_declaration_stays_declaration
+void f() { decltype(x) y(1); decltype(x)(z); }
+### linkage_typedef_function
+extern "C" typedef void FUNC_c();
+### linkage_typedef_function_pointer
+extern "C" typedef int (*printf_t)(const char *, ...);
+### linkage_alias_declaration
+extern "C++" using T = int;
+### linkage_template_declaration
+extern "C++" template<class T> void g(T);
+### linkage_nested_without_braces
+extern "C" extern "C++" int y;
+### linkage_class_definition
+extern "C" struct S { int a; };
+### linkage_raw_string
+extern R"(C++)" { }
+### friend_after_type_definition
+struct S { bool friend operator==(const S& a, const S& b) { return true; } };
+### friend_after_type_typedef_name
+class P { difference_type friend operator-(iterator a, iterator b) { return 0; } };
+### friend_after_type_declaration
+struct T { void friend load_construct_data(int); };
+### friend_operator_template_id_space
+template <class T> struct V { friend std::istream& operator>> <>(std::istream&, V&); };
+### friend_operator_template_id_no_space
+struct A { friend int &operator>><> (int &, a &); };
+### friend_operator_equal_template_id
+struct F { friend bool operator==<>(const F&, const F&); };
+### alignas_after_variable_name
+double a alignas(vec_align_bytes); int y alignas(16);
+### alignas_after_name_before_initializer
+template <class T> constexpr auto pattern alignas(sizeof(T) * 4) = x;
+### alignas_after_field_name
+struct S { int m alignas(8); };
+### alignas_after_field_name_before_array
+struct C { char x alignas(4)[8]; };
+### variadic_pointer_parameter
+template <class... t_T> void read(t_T*... args);
+### variadic_pointer_parameter_spaces
+template <class T2, class... Ts> void f(T2* t2, Ts* ... ts);
+### variadic_pointer_parameter_unnamed
+template <class... Ts> void g(Ts*...);
+### variadic_pointer_to_const_parameter
+template <class Op, class... T> void h(Op op, T const*... args);
+### variadic_pointer_lambda_parameter
+auto l = []( E const * ... e ) { return 0; };
+### variadic_pointer_to_pointer_parameter
+template <class... Ts> void k(const Ts **...p);
+### grouping_calling_convention_macro_pointer_array
+typedef void (WINAPI *table[4])(int);
+### grouping_calling_convention_macro_reference
+void h(int (WINAPI &fr)(int));
+### grouping_calling_convention_macro_member_pointer_parameter
+BOOST_BIND(R (BOOST_BIND_MF_CC T::*f) () const, A1 a1);
+### grouping_calling_convention_macro_template_argument
+auto q = static_cast<void (WINAPI *)(int)>(p);
+### grouping_gnu_attribute_field
+struct S { int (__attribute__((unused)) *n)(void); };
+### trailing_return_elaborated_struct
+auto f() -> struct S { return {}; }
+### trailing_return_elaborated_enum
+auto g() -> enum E { return A; }
+### trailing_return_elaborated_lambda
+auto l = []() -> enum E { return A; };
+### trailing_return_elaborated_pointer
+auto p() -> struct S *;
+### trailing_return_elaborated_qualified
+auto q() -> const struct ns::S &;
+### conversion_class_key_member
+struct C { operator struct S(); };
+### conversion_class_key_pointer
+struct C { operator struct S *(); operator union U *(); };
+### conversion_class_key_reference
+struct C { operator const struct S &(); };
+### conversion_class_key_definition
+C::operator struct S() { return S(); }
+### conversion_class_key_call
+void g(C c) { (void) c.operator struct S(); }
+### conversion_class_key_using
+struct D : C { using C::operator struct S; };

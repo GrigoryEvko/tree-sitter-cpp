@@ -1,0 +1,2483 @@
+================================================================================
+Function-like macro definition in an initializer list
+================================================================================
+
+int a[] = {
+#define B2(n) n, n + 1
+  B2(0)};
+
+--------------------------------------------------------------------------------
+
+(translation_unit
+  (declaration
+    (primitive_type)
+    (init_declarator
+      (array_declarator
+        (identifier))
+      (initializer_list
+        (preproc_function_def
+          (identifier)
+          (preproc_params
+            (identifier))
+          (preproc_arg))
+        (call_expression
+          (identifier)
+          (argument_list
+            (number_literal)))))))
+
+================================================================================
+Line group between the consequence and the else clause
+================================================================================
+
+void f() {
+  if (a) g();
+#ifdef X
+  else h();
+#endif
+}
+
+--------------------------------------------------------------------------------
+
+(translation_unit
+  (function_definition
+    (primitive_type)
+    (function_declarator
+      (identifier)
+      (parameter_list))
+    (compound_statement
+      (if_statement
+        (condition_clause
+          (identifier))
+        (expression_statement
+          (call_expression
+            (identifier)
+            (argument_list)))
+        (preproc_call
+          (preproc_directive)
+          (preproc_arg))
+        (else_clause
+          (expression_statement
+            (call_expression
+              (identifier)
+              (argument_list)))))
+      (preproc_call
+        (preproc_directive)))))
+
+================================================================================
+Null directive
+================================================================================
+
+#
+# /* a comment */
+int x;
+
+--------------------------------------------------------------------------------
+
+(translation_unit
+  (preproc_call
+    (preproc_directive))
+  (preproc_call
+    (preproc_directive)
+    (comment))
+  (declaration
+    (primitive_type)
+    (identifier)))
+
+================================================================================
+Line group that splits a linkage specification
+================================================================================
+
+#ifdef __cplusplus
+extern "C" {
+#endif
+int f(int);
+#ifdef __cplusplus
+}
+#endif
+
+--------------------------------------------------------------------------------
+
+(translation_unit
+  (preproc_call
+    (preproc_directive)
+    (preproc_arg))
+  (linkage_specification
+    (string_literal
+      (string_content))
+    (declaration_list
+      (preproc_call
+        (preproc_directive))
+      (declaration
+        (primitive_type)
+        (function_declarator
+          (identifier)
+          (parameter_list
+            (parameter_declaration
+              (primitive_type)))))
+      (preproc_call
+        (preproc_directive)
+        (preproc_arg))))
+  (preproc_call
+    (preproc_directive)))
+
+================================================================================
+Line group with a skipped branch
+================================================================================
+
+#if A
+void f(int a) {
+#else
+void f() {
+#endif
+  g();
+}
+
+--------------------------------------------------------------------------------
+
+(translation_unit
+  (preproc_call
+    (preproc_directive)
+    (preproc_arg))
+  (function_definition
+    (primitive_type)
+    (function_declarator
+      (identifier)
+      (parameter_list
+        (parameter_declaration
+          (primitive_type)
+          (identifier))))
+    (compound_statement
+      (preproc_skipped)
+      (preproc_call
+        (preproc_directive))
+      (expression_statement
+        (call_expression
+          (identifier)
+          (argument_list))))))
+
+================================================================================
+False branch of a line group
+================================================================================
+
+#if 0
+this isn't code
+#else
+int x;
+#endif
+
+--------------------------------------------------------------------------------
+
+(translation_unit
+  (preproc_call
+    (preproc_directive)
+    (preproc_arg))
+  (preproc_skipped)
+  (preproc_call
+    (preproc_directive))
+  (declaration
+    (primitive_type)
+    (identifier))
+  (preproc_call
+    (preproc_directive)))
+
+================================================================================
+Macro argument that is not an expression in a condition
+================================================================================
+
+#if BOOST_WORKAROUND(BOOST_MSVC, >= 1400) && __has_cpp_attribute(clang::musttail)
+#endif
+
+--------------------------------------------------------------------------------
+
+(translation_unit
+  (preproc_if
+    (binary_expression
+      (call_expression
+        (identifier)
+        (token_tree
+          (identifier)
+          (number_literal)))
+      (call_expression
+        (identifier)
+        (token_tree
+          (identifier)
+          (identifier))))))
+
+================================================================================
+Alternative operators and a conditional operator in a condition
+================================================================================
+
+#if defined(A) and not defined(B) ? 1 : 0
+#endif
+
+--------------------------------------------------------------------------------
+
+(translation_unit
+  (preproc_if
+    (conditional_expression
+      (binary_expression
+        (preproc_defined
+          (identifier))
+        (unary_expression
+          (preproc_defined
+            (identifier))))
+      (number_literal)
+      (number_literal))))
+
+================================================================================
+Macro definition with a comment in its body
+================================================================================
+
+#define X a /* c */ b
+
+--------------------------------------------------------------------------------
+
+(translation_unit
+  (preproc_def
+    (identifier)
+    (preproc_arg)
+    (comment)
+    (preproc_arg)))
+
+================================================================================
+Else-if directive without a condition
+================================================================================
+
+#if A
+int a;
+#elif
+int b;
+#endif
+
+--------------------------------------------------------------------------------
+
+(translation_unit
+  (preproc_call
+    (preproc_directive)
+    (preproc_arg))
+  (declaration
+    (primitive_type)
+    (identifier))
+  (preproc_skipped)
+  (preproc_call
+    (preproc_directive)))
+
+================================================================================
+Embed directive in an expression
+================================================================================
+
+#embed "top.bin"
+int b = (
+#embed <jk.txt>
+);
+const unsigned char d[] = {
+#embed "x.bin" limit(4) /* c */ suffix(, 0)
+, 0};
+
+--------------------------------------------------------------------------------
+
+(translation_unit
+  (preproc_call
+    (preproc_directive)
+    (preproc_arg))
+  (declaration
+    (primitive_type)
+    (init_declarator
+      (identifier)
+      (parenthesized_expression
+        (preproc_embed
+          (system_lib_string)))))
+  (declaration
+    (type_qualifier)
+    (sized_type_specifier
+      (primitive_type))
+    (init_declarator
+      (array_declarator
+        (identifier))
+      (initializer_list
+        (preproc_embed
+          (string_literal
+            (string_content))
+          (preproc_arg)
+          (comment)
+          (preproc_arg))
+        (number_literal)))))
+
+================================================================================
+Directive line between the consequence and the else clause
+================================================================================
+
+void f(int a) {
+  if (a) {
+    g(0);
+  }
+#pragma probe
+  else {
+    g(1);
+  }
+  if (a) g(2);
+#define Q 1
+  else g(Q);
+}
+
+--------------------------------------------------------------------------------
+
+(translation_unit
+  (function_definition
+    type: (primitive_type)
+    declarator: (function_declarator
+      declarator: (identifier)
+      parameters: (parameter_list
+        (parameter_declaration
+          type: (primitive_type)
+          declarator: (identifier))))
+    body: (compound_statement
+      (if_statement
+        condition: (condition_clause
+          value: (identifier))
+        consequence: (compound_statement
+          (expression_statement
+            (call_expression
+              function: (identifier)
+              arguments: (argument_list
+                (number_literal)))))
+        (preproc_call
+          directive: (preproc_directive)
+          argument: (preproc_arg))
+        alternative: (else_clause
+          (compound_statement
+            (expression_statement
+              (call_expression
+                function: (identifier)
+                arguments: (argument_list
+                  (number_literal)))))))
+      (if_statement
+        condition: (condition_clause
+          value: (identifier))
+        consequence: (expression_statement
+          (call_expression
+            function: (identifier)
+            arguments: (argument_list
+              (number_literal))))
+        (preproc_def
+          name: (identifier)
+          value: (preproc_arg))
+        alternative: (else_clause
+          (expression_statement
+            (call_expression
+              function: (identifier)
+              arguments: (argument_list
+                (identifier)))))))))
+
+================================================================================
+Directive line in a brace initializer
+================================================================================
+
+struct S {
+  int y{
+#pragma probe
+    6};
+};
+void f() {
+  int a[]{
+#define TWO 2
+    1, TWO};
+}
+
+--------------------------------------------------------------------------------
+
+(translation_unit
+  (struct_specifier
+    name: (type_identifier)
+    body: (field_declaration_list
+      (field_declaration
+        type: (primitive_type)
+        declarator: (field_identifier)
+        default_value: (initializer_list
+          (preproc_call
+            directive: (preproc_directive)
+            argument: (preproc_arg))
+          (number_literal)))))
+  (function_definition
+    type: (primitive_type)
+    declarator: (function_declarator
+      declarator: (identifier)
+      parameters: (parameter_list))
+    body: (compound_statement
+      (declaration
+        type: (primitive_type)
+        declarator: (init_declarator
+          declarator: (array_declarator
+            declarator: (identifier))
+          value: (initializer_list
+            (preproc_def
+              name: (identifier)
+              value: (preproc_arg))
+            (number_literal)
+            (identifier)))))))
+
+================================================================================
+Directive lines between enumerators
+================================================================================
+
+enum E {
+  A,
+#define X 1
+  B,
+#undef X
+  C
+};
+
+--------------------------------------------------------------------------------
+
+(translation_unit
+  (enum_specifier
+    name: (type_identifier)
+    body: (enumerator_list
+      (enumerator
+        name: (identifier))
+      (preproc_def
+        name: (identifier)
+        value: (preproc_arg))
+      (enumerator
+        name: (identifier))
+      (preproc_call
+        directive: (preproc_directive)
+        argument: (preproc_arg))
+      (enumerator
+        name: (identifier)))))
+
+================================================================================
+Directive lines after a case label, in a case body, and after a label
+================================================================================
+
+void f(int s) {
+  switch (s) {
+  case 1:
+#define LIMIT 4
+    g(LIMIT);
+    break;
+  case 2:
+    g(0);
+#pragma probe
+    g(1);
+    break;
+  }
+done:
+#undef LIMIT
+  g(0);
+}
+
+--------------------------------------------------------------------------------
+
+(translation_unit
+  (function_definition
+    type: (primitive_type)
+    declarator: (function_declarator
+      declarator: (identifier)
+      parameters: (parameter_list
+        (parameter_declaration
+          type: (primitive_type)
+          declarator: (identifier))))
+    body: (compound_statement
+      (switch_statement
+        condition: (condition_clause
+          value: (identifier))
+        body: (compound_statement
+          (case_statement
+            value: (number_literal)
+            (preproc_def
+              name: (identifier)
+              value: (preproc_arg))
+            (expression_statement
+              (call_expression
+                function: (identifier)
+                arguments: (argument_list
+                  (identifier))))
+            (break_statement))
+          (case_statement
+            value: (number_literal)
+            (expression_statement
+              (call_expression
+                function: (identifier)
+                arguments: (argument_list
+                  (number_literal))))
+            (preproc_call
+              directive: (preproc_directive)
+              argument: (preproc_arg))
+            (expression_statement
+              (call_expression
+                function: (identifier)
+                arguments: (argument_list
+                  (number_literal))))
+            (break_statement))))
+      (labeled_statement
+        label: (statement_identifier)
+        (preproc_call
+          directive: (preproc_directive)
+          argument: (preproc_arg))
+        (expression_statement
+          (call_expression
+            function: (identifier)
+            arguments: (argument_list
+              (number_literal))))))))
+
+================================================================================
+Directive line at the end of an else branch
+================================================================================
+
+#ifdef _WIN32
+#include <windows.h>
+#elif defined(__APPLE__)
+#include <mach/mach.h>
+// Darwin
+
+#define HAS_MACH 1
+#else
+#include <unistd.h>
+#endif
+void f() {
+#if A
+  g();
+#else
+  h();
+#pragma probe
+#endif
+}
+enum E {
+#ifdef A
+  X,
+#else
+  Y,
+#define Z
+#endif
+};
+
+--------------------------------------------------------------------------------
+
+(translation_unit
+  (preproc_ifdef
+    name: (identifier)
+    (preproc_include
+      path: (system_lib_string))
+    alternative: (preproc_elif
+      condition: (preproc_defined
+        (identifier))
+      (preproc_include
+        path: (system_lib_string))
+      (comment)
+      (preproc_def
+        name: (identifier)
+        value: (preproc_arg))
+      alternative: (preproc_else
+        (preproc_include
+          path: (system_lib_string)))))
+  (function_definition
+    type: (primitive_type)
+    declarator: (function_declarator
+      declarator: (identifier)
+      parameters: (parameter_list))
+    body: (compound_statement
+      (preproc_if
+        condition: (identifier)
+        (expression_statement
+          (call_expression
+            function: (identifier)
+            arguments: (argument_list)))
+        alternative: (preproc_else
+          (expression_statement
+            (call_expression
+              function: (identifier)
+              arguments: (argument_list)))
+          (preproc_call
+            directive: (preproc_directive)
+            argument: (preproc_arg))))))
+  (enum_specifier
+    name: (type_identifier)
+    body: (enumerator_list
+      (preproc_ifdef
+        name: (identifier)
+        (enumerator
+          name: (identifier))
+        alternative: (preproc_else
+          (enumerator
+            name: (identifier))
+          (preproc_def
+            name: (identifier)))))))
+
+================================================================================
+Conditional groups in case bodies and after a label
+================================================================================
+
+void f(int s) {
+  switch (s) {
+  case 0:
+#if 1
+    g(1);
+#endif
+    break;
+  case 1:
+    g(0);
+#ifdef FEATURE
+    g(1);
+#else
+    g(2);
+#endif
+    g(3);
+    break;
+#ifdef FEATURE
+  case 2:
+#endif
+  case 3:
+    break;
+  default:
+#ifndef FEATURE
+    g(4);
+#endif
+    break;
+  }
+retry:
+#ifdef FEATURE
+  g(5);
+#endif
+  g(6);
+}
+
+--------------------------------------------------------------------------------
+
+(translation_unit
+  (function_definition
+    type: (primitive_type)
+    declarator: (function_declarator
+      declarator: (identifier)
+      parameters: (parameter_list
+        (parameter_declaration
+          type: (primitive_type)
+          declarator: (identifier))))
+    body: (compound_statement
+      (switch_statement
+        condition: (condition_clause
+          value: (identifier))
+        body: (compound_statement
+          (case_statement
+            value: (number_literal)
+            (preproc_if
+              condition: (number_literal)
+              (expression_statement
+                (call_expression
+                  function: (identifier)
+                  arguments: (argument_list
+                    (number_literal)))))
+            (break_statement))
+          (case_statement
+            value: (number_literal)
+            (expression_statement
+              (call_expression
+                function: (identifier)
+                arguments: (argument_list
+                  (number_literal))))
+            (preproc_ifdef
+              name: (identifier)
+              (expression_statement
+                (call_expression
+                  function: (identifier)
+                  arguments: (argument_list
+                    (number_literal))))
+              alternative: (preproc_else
+                (expression_statement
+                  (call_expression
+                    function: (identifier)
+                    arguments: (argument_list
+                      (number_literal))))))
+            (expression_statement
+              (call_expression
+                function: (identifier)
+                arguments: (argument_list
+                  (number_literal))))
+            (break_statement))
+          (preproc_ifdef
+            name: (identifier)
+            (case_statement
+              value: (number_literal)))
+          (case_statement
+            value: (number_literal)
+            (break_statement))
+          (case_statement
+            (preproc_ifdef
+              name: (identifier)
+              (expression_statement
+                (call_expression
+                  function: (identifier)
+                  arguments: (argument_list
+                    (number_literal)))))
+            (break_statement))))
+      (labeled_statement
+        label: (statement_identifier)
+        (preproc_ifdef
+          name: (identifier)
+          (expression_statement
+            (call_expression
+              function: (identifier)
+              arguments: (argument_list
+                (number_literal)))))
+        (expression_statement
+          (call_expression
+            function: (identifier)
+            arguments: (argument_list
+              (number_literal))))))))
+
+================================================================================
+Conditional group before else and catch
+================================================================================
+
+void f(int a) {
+  if (a) {
+    g(0);
+  }
+#ifdef X
+#pragma probe
+#endif
+  else {
+    g(1);
+  }
+  if (a)
+    g(2);
+#if 0
+    g(3);
+#endif
+  else
+    g(4);
+  try {
+  } catch (int) {
+  }
+#ifndef Y
+#endif
+  catch (...) {
+  }
+  if (a) {
+  }
+#ifdef X
+#undef X
+#endif
+  g(5);
+}
+
+--------------------------------------------------------------------------------
+
+(translation_unit
+  (function_definition
+    type: (primitive_type)
+    declarator: (function_declarator
+      declarator: (identifier)
+      parameters: (parameter_list
+        (parameter_declaration
+          type: (primitive_type)
+          declarator: (identifier))))
+    body: (compound_statement
+      (if_statement
+        condition: (condition_clause
+          value: (identifier))
+        consequence: (compound_statement
+          (expression_statement
+            (call_expression
+              function: (identifier)
+              arguments: (argument_list
+                (number_literal)))))
+        (preproc_call
+          directive: (preproc_directive)
+          argument: (preproc_arg))
+        (preproc_call
+          directive: (preproc_directive)
+          argument: (preproc_arg))
+        (preproc_call
+          directive: (preproc_directive))
+        alternative: (else_clause
+          (compound_statement
+            (expression_statement
+              (call_expression
+                function: (identifier)
+                arguments: (argument_list
+                  (number_literal)))))))
+      (if_statement
+        condition: (condition_clause
+          value: (identifier))
+        consequence: (expression_statement
+          (call_expression
+            function: (identifier)
+            arguments: (argument_list
+              (number_literal))))
+        (preproc_call
+          directive: (preproc_directive)
+          argument: (preproc_arg))
+        (preproc_skipped)
+        (preproc_call
+          directive: (preproc_directive))
+        alternative: (else_clause
+          (expression_statement
+            (call_expression
+              function: (identifier)
+              arguments: (argument_list
+                (number_literal))))))
+      (try_statement
+        body: (compound_statement)
+        (catch_clause
+          parameters: (parameter_list
+            (parameter_declaration
+              type: (primitive_type)))
+          body: (compound_statement))
+        (preproc_call
+          directive: (preproc_directive)
+          argument: (preproc_arg))
+        (preproc_call
+          directive: (preproc_directive))
+        (catch_clause
+          parameters: (parameter_list)
+          body: (compound_statement)))
+      (if_statement
+        condition: (condition_clause
+          value: (identifier))
+        consequence: (compound_statement))
+      (preproc_ifdef
+        name: (identifier)
+        (preproc_call
+          directive: (preproc_directive)
+          argument: (preproc_arg)))
+      (expression_statement
+        (call_expression
+          function: (identifier)
+          arguments: (argument_list
+            (number_literal)))))))
+
+================================================================================
+Last enumerator without a comma in a conditional group
+================================================================================
+
+enum Foo {
+  kA,
+#ifdef X
+  kB,
+  kC
+#endif
+};
+enum Bar {
+  kE,
+#ifdef X
+  kF,
+  kG = 3
+#else
+  kH = 4,
+#endif
+};
+enum Baz {
+  kI,
+#ifdef X
+  kJ,
+#ifdef Y
+  kK,
+#endif
+  kL
+#endif
+};
+enum Qux {
+#ifdef X
+  FOO(kM)
+#endif
+  kN,
+  kO
+};
+
+--------------------------------------------------------------------------------
+
+(translation_unit
+  (enum_specifier
+    name: (type_identifier)
+    body: (enumerator_list
+      (enumerator
+        name: (identifier))
+      (preproc_ifdef
+        name: (identifier)
+        (enumerator
+          name: (identifier))
+        (enumerator
+          name: (identifier)))))
+  (enum_specifier
+    name: (type_identifier)
+    body: (enumerator_list
+      (enumerator
+        name: (identifier))
+      (preproc_ifdef
+        name: (identifier)
+        (enumerator
+          name: (identifier))
+        (enumerator
+          name: (identifier)
+          value: (number_literal))
+        alternative: (preproc_else
+          (enumerator
+            name: (identifier)
+            value: (number_literal))))))
+  (enum_specifier
+    name: (type_identifier)
+    body: (enumerator_list
+      (enumerator
+        name: (identifier))
+      (preproc_ifdef
+        name: (identifier)
+        (enumerator
+          name: (identifier))
+        (preproc_ifdef
+          name: (identifier)
+          (enumerator
+            name: (identifier)))
+        (enumerator
+          name: (identifier)))))
+  (enum_specifier
+    name: (type_identifier)
+    body: (enumerator_list
+      (preproc_ifdef
+        name: (identifier)
+        (macro_invocation
+          name: (identifier)
+          arguments: (token_tree
+            (identifier))))
+      (enumerator
+        name: (identifier))
+      (enumerator
+        name: (identifier)))))
+
+================================================================================
+Conditional group that splits a function head
+================================================================================
+
+#ifdef W
+void f(int a)
+#else
+void f()
+#endif
+{
+}
+struct S {
+#ifdef W
+  explicit S(int a)
+#else
+  explicit S(long a)
+#endif
+      : m(a) {}
+#if defined(W)
+  void g(int a)
+#else
+  void g()
+#endif
+  {}
+  long m;
+};
+
+--------------------------------------------------------------------------------
+
+(translation_unit
+  (preproc_call
+    directive: (preproc_directive)
+    argument: (preproc_arg))
+  (function_definition
+    type: (primitive_type)
+    declarator: (function_declarator
+      declarator: (identifier)
+      parameters: (parameter_list
+        (parameter_declaration
+          type: (primitive_type)
+          declarator: (identifier))))
+    (preproc_skipped)
+    (preproc_call
+      directive: (preproc_directive))
+    body: (compound_statement))
+  (struct_specifier
+    name: (type_identifier)
+    body: (field_declaration_list
+      (preproc_call
+        directive: (preproc_directive)
+        argument: (preproc_arg))
+      (function_definition
+        (explicit_function_specifier)
+        declarator: (function_declarator
+          declarator: (identifier)
+          parameters: (parameter_list
+            (parameter_declaration
+              type: (primitive_type)
+              declarator: (identifier))))
+        (preproc_skipped)
+        (preproc_call
+          directive: (preproc_directive))
+        (field_initializer_list
+          (field_initializer
+            (field_identifier)
+            (argument_list
+              (identifier))))
+        body: (compound_statement))
+      (preproc_call
+        directive: (preproc_directive)
+        argument: (preproc_arg))
+      (function_definition
+        type: (primitive_type)
+        declarator: (function_declarator
+          declarator: (field_identifier)
+          parameters: (parameter_list
+            (parameter_declaration
+              type: (primitive_type)
+              declarator: (identifier))))
+        (preproc_skipped)
+        (preproc_call
+          directive: (preproc_directive))
+        body: (compound_statement))
+      (field_declaration
+        type: (sized_type_specifier)
+        declarator: (field_identifier)))))
+
+================================================================================
+Conditional group that splits a constructor head with a trailing macro
+================================================================================
+
+struct impl_base;
+template <typename T>
+class light_function {
+  impl_base* m_pImpl;
+public:
+#if !defined(BOOST_NO_CXX11_NULLPTR)
+  BOOST_CONSTEXPR light_function(std::nullptr_t) BOOST_NOEXCEPT
+#else
+  BOOST_CONSTEXPR light_function(int p) BOOST_NOEXCEPT
+#endif
+      : m_pImpl(NULL)
+  {
+  }
+};
+
+--------------------------------------------------------------------------------
+
+(translation_unit
+  (struct_specifier
+    name: (type_identifier))
+  (template_declaration
+    parameters: (template_parameter_list
+      (type_parameter_declaration
+        (type_identifier)))
+    (class_specifier
+      name: (type_identifier)
+      body: (field_declaration_list
+        (field_declaration
+          type: (type_identifier)
+          declarator: (pointer_declarator
+            declarator: (field_identifier)))
+        (access_specifier)
+        (preproc_call
+          directive: (preproc_directive)
+          argument: (preproc_arg))
+        (function_definition
+          (attribute_macro
+            name: (identifier))
+          declarator: (function_declarator
+            declarator: (identifier)
+            parameters: (parameter_list
+              (parameter_declaration
+                type: (qualified_identifier
+                  scope: (namespace_identifier)
+                  name: (type_identifier))))
+            (attribute_macro
+              name: (identifier)))
+          (preproc_skipped)
+          (preproc_call
+            directive: (preproc_directive))
+          (field_initializer_list
+            (field_initializer
+              (field_identifier)
+              (argument_list
+                (null))))
+          body: (compound_statement))))))
+
+================================================================================
+Conditional group that splits a declaration
+================================================================================
+
+struct B {};
+#if defined(W)
+class X : public B
+#else
+class X
+#endif
+{
+};
+#ifdef W
+extern "C"
+#endif
+void g(void);
+#define API
+#ifdef W
+API
+#endif
+void h();
+typedef void *handle_t;
+typedef unsigned long thread_t;
+#if defined(W)
+handle_t
+#else
+thread_t
+#endif
+thread;
+#ifdef W
+struct S { int a; }
+#else
+struct S { long a; }
+#endif
+;
+
+--------------------------------------------------------------------------------
+
+(translation_unit
+  (struct_specifier
+    name: (type_identifier)
+    body: (field_declaration_list))
+  (preproc_call
+    directive: (preproc_directive)
+    argument: (preproc_arg))
+  (class_specifier
+    name: (type_identifier)
+    (base_class_clause
+      (access_specifier)
+      (type_identifier))
+    (preproc_skipped)
+    (preproc_call
+      directive: (preproc_directive))
+    body: (field_declaration_list))
+  (preproc_call
+    directive: (preproc_directive)
+    argument: (preproc_arg))
+  (linkage_specification
+    value: (string_literal
+      (string_content))
+    (preproc_call
+      directive: (preproc_directive))
+    body: (declaration
+      type: (primitive_type)
+      declarator: (function_declarator
+        declarator: (identifier)
+        parameters: (parameter_list
+          (parameter_declaration
+            type: (primitive_type))))))
+  (preproc_def
+    name: (identifier))
+  (preproc_call
+    directive: (preproc_directive)
+    argument: (preproc_arg))
+  (declaration
+    (attribute_macro
+      name: (identifier))
+    (preproc_call
+      directive: (preproc_directive))
+    type: (primitive_type)
+    declarator: (function_declarator
+      declarator: (identifier)
+      parameters: (parameter_list)))
+  (type_definition
+    type: (primitive_type)
+    declarator: (pointer_declarator
+      declarator: (type_identifier)))
+  (type_definition
+    type: (sized_type_specifier)
+    declarator: (type_identifier))
+  (preproc_call
+    directive: (preproc_directive)
+    argument: (preproc_arg))
+  (declaration
+    type: (type_identifier)
+    (preproc_skipped)
+    (preproc_call
+      directive: (preproc_directive))
+    declarator: (identifier))
+  (preproc_call
+    directive: (preproc_directive)
+    argument: (preproc_arg))
+  (struct_specifier
+    name: (type_identifier)
+    body: (field_declaration_list
+      (field_declaration
+        type: (primitive_type)
+        declarator: (field_identifier))))
+  (preproc_skipped)
+  (preproc_call
+    directive: (preproc_directive)))
+
+================================================================================
+Conditional group that splits a statement
+================================================================================
+
+int f(int a) {
+#ifdef W
+  return a
+#else
+  return -a
+#endif
+  ;
+}
+void g(int x) {
+#ifdef W
+  do { x--; }
+#else
+  do { x -= 2; }
+#endif
+  while (x > 0);
+}
+
+--------------------------------------------------------------------------------
+
+(translation_unit
+  (function_definition
+    type: (primitive_type)
+    declarator: (function_declarator
+      declarator: (identifier)
+      parameters: (parameter_list
+        (parameter_declaration
+          type: (primitive_type)
+          declarator: (identifier))))
+    body: (compound_statement
+      (preproc_call
+        directive: (preproc_directive)
+        argument: (preproc_arg))
+      (return_statement
+        (identifier)
+        (preproc_skipped)
+        (preproc_call
+          directive: (preproc_directive)))))
+  (function_definition
+    type: (primitive_type)
+    declarator: (function_declarator
+      declarator: (identifier)
+      parameters: (parameter_list
+        (parameter_declaration
+          type: (primitive_type)
+          declarator: (identifier))))
+    body: (compound_statement
+      (preproc_call
+        directive: (preproc_directive)
+        argument: (preproc_arg))
+      (do_statement
+        body: (compound_statement
+          (expression_statement
+            (update_expression
+              argument: (identifier))))
+        (preproc_skipped)
+        (preproc_call
+          directive: (preproc_directive))
+        condition: (parenthesized_expression
+          (binary_expression
+            left: (identifier)
+            right: (number_literal)))))))
+
+================================================================================
+Conditional group in a braced initializer
+================================================================================
+
+struct P { int a, b; };
+int u[]{
+#ifdef W
+  1,
+#endif
+  2};
+int v[]{
+#ifdef W
+  1
+#else
+  2
+#endif
+};
+P w[]{
+#ifdef W
+  {1, 2}
+#else
+  {3, 4}
+#endif
+};
+
+--------------------------------------------------------------------------------
+
+(translation_unit
+  (struct_specifier
+    name: (type_identifier)
+    body: (field_declaration_list
+      (field_declaration
+        type: (primitive_type)
+        declarator: (field_identifier)
+        declarator: (field_identifier))))
+  (declaration
+    type: (primitive_type)
+    declarator: (init_declarator
+      declarator: (array_declarator
+        declarator: (identifier))
+      value: (initializer_list
+        (preproc_call
+          directive: (preproc_directive)
+          argument: (preproc_arg))
+        (number_literal)
+        (preproc_call
+          directive: (preproc_directive))
+        (number_literal))))
+  (declaration
+    type: (primitive_type)
+    declarator: (init_declarator
+      declarator: (array_declarator
+        declarator: (identifier))
+      value: (initializer_list
+        (preproc_call
+          directive: (preproc_directive)
+          argument: (preproc_arg))
+        (number_literal)
+        (preproc_skipped)
+        (preproc_call
+          directive: (preproc_directive)))))
+  (declaration
+    type: (type_identifier)
+    declarator: (init_declarator
+      declarator: (array_declarator
+        declarator: (identifier))
+      value: (initializer_list
+        (preproc_call
+          directive: (preproc_directive)
+          argument: (preproc_arg))
+        (initializer_list
+          (number_literal)
+          (number_literal))
+        (preproc_skipped)
+        (preproc_call
+          directive: (preproc_directive))))))
+
+================================================================================
+Conditional groups that end with complete items
+================================================================================
+
+#define Q_OBJECT
+#define DECLARE_THING(a, b) int a##b;
+#define SIMDE_VECTORIZE
+class A {
+#ifdef W
+  Q_OBJECT
+#endif
+public:
+  int a;
+};
+#if defined(W)
+DECLARE_THING(a, b)
+#else
+DECLARE_THING(c, d)
+#endif
+int x;
+void h();
+void f(int n) {
+#ifdef W
+  h();
+#endif
+  {
+    h();
+  }
+#ifdef W
+  SIMDE_VECTORIZE
+#endif
+  for (int i = 0; i < n; i++) {
+  }
+  switch (n) {
+#ifdef W
+  case 1:
+#endif
+  case 2:
+    break;
+  }
+}
+class C {
+#ifdef W
+public:
+#else
+private:
+#endif
+  int c;
+};
+void k() {
+#ifdef _M_IX86
+  __asm {
+    mov eax, ebx
+  }
+#endif
+}
+#define CHECK_VALUE(x) h();
+void m(int n) {
+#ifdef W
+  if (n)
+    CHECK_VALUE(n)
+#endif
+  h();
+}
+
+--------------------------------------------------------------------------------
+
+(translation_unit
+  (preproc_def
+    name: (identifier))
+  (preproc_function_def
+    name: (identifier)
+    parameters: (preproc_params
+      (identifier)
+      (identifier))
+    value: (preproc_arg))
+  (preproc_def
+    name: (identifier))
+  (class_specifier
+    name: (type_identifier)
+    body: (field_declaration_list
+      (preproc_ifdef
+        name: (identifier)
+        (macro_invocation
+          name: (identifier)))
+      (access_specifier)
+      (field_declaration
+        type: (primitive_type)
+        declarator: (field_identifier))))
+  (preproc_if
+    condition: (preproc_defined
+      (identifier))
+    (macro_invocation
+      name: (identifier)
+      arguments: (token_tree
+        (identifier)
+        (identifier)))
+    alternative: (preproc_else
+      (macro_invocation
+        name: (identifier)
+        arguments: (token_tree
+          (identifier)
+          (identifier)))))
+  (declaration
+    type: (primitive_type)
+    declarator: (identifier))
+  (declaration
+    type: (primitive_type)
+    declarator: (function_declarator
+      declarator: (identifier)
+      parameters: (parameter_list)))
+  (function_definition
+    type: (primitive_type)
+    declarator: (function_declarator
+      declarator: (identifier)
+      parameters: (parameter_list
+        (parameter_declaration
+          type: (primitive_type)
+          declarator: (identifier))))
+    body: (compound_statement
+      (preproc_ifdef
+        name: (identifier)
+        (expression_statement
+          (call_expression
+            function: (identifier)
+            arguments: (argument_list))))
+      (compound_statement
+        (expression_statement
+          (call_expression
+            function: (identifier)
+            arguments: (argument_list))))
+      (preproc_ifdef
+        name: (identifier)
+        (macro_invocation
+          name: (identifier)))
+      (for_statement
+        initializer: (declaration
+          type: (primitive_type)
+          declarator: (init_declarator
+            declarator: (identifier)
+            value: (number_literal)))
+        condition: (binary_expression
+          left: (identifier)
+          right: (identifier))
+        update: (update_expression
+          argument: (identifier))
+        body: (compound_statement))
+      (switch_statement
+        condition: (condition_clause
+          value: (identifier))
+        body: (compound_statement
+          (preproc_ifdef
+            name: (identifier)
+            (case_statement
+              value: (number_literal)))
+          (case_statement
+            value: (number_literal)
+            (break_statement))))))
+  (class_specifier
+    name: (type_identifier)
+    body: (field_declaration_list
+      (preproc_ifdef
+        name: (identifier)
+        (access_specifier)
+        alternative: (preproc_else
+          (access_specifier)))
+      (field_declaration
+        type: (primitive_type)
+        declarator: (field_identifier))))
+  (function_definition
+    type: (primitive_type)
+    declarator: (function_declarator
+      declarator: (identifier)
+      parameters: (parameter_list))
+    body: (compound_statement
+      (preproc_ifdef
+        name: (identifier)
+        (ms_asm_statement
+          assembly_code: (ms_asm_code)))))
+  (preproc_function_def
+    name: (identifier)
+    parameters: (preproc_params
+      (identifier))
+    value: (preproc_arg))
+  (function_definition
+    type: (primitive_type)
+    declarator: (function_declarator
+      declarator: (identifier)
+      parameters: (parameter_list
+        (parameter_declaration
+          type: (primitive_type)
+          declarator: (identifier))))
+    body: (compound_statement
+      (preproc_ifdef
+        name: (identifier)
+        (if_statement
+          condition: (condition_clause
+            value: (identifier))
+          consequence: (macro_invocation
+            name: (identifier)
+            arguments: (token_tree
+              (identifier)))))
+      (expression_statement
+        (call_expression
+          function: (identifier)
+          arguments: (argument_list))))))
+
+================================================================================
+Directive lines in the lookaheads of the scanner
+================================================================================
+
+struct P { int x, y; };
+P g();
+struct S {
+  int m;
+  S()
+#pragma probe
+  = default;
+  S(const S &)
+#pragma probe
+  = delete;
+  S(int a)
+#if defined(A)
+  : m(a)
+#else
+  : m(a + 1)
+#endif
+  {}
+  S(long)
+#if defined(A)
+  noexcept
+#endif
+  {}
+};
+int S::
+#pragma probe
+*pm;
+void f() {
+  auto
+#pragma probe
+  [a, b] = g();
+}
+
+--------------------------------------------------------------------------------
+
+(translation_unit
+  (struct_specifier
+    name: (type_identifier)
+    body: (field_declaration_list
+      (field_declaration
+        type: (primitive_type)
+        declarator: (field_identifier)
+        declarator: (field_identifier))))
+  (declaration
+    type: (type_identifier)
+    declarator: (function_declarator
+      declarator: (identifier)
+      parameters: (parameter_list)))
+  (struct_specifier
+    name: (type_identifier)
+    body: (field_declaration_list
+      (field_declaration
+        type: (primitive_type)
+        declarator: (field_identifier))
+      (function_definition
+        declarator: (function_declarator
+          declarator: (identifier)
+          parameters: (parameter_list))
+        (preproc_call
+          directive: (preproc_directive)
+          argument: (preproc_arg))
+        (default_method_clause))
+      (function_definition
+        declarator: (function_declarator
+          declarator: (identifier)
+          parameters: (parameter_list
+            (parameter_declaration
+              (type_qualifier)
+              type: (type_identifier)
+              declarator: (abstract_reference_declarator))))
+        (preproc_call
+          directive: (preproc_directive)
+          argument: (preproc_arg))
+        (delete_method_clause))
+      (function_definition
+        declarator: (function_declarator
+          declarator: (identifier)
+          parameters: (parameter_list
+            (parameter_declaration
+              type: (primitive_type)
+              declarator: (identifier))))
+        (preproc_call
+          directive: (preproc_directive)
+          argument: (preproc_arg))
+        (field_initializer_list
+          (field_initializer
+            (field_identifier)
+            (argument_list
+              (identifier))))
+        (preproc_skipped)
+        (preproc_call
+          directive: (preproc_directive))
+        body: (compound_statement))
+      (function_definition
+        declarator: (function_declarator
+          declarator: (identifier)
+          parameters: (parameter_list
+            (parameter_declaration
+              type: (sized_type_specifier)))
+          (preproc_call
+            directive: (preproc_directive)
+            argument: (preproc_arg))
+          (noexcept))
+        (preproc_call
+          directive: (preproc_directive))
+        body: (compound_statement))))
+  (declaration
+    type: (primitive_type)
+    declarator: (member_pointer_declarator
+      scope: (namespace_identifier)
+      (preproc_call
+        directive: (preproc_directive)
+        argument: (preproc_arg))
+      declarator: (identifier)))
+  (function_definition
+    type: (primitive_type)
+    declarator: (function_declarator
+      declarator: (identifier)
+      parameters: (parameter_list))
+    body: (compound_statement
+      (declaration
+        type: (placeholder_type_specifier
+          (auto))
+        (preproc_call
+          directive: (preproc_directive)
+          argument: (preproc_arg))
+        declarator: (init_declarator
+          declarator: (structured_binding_declarator
+            (identifier)
+            (identifier))
+          value: (call_expression
+            function: (identifier)
+            arguments: (argument_list)))))))
+
+================================================================================
+Macro invocation line in a group before a semicolon or a brace
+================================================================================
+
+struct H {
+  H(
+#if 1
+  )
+#endif
+  = default;
+};
+#define X
+#define TEST(a, b) void a##_##b()
+#ifdef X
+TEST(c, d)
+#endif
+{}
+int CHECK_THAT(int);
+void k(int x) {
+  CHECK_THAT(x)
+#pragma probe
+  ;
+}
+
+--------------------------------------------------------------------------------
+
+(translation_unit
+  (struct_specifier
+    name: (type_identifier)
+    body: (field_declaration_list
+      (function_definition
+        declarator: (function_declarator
+          declarator: (identifier)
+          parameters: (parameter_list
+            (preproc_call
+              directive: (preproc_directive)
+              argument: (preproc_arg))))
+        (preproc_call
+          directive: (preproc_directive))
+        (default_method_clause))))
+  (preproc_def
+    name: (identifier))
+  (preproc_function_def
+    name: (identifier)
+    parameters: (preproc_params
+      (identifier)
+      (identifier))
+    value: (preproc_arg))
+  (preproc_call
+    directive: (preproc_directive)
+    argument: (preproc_arg))
+  (function_definition
+    declarator: (function_declarator
+      declarator: (identifier)
+      parameters: (parameter_list
+        (parameter_declaration
+          type: (type_identifier))
+        (parameter_declaration
+          type: (type_identifier))))
+    (preproc_call
+      directive: (preproc_directive))
+    body: (compound_statement))
+  (declaration
+    type: (primitive_type)
+    declarator: (function_declarator
+      declarator: (identifier)
+      parameters: (parameter_list
+        (parameter_declaration
+          type: (primitive_type)))))
+  (function_definition
+    type: (primitive_type)
+    declarator: (function_declarator
+      declarator: (identifier)
+      parameters: (parameter_list
+        (parameter_declaration
+          type: (primitive_type)
+          declarator: (identifier))))
+    body: (compound_statement
+      (expression_statement
+        (call_expression
+          function: (identifier)
+          arguments: (argument_list
+            (identifier)))
+        (preproc_call
+          directive: (preproc_directive)
+          argument: (preproc_arg))))))
+
+================================================================================
+Line groups and skipped branches after a macro invocation line
+================================================================================
+
+void log(const char *);
+void run();
+#define PROFILE_SCOPE
+#define DEBUG
+void f() {
+  PROFILE_SCOPE
+#ifdef DEBUG
+  log("x");
+#endif
+  run();
+}
+typedef void *HANDLE;
+typedef unsigned long pthread_t;
+#if defined(W)
+HANDLE
+#else
+pthread_t
+#endif
+thread;
+struct T {
+  T()
+#if 0
+  ;
+#elif defined(W)
+  : a(1)
+#else
+  : a(2)
+#endif
+  {}
+  int a;
+};
+
+--------------------------------------------------------------------------------
+
+(translation_unit
+  (declaration
+    type: (primitive_type)
+    declarator: (function_declarator
+      declarator: (identifier)
+      parameters: (parameter_list
+        (parameter_declaration
+          (type_qualifier)
+          type: (primitive_type)
+          declarator: (abstract_pointer_declarator)))))
+  (declaration
+    type: (primitive_type)
+    declarator: (function_declarator
+      declarator: (identifier)
+      parameters: (parameter_list)))
+  (preproc_def
+    name: (identifier))
+  (preproc_def
+    name: (identifier))
+  (function_definition
+    type: (primitive_type)
+    declarator: (function_declarator
+      declarator: (identifier)
+      parameters: (parameter_list))
+    body: (compound_statement
+      (macro_invocation
+        name: (identifier))
+      (preproc_ifdef
+        name: (identifier)
+        (expression_statement
+          (call_expression
+            function: (identifier)
+            arguments: (argument_list
+              (string_literal
+                (string_content))))))
+      (expression_statement
+        (call_expression
+          function: (identifier)
+          arguments: (argument_list)))))
+  (type_definition
+    type: (primitive_type)
+    declarator: (pointer_declarator
+      declarator: (type_identifier)))
+  (type_definition
+    type: (sized_type_specifier)
+    declarator: (type_identifier))
+  (preproc_call
+    directive: (preproc_directive)
+    argument: (preproc_arg))
+  (declaration
+    type: (type_identifier)
+    (preproc_skipped)
+    (preproc_call
+      directive: (preproc_directive))
+    declarator: (identifier))
+  (struct_specifier
+    name: (type_identifier)
+    body: (field_declaration_list
+      (function_definition
+        declarator: (function_declarator
+          declarator: (identifier)
+          parameters: (parameter_list))
+        (preproc_call
+          directive: (preproc_directive)
+          argument: (preproc_arg))
+        (preproc_skipped)
+        (preproc_call
+          directive: (preproc_directive)
+          argument: (preproc_arg))
+        (field_initializer_list
+          (field_initializer
+            (field_identifier)
+            (argument_list
+              (number_literal))))
+        (preproc_skipped)
+        (preproc_call
+          directive: (preproc_directive))
+        body: (compound_statement))
+      (field_declaration
+        type: (primitive_type)
+        declarator: (field_identifier)))))
+
+================================================================================
+Directive lines and groups between macro invocation lines and the next items
+================================================================================
+
+#define LOG_OPEN_NAMESPACE namespace detail
+int get();
+void k(int x);
+bool a();
+void g(int kind) {
+#ifdef HAIR
+  if (kind == 1) {
+    k(1);
+  }
+#endif
+#ifdef POINTS
+  else if (kind == 2) {
+    k(2);
+  }
+#endif
+  else {
+    k(3);
+  }
+}
+void h(int x) {
+#if 1
+#define DIAG_PUSH
+#define DIAG_IGNORE
+  DIAG_PUSH
+  DIAG_IGNORE
+#endif
+  {
+    k(x);
+  }
+#define ENUMERATE_ALL k(1);
+  ENUMERATE_ALL
+#undef ENUMERATE_ALL
+  ++x;
+#if 0
+  ;
+#endif
+  k(x);
+}
+LOG_OPEN_NAMESPACE {
+#if defined(A)
+  inline int f(int p) {
+    return p;
+  }
+#endif
+  int v = 0;
+}
+
+--------------------------------------------------------------------------------
+
+(translation_unit
+  (preproc_def
+    name: (identifier)
+    value: (preproc_arg))
+  (declaration
+    type: (primitive_type)
+    declarator: (function_declarator
+      declarator: (identifier)
+      parameters: (parameter_list)))
+  (declaration
+    type: (primitive_type)
+    declarator: (function_declarator
+      declarator: (identifier)
+      parameters: (parameter_list
+        (parameter_declaration
+          type: (primitive_type)
+          declarator: (identifier)))))
+  (declaration
+    type: (primitive_type)
+    declarator: (function_declarator
+      declarator: (identifier)
+      parameters: (parameter_list)))
+  (function_definition
+    type: (primitive_type)
+    declarator: (function_declarator
+      declarator: (identifier)
+      parameters: (parameter_list
+        (parameter_declaration
+          type: (primitive_type)
+          declarator: (identifier))))
+    body: (compound_statement
+      (preproc_call
+        directive: (preproc_directive)
+        argument: (preproc_arg))
+      (if_statement
+        condition: (condition_clause
+          value: (binary_expression
+            left: (identifier)
+            right: (number_literal)))
+        consequence: (compound_statement
+          (expression_statement
+            (call_expression
+              function: (identifier)
+              arguments: (argument_list
+                (number_literal)))))
+        (preproc_call
+          directive: (preproc_directive))
+        (preproc_call
+          directive: (preproc_directive)
+          argument: (preproc_arg))
+        alternative: (else_clause
+          (if_statement
+            condition: (condition_clause
+              value: (binary_expression
+                left: (identifier)
+                right: (number_literal)))
+            consequence: (compound_statement
+              (expression_statement
+                (call_expression
+                  function: (identifier)
+                  arguments: (argument_list
+                    (number_literal)))))
+            (preproc_call
+              directive: (preproc_directive))
+            alternative: (else_clause
+              (compound_statement
+                (expression_statement
+                  (call_expression
+                    function: (identifier)
+                    arguments: (argument_list
+                      (number_literal)))))))))))
+  (function_definition
+    type: (primitive_type)
+    declarator: (function_declarator
+      declarator: (identifier)
+      parameters: (parameter_list
+        (parameter_declaration
+          type: (primitive_type)
+          declarator: (identifier))))
+    body: (compound_statement
+      (preproc_if
+        condition: (number_literal)
+        (preproc_def
+          name: (identifier))
+        (preproc_def
+          name: (identifier))
+        (macro_invocation
+          name: (identifier))
+        (macro_invocation
+          name: (identifier)))
+      (compound_statement
+        (expression_statement
+          (call_expression
+            function: (identifier)
+            arguments: (argument_list
+              (identifier)))))
+      (preproc_def
+        name: (identifier)
+        value: (preproc_arg))
+      (macro_invocation
+        name: (identifier))
+      (preproc_call
+        directive: (preproc_directive)
+        argument: (preproc_arg))
+      (expression_statement
+        (update_expression
+          argument: (identifier)))
+      (preproc_if
+        condition: (number_literal)
+        (expression_statement))
+      (expression_statement
+        (call_expression
+          function: (identifier)
+          arguments: (argument_list
+            (identifier))))))
+  (macro_invocation
+    name: (identifier)
+    body: (compound_statement
+      (preproc_if
+        condition: (preproc_defined
+          (identifier))
+        (function_definition
+          (storage_class_specifier)
+          type: (primitive_type)
+          declarator: (function_declarator
+            declarator: (identifier)
+            parameters: (parameter_list
+              (parameter_declaration
+                type: (primitive_type)
+                declarator: (identifier))))
+          body: (compound_statement
+            (return_statement
+              (identifier)))))
+      (declaration
+        type: (primitive_type)
+        declarator: (init_declarator
+          declarator: (identifier)
+          value: (number_literal))))))
+
+================================================================================
+Statement macro lines and test macro lines in groups before a block
+================================================================================
+
+void f() {
+#ifdef STANDALONE
+  IF_CONSTEXPR (std::is_fundamental<Real>::value)
+#endif
+  {
+    g();
+  }
+}
+#ifdef DEBUG_BUILD
+TEST(Lookup, Death)
+#else
+TEST(Lookup, Other)
+#endif
+{
+  g();
+}
+
+--------------------------------------------------------------------------------
+
+(translation_unit
+  (function_definition
+    type: (primitive_type)
+    declarator: (function_declarator
+      declarator: (identifier)
+      parameters: (parameter_list))
+    body: (compound_statement
+      (preproc_ifdef
+        name: (identifier)
+        (macro_invocation
+          name: (identifier)
+          arguments: (token_tree
+            (identifier)
+            (identifier)
+            (identifier)
+            (identifier))))
+      (compound_statement
+        (expression_statement
+          (call_expression
+            function: (identifier)
+            arguments: (argument_list))))))
+  (preproc_call
+    directive: (preproc_directive)
+    argument: (preproc_arg))
+  (function_definition
+    declarator: (function_declarator
+      declarator: (identifier)
+      parameters: (parameter_list
+        (parameter_declaration
+          type: (type_identifier))
+        (parameter_declaration
+          type: (type_identifier))))
+    (preproc_skipped)
+    (preproc_call
+      directive: (preproc_directive))
+    body: (compound_statement
+      (expression_statement
+        (call_expression
+          function: (identifier)
+          arguments: (argument_list))))))
+
+================================================================================
+Line group whose later branch fits the tokens after the group
+================================================================================
+
+struct iless {};
+struct fields {
+#if DOXYGEN
+  using key_compare = int;
+#else
+  struct key_compare : iless
+#endif
+  {
+    bool operator()(int a, int b) const { return a < b; }
+  };
+};
+struct tree {
+#if defined(DOXYGEN_INVOKED)
+  template <class T> void merge_unique(T &);
+#elif 0
+  void merge_unique(int &source)
+#else
+  template <class C> void merge_unique(C &source)
+#endif
+  {
+  }
+};
+struct node {
+  node()
+#ifdef W
+  ;
+#else
+  : value(1)
+#endif
+  , next(0) {}
+  int value;
+  int next;
+};
+void g(bool x) {
+  if (x)
+#ifdef W
+    x = false;
+#else
+    x = !x
+#endif
+  ;
+  else
+    x = true;
+}
+
+--------------------------------------------------------------------------------
+
+(translation_unit
+  (struct_specifier
+    name: (type_identifier)
+    body: (field_declaration_list))
+  (struct_specifier
+    name: (type_identifier)
+    body: (field_declaration_list
+      (preproc_call
+        directive: (preproc_directive)
+        argument: (preproc_arg))
+      (preproc_skipped)
+      (preproc_call
+        directive: (preproc_directive))
+      (field_declaration
+        type: (struct_specifier
+          name: (type_identifier)
+          (base_class_clause
+            (type_identifier))
+          (preproc_call
+            directive: (preproc_directive))
+          body: (field_declaration_list
+            (function_definition
+              type: (primitive_type)
+              declarator: (function_declarator
+                declarator: (operator_name)
+                parameters: (parameter_list
+                  (parameter_declaration
+                    type: (primitive_type)
+                    declarator: (identifier))
+                  (parameter_declaration
+                    type: (primitive_type)
+                    declarator: (identifier)))
+                (type_qualifier))
+              body: (compound_statement
+                (return_statement
+                  (binary_expression
+                    left: (identifier)
+                    right: (identifier))))))))))
+  (struct_specifier
+    name: (type_identifier)
+    body: (field_declaration_list
+      (preproc_call
+        directive: (preproc_directive)
+        argument: (preproc_arg))
+      (preproc_skipped)
+      (preproc_call
+        directive: (preproc_directive)
+        argument: (preproc_arg))
+      (preproc_skipped)
+      (preproc_call
+        directive: (preproc_directive))
+      (template_declaration
+        parameters: (template_parameter_list
+          (type_parameter_declaration
+            (type_identifier)))
+        (function_definition
+          type: (primitive_type)
+          declarator: (function_declarator
+            declarator: (identifier)
+            parameters: (parameter_list
+              (parameter_declaration
+                type: (type_identifier)
+                declarator: (reference_declarator
+                  (identifier)))))
+          (preproc_call
+            directive: (preproc_directive))
+          body: (compound_statement)))))
+  (struct_specifier
+    name: (type_identifier)
+    body: (field_declaration_list
+      (function_definition
+        declarator: (function_declarator
+          declarator: (identifier)
+          parameters: (parameter_list))
+        (preproc_call
+          directive: (preproc_directive)
+          argument: (preproc_arg))
+        (preproc_skipped)
+        (preproc_call
+          directive: (preproc_directive))
+        (field_initializer_list
+          (field_initializer
+            (field_identifier)
+            (argument_list
+              (number_literal)))
+          (preproc_call
+            directive: (preproc_directive))
+          (field_initializer
+            (field_identifier)
+            (argument_list
+              (number_literal))))
+        body: (compound_statement))
+      (field_declaration
+        type: (primitive_type)
+        declarator: (field_identifier))
+      (field_declaration
+        type: (primitive_type)
+        declarator: (field_identifier))))
+  (function_definition
+    type: (primitive_type)
+    declarator: (function_declarator
+      declarator: (identifier)
+      parameters: (parameter_list
+        (parameter_declaration
+          type: (primitive_type)
+          declarator: (identifier))))
+    body: (compound_statement
+      (if_statement
+        condition: (condition_clause
+          value: (identifier))
+        (preproc_call
+          directive: (preproc_directive)
+          argument: (preproc_arg))
+        (preproc_skipped)
+        (preproc_call
+          directive: (preproc_directive))
+        consequence: (expression_statement
+          (assignment_expression
+            left: (identifier)
+            right: (unary_expression
+              argument: (identifier)))
+          (preproc_call
+            directive: (preproc_directive)))
+        alternative: (else_clause
+          (expression_statement
+            (assignment_expression
+              left: (identifier)
+              right: (true))))))))
+
+================================================================================
+Line splices in the quotes and the comments of conditional groups
+================================================================================
+
+#ifdef A
+#error "do not use \
+this"
+#endif
+int x;
+#ifdef B
+// a comment \\
+#error "x
+int a;
+#endif
+int y;
+
+--------------------------------------------------------------------------------
+
+(translation_unit
+  (preproc_ifdef
+    name: (identifier)
+    (preproc_call
+      directive: (preproc_directive)
+      argument: (preproc_arg)))
+  (declaration
+    type: (primitive_type)
+    declarator: (identifier))
+  (preproc_ifdef
+    name: (identifier)
+    (comment)
+    (declaration
+      type: (primitive_type)
+      declarator: (identifier)))
+  (declaration
+    type: (primitive_type)
+    declarator: (identifier)))
+
+================================================================================
+A raw string literal in the text of a skipped branch
+================================================================================
+
+#if 0
+void f() {
+const char *s = R"(
+#endif
+)";
+#else
+void f() {
+#endif
+}
+int x;
+
+--------------------------------------------------------------------------------
+
+(translation_unit
+  (preproc_call
+    directive: (preproc_directive)
+    argument: (preproc_arg))
+  (preproc_skipped)
+  (preproc_call
+    directive: (preproc_directive))
+  (function_definition
+    type: (primitive_type)
+    declarator: (function_declarator
+      declarator: (identifier)
+      parameters: (parameter_list))
+    body: (compound_statement
+      (preproc_call
+        directive: (preproc_directive))))
+  (declaration
+    type: (primitive_type)
+    declarator: (identifier)))
+
+================================================================================
+A digit separator and an open comment in the text of a skipped branch
+================================================================================
+
+#if 0
+void f() {
+int x = 1'000; /* start
+#endif
+*/
+#else
+void f() {
+#endif
+}
+int y;
+
+--------------------------------------------------------------------------------
+
+(translation_unit
+  (preproc_call
+    directive: (preproc_directive)
+    argument: (preproc_arg))
+  (preproc_skipped)
+  (preproc_call
+    directive: (preproc_directive))
+  (function_definition
+    type: (primitive_type)
+    declarator: (function_declarator
+      declarator: (identifier)
+      parameters: (parameter_list))
+    body: (compound_statement
+      (preproc_call
+        directive: (preproc_directive))))
+  (declaration
+    type: (primitive_type)
+    declarator: (identifier)))
+
+================================================================================
+A raw string literal in a false branch that splits an initializer
+================================================================================
+
+const char *s =
+#if 0
+  R"(
+#else
+)"
+#else
+  "b"
+#endif
+  ;
+int after;
+
+--------------------------------------------------------------------------------
+
+(translation_unit
+  (declaration
+    (type_qualifier)
+    type: (primitive_type)
+    declarator: (init_declarator
+      declarator: (pointer_declarator
+        declarator: (identifier))
+      (preproc_call
+        directive: (preproc_directive)
+        argument: (preproc_arg))
+      (preproc_skipped)
+      (preproc_call
+        directive: (preproc_directive))
+      value: (string_literal
+        (string_content)))
+    (preproc_call
+      directive: (preproc_directive)))
+  (declaration
+    type: (primitive_type)
+    declarator: (identifier)))

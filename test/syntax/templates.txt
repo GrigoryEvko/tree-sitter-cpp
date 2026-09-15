@@ -1,0 +1,144 @@
+### tmpl_nested_static_assert
+static_assert(std::is_same_v<X, std::optional<std::optional<std::variant<double, int>>>>);
+### tmpl_nested_static_assert_message
+static_assert(std::is_same<hana::common_t<T, ImplicitConvertibleTo<T>>, T>{}, "");
+### tmpl_nested_static_assert_libcxx
+static_assert(!std::convertible_to<std::basic_ostream<CharT, constexpr_char_traits<CharT>>&, OS>);
+### tmpl_static_assert_comparison_with_message
+static_assert(sizeof(T) < 16, "T is too large");
+### tmpl_static_assert_message_macro
+static_assert(sizeof(T) == 4, LAYOUT_DRIFTED_ERROR);
+### tmpl_static_assert_message_call
+static_assert(false, X());
+### tmpl_member_pointer_function_argument
+static const std::map<computer_action, void(computer_session::*)()> computer_action_functions;
+### tmpl_member_pointer_qualified_parameter
+virtual void execute(void (mu::engraving::Score::*)(), const muse::TranslatableString& actionName) = 0;
+### tmpl_member_pointer_template_scope
+using FuncMysql = size_t (Instruction<Time>::*)(char *, Time, UInt64);
+### tmpl_member_pointer_data_argument
+static constexpr std::array<ASTPtr ASTQueryWithOutput::*, 5> output_option_members{};
+### tmpl_member_pointer_cast
+return static_cast<status_t (oracle_t::*)(std::string_view) const>(fun);
+### tmpl_typeid_comma_expression
+void f1(A *x) { typeid(false, *x); }
+### tmpl_default_type_pointer
+template<typename T = void *> SNMALLOC_SLOW_PATH_T check_tick_slow(T p = nullptr);
+### tmpl_default_type_const_pointer
+template <typename Duration, typename TimeZonePtr = const time_zone*> using zoned_time = std::chrono::zoned_time<Duration, TimeZonePtr>;
+### tmpl_default_type_reference
+template<typename C, bool at_runtime = false, typename R = C const &> constexpr R diag_value_helper(C c);
+### tmpl_default_type_function_pointer
+template <typename T, typename PyWrapper = PyObject * (*)(T)> void BindFuture(Future<T> future, PyWrapper wrap);
+### tmpl_default_type_array
+template <typename T = char[3]> struct A {};
+### tmpl_default_type_function
+template <class X, class P = bool(X)> struct Pred {};
+### tmpl_default_type_bare
+template <class T, class Alloc = std::allocator<T>> class vector;
+### tmpl_nested_call_statement
+void f() { test_hash_disabled<std::basic_string_view<MyChar, std::char_traits<MyChar>>>(); }
+### tmpl_nested_three_levels_static_assert
+static_assert(three_way_comparable<ranges::iterator_t<ranges::iota_view<I>>>);
+### tmpl_nested_member_type
+struct S { mutable std::unordered_map<String, std::unique_ptr<JSONExtractTreeNode<JSONParser>>> cache; };
+### tmpl_nested_call_argument
+void g() { f(std::integral_constant<E, magic_enum::enum_value<E>(I)>()); }
+### tmpl_nested_concept_conjunction
+template <typename T>
+concept IsPointerToGarbageCollectedType =
+    std::is_pointer_v<T> &&
+    !std::is_function_v<std::remove_const_t<std::remove_pointer_t<T>>> &&
+    !std::is_void_v<std::remove_const_t<std::remove_pointer_t<T>>> &&
+    IsGarbageCollectedType<std::remove_const_t<std::remove_pointer_t<T>>>::value;
+### tmpl_nested_logical_and_argument
+template <typename T, typename U>
+struct equal_impl<T, U, when<hana::Product<T>::value && hana::Product<U>::value>> { };
+### tmpl_function_type_nested_parameters
+using MergeFunctionType = std::function<void(std::shared_ptr<T>, std::vector<std::shared_ptr<T>>&)>;
+### tmpl_pack_pointer_parameter
+template<typename... T_> void cancel_impl_(std::exception_ptr*, T_*...);
+### tmpl_pack_const_pointer_parameter
+template<typename ...Types> void f3(const Types * ...) {}
+### tmpl_pack_named_pointer_parameter
+template<class... Ts> void f(Ts*... ts);
+### tmpl_pack_reference_array_parameter
+template <unsigned... Nx> constexpr auto stringData(const char (&...strings)[Nx]) { return sizeof...(Nx); }
+### tmpl_pack_function_pointer_parameter
+template<class... Rs> void f(Rs (*...fs)());
+### tmpl_pack_member_pointer_parameter
+template<class... Cs> void f(int Cs::*...ps, int (Cs::*...ms)() const);
+### tmpl_pack_array_parameter
+template<class... Ts> void f(Ts... a[1][2]);
+### tmpl_pack_nontype_function_pointer
+template<void (*...P)(int)> struct S {};
+### tmpl_pack_parameter_attribute
+template <class... Args> void use(Args &&... args [[maybe_unused]]) {}
+### tmpl_pack_parameter_attribute_array
+template <class... Args> void use(Args... args [[maybe_unused]] [1]) {}
+### tmpl_pack_parameter_gnu_attribute
+template <class... Args> void use(Args &&... args __attribute__((unused))) {}
+### tmpl_throw_pack_expansion
+template<typename...T> auto h(int() throw(int, T...)) -> int (*)() throw(T..., int) { return nullptr; }
+### tmpl_greater_equal_argument
+using Container = conditional_t<Operation >= Op::StringFind, basic_string<T>, vector<T>>;
+### tmpl_greater_equal_sizeof_argument
+template<typename T> std::enable_if_t < sizeof( T ) >= 8, T > maybe_mix_bits( std::uint64_t val );
+### tmpl_greater_equal_fold
+template<class... Ts> bool all_ge(Ts... ts) { return (... >= ts); }
+### tmpl_greater_equal_operator_name
+bool operator>=(const A<int>& a, const A<int>& b);
+### tmpl_greater_equal_comparison
+bool b = a < b && c >= d;
+### tmpl_nested_requirement_negation
+template <class T> concept HasConstBegin = requires(T& t, const T& ct) { requires !std::same_as<decltype(t.begin()), decltype(ct.begin())>; };
+### tmpl_nested_requirement_primary
+template <class T> concept C = requires { requires std::is_class_v<T>; };
+### tmpl_concept_attribute_std
+template<class T> concept C [[deprecated]] = true;
+### tmpl_concept_attribute_gnu
+template<class T> concept C __attribute__((deprecated)) = __is_class(T);
+### tmpl_concept_attribute_two
+template<class T> concept C [[maybe_unused]] [[deprecated("x")]] = true;
+### tmpl_compound_requirement_comma
+template <class L, class R> concept HasComma = requires(L l, R r) { { l, r }; };
+### tmpl_nested_requirement_forms
+template <class T, class... Ts> concept C = requires(T t) { requires v<T> == true; requires f<T>(); requires noexcept(T()); requires t.ok(); };
+### tmpl_nested_requirement_pack_and_logic
+template <class T, class... Ts> concept C = requires { requires sizeof...(Ts) > 0; requires !D<T> || D<T*>; requires v<T> && !v<T*>; };
+### tmpl_nested_requirement_requires_expression
+template <class T> concept C = requires(T t) { requires requires { t.f(); }; };
+### tmpl_deduction_guide_requires_clause
+template<typename T> R(T) -> R<T> requires C<T>;
+### tmpl_template_template_parameter_constraint
+template<template<class U> requires C<U> class TT> struct X {};
+### tmpl_template_template_parameter_constraint_pack
+template<template<class...> requires true typename... TTs> struct Y {};
+### tmpl_constraint_trait
+template<typename T> requires __is_enum(T) && requires(T t) { t = t; } struct is_scoped_enum<T> { };
+### tmpl_constraint_trait_two_arguments
+template<class T> void f() requires __is_same(T, int) {}
+### tmpl_constraint_comma_expression
+template<class T> void g() requires (0, true) {}
+### tmpl_constraint_comma_concept
+template<class T> void h() requires (C<T>, true) {}
+### tmpl_operator_template_id_specialization
+template<> bool operator==<0>(A<int>, A<int>);
+### tmpl_operator_template_id_friend
+struct B { friend A<char>& operator<< <T> (A<char>& o, const foo<T>& l); };
+### tmpl_operator_template_id_instantiation
+template std::ostream& operator<< <mono_clock>(std::ostream& m, const mono_time& t);
+### tmpl_operator_template_id_qualified
+template<> void double_only::operator() <double>(double, boost::optional<string>&) const;
+### tmpl_operator_less_comparison
+bool b = operator<(a, b) < c;
+### tmpl_destructor_template_id_call
+void f(D d) { d.~GG<int>(); }
+### tmpl_destructor_template_id_member
+void g(A<T> a_) { a_.~A<T>(); }
+### tmpl_destructor_template_id_definition
+template<typename T> Tape<T>::~Tape<T>() { index = 0; }
+### tmpl_destructor_complement_comparison
+bool b = ~a < c;
+### tmpl_complement_template_call_in_brace_initializer
+const uint128 u_max {~static_cast<std::uint64_t>(0), ~static_cast<std::uint64_t>(0)};

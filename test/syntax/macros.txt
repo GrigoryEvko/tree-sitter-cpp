@@ -1,0 +1,257 @@
+Macro invocations as statements, declarations, and members, with no semicolon.
+
+### macro_bare_namespace_begin
+QT_BEGIN_NAMESPACE
+class QHostAddress;
+QT_END_NAMESPACE
+### macro_bare_before_namespace
+ABSL_NAMESPACE_BEGIN
+namespace debugging_internal {
+}
+ABSL_NAMESPACE_END
+### macro_bare_in_class
+class Foo : public QObject {
+    Q_OBJECT
+public:
+    Foo();
+};
+### macro_call_in_class
+class Foo : public QObject {
+    Q_OBJECT
+    Q_PROPERTY(int x READ x WRITE setX NOTIFY xChanged)
+public:
+};
+### macro_call_top_level
+NS_IMPL_FRAMEARENA_HELPERS(nsPageContentFrame)
+void f();
+### macro_call_string_argument
+BOOST_HEADER_DEPRECATED("<boost/winapi/get_thread_times.hpp>")
+#include <boost/winapi/get_thread_times.hpp>
+### macro_call_in_block
+void f(int x) {
+    Q_UNUSED(x)
+    return;
+}
+### macro_test_case_body
+TEST_CASE("battery_density_check") {
+    CHECK(true);
+}
+### macro_test_case_body_next_line
+TEST_CASE( "place_active_item", "[item]" )
+{
+    REQUIRE(x);
+}
+### macro_block_in_function
+void f() {
+    BM_ITER_MESH (v, &iter, bm, BM_VERTS_OF_MESH) {
+        g(v);
+    }
+}
+### macro_arguments_with_statements
+DEF_GM(return new ImageFiltersStrokedGM;)
+### macro_arguments_with_types
+LLVM_LIBC_FUNCTION(int, pthread_barrier_destroy, (pthread_barrier_t * b)) {
+  return 0;
+}
+### macro_generic_body
+TTS_CASE_TPL("Check return types of atanpi", eve::test::simd::ieee_reals_wf16)
+<typename T>(tts::type<T>)
+{
+  TTS_EXPR_IS(eve::atanpi(T()), T);
+};
+### macro_at_end_of_file
+QT_END_NAMESPACE
+### macro_bare_block
+void f(char *mem) {
+    SCOPE_EXIT { free(mem); };
+}
+### macro_arguments_next_line
+BOOST_ASIO_TEST_SUITE
+(
+  "append",
+  BOOST_ASIO_TEST_CASE(append_test)
+  BOOST_ASIO_TEST_CASE(other_test)
+)
+### macro_before_constructor
+AUD_NAMESPACE_BEGIN
+HRTF::HRTF() : m_empty(true)
+{
+}
+### macro_before_return_type_call
+API(uint32_t)
+encoderSetAttribute(Encoder *encoder, char *name)
+{
+  return 0;
+}
+### macro_function_try_block
+TEST_F(FileCacheTest, temporaryData)
+try
+{
+}
+catch (...)
+{
+}
+### macro_call_statement_arguments
+void f(QObject *p) {
+    QTC_ASSERT(p, return nullptr);
+    Q_D(const QWidget);
+    ASSERT_OK_AND_ASSIGN(auto value, Compute());
+    QTC_ASSERT(dev, notifyInferiorStopFailed(); return);
+}
+### macro_call_statement_top_level
+INSTANTIATE_TEST_SUITE_P(, FooTest, testing::Values(1, 2));
+CATA_VARIANT_OPERATOR( == );
+### macro_call_member
+class FooMock : public Foo {
+ public:
+  MOCK_METHOD(void, OnEvent, (const Event& e), (override));
+  MOCK_METHOD(int, Size, (), (const, override));
+};
+### macro_constructor_of_uppercase_class
+class AABB {
+public:
+    AABB(const Vec3& lo, const Vec3& hi);
+    AABB(int size);
+};
+### macro_call_before_subscript_on_next_line
+void f() {
+  GRPC_SLICE_START_PTR(out)
+  [cur++] = buffer[k];
+}
+### macro_constructor_before_attribute_on_next_line
+struct S {
+  S()
+  __attribute__((nothrow)) { g(); }
+};
+### macro_call_member_expression_arguments
+struct PosLookupSubTable {
+  public:
+  DEFINE_SIZE_MIN (0);
+  MEM_CXX_CLASS_ALLOC_FUNCS("LibOCIOConfig");
+  MOCK_METHOD(SamplingResult, shouldSample, (), (const, override));
+};
+### macro_call_statement_type_arguments
+void f() {
+  ASSERT_SAME_TYPE(decltype(m.size()), S);
+  ASSERT_SAME_TYPE(U, typename std::remove_cvref<T>::type);
+  ABSL_ASSIGN_OR_RETURN(std::optional<int64_t> group_id, GetGroupId());
+  BLI_LINKSTACK_DECLARE(queue, TransData *);
+  ASIO_HANDLER_INVOCATION_BEGIN(());
+}
+### macro_in_enumerator_list
+enum ErrorKind {
+  kErrorKindInvalid = 0,
+  ASAN_FOR_EACH_ERROR_KIND(ASAN_DEFINE_ERROR_KIND)
+};
+enum class Flags {
+  Watchpoints = 1 << 10,
+  LLVM_MARK_AS_BITMASK_ENUM(/*LargestValue=*/Watchpoints)
+};
+enum RegisterID : int8_t {
+  FOR_EACH_GP_REGISTER(REGISTER_ID)
+  InvalidGPRReg = -1,
+};
+enum Renamable {
+  A = 1,
+  LLVM_MARK_AS_BITMASK_ENUM(Renamable),
+};
+### macro_enumerator_uppercase_last
+enum Type {
+  TYPE_ADLER32 = 0,
+  TYPE_CRC32
+};
+### macro_call_before_attribute_declaration
+PA_COMPONENT_EXPORT(PARTITION_ALLOC_BASE)
+__attribute__((const)) int MacOSMajorVersion();
+### macro_type_before_call_modifier_on_next_line
+HRESULT
+__stdcall DebugExtensionInitialize(PULONG version, PULONG flags) {
+  return 0;
+}
+### macro_call_before_brace_same_line
+virtual void handleMenuItem(const QString& menuItemId) { Q_UNUSED(menuItemId) }
+### macro_bare_before_brace_same_line
+void h() {MONGO_UNREACHABLE}
+### macro_before_brace_in_class_body
+struct char_ { BOOST_SPIRIT_IS_TAG() };
+struct B : public A { BOOST_TYPE_INDEX_REGISTER_CLASS };
+### macro_before_brace_in_constructor_body
+class D : public X { int diamond; D(){Q_UNUSED(diamond)} };
+### macro_type_of_parameter
+void insert(BSLS_COMPILERFEATURES_FORWARD_REF(ALT_VALUE_TYPE) value);
+### macro_type_of_parameter_pack
+template<class ...Args>
+void f(BOOST_FWD_REF(Args) ...args);
+### macro_type_of_typedef
+typedef BOOST_CONTAINER_IMPDEF(value_compare_impl) value_compare;
+### macro_type_of_member_with_parameters
+struct T { NS_IMETHOD_(void) Unlink(void *p) = 0; };
+### macro_type_of_pointer_in_block
+void g() { STACK_OF(X509) *sk; sk = 0; }
+### macro_type_with_qualified_argument
+void f(BOOST_RV_REF(const bsl::pair<A, B> &) value);
+### macro_type_pointer_with_qualifier
+STACK_OF(X509) * const fixed = get_chain();
+### macro_type_two_pointer_declarators
+STACK_OF(X509) *chain, *other;
+### macro_type_pointer_function_declarator
+struct C { STACK_OF(SSL_COMP)* get_null_compression_methods() const { return 0; } };
+const STACK_OF(CRYPTO_BUFFER)* SSL_get0_peer_certificates(const SSL* ssl);
+### macro_type_pointer_qualified_declarator
+STACK_OF(SSL_COMP)* openssl_init_base::get_null_compression_methods() { return 0; }
+### macro_call_line_before_template_member
+struct S {
+  template <class R>
+  REQUIRES_RANGE(R, int)
+  S(R r);
+};
+### macro_call_line_before_template_function
+template <class T>
+STDEXEC_ATTRIBUTE(always_inline, host, device)
+constexpr auto make(T t) -> int { return 0; }
+### macro_after_parameter_declarator
+void f(int a VULKAN_HPP_DEFAULT_ASSIGNMENT( nullptr ), int b);
+### macro_after_last_parameter_declarator
+void g(Optional<const X> x VULKAN_HPP_DEFAULT_ASSIGNMENT( nullptr ));
+### macro_before_return_statement
+int f(int a) { MUST_TAIL_CALL return g(a); }
+### macro_before_return_in_substatement
+int f(int a) { if (a) TAILCALL return g(a); return 0; }
+### macro_before_break_statement
+void f(int a) { switch (a) { case 1: MACRO_A break; } }
+### macro_after_pointer_operator
+char * BROTLI_RESTRICT buffer;
+const uint8_t* XXH_RESTRICT src = 0;
+### macro_after_pointer_operator_with_qualifier
+void g(uint8_t* WEBP_RESTRICT const dst);
+### macro_after_reference_operator
+Foo& XR_MAY_ALIAS ref = x;
+### macro_after_pointer_operator_in_member
+struct T { T* MOZ_NON_OWNING_REF p; };
+### macro_before_braced_initializer_at_namespace_scope
+std::atomic<int> gx GUARDED_BY(mu){0};
+### macro_before_braced_initializer_in_block
+void b() { Mutex m GUARDED_BY(mu){0}; }
+### macro_in_if_keeps_the_block
+void f(int c, int x) { if (x) { g(); } else if MOZ_UNLIKELY (c) { return; } h(); }
+### macro_before_keyword_type_in_template_argument
+S<STD size_t> v;
+using U = basic_istream<char, STD char_traits<char>>;
+### macro_between_declarator_name_and_parameters
+struct S { const P& min BOOST_PREVENT_MACRO_SUBSTITUTION () const; };
+### macro_between_declarator_name_and_parameters_with_types
+struct S3 { const T& max BOOST_PREVENT_MACRO_SUBSTITUTION (const T& a, const T& b); };
+### macro_after_declarator_keeps_its_arguments
+struct S2 { int count GUARDED_BY(mu); };
+### macro_invocation_line_with_three_macros
+void f(int v) { if (v) { T_ P_(LINE2) P(X) } }
+### macro_invocation_line_before_a_closing_brace
+void f(int v) {
+  if (v) {
+    T_ P_(LINE1) P_(MAX_DEPTH1) P(RESULT)
+  }
+}
+### macro_invocation_line_keeps_a_variable_with_arguments
+void a() { MYTYPE OBJ(ARG); TYPE VAR = f(x); }
+### macro_invocation_line_before_a_semicolon
+void f(int i) { if (v) { P_(i) P(testObjects[i]); } }

@@ -320,6 +320,100 @@ struct S {
                 (identifier)))))))))
 
 ================================================================================
+Attributes before the explicit object parameter
+================================================================================
+
+struct S {
+  void f([[maybe_unused]] this S &self);
+  void g([[maybe_unused]] [[deprecated]] this auto &&);
+  void h(this const S &self);
+};
+auto l = []([[maybe_unused]] this auto self) {};
+void k(int, [[maybe_unused]] int y);
+
+--------------------------------------------------------------------------------
+
+(translation_unit
+  (struct_specifier
+    name: (type_identifier)
+    body: (field_declaration_list
+      (field_declaration
+        type: (primitive_type)
+        declarator: (function_declarator
+          declarator: (field_identifier)
+          parameters: (parameter_list
+            (explicit_object_parameter_declaration
+              (attribute_declaration
+                (attribute
+                  name: (identifier)))
+              (this)
+              (parameter_declaration
+                type: (type_identifier)
+                declarator: (reference_declarator
+                  (identifier)))))))
+      (field_declaration
+        type: (primitive_type)
+        declarator: (function_declarator
+          declarator: (field_identifier)
+          parameters: (parameter_list
+            (explicit_object_parameter_declaration
+              (attribute_declaration
+                (attribute
+                  name: (identifier)))
+              (attribute_declaration
+                (attribute
+                  name: (identifier)))
+              (this)
+              (parameter_declaration
+                type: (placeholder_type_specifier
+                  (auto))
+                declarator: (abstract_reference_declarator))))))
+      (field_declaration
+        type: (primitive_type)
+        declarator: (function_declarator
+          declarator: (field_identifier)
+          parameters: (parameter_list
+            (explicit_object_parameter_declaration
+              (this)
+              (parameter_declaration
+                (type_qualifier)
+                type: (type_identifier)
+                declarator: (reference_declarator
+                  (identifier)))))))))
+  (declaration
+    type: (placeholder_type_specifier
+      (auto))
+    declarator: (init_declarator
+      declarator: (identifier)
+      value: (lambda_expression
+        captures: (lambda_capture_specifier)
+        declarator: (lambda_declarator
+          parameters: (parameter_list
+            (explicit_object_parameter_declaration
+              (attribute_declaration
+                (attribute
+                  name: (identifier)))
+              (this)
+              (parameter_declaration
+                type: (placeholder_type_specifier
+                  (auto))
+                declarator: (identifier)))))
+        body: (compound_statement))))
+  (declaration
+    type: (primitive_type)
+    declarator: (function_declarator
+      declarator: (identifier)
+      parameters: (parameter_list
+        (parameter_declaration
+          type: (primitive_type))
+        (parameter_declaration
+          (attribute_declaration
+            (attribute
+              name: (identifier)))
+          type: (primitive_type)
+          declarator: (identifier))))))
+
+================================================================================
 Inline method definitions with overrides
 ================================================================================
 
@@ -862,27 +956,27 @@ class A final : [[deprecated]] public B {};
       (identifier)
       (parameter_list)))
   (declaration
-        (attribute_declaration
-          (attribute
-            (identifier)
-            (identifier))
-          (attribute
-            (identifier))
-          (attribute
-            (identifier))
-          (attribute
-            (identifier)
-            (argument_list
-              (string_literal
-                (string_content)))))
-        (attribute_declaration
-          (attribute
-            (identifier)))
-        (storage_class_specifier)
-        (primitive_type)
-        (function_declarator
-          (identifier)
-          (parameter_list)))
+    (attribute_declaration
+      (attribute
+        (identifier)
+        (identifier))
+      (attribute
+        (identifier))
+      (attribute
+        (identifier))
+      (attribute
+        (identifier)
+        (argument_list
+          (string_literal
+            (string_content)))))
+    (attribute_declaration
+      (attribute
+        (identifier)))
+    (storage_class_specifier)
+    (primitive_type)
+    (function_declarator
+      (identifier)
+      (parameter_list)))
   (function_definition
     (attribute_declaration
       (attribute
@@ -1214,6 +1308,87 @@ void baz() {}
         (identifier)
         (parameter_list))
       (compound_statement))))
+
+================================================================================
+Template template parameters with a requires clause
+================================================================================
+
+template<template<typename T, T> requires C<T> typename> void g() {}
+template<template<class U> requires C<U> class TT> struct X {};
+template<template<class...> requires true typename... TTs> struct Y {};
+template<template<class U> requires C<U> class TT = V> struct Z {};
+
+--------------------------------------------------------------------------------
+
+(translation_unit
+  (template_declaration
+    parameters: (template_parameter_list
+      (template_template_parameter_declaration
+        parameters: (template_parameter_list
+          (type_parameter_declaration
+            (type_identifier))
+          (parameter_declaration
+            type: (type_identifier)))
+        (requires_clause
+          constraint: (template_type
+            name: (type_identifier)
+            arguments: (template_argument_list
+              (type_descriptor
+                type: (type_identifier)))))
+        (type_parameter_declaration)))
+    (function_definition
+      type: (primitive_type)
+      declarator: (function_declarator
+        declarator: (identifier)
+        parameters: (parameter_list))
+      body: (compound_statement)))
+  (template_declaration
+    parameters: (template_parameter_list
+      (template_template_parameter_declaration
+        parameters: (template_parameter_list
+          (type_parameter_declaration
+            (type_identifier)))
+        (requires_clause
+          constraint: (template_type
+            name: (type_identifier)
+            arguments: (template_argument_list
+              (type_descriptor
+                type: (type_identifier)))))
+        (type_parameter_declaration
+          (type_identifier))))
+    (struct_specifier
+      name: (type_identifier)
+      body: (field_declaration_list)))
+  (template_declaration
+    parameters: (template_parameter_list
+      (template_template_parameter_declaration
+        parameters: (template_parameter_list
+          (variadic_type_parameter_declaration))
+        (requires_clause
+          constraint: (true))
+        (variadic_type_parameter_declaration
+          (type_identifier))))
+    (struct_specifier
+      name: (type_identifier)
+      body: (field_declaration_list)))
+  (template_declaration
+    parameters: (template_parameter_list
+      (template_template_parameter_declaration
+        parameters: (template_parameter_list
+          (type_parameter_declaration
+            (type_identifier)))
+        (requires_clause
+          constraint: (template_type
+            name: (type_identifier)
+            arguments: (template_argument_list
+              (type_descriptor
+                type: (type_identifier)))))
+        (optional_type_parameter_declaration
+          name: (type_identifier)
+          default_type: (type_identifier))))
+    (struct_specifier
+      name: (type_identifier)
+      body: (field_declaration_list))))
 
 ================================================================================
 Template specializations
@@ -1550,6 +1725,226 @@ int main() {
         body: (compound_statement)))))
 
 ================================================================================
+Structured bindings only after auto
+================================================================================
+
+void f(int arr[], int i, int v, P x) {
+  arr[i] = v;
+  int d = 0;
+  [d]() { g(d); };
+  const auto p{[d](int e) { return e + d; }};
+  auto [c, e](x);
+  auto& [r, s]{x};
+  auto const && [t, u] = static_cast<P&&>(x);
+  int a[2] = {1, 2};
+  auto l = [a, d]() {};
+  auto{x}.a;
+}
+
+--------------------------------------------------------------------------------
+
+(translation_unit
+  (function_definition
+    type: (primitive_type)
+    declarator: (function_declarator
+      declarator: (identifier)
+      parameters: (parameter_list
+        (parameter_declaration
+          type: (primitive_type)
+          declarator: (array_declarator
+            declarator: (identifier)))
+        (parameter_declaration
+          type: (primitive_type)
+          declarator: (identifier))
+        (parameter_declaration
+          type: (primitive_type)
+          declarator: (identifier))
+        (parameter_declaration
+          type: (type_identifier)
+          declarator: (identifier))))
+    body: (compound_statement
+      (expression_statement
+        (assignment_expression
+          left: (subscript_expression
+            argument: (identifier)
+            indices: (subscript_argument_list
+              (identifier)))
+          right: (identifier)))
+      (declaration
+        type: (primitive_type)
+        declarator: (init_declarator
+          declarator: (identifier)
+          value: (number_literal)))
+      (expression_statement
+        (lambda_expression
+          captures: (lambda_capture_specifier
+            (identifier))
+          declarator: (lambda_declarator
+            parameters: (parameter_list))
+          body: (compound_statement
+            (expression_statement
+              (call_expression
+                function: (identifier)
+                arguments: (argument_list
+                  (identifier)))))))
+      (declaration
+        (type_qualifier)
+        type: (placeholder_type_specifier
+          (auto))
+        declarator: (init_declarator
+          declarator: (identifier)
+          value: (initializer_list
+            (lambda_expression
+              captures: (lambda_capture_specifier
+                (identifier))
+              declarator: (lambda_declarator
+                parameters: (parameter_list
+                  (parameter_declaration
+                    type: (primitive_type)
+                    declarator: (identifier))))
+              body: (compound_statement
+                (return_statement
+                  (binary_expression
+                    left: (identifier)
+                    right: (identifier))))))))
+      (declaration
+        type: (placeholder_type_specifier
+          (auto))
+        declarator: (init_declarator
+          declarator: (structured_binding_declarator
+            (identifier)
+            (identifier))
+          value: (argument_list
+            (identifier))))
+      (declaration
+        type: (placeholder_type_specifier
+          (auto))
+        declarator: (init_declarator
+          declarator: (reference_declarator
+            (structured_binding_declarator
+              (identifier)
+              (identifier)))
+          value: (initializer_list
+            (identifier))))
+      (declaration
+        type: (placeholder_type_specifier
+          (auto))
+        (type_qualifier)
+        declarator: (init_declarator
+          declarator: (reference_declarator
+            (structured_binding_declarator
+              (identifier)
+              (identifier)))
+          value: (call_expression
+            function: (template_function
+              name: (identifier)
+              arguments: (template_argument_list
+                (type_descriptor
+                  type: (type_identifier)
+                  declarator: (abstract_reference_declarator))))
+            arguments: (argument_list
+              (identifier)))))
+      (declaration
+        type: (primitive_type)
+        declarator: (init_declarator
+          declarator: (array_declarator
+            declarator: (identifier)
+            size: (number_literal))
+          value: (initializer_list
+            (number_literal)
+            (number_literal))))
+      (declaration
+        type: (placeholder_type_specifier
+          (auto))
+        declarator: (init_declarator
+          declarator: (identifier)
+          value: (lambda_expression
+            captures: (lambda_capture_specifier
+              (identifier)
+              (identifier))
+            declarator: (lambda_declarator
+              parameters: (parameter_list))
+            body: (compound_statement))))
+      (expression_statement
+        (field_expression
+          argument: (compound_literal_expression
+            type: (placeholder_type_specifier
+              (auto))
+            value: (initializer_list
+              (identifier)))
+          field: (field_identifier))))))
+
+================================================================================
+Structured bindings with attributes after the ref-qualifier
+================================================================================
+
+void f() {
+  auto &[[a]] [i, j] = ary;
+  auto &&[[a]] __attribute__((unused)) [k, l] = ary;
+  auto &__attribute__((used)) [m, n] = ary;
+  auto &[[a]] y = x;
+}
+
+--------------------------------------------------------------------------------
+
+(translation_unit
+  (function_definition
+    type: (primitive_type)
+    declarator: (function_declarator
+      declarator: (identifier)
+      parameters: (parameter_list))
+    body: (compound_statement
+      (declaration
+        type: (placeholder_type_specifier
+          (auto))
+        declarator: (init_declarator
+          declarator: (reference_declarator
+            (attribute_declaration
+              (attribute
+                name: (identifier)))
+            (structured_binding_declarator
+              (identifier)
+              (identifier)))
+          value: (identifier)))
+      (declaration
+        type: (placeholder_type_specifier
+          (auto))
+        declarator: (init_declarator
+          declarator: (reference_declarator
+            (attribute_declaration
+              (attribute
+                name: (identifier)))
+            (attribute_specifier
+              (argument_list
+                (identifier)))
+            (structured_binding_declarator
+              (identifier)
+              (identifier)))
+          value: (identifier)))
+      (declaration
+        type: (placeholder_type_specifier
+          (auto))
+        declarator: (init_declarator
+          declarator: (reference_declarator
+            (attribute_specifier
+              (argument_list
+                (identifier)))
+            (structured_binding_declarator
+              (identifier)
+              (identifier)))
+          value: (identifier)))
+      (declaration
+        type: (placeholder_type_specifier
+          (auto))
+        declarator: (init_declarator
+          declarator: (reference_declarator
+            (attribute_declaration
+              (attribute
+                name: (identifier)))
+            (identifier))
+          value: (identifier))))))
+
+================================================================================
 Constexpr/constinit/consteval declarations
 ================================================================================
 
@@ -1876,6 +2271,96 @@ operator T*();
           (parameter_list))))))
 
 ================================================================================
+Class keys in the name of a conversion function
+================================================================================
+
+struct S {};
+enum E { e };
+struct C {
+  operator struct S();
+  operator struct S *();
+  operator const struct S &();
+  operator enum E();
+};
+C::operator struct S() { return S(); }
+void g(C c) { (void) c.operator struct S(); }
+
+--------------------------------------------------------------------------------
+
+(translation_unit
+  (struct_specifier
+    name: (type_identifier)
+    body: (field_declaration_list))
+  (enum_specifier
+    name: (type_identifier)
+    body: (enumerator_list
+      (enumerator
+        name: (identifier))))
+  (struct_specifier
+    name: (type_identifier)
+    body: (field_declaration_list
+      (declaration
+        declarator: (operator_cast
+          type: (struct_specifier
+            name: (type_identifier))
+          declarator: (abstract_function_declarator
+            parameters: (parameter_list))))
+      (declaration
+        declarator: (operator_cast
+          type: (struct_specifier
+            name: (type_identifier))
+          declarator: (abstract_pointer_declarator
+            declarator: (abstract_function_declarator
+              parameters: (parameter_list)))))
+      (declaration
+        declarator: (operator_cast
+          (type_qualifier)
+          type: (struct_specifier
+            name: (type_identifier))
+          declarator: (abstract_reference_declarator
+            (abstract_function_declarator
+              parameters: (parameter_list)))))
+      (declaration
+        declarator: (operator_cast
+          type: (enum_specifier
+            name: (type_identifier))
+          declarator: (abstract_function_declarator
+            parameters: (parameter_list))))))
+  (function_definition
+    declarator: (qualified_identifier
+      scope: (namespace_identifier)
+      name: (operator_cast
+        type: (struct_specifier
+          name: (type_identifier))
+        declarator: (abstract_function_declarator
+          parameters: (parameter_list))))
+    body: (compound_statement
+      (return_statement
+        (call_expression
+          function: (identifier)
+          arguments: (argument_list)))))
+  (function_definition
+    type: (primitive_type)
+    declarator: (function_declarator
+      declarator: (identifier)
+      parameters: (parameter_list
+        (parameter_declaration
+          type: (type_identifier)
+          declarator: (identifier))))
+    body: (compound_statement
+      (expression_statement
+        (cast_expression
+          type: (type_descriptor
+            type: (primitive_type))
+          value: (call_expression
+            function: (field_expression
+              argument: (identifier)
+              field: (operator_cast
+                type: (struct_specifier
+                  name: (type_identifier))))
+            arguments: (argument_list)))))))
+
+================================================================================
 Class scope cast operator overload declarations
 ================================================================================
 
@@ -1966,6 +2451,73 @@ class A {
           (abstract_pointer_declarator
             (abstract_function_declarator
               (parameter_list))))))))
+
+================================================================================
+Conversion function declarators after ptr-operators and conversion names with no parameters
+================================================================================
+
+struct S {
+  operator int A::*() const;
+  operator int &() & noexcept;
+  operator long() requires C<T>;
+};
+struct D : B { using A<T>::operator typename A<T>::Nested *; };
+
+--------------------------------------------------------------------------------
+
+(translation_unit
+  (struct_specifier
+    name: (type_identifier)
+    body: (field_declaration_list
+      (declaration
+        declarator: (operator_cast
+          type: (primitive_type)
+          declarator: (abstract_member_pointer_declarator
+            scope: (namespace_identifier)
+            declarator: (abstract_function_declarator
+              parameters: (parameter_list)
+              (type_qualifier)))))
+      (declaration
+        declarator: (operator_cast
+          type: (primitive_type)
+          declarator: (abstract_reference_declarator
+            (abstract_function_declarator
+              parameters: (parameter_list)
+              (ref_qualifier)
+              (noexcept)))))
+      (declaration
+        declarator: (operator_cast
+          type: (sized_type_specifier)
+          declarator: (abstract_function_declarator
+            parameters: (parameter_list)
+            (requires_clause
+              constraint: (template_type
+                name: (type_identifier)
+                arguments: (template_argument_list
+                  (type_descriptor
+                    type: (type_identifier))))))))))
+  (struct_specifier
+    name: (type_identifier)
+    (base_class_clause
+      (type_identifier))
+    body: (field_declaration_list
+      (using_declaration
+        (qualified_identifier
+          scope: (template_type
+            name: (type_identifier)
+            arguments: (template_argument_list
+              (type_descriptor
+                type: (type_identifier))))
+          name: (operator_cast
+            type: (dependent_type
+              (qualified_identifier
+                scope: (template_type
+                  name: (type_identifier)
+                  arguments: (template_argument_list
+                    (type_descriptor
+                      type: (type_identifier))))
+                name: (type_identifier)))
+            declarator: (abstract_pointer_declarator)))))))
 
 ================================================================================
 Function declarations
@@ -2140,22 +2692,21 @@ struct A {
               (abstract_reference_declarator))))
         (default_method_clause))
       (friend_declaration
-        (declaration
+        (function_definition
           (placeholder_type_specifier
             (auto))
-          (init_declarator
-            (function_declarator
-              (operator_name)
-              (parameter_list
-                (parameter_declaration
-                  (type_identifier)
-                  (type_qualifier)
-                  (abstract_reference_declarator))
-                (parameter_declaration
-                  (type_identifier)
-                  (type_qualifier)
-                  (abstract_reference_declarator))))
-            (identifier)))))))
+          (function_declarator
+            (operator_name)
+            (parameter_list
+              (parameter_declaration
+                (type_identifier)
+                (type_qualifier)
+                (abstract_reference_declarator))
+              (parameter_declaration
+                (type_identifier)
+                (type_qualifier)
+                (abstract_reference_declarator))))
+          (default_method_clause))))))
 
 ================================================================================
 Pointers in qualified identifiers and field expressions
@@ -2211,10 +2762,9 @@ int main() {
         (primitive_type)
         (function_declarator
           (parenthesized_declarator
-            (qualified_identifier
+            (member_pointer_declarator
               (namespace_identifier)
-              (pointer_type_declarator
-                (type_identifier))))
+              (identifier)))
           (parameter_list
             (parameter_declaration
               (primitive_type)))))
@@ -2233,7 +2783,7 @@ int main() {
           (parenthesized_expression
             (field_expression
               (identifier)
-              (field_identifier)))
+              (identifier)))
           (argument_list
             (number_literal))))
       (comment)
@@ -2399,3 +2949,68 @@ inline constexpr MyEnum operator|(MyEnum bit0, MyEnum bit1) noexcept
         (argument_list
           (identifier))))
     (compound_statement)))
+
+================================================================================
+C11 static assertions in C++
+================================================================================
+
+_Static_assert(sizeof(int) >= 2, "top");
+namespace n { _Static_assert(true, "ns"); }
+struct S { _Static_assert(sizeof(int) >= 2); int x; };
+void f(int c) {
+  if (c) _Static_assert(true, "sub");
+  else _Static_assert(false);
+  static_assert(true);
+}
+
+--------------------------------------------------------------------------------
+
+(translation_unit
+  (static_assert_declaration
+    condition: (binary_expression
+      left: (sizeof_expression
+        type: (type_descriptor
+          type: (primitive_type)))
+      right: (number_literal))
+    message: (string_literal
+      (string_content)))
+  (namespace_definition
+    name: (namespace_identifier)
+    body: (declaration_list
+      (static_assert_declaration
+        condition: (true)
+        message: (string_literal
+          (string_content)))))
+  (struct_specifier
+    name: (type_identifier)
+    body: (field_declaration_list
+      (static_assert_declaration
+        condition: (binary_expression
+          left: (sizeof_expression
+            type: (type_descriptor
+              type: (primitive_type)))
+          right: (number_literal)))
+      (field_declaration
+        type: (primitive_type)
+        declarator: (field_identifier))))
+  (function_definition
+    type: (primitive_type)
+    declarator: (function_declarator
+      declarator: (identifier)
+      parameters: (parameter_list
+        (parameter_declaration
+          type: (primitive_type)
+          declarator: (identifier))))
+    body: (compound_statement
+      (if_statement
+        condition: (condition_clause
+          value: (identifier))
+        consequence: (static_assert_declaration
+          condition: (true)
+          message: (string_literal
+            (string_content)))
+        alternative: (else_clause
+          (static_assert_declaration
+            condition: (false))))
+      (static_assert_declaration
+        condition: (true)))))

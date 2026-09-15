@@ -45,9 +45,10 @@ add_member(^^char const *);
           (identifier)))
       (argument_list
         (reflect_expression
-          (call_expression
+          (type_descriptor
             (primitive_type)
-            (argument_list))))))
+            (abstract_function_declarator
+              (parameter_list)))))))
   (static_assert_declaration
     (call_expression
       (qualified_identifier
@@ -117,7 +118,8 @@ add_member(^^char const *);
         (binary_expression
           (parenthesized_expression
             (reflect_expression
-              (identifier)))
+              (type_descriptor
+                (type_identifier))))
           (identifier)))
       (expression_statement
         (binary_expression
@@ -138,7 +140,8 @@ add_member(^^char const *);
     (init_declarator
       (identifier)
       (reflect_expression
-        (identifier))))
+        (type_descriptor
+          (type_identifier)))))
   (declaration
     (type_qualifier)
     (qualified_identifier
@@ -180,11 +183,12 @@ add_member(^^char const *);
     (init_declarator
       (identifier)
       (reflect_expression
-        (template_function
-          (identifier)
-          (template_argument_list
-            (type_descriptor
-              (primitive_type)))))))
+        (type_descriptor
+          (template_type
+            (type_identifier)
+            (template_argument_list
+              (type_descriptor
+                (primitive_type))))))))
   (declaration
     (type_qualifier)
     (qualified_identifier
@@ -216,7 +220,8 @@ add_member(^^char const *);
               (type_identifier)))
           (field_identifier)
           (reflect_expression
-            (identifier)))
+            (type_descriptor
+              (type_identifier))))
         (alias_declaration
           (type_identifier)
           (type_descriptor
@@ -285,7 +290,6 @@ add_member(^^char const *);
             (type_qualifier)
             (abstract_pointer_declarator)))))))
 
-
 ================================================================================
 Splice type specifiers and requirements
 ================================================================================
@@ -319,18 +323,21 @@ concept C = requires {
       (splice_type_specifier
         (splice_specifier
           (reflect_expression
-            (identifier)))
+            (type_descriptor
+              (type_identifier))))
         (template_argument_list
           (parenthesized_expression
             (splice_expression
               (splice_specifier
                 (reflect_expression
-                  (identifier)))))))))
+                  (type_descriptor
+                    (type_identifier))))))))))
   (using_declaration
     (splice_type_specifier
       (splice_specifier
         (reflect_expression
-          (identifier)))))
+          (type_descriptor
+            (type_identifier))))))
   (using_declaration
     (splice_type_specifier
       (splice_specifier
@@ -356,24 +363,26 @@ concept C = requires {
     (init_declarator
       (identifier)
       (call_expression
-        (splice_type_specifier
-          (splice_specifier
-            (reflect_expression
-              (identifier)))
-          (template_argument_list
-            (parenthesized_expression
-              (splice_expression
-                (splice_specifier
-                  (reflect_expression
-                    (identifier)))))))
+        (dependent_type
+          (splice_type_specifier
+            (splice_specifier
+              (reflect_expression
+                (type_descriptor
+                  (type_identifier))))
+            (template_argument_list
+              (parenthesized_expression
+                (splice_expression
+                  (splice_specifier
+                    (reflect_expression
+                      (type_descriptor
+                        (type_identifier)))))))))
         (argument_list))))
   (declaration
     (primitive_type)
     (init_declarator
-      (qualified_identifier
+      (member_pointer_declarator
         (namespace_identifier)
-        (pointer_type_declarator
-          (type_identifier)))
+        (identifier))
       (pointer_expression
         (splice_expression
           (splice_specifier
@@ -390,10 +399,11 @@ concept C = requires {
         (splice_type_specifier
           (splice_specifier
             (reflect_expression
-              (template_function
-                (identifier)
-                (template_argument_list
-                  (number_literal))))))
+              (type_descriptor
+                (template_type
+                  (type_identifier)
+                  (template_argument_list
+                    (number_literal)))))))
         (identifier))))
   (declaration
     (primitive_type)
@@ -403,7 +413,8 @@ concept C = requires {
         (splice_expression
           (splice_specifier
             (reflect_expression
-              (identifier)))
+              (type_descriptor
+                (type_identifier))))
           (template_argument_list
             (number_literal)))
         (identifier))))
@@ -413,7 +424,8 @@ concept C = requires {
         (splice_type_specifier
           (splice_specifier
             (reflect_expression
-              (identifier)))
+              (type_descriptor
+                (type_identifier))))
           (template_argument_list
             (number_literal)))
         (type_identifier)))
@@ -425,7 +437,8 @@ concept C = requires {
       (splice_expression
         (splice_specifier
           (reflect_expression
-            (identifier)))
+            (type_descriptor
+              (type_identifier))))
         (template_argument_list
           (number_literal)))
       (type_identifier))
@@ -438,7 +451,8 @@ concept C = requires {
         (splice_expression
           (splice_specifier
             (reflect_expression
-              (identifier)))
+              (type_descriptor
+                (type_identifier))))
           (template_argument_list
             (number_literal)))
         (type_identifier)))
@@ -459,7 +473,6 @@ concept C = requires {
                 (qualified_identifier
                   (namespace_identifier)
                   (identifier)))))
-          (simple_requirement)
           (type_requirement
             (splice_type_specifier
               (splice_specifier
@@ -468,8 +481,7 @@ concept C = requires {
                   (identifier)))
               (template_argument_list
                 (type_descriptor
-                  (primitive_type)))))
-          (simple_requirement))))))
+                  (primitive_type))))))))))
 
 ================================================================================
 Splice expressions
@@ -513,7 +525,8 @@ int v2 = base_->[:fields[I]:];
         (splice_type_specifier
           (splice_specifier
             (reflect_expression
-              (identifier))))
+              (type_descriptor
+                (type_identifier)))))
         (identifier))))
   (declaration
     (type_qualifier)
@@ -524,7 +537,8 @@ int v2 = base_->[:fields[I]:];
         (splice_expression
           (splice_specifier
             (reflect_expression
-              (identifier)))
+              (type_descriptor
+                (type_identifier))))
           (template_argument_list
             (type_descriptor
               (primitive_type))))
@@ -551,7 +565,8 @@ int v2 = base_->[:fields[I]:];
       (splice_expression
         (splice_specifier
           (reflect_expression
-            (identifier)))
+            (type_descriptor
+              (type_identifier))))
         (template_argument_list
           (reflect_expression
             (type_descriptor
@@ -565,11 +580,12 @@ int v2 = base_->[:fields[I]:];
     (init_declarator
       (identifier)
       (call_expression
-        (splice_type_specifier
-          (splice_specifier
-            (reflect_expression
-              (type_descriptor
-                (primitive_type)))))
+        (dependent_type
+          (splice_type_specifier
+            (splice_specifier
+              (reflect_expression
+                (type_descriptor
+                  (primitive_type))))))
         (argument_list
           (number_literal)))))
   (declaration
@@ -579,11 +595,12 @@ int v2 = base_->[:fields[I]:];
     (init_declarator
       (identifier)
       (compound_literal_expression
-        (splice_type_specifier
-          (splice_specifier
-            (reflect_expression
-              (type_descriptor
-                (primitive_type)))))
+        (dependent_type
+          (splice_type_specifier
+            (splice_specifier
+              (reflect_expression
+                (type_descriptor
+                  (primitive_type))))))
         (initializer_list
           (number_literal)))))
   (declaration
@@ -599,7 +616,8 @@ int v2 = base_->[:fields[I]:];
             (splice_expression
               (splice_specifier
                 (reflect_expression
-                  (identifier)))))))))
+                  (type_descriptor
+                    (type_identifier))))))))))
   (expression_statement
     (call_expression
       (splice_expression
@@ -660,15 +678,16 @@ int v2 = base_->[:fields[I]:];
                 (number_literal)))))
         (static_assert_declaration
           (binary_expression
-            (binary_expression
-              (binary_expression
-                (qualified_identifier
-                  (splice_type_specifier
-                    (splice_specifier
-                      (identifier)))
-                  (identifier))
-                (number_literal))
+            (qualified_identifier
+              (splice_type_specifier
+                (splice_specifier
+                  (identifier)))
               (qualified_identifier
+                (dependent_name
+                  (template_type
+                    (type_identifier)
+                    (template_argument_list
+                      (number_literal))))
                 (identifier)))
             (qualified_identifier
               (namespace_identifier)
@@ -684,7 +703,8 @@ int v2 = base_->[:fields[I]:];
                 (namespace_identifier)
                 (type_identifier))))
           (reflect_expression
-            (identifier))))
+            (type_descriptor
+              (type_identifier)))))
       (argument_list)))
   (declaration
     (primitive_type)
@@ -756,7 +776,8 @@ consteval { TCls<void>::sfn(); }
                   (identifier)))
               (argument_list
                 (reflect_expression
-                  (identifier))
+                  (type_descriptor
+                    (type_identifier)))
                 (initializer_list))))
           (return_statement)))))
   (template_declaration
@@ -818,7 +839,8 @@ consteval { TCls<void>::sfn(); }
                                 (identifier)))
                             (argument_list
                               (reflect_expression
-                                (identifier))
+                                (type_descriptor
+                                  (type_identifier)))
                               (initializer_list))))))
                     (return_statement
                       (true))))
@@ -969,3 +991,136 @@ template for (constexpr int I : std::views::iota(0zu, sizeof...(Ts))) {}
         (sizeof_expression
           (identifier))))
     (compound_statement)))
+
+================================================================================
+The operand of the reflection operator is a type where the two readings are possible
+================================================================================
+
+constexpr auto r1 = ^^F;
+constexpr auto r2 = ^^B::C;
+constexpr auto r3 = ^^int();
+constexpr auto r4 = ^^A[3];
+constexpr auto r5 = ^^A &;
+constexpr auto r6 = ^^T<1>;
+constexpr auto r7 = ^^void(int) const &;
+constexpr auto r8 = ^^S::operator int;
+constexpr auto r9 = ^^operator+;
+constexpr auto ra = ^^::;
+static_assert(^^v == ^^w);
+
+--------------------------------------------------------------------------------
+
+(translation_unit
+  (declaration
+    (type_qualifier)
+    (placeholder_type_specifier
+      (auto))
+    (init_declarator
+      (identifier)
+      (reflect_expression
+        (type_descriptor
+          (type_identifier)))))
+  (declaration
+    (type_qualifier)
+    (placeholder_type_specifier
+      (auto))
+    (init_declarator
+      (identifier)
+      (reflect_expression
+        (type_descriptor
+          (qualified_identifier
+            (namespace_identifier)
+            (type_identifier))))))
+  (declaration
+    (type_qualifier)
+    (placeholder_type_specifier
+      (auto))
+    (init_declarator
+      (identifier)
+      (reflect_expression
+        (type_descriptor
+          (primitive_type)
+          (abstract_function_declarator
+            (parameter_list))))))
+  (declaration
+    (type_qualifier)
+    (placeholder_type_specifier
+      (auto))
+    (init_declarator
+      (identifier)
+      (reflect_expression
+        (type_descriptor
+          (type_identifier)
+          (abstract_array_declarator
+            (number_literal))))))
+  (declaration
+    (type_qualifier)
+    (placeholder_type_specifier
+      (auto))
+    (init_declarator
+      (identifier)
+      (reflect_expression
+        (type_descriptor
+          (type_identifier)
+          (abstract_reference_declarator)))))
+  (declaration
+    (type_qualifier)
+    (placeholder_type_specifier
+      (auto))
+    (init_declarator
+      (identifier)
+      (reflect_expression
+        (type_descriptor
+          (template_type
+            (type_identifier)
+            (template_argument_list
+              (number_literal)))))))
+  (declaration
+    (type_qualifier)
+    (placeholder_type_specifier
+      (auto))
+    (init_declarator
+      (identifier)
+      (reflect_expression
+        (type_descriptor
+          (primitive_type)
+          (abstract_function_declarator
+            (parameter_list
+              (parameter_declaration
+                (primitive_type)))
+            (type_qualifier)
+            (ref_qualifier))))))
+  (declaration
+    (type_qualifier)
+    (placeholder_type_specifier
+      (auto))
+    (init_declarator
+      (identifier)
+      (reflect_expression
+        (qualified_identifier
+          (namespace_identifier)
+          (operator_cast
+            (primitive_type))))))
+  (declaration
+    (type_qualifier)
+    (placeholder_type_specifier
+      (auto))
+    (init_declarator
+      (identifier)
+      (reflect_expression
+        (operator_name))))
+  (declaration
+    (type_qualifier)
+    (placeholder_type_specifier
+      (auto))
+    (init_declarator
+      (identifier)
+      (reflect_expression)))
+  (static_assert_declaration
+    (binary_expression
+      (reflect_expression
+        (type_descriptor
+          (type_identifier)))
+      (reflect_expression
+        (type_descriptor
+          (type_identifier))))))

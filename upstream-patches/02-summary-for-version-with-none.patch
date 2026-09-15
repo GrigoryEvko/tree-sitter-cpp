@@ -1,0 +1,108 @@
+Subject: Record a summary in error recovery for a version that has none
+
+Record a summary for a version in the error state that has none.
+
+The copy of the runtime of the tree-sitter-cpp fork has this repair. The fork commit is
+eca35f6.
+
+Error recovery goes back to a state of the summary that the parser
+records when it detects an error. A version in the error state can have
+no summary. A merge keeps the summary of one version only, and a
+reduction of a non-terminal extra makes a new version. A directive in
+the error state is such an extra. Without a summary, the version skips
+each token until the end of the file, and the root node is ERROR.
+
+ts_parser__recover now records the summary of the stack below the ERROR
+at the top of the stack when the version has none.
+
+On the corpus at 7cf7762, the root node is ERROR in 38 files before and
+20 files after. 20 files change, and no file without an error changes.
+
+The repair is not specific to a language. A version in the error state with no summary skips each
+token until the end of the input.
+
+Risk for upstream: low.
+
+The patch applies to the upstream tag v0.27.0, after the patches with a smaller number. The
+series compiles with `-Wall -Wextra` and no warning.
+
+The comments hold the marker "(tree-sitter-cpp fork)". Remove the marker before you send the
+patch upstream.
+
+diff -ruN a/lib/src/parser.c b/lib/src/parser.c
+--- a/lib/src/parser.c	2026-09-15 19:00:45.682701039 +0200
++++ b/lib/src/parser.c	2026-09-15 19:00:45.697706219 +0200
+@@ -1300,6 +1300,16 @@
+   unsigned node_count_since_error = ts_stack_node_count_since_error(self->stack, version);
+   unsigned current_error_cost = ts_stack_error_cost(self->stack, version);
+ 
++  // A version in the error state can have no summary. A merge keeps the summary of one version
++  // only. A reduction of a non-terminal extra, for example a directive, makes a new version with
++  // no summary. Without a summary, the version skips each token until the end of the file. Record
++  // the summary of the stack below the ERROR at the top. The depths then agree with the summary
++  // of ts_parser__handle_error (tree-sitter-cpp fork).
++  if (!summary) {
++    ts_stack_record_summary(self->stack, version, MAX_SUMMARY_DEPTH, node_count_since_error > 0 ? 1 : 0);
++    summary = ts_stack_get_summary(self->stack, version);
++  }
++
+   // When the parser is in the error state, there are two strategies for recovering with a
+   // given lookahead token:
+   // 1. Find a previous state on the stack in which that lookahead token would be valid. Then,
+@@ -1559,7 +1569,7 @@
+     ts_assert(did_merge);
+   }
+ 
+-  ts_stack_record_summary(self->stack, version, MAX_SUMMARY_DEPTH);
++  ts_stack_record_summary(self->stack, version, MAX_SUMMARY_DEPTH, 0);
+ 
+   // Begin recovery with the current lookahead node, rather than waiting for the
+   // next turn of the parse loop. This ensures that the tree accounts for the
+diff -ruN a/lib/src/stack.c b/lib/src/stack.c
+--- a/lib/src/stack.c	2026-08-30 18:49:12.000000000 +0200
++++ b/lib/src/stack.c	2026-09-15 19:00:45.697209603 +0200
+@@ -601,12 +601,14 @@
+ typedef struct {
+   StackSummary *summary;
+   unsigned max_depth;
++  unsigned skipped_depth;
+ } SummarizeStackSession;
+ 
+ forceinline StackAction summarize_stack_callback(void *payload, const StackIterator *iterator) {
+   SummarizeStackSession *session = payload;
+   TSStateId state = iterator->node->state;
+-  unsigned depth = iterator->subtree_count;
++  if (iterator->subtree_count < session->skipped_depth) return StackActionNone;
++  unsigned depth = iterator->subtree_count - session->skipped_depth;
+   if (depth > session->max_depth) return StackActionStop;
+   for (unsigned i = session->summary->size - 1; i + 1 > 0; i--) {
+     StackSummaryEntry entry = *array_get(session->summary, i);
+@@ -621,10 +623,11 @@
+   return StackActionNone;
+ }
+ 
+-void ts_stack_record_summary(Stack *self, StackVersion version, unsigned max_depth) {
++void ts_stack_record_summary(Stack *self, StackVersion version, unsigned max_depth, unsigned skipped_depth) {
+   SummarizeStackSession session = {
+     .summary = ts_malloc(sizeof(StackSummary)),
+-    .max_depth = max_depth
++    .max_depth = max_depth,
++    .skipped_depth = skipped_depth,
+   };
+   array_init(session.summary);
+   stack__iter(self, version, summarize_stack_callback, &session, -1);
+diff -ruN a/lib/src/stack.h b/lib/src/stack.h
+--- a/lib/src/stack.h	2026-08-30 18:49:12.000000000 +0200
++++ b/lib/src/stack.h	2026-09-15 19:00:45.697270127 +0200
+@@ -85,7 +85,10 @@
+ 
+ // Compute a summary of all the parse states near the top of the given
+ // version of the stack and store the summary for later retrieval.
+-void ts_stack_record_summary(Stack *self, StackVersion version, unsigned max_depth);
++//
++// The summary does not include the states above `skipped_depth`, and its depths do not count
++// the subtrees above `skipped_depth` (tree-sitter-cpp fork).
++void ts_stack_record_summary(Stack *self, StackVersion version, unsigned max_depth, unsigned skipped_depth);
+ 
+ // Retrieve a summary of all the parse states near the top of the
+ // given version of the stack.

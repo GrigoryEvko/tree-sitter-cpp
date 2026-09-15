@@ -110,6 +110,64 @@ T::T() try : f1(0) {} catch(...) {}
         (compound_statement)))))
 
 ================================================================================
+Decltype in a member initializer list
+================================================================================
+
+struct D : B {
+  int m;
+  D() : decltype(make())(), m(0) {}
+  D(int n) : decltype(make())(n), m(n) {}
+};
+
+--------------------------------------------------------------------------------
+
+(translation_unit
+  (struct_specifier
+    name: (type_identifier)
+    (base_class_clause
+      (type_identifier))
+    body: (field_declaration_list
+      (field_declaration
+        type: (primitive_type)
+        declarator: (field_identifier))
+      (function_definition
+        declarator: (function_declarator
+          declarator: (identifier)
+          parameters: (parameter_list))
+        (field_initializer_list
+          (field_initializer
+            (decltype
+              (call_expression
+                function: (identifier)
+                arguments: (argument_list)))
+            (argument_list))
+          (field_initializer
+            (field_identifier)
+            (argument_list
+              (number_literal))))
+        body: (compound_statement))
+      (function_definition
+        declarator: (function_declarator
+          declarator: (identifier)
+          parameters: (parameter_list
+            (parameter_declaration
+              type: (primitive_type)
+              declarator: (identifier))))
+        (field_initializer_list
+          (field_initializer
+            (decltype
+              (call_expression
+                function: (identifier)
+                arguments: (argument_list)))
+            (argument_list
+              (identifier)))
+          (field_initializer
+            (field_identifier)
+            (argument_list
+              (identifier))))
+        body: (compound_statement)))))
+
+================================================================================
 Explicit constructor definitions
 ================================================================================
 
@@ -317,3 +375,220 @@ T::operator int() try { throw 1; } catch (...) { return 2; }
         (compound_statement
           (return_statement
             (number_literal)))))))
+
+================================================================================
+Function definitions with a pointer, a reference, or parentheses in the declarator
+================================================================================
+
+int *f() { return 0; }
+int &g() { return x; }
+void (*signal(int, void (*)(int)))(int) { return 0; }
+int (max)(int a, int b) { return a; }
+
+--------------------------------------------------------------------------------
+
+(translation_unit
+  (function_definition
+    type: (primitive_type)
+    declarator: (pointer_declarator
+      declarator: (function_declarator
+        declarator: (identifier)
+        parameters: (parameter_list)))
+    body: (compound_statement
+      (return_statement
+        (number_literal))))
+  (function_definition
+    type: (primitive_type)
+    declarator: (reference_declarator
+      (function_declarator
+        declarator: (identifier)
+        parameters: (parameter_list)))
+    body: (compound_statement
+      (return_statement
+        (identifier))))
+  (function_definition
+    type: (primitive_type)
+    declarator: (function_declarator
+      declarator: (parenthesized_declarator
+        (pointer_declarator
+          declarator: (function_declarator
+            declarator: (identifier)
+            parameters: (parameter_list
+              (parameter_declaration
+                type: (primitive_type))
+              (parameter_declaration
+                type: (primitive_type)
+                declarator: (abstract_function_declarator
+                  declarator: (abstract_parenthesized_declarator
+                    (abstract_pointer_declarator))
+                  parameters: (parameter_list
+                    (parameter_declaration
+                      type: (primitive_type)))))))))
+      parameters: (parameter_list
+        (parameter_declaration
+          type: (primitive_type))))
+    body: (compound_statement
+      (return_statement
+        (number_literal))))
+  (function_definition
+    type: (primitive_type)
+    declarator: (function_declarator
+      declarator: (parenthesized_declarator
+        (identifier))
+      parameters: (parameter_list
+        (parameter_declaration
+          type: (primitive_type)
+          declarator: (identifier))
+        (parameter_declaration
+          type: (primitive_type)
+          declarator: (identifier))))
+    body: (compound_statement
+      (return_statement
+        (identifier)))))
+
+================================================================================
+Function definitions before a semicolon
+================================================================================
+
+void g() {};
+template <class T> void h(T) {};
+struct B {
+  void run() {};
+  int x() const { return 0; };
+  template <class T> void g(T) {};
+  virtual void f() = 0;
+};
+
+--------------------------------------------------------------------------------
+
+(translation_unit
+  (function_definition
+    type: (primitive_type)
+    declarator: (function_declarator
+      declarator: (identifier)
+      parameters: (parameter_list))
+    body: (compound_statement))
+  (expression_statement)
+  (template_declaration
+    parameters: (template_parameter_list
+      (type_parameter_declaration
+        (type_identifier)))
+    (function_definition
+      type: (primitive_type)
+      declarator: (function_declarator
+        declarator: (identifier)
+        parameters: (parameter_list
+          (parameter_declaration
+            type: (type_identifier))))
+      body: (compound_statement)))
+  (expression_statement)
+  (struct_specifier
+    name: (type_identifier)
+    body: (field_declaration_list
+      (function_definition
+        type: (primitive_type)
+        declarator: (function_declarator
+          declarator: (field_identifier)
+          parameters: (parameter_list))
+        body: (compound_statement))
+      (function_definition
+        type: (primitive_type)
+        declarator: (function_declarator
+          declarator: (field_identifier)
+          parameters: (parameter_list)
+          (type_qualifier))
+        body: (compound_statement
+          (return_statement
+            (number_literal))))
+      (template_declaration
+        parameters: (template_parameter_list
+          (type_parameter_declaration
+            (type_identifier)))
+        (function_definition
+          type: (primitive_type)
+          declarator: (function_declarator
+            declarator: (identifier)
+            parameters: (parameter_list
+              (parameter_declaration
+                type: (type_identifier))))
+          body: (compound_statement)))
+      (field_declaration
+        type: (primitive_type)
+        declarator: (function_declarator
+          declarator: (field_identifier)
+          parameters: (parameter_list))
+        default_value: (number_literal)))))
+
+================================================================================
+Defaulted and deleted definitions of constructors and destructors out of the class
+================================================================================
+
+S::S() = default;
+S::~S() = default;
+n::S::S() = default;
+S::S() = delete("reason");
+namespace n {
+S::S() = default;
+}
+extern "C++" {
+S::~S() = default;
+}
+
+--------------------------------------------------------------------------------
+
+(translation_unit
+  (function_definition
+    declarator: (function_declarator
+      declarator: (qualified_identifier
+        scope: (namespace_identifier)
+        name: (identifier))
+      parameters: (parameter_list))
+    (default_method_clause))
+  (function_definition
+    declarator: (function_declarator
+      declarator: (qualified_identifier
+        scope: (namespace_identifier)
+        name: (destructor_name
+          (identifier)))
+      parameters: (parameter_list))
+    (default_method_clause))
+  (function_definition
+    declarator: (function_declarator
+      declarator: (qualified_identifier
+        scope: (namespace_identifier)
+        name: (qualified_identifier
+          scope: (namespace_identifier)
+          name: (identifier)))
+      parameters: (parameter_list))
+    (default_method_clause))
+  (function_definition
+    declarator: (function_declarator
+      declarator: (qualified_identifier
+        scope: (namespace_identifier)
+        name: (identifier))
+      parameters: (parameter_list))
+    (delete_method_clause
+      (string_literal
+        (string_content))))
+  (namespace_definition
+    name: (namespace_identifier)
+    body: (declaration_list
+      (function_definition
+        declarator: (function_declarator
+          declarator: (qualified_identifier
+            scope: (namespace_identifier)
+            name: (identifier))
+          parameters: (parameter_list))
+        (default_method_clause))))
+  (linkage_specification
+    value: (string_literal
+      (string_content))
+    body: (declaration_list
+      (function_definition
+        declarator: (function_declarator
+          declarator: (qualified_identifier
+            scope: (namespace_identifier)
+            name: (destructor_name
+              (identifier)))
+          parameters: (parameter_list))
+        (default_method_clause)))))

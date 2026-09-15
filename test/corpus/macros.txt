@@ -1,0 +1,1463 @@
+================================================================================
+Macro invocations with no arguments
+================================================================================
+
+QT_BEGIN_NAMESPACE
+
+class QHostAddress;
+
+QT_END_NAMESPACE
+
+--------------------------------------------------------------------------------
+
+(translation_unit
+  (macro_invocation
+    name: (identifier))
+  (class_specifier
+    name: (type_identifier))
+  (macro_invocation
+    name: (identifier)))
+
+================================================================================
+Macro invocations in a class body
+================================================================================
+
+class Foo : public QObject
+{
+    Q_OBJECT
+    Q_PROPERTY(int x READ x WRITE setX)
+
+public:
+    Foo();
+};
+
+--------------------------------------------------------------------------------
+
+(translation_unit
+  (class_specifier
+    name: (type_identifier)
+    (base_class_clause
+      (access_specifier)
+      (type_identifier))
+    body: (field_declaration_list
+      (macro_invocation
+        name: (identifier))
+      (macro_invocation
+        name: (identifier)
+        arguments: (token_tree
+          (primitive_type)
+          (identifier)
+          (identifier)
+          (identifier)
+          (identifier)
+          (identifier)))
+      (access_specifier)
+      (declaration
+        declarator: (function_declarator
+          declarator: (identifier)
+          parameters: (parameter_list))))))
+
+================================================================================
+Macro invocations in a function body
+================================================================================
+
+void f(int x)
+{
+    Q_UNUSED(x)
+    QTC_CHECK(x > 0)
+    return;
+}
+
+--------------------------------------------------------------------------------
+
+(translation_unit
+  (function_definition
+    type: (primitive_type)
+    declarator: (function_declarator
+      declarator: (identifier)
+      parameters: (parameter_list
+        (parameter_declaration
+          type: (primitive_type)
+          declarator: (identifier))))
+    body: (compound_statement
+      (macro_invocation
+        name: (identifier)
+        arguments: (token_tree
+          (identifier)))
+      (macro_invocation
+        name: (identifier)
+        arguments: (token_tree
+          (identifier)
+          (number_literal)))
+      (return_statement))))
+
+================================================================================
+Macro invocations with a body
+================================================================================
+
+TEST_CASE("name", "[tag]")
+{
+    REQUIRE(x);
+}
+
+REG_FIDDLE(Alpha_Constants_a, 256, 128, false, 1) {
+    draw();
+}
+
+--------------------------------------------------------------------------------
+
+(translation_unit
+  (macro_invocation
+    name: (identifier)
+    arguments: (token_tree
+      (string_literal
+        (string_content))
+      (string_literal
+        (string_content)))
+    body: (compound_statement
+      (expression_statement
+        (call_expression
+          function: (identifier)
+          arguments: (argument_list
+            (identifier))))))
+  (macro_invocation
+    name: (identifier)
+    arguments: (token_tree
+      (identifier)
+      (number_literal)
+      (number_literal)
+      (false)
+      (number_literal))
+    body: (compound_statement
+      (expression_statement
+        (call_expression
+          function: (identifier)
+          arguments: (argument_list))))))
+
+================================================================================
+Macro invocations with a block of statements and no arguments
+================================================================================
+
+void f(char *mem)
+{
+    SCOPE_EXIT { free(mem); };
+}
+
+--------------------------------------------------------------------------------
+
+(translation_unit
+  (function_definition
+    type: (primitive_type)
+    declarator: (function_declarator
+      declarator: (identifier)
+      parameters: (parameter_list
+        (parameter_declaration
+          type: (primitive_type)
+          declarator: (pointer_declarator
+            declarator: (identifier)))))
+    body: (compound_statement
+      (macro_invocation
+        name: (identifier)
+        body: (compound_statement
+          (expression_statement
+            (call_expression
+              function: (identifier)
+              arguments: (argument_list
+                (identifier))))))
+      (expression_statement))))
+
+================================================================================
+Macro invocations with a generic body
+================================================================================
+
+TTS_CASE_TPL("Check types", eve::test::simd::all_types)
+<typename T>(tts::type<T>)
+{
+  TTS_EXPR_IS(eve::abs(T()), T);
+};
+
+--------------------------------------------------------------------------------
+
+(translation_unit
+  (macro_invocation
+    name: (identifier)
+    arguments: (token_tree
+      (string_literal
+        (string_content))
+      (identifier)
+      (identifier)
+      (identifier)
+      (identifier))
+    template_parameters: (template_parameter_list
+      (type_parameter_declaration
+        (type_identifier)))
+    parameters: (parameter_list
+      (parameter_declaration
+        type: (qualified_identifier
+          scope: (namespace_identifier)
+          name: (template_type
+            name: (type_identifier)
+            arguments: (template_argument_list
+              (type_descriptor
+                type: (type_identifier)))))))
+    body: (compound_statement
+      (expression_statement
+        (call_expression
+          function: (identifier)
+          arguments: (argument_list
+            (call_expression
+              function: (qualified_identifier
+                scope: (namespace_identifier)
+                name: (identifier))
+              arguments: (argument_list
+                (call_expression
+                  function: (identifier)
+                  arguments: (argument_list))))
+            (identifier))))))
+  (expression_statement))
+
+================================================================================
+Token trees with statements, types, and nested brackets
+================================================================================
+
+DEF_GM(return new ImageFiltersStrokedGM;)
+LLVM_LIBC_FUNCTION(int, pthread_barrier_destroy, (pthread_barrier_t * b)) {
+  return 0;
+}
+EM_ASM({ console.log(a[0] == "x"); })
+
+--------------------------------------------------------------------------------
+
+(translation_unit
+  (macro_invocation
+    name: (identifier)
+    arguments: (token_tree
+      (identifier)))
+  (macro_invocation
+    name: (identifier)
+    arguments: (token_tree
+      (primitive_type)
+      (identifier)
+      (token_tree
+        (identifier)
+        (identifier)))
+    body: (compound_statement
+      (return_statement
+        (number_literal))))
+  (macro_invocation
+    name: (identifier)
+    arguments: (token_tree
+      (token_tree
+        (identifier)
+        (identifier)
+        (token_tree
+          (identifier)
+          (token_tree
+            (number_literal))
+          (string_literal
+            (string_content)))))))
+
+================================================================================
+Macro calls with arguments that are not expressions, before a semicolon
+================================================================================
+
+void f(QObject *p)
+{
+    QTC_ASSERT(p, return nullptr);
+    Q_D(const QWidget);
+}
+
+class FooMock : public Foo
+{
+    MOCK_METHOD(void, OnEvent, (const Event& e), (override));
+};
+
+--------------------------------------------------------------------------------
+
+(translation_unit
+  (function_definition
+    type: (primitive_type)
+    declarator: (function_declarator
+      declarator: (identifier)
+      parameters: (parameter_list
+        (parameter_declaration
+          type: (type_identifier)
+          declarator: (pointer_declarator
+            declarator: (identifier)))))
+    body: (compound_statement
+      (expression_statement
+        (call_expression
+          function: (identifier)
+          arguments: (token_tree
+            (identifier)
+            (null))))
+      (expression_statement
+        (call_expression
+          function: (identifier)
+          arguments: (token_tree
+            (identifier))))))
+  (class_specifier
+    name: (type_identifier)
+    (base_class_clause
+      (access_specifier)
+      (type_identifier))
+    body: (field_declaration_list
+      (macro_invocation
+        name: (identifier)
+        arguments: (token_tree
+          (primitive_type)
+          (identifier)
+          (token_tree
+            (identifier)
+            (identifier))
+          (token_tree
+            (identifier)))))))
+
+================================================================================
+Macro calls with expression arguments and template arguments are call expressions
+================================================================================
+
+void f()
+{
+    ASSERT_TRUE(std::holds_alternative<long long>(v));
+    STATIC_ASSERT(is_same_v<pair<int, const int>, T>);
+}
+
+--------------------------------------------------------------------------------
+
+(translation_unit
+  (function_definition
+    type: (primitive_type)
+    declarator: (function_declarator
+      declarator: (identifier)
+      parameters: (parameter_list))
+    body: (compound_statement
+      (expression_statement
+        (call_expression
+          function: (identifier)
+          arguments: (argument_list
+            (call_expression
+              function: (qualified_identifier
+                scope: (namespace_identifier)
+                name: (template_function
+                  name: (identifier)
+                  arguments: (template_argument_list
+                    (type_descriptor
+                      type: (sized_type_specifier)))))
+              arguments: (argument_list
+                (identifier))))))
+      (expression_statement
+        (call_expression
+          function: (identifier)
+          arguments: (argument_list
+            (template_function
+              name: (identifier)
+              arguments: (template_argument_list
+                (type_descriptor
+                  type: (template_type
+                    name: (type_identifier)
+                    arguments: (template_argument_list
+                      (type_descriptor
+                        type: (primitive_type))
+                      (type_descriptor
+                        (type_qualifier)
+                        type: (primitive_type)))))
+                (type_descriptor
+                  type: (type_identifier))))))))))
+
+================================================================================
+Macro invocations in an enumerator list
+================================================================================
+
+enum ErrorKind {
+  kErrorKindInvalid = 0,
+  ASAN_FOR_EACH_ERROR_KIND(ASAN_DEFINE_ERROR_KIND)
+  kErrorKindLast,
+  LLVM_MARK_AS_BITMASK_ENUM(kErrorKindLast),
+  TYPE_CRC32
+};
+
+--------------------------------------------------------------------------------
+
+(translation_unit
+  (enum_specifier
+    name: (type_identifier)
+    body: (enumerator_list
+      (enumerator
+        name: (identifier)
+        value: (number_literal))
+      (macro_invocation
+        name: (identifier)
+        arguments: (token_tree
+          (identifier)))
+      (enumerator
+        name: (identifier))
+      (macro_invocation
+        name: (identifier)
+        arguments: (token_tree
+          (identifier)))
+      (enumerator
+        name: (identifier)))))
+
+================================================================================
+Macro arguments on the next line
+================================================================================
+
+BOOST_ASIO_TEST_SUITE
+(
+  "append",
+  BOOST_ASIO_TEST_CASE(append_test)
+)
+
+--------------------------------------------------------------------------------
+
+(translation_unit
+  (macro_invocation
+    name: (identifier)
+    arguments: (token_tree
+      (string_literal
+        (string_content))
+      (identifier)
+      (token_tree
+        (identifier)))))
+
+================================================================================
+A macro with no arguments before a function declarator on the next line
+================================================================================
+
+HRESULT
+CFoo::Bar()
+{
+}
+
+QT_BEGIN_NAMESPACE
+
+QFoo::QFoo()
+{
+}
+
+API(uint32_t)
+encode(Encoder *encoder)
+{
+}
+
+--------------------------------------------------------------------------------
+
+(translation_unit
+  (function_definition
+    type: (type_identifier)
+    declarator: (function_declarator
+      declarator: (qualified_identifier
+        scope: (namespace_identifier)
+        name: (identifier))
+      parameters: (parameter_list))
+    body: (compound_statement))
+  (macro_invocation
+    name: (identifier))
+  (function_definition
+    declarator: (function_declarator
+      declarator: (qualified_identifier
+        scope: (namespace_identifier)
+        name: (identifier))
+      parameters: (parameter_list))
+    body: (compound_statement))
+  (macro_invocation
+    name: (identifier)
+    arguments: (token_tree
+      (primitive_type)))
+  (function_definition
+    declarator: (function_declarator
+      declarator: (identifier)
+      parameters: (parameter_list
+        (parameter_declaration
+          type: (type_identifier)
+          declarator: (pointer_declarator
+            declarator: (identifier)))))
+    body: (compound_statement)))
+
+================================================================================
+A dynamic exception specification on the line after a macro-shaped declarator
+================================================================================
+
+struct S {
+  S (...)
+  throw (int);
+};
+void f() {
+  CHECK_ARG(x)
+  throw (std::runtime_error("x"));
+}
+
+--------------------------------------------------------------------------------
+
+(translation_unit
+  (struct_specifier
+    name: (type_identifier)
+    body: (field_declaration_list
+      (declaration
+        declarator: (function_declarator
+          declarator: (identifier)
+          parameters: (parameter_list)
+          (throw_specifier
+            (type_descriptor
+              type: (primitive_type)))))))
+  (function_definition
+    type: (primitive_type)
+    declarator: (function_declarator
+      declarator: (identifier)
+      parameters: (parameter_list))
+    body: (compound_statement
+      (macro_invocation
+        name: (identifier)
+        arguments: (token_tree
+          (identifier)))
+      (throw_statement
+        (parenthesized_expression
+          (call_expression
+            function: (qualified_identifier
+              scope: (namespace_identifier)
+              name: (identifier))
+            arguments: (argument_list
+              (string_literal
+                (string_content)))))))))
+
+================================================================================
+Macro invocations before a closing brace on the same line
+================================================================================
+
+void f(int v) { Q_UNUSED(v) }
+void h() {MONGO_UNREACHABLE}
+struct D { D() {DECLARE_PLUGIN} };
+struct A { Q_OBJECT };
+void s(int x) { switch (x) { case 1: Q_FALLTHROUGH() } }
+void g(int c) { if (c) CHECK(c) }
+namespace n { REGISTER(T) }
+
+--------------------------------------------------------------------------------
+
+(translation_unit
+  (function_definition
+    type: (primitive_type)
+    declarator: (function_declarator
+      declarator: (identifier)
+      parameters: (parameter_list
+        (parameter_declaration
+          type: (primitive_type)
+          declarator: (identifier))))
+    body: (compound_statement
+      (macro_invocation
+        name: (identifier)
+        arguments: (token_tree
+          (identifier)))))
+  (function_definition
+    type: (primitive_type)
+    declarator: (function_declarator
+      declarator: (identifier)
+      parameters: (parameter_list))
+    body: (compound_statement
+      (macro_invocation
+        name: (identifier))))
+  (struct_specifier
+    name: (type_identifier)
+    body: (field_declaration_list
+      (function_definition
+        declarator: (function_declarator
+          declarator: (identifier)
+          parameters: (parameter_list))
+        body: (compound_statement
+          (macro_invocation
+            name: (identifier))))))
+  (struct_specifier
+    name: (type_identifier)
+    body: (field_declaration_list
+      (macro_invocation
+        name: (identifier))))
+  (function_definition
+    type: (primitive_type)
+    declarator: (function_declarator
+      declarator: (identifier)
+      parameters: (parameter_list
+        (parameter_declaration
+          type: (primitive_type)
+          declarator: (identifier))))
+    body: (compound_statement
+      (switch_statement
+        condition: (condition_clause
+          value: (identifier))
+        body: (compound_statement
+          (case_statement
+            value: (number_literal)
+            (macro_invocation
+              name: (identifier)
+              arguments: (token_tree)))))))
+  (function_definition
+    type: (primitive_type)
+    declarator: (function_declarator
+      declarator: (identifier)
+      parameters: (parameter_list
+        (parameter_declaration
+          type: (primitive_type)
+          declarator: (identifier))))
+    body: (compound_statement
+      (if_statement
+        condition: (condition_clause
+          value: (identifier))
+        consequence: (macro_invocation
+          name: (identifier)
+          arguments: (token_tree
+            (identifier))))))
+  (namespace_definition
+    name: (namespace_identifier)
+    body: (declaration_list
+      (macro_invocation
+        name: (identifier)
+        arguments: (token_tree
+          (identifier))))))
+
+================================================================================
+Macro-shaped names before a closing brace in braced lists
+================================================================================
+
+void f() {
+  g({ FLAG_ALL });
+  g({
+    FLAG_ALL
+  });
+  int a[] = { X };
+  g(({ h(); BAR(1) }));
+}
+
+--------------------------------------------------------------------------------
+
+(translation_unit
+  (function_definition
+    type: (primitive_type)
+    declarator: (function_declarator
+      declarator: (identifier)
+      parameters: (parameter_list))
+    body: (compound_statement
+      (expression_statement
+        (call_expression
+          function: (identifier)
+          arguments: (argument_list
+            (initializer_list
+              (identifier)))))
+      (expression_statement
+        (call_expression
+          function: (identifier)
+          arguments: (argument_list
+            (initializer_list
+              (identifier)))))
+      (declaration
+        type: (primitive_type)
+        declarator: (init_declarator
+          declarator: (array_declarator
+            declarator: (identifier))
+          value: (initializer_list
+            (identifier))))
+      (expression_statement
+        (call_expression
+          function: (identifier)
+          arguments: (argument_list
+            (parenthesized_expression
+              (compound_statement
+                (expression_statement
+                  (call_expression
+                    function: (identifier)
+                    arguments: (argument_list)))
+                (macro_invocation
+                  name: (identifier)
+                  arguments: (token_tree
+                    (number_literal)))))))))))
+
+================================================================================
+Macro calls with a semicolon in nested parentheses
+================================================================================
+
+void f() { EMIT_BINARY(BLOCK(add32(x);)); }
+void g() { FOO([] { a(); }); }
+
+--------------------------------------------------------------------------------
+
+(translation_unit
+  (function_definition
+    type: (primitive_type)
+    declarator: (function_declarator
+      declarator: (identifier)
+      parameters: (parameter_list))
+    body: (compound_statement
+      (expression_statement
+        (call_expression
+          function: (identifier)
+          arguments: (token_tree
+            (identifier)
+            (token_tree
+              (identifier)
+              (token_tree
+                (identifier))))))))
+  (function_definition
+    type: (primitive_type)
+    declarator: (function_declarator
+      declarator: (identifier)
+      parameters: (parameter_list))
+    body: (compound_statement
+      (expression_statement
+        (call_expression
+          function: (identifier)
+          arguments: (argument_list
+            (lambda_expression
+              captures: (lambda_capture_specifier)
+              body: (compound_statement
+                (expression_statement
+                  (call_expression
+                    function: (identifier)
+                    arguments: (argument_list)))))))))))
+
+================================================================================
+Statement macros with a body and an else clause
+================================================================================
+
+void f(int x) {
+  MACRO_IF(x)
+  {
+    e = 1;
+  }
+  else
+  {
+    e = 2;
+  }
+  for (;;)
+    FOREACH(item, items) {
+      g(item);
+    }
+}
+
+--------------------------------------------------------------------------------
+
+(translation_unit
+  (function_definition
+    type: (primitive_type)
+    declarator: (function_declarator
+      declarator: (identifier)
+      parameters: (parameter_list
+        (parameter_declaration
+          type: (primitive_type)
+          declarator: (identifier))))
+    body: (compound_statement
+      (macro_invocation
+        name: (identifier)
+        arguments: (token_tree
+          (identifier))
+        body: (compound_statement
+          (expression_statement
+            (assignment_expression
+              left: (identifier)
+              right: (number_literal))))
+        alternative: (else_clause
+          (compound_statement
+            (expression_statement
+              (assignment_expression
+                left: (identifier)
+                right: (number_literal))))))
+      (for_statement
+        body: (macro_invocation
+          name: (identifier)
+          arguments: (token_tree
+            (identifier)
+            (identifier))
+          body: (compound_statement
+            (expression_statement
+              (call_expression
+                function: (identifier)
+                arguments: (argument_list
+                  (identifier))))))))))
+
+================================================================================
+Statement macros and function definitions with a name and arguments
+================================================================================
+
+TEST(Suite, Name) {
+  g();
+}
+
+void f(int x) {
+  PROFILE(x) { h(); }
+  LOG_LINE(x)
+
+  {
+    int scoped = 1;
+  }
+}
+
+--------------------------------------------------------------------------------
+
+(translation_unit
+  (function_definition
+    declarator: (function_declarator
+      declarator: (identifier)
+      parameters: (parameter_list
+        (parameter_declaration
+          type: (type_identifier))
+        (parameter_declaration
+          type: (type_identifier))))
+    body: (compound_statement
+      (expression_statement
+        (call_expression
+          function: (identifier)
+          arguments: (argument_list)))))
+  (function_definition
+    type: (primitive_type)
+    declarator: (function_declarator
+      declarator: (identifier)
+      parameters: (parameter_list
+        (parameter_declaration
+          type: (primitive_type)
+          declarator: (identifier))))
+    body: (compound_statement
+      (macro_invocation
+        name: (identifier)
+        arguments: (token_tree
+          (identifier))
+        body: (compound_statement
+          (expression_statement
+            (call_expression
+              function: (identifier)
+              arguments: (argument_list)))))
+      (macro_invocation
+        name: (identifier)
+        arguments: (token_tree
+          (identifier)))
+      (compound_statement
+        (declaration
+          type: (primitive_type)
+          declarator: (init_declarator
+            declarator: (identifier)
+            value: (number_literal)))))))
+
+================================================================================
+A macro invocation line before a directive line and a block
+================================================================================
+
+void f(int x) {
+  switch (x) {
+#define CASE_LABEL(n) case n:
+  FOR_EACH_OP(CASE_LABEL)
+#undef CASE_LABEL
+  {
+    g();
+    break;
+  }
+  }
+}
+
+--------------------------------------------------------------------------------
+
+(translation_unit
+  (function_definition
+    type: (primitive_type)
+    declarator: (function_declarator
+      declarator: (identifier)
+      parameters: (parameter_list
+        (parameter_declaration
+          type: (primitive_type)
+          declarator: (identifier))))
+    body: (compound_statement
+      (switch_statement
+        condition: (condition_clause
+          value: (identifier))
+        body: (compound_statement
+          (preproc_function_def
+            name: (identifier)
+            parameters: (preproc_params
+              (identifier))
+            value: (preproc_arg))
+          (macro_invocation
+            name: (identifier)
+            arguments: (token_tree
+              (identifier)))
+          (preproc_call
+            directive: (preproc_directive)
+            argument: (preproc_arg))
+          (compound_statement
+            (expression_statement
+              (call_expression
+                function: (identifier)
+                arguments: (argument_list)))
+            (break_statement)))))))
+
+================================================================================
+A macro that gives the type of a parameter and of a pack
+================================================================================
+
+void insert(BSLS_COMPILERFEATURES_FORWARD_REF(VALUE_TYPE) value, int n);
+template <class... Args>
+void construct(T *p, BOOST_FWD_REF(Args) ...args);
+
+--------------------------------------------------------------------------------
+
+(translation_unit
+  (declaration
+    type: (primitive_type)
+    declarator: (function_declarator
+      declarator: (identifier)
+      parameters: (parameter_list
+        (parameter_declaration
+          type: (macro_type_specifier
+            name: (identifier)
+            type: (type_descriptor
+              type: (type_identifier)))
+          declarator: (identifier))
+        (parameter_declaration
+          type: (primitive_type)
+          declarator: (identifier)))))
+  (template_declaration
+    parameters: (template_parameter_list
+      (variadic_type_parameter_declaration
+        (type_identifier)))
+    (declaration
+      type: (primitive_type)
+      declarator: (function_declarator
+        declarator: (identifier)
+        parameters: (parameter_list
+          (parameter_declaration
+            type: (type_identifier)
+            declarator: (pointer_declarator
+              declarator: (identifier)))
+          (variadic_parameter_declaration
+            type: (macro_type_specifier
+              name: (identifier)
+              type: (type_descriptor
+                type: (type_identifier)))
+            declarator: (variadic_declarator
+              (identifier))))))))
+
+================================================================================
+A macro that gives the type of a typedef and of a member
+================================================================================
+
+struct S {
+  typedef BOOST_CONTAINER_IMPDEF(value_compare_impl) value_compare;
+  NS_IMETHOD_(void) Unlink(void *p) = 0;
+};
+
+--------------------------------------------------------------------------------
+
+(translation_unit
+  (struct_specifier
+    name: (type_identifier)
+    body: (field_declaration_list
+      (type_definition
+        type: (macro_type_specifier
+          name: (identifier)
+          type: (type_descriptor
+            type: (type_identifier)))
+        declarator: (type_identifier))
+      (field_declaration
+        type: (macro_type_specifier
+          name: (identifier)
+          type: (type_descriptor
+            type: (primitive_type)))
+        declarator: (function_declarator
+          declarator: (field_identifier)
+          parameters: (parameter_list
+            (parameter_declaration
+              type: (primitive_type)
+              declarator: (pointer_declarator
+                declarator: (identifier)))))
+        default_value: (number_literal)))))
+
+================================================================================
+A macro that gives the type of a pointer, and the calls that stay expressions
+================================================================================
+
+STACK_OF(X509) *sk;
+void g() {
+  LHASH_OF(CONF_VALUE) **table;
+  MAX(a, b) * c;
+  SIZE(x) * 2;
+  f(x) * y;
+  FOO(x) + 1;
+}
+
+--------------------------------------------------------------------------------
+
+(translation_unit
+  (declaration
+    type: (macro_type_specifier
+      name: (identifier)
+      type: (type_descriptor
+        type: (type_identifier)))
+    declarator: (pointer_declarator
+      declarator: (identifier)))
+  (function_definition
+    type: (primitive_type)
+    declarator: (function_declarator
+      declarator: (identifier)
+      parameters: (parameter_list))
+    body: (compound_statement
+      (declaration
+        type: (macro_type_specifier
+          name: (identifier)
+          type: (type_descriptor
+            type: (type_identifier)))
+        declarator: (pointer_declarator
+          declarator: (pointer_declarator
+            declarator: (identifier))))
+      (expression_statement
+        (binary_expression
+          left: (call_expression
+            function: (identifier)
+            arguments: (argument_list
+              (identifier)
+              (identifier)))
+          right: (identifier)))
+      (expression_statement
+        (binary_expression
+          left: (call_expression
+            function: (identifier)
+            arguments: (argument_list
+              (identifier)))
+          right: (number_literal)))
+      (expression_statement
+        (binary_expression
+          left: (call_expression
+            function: (identifier)
+            arguments: (argument_list
+              (identifier)))
+          right: (identifier)))
+      (expression_statement
+        (binary_expression
+          left: (call_expression
+            function: (identifier)
+            arguments: (argument_list
+              (identifier)))
+          right: (number_literal))))))
+
+================================================================================
+A macro that gives a type keeps the expressions with a pointer operator
+================================================================================
+
+void h(UErrorCode *code) {
+  for (int i = 0; U_SUCCESS(status) && ures_hasNext(alias); i++) { f(); }
+  while (U_SUCCESS(*code) && pos < s->length()) { f(); }
+}
+
+--------------------------------------------------------------------------------
+
+(translation_unit
+  (function_definition
+    type: (primitive_type)
+    declarator: (function_declarator
+      declarator: (identifier)
+      parameters: (parameter_list
+        (parameter_declaration
+          type: (type_identifier)
+          declarator: (pointer_declarator
+            declarator: (identifier)))))
+    body: (compound_statement
+      (for_statement
+        initializer: (declaration
+          type: (primitive_type)
+          declarator: (init_declarator
+            declarator: (identifier)
+            value: (number_literal)))
+        condition: (binary_expression
+          left: (call_expression
+            function: (identifier)
+            arguments: (argument_list
+              (identifier)))
+          right: (call_expression
+            function: (identifier)
+            arguments: (argument_list
+              (identifier))))
+        update: (update_expression
+          argument: (identifier))
+        body: (compound_statement
+          (expression_statement
+            (call_expression
+              function: (identifier)
+              arguments: (argument_list)))))
+      (while_statement
+        condition: (condition_clause
+          value: (binary_expression
+            left: (call_expression
+              function: (identifier)
+              arguments: (argument_list
+                (pointer_expression
+                  argument: (identifier))))
+            right: (binary_expression
+              left: (identifier)
+              right: (call_expression
+                function: (field_expression
+                  argument: (identifier)
+                  field: (field_identifier))
+                arguments: (argument_list)))))
+        body: (compound_statement
+          (expression_statement
+            (call_expression
+              function: (identifier)
+              arguments: (argument_list))))))))
+
+================================================================================
+A macro call on the line before a member of a template
+================================================================================
+
+class C {
+  public:
+    template <class RANGE>
+    REQUIRES_RANGE(RANGE, int)
+    C(RANGE r);
+    template <class A>
+    DEPRECATED("a",
+               "b")
+    int make(A a);
+};
+
+--------------------------------------------------------------------------------
+
+(translation_unit
+  (class_specifier
+    name: (type_identifier)
+    body: (field_declaration_list
+      (access_specifier)
+      (template_declaration
+        parameters: (template_parameter_list
+          (type_parameter_declaration
+            (type_identifier)))
+        (declaration
+          (attribute_macro
+            name: (identifier)
+            arguments: (token_tree
+              (identifier)
+              (primitive_type)))
+          declarator: (function_declarator
+            declarator: (identifier)
+            parameters: (parameter_list
+              (parameter_declaration
+                type: (type_identifier)
+                declarator: (identifier))))))
+      (template_declaration
+        parameters: (template_parameter_list
+          (type_parameter_declaration
+            (type_identifier)))
+        (declaration
+          (attribute_macro
+            name: (identifier)
+            arguments: (argument_list
+              (string_literal
+                (string_content))
+              (string_literal
+                (string_content))))
+          type: (primitive_type)
+          declarator: (function_declarator
+            declarator: (identifier)
+            parameters: (parameter_list
+              (parameter_declaration
+                type: (type_identifier)
+                declarator: (identifier)))))))))
+
+================================================================================
+A macro after the declarator of a parameter
+================================================================================
+
+struct A {
+  void f(int a VULKAN_HPP_DEFAULT_ASSIGNMENT( nullptr ), int b);
+  void k(MutexLocker& scope REQUIRES(mu1));
+};
+
+--------------------------------------------------------------------------------
+
+(translation_unit
+  (struct_specifier
+    name: (type_identifier)
+    body: (field_declaration_list
+      (field_declaration
+        type: (primitive_type)
+        declarator: (function_declarator
+          declarator: (field_identifier)
+          parameters: (parameter_list
+            (parameter_declaration
+              type: (primitive_type)
+              declarator: (attributed_declarator
+                (identifier)
+                (attribute_macro
+                  name: (identifier)
+                  arguments: (argument_list
+                    (null)))))
+            (parameter_declaration
+              type: (primitive_type)
+              declarator: (identifier)))))
+      (field_declaration
+        type: (primitive_type)
+        declarator: (function_declarator
+          declarator: (field_identifier)
+          parameters: (parameter_list
+            (parameter_declaration
+              type: (type_identifier)
+              declarator: (attributed_declarator
+                (reference_declarator
+                  (identifier))
+                (attribute_macro
+                  name: (identifier)
+                  arguments: (argument_list
+                    (identifier)))))))))))
+
+================================================================================
+A macro before the keyword of a statement
+================================================================================
+
+int f(int a) {
+  MUST_TAIL_CALL return g(a);
+}
+int h(int a) {
+  SUPPRESS_A SUPPRESS_B(x) return g(a);
+}
+
+--------------------------------------------------------------------------------
+
+(translation_unit
+  (function_definition
+    type: (primitive_type)
+    declarator: (function_declarator
+      declarator: (identifier)
+      parameters: (parameter_list
+        (parameter_declaration
+          type: (primitive_type)
+          declarator: (identifier))))
+    body: (compound_statement
+      (attributed_statement
+        (attribute_macro
+          name: (identifier))
+        (return_statement
+          (call_expression
+            function: (identifier)
+            arguments: (argument_list
+              (identifier)))))))
+  (function_definition
+    type: (primitive_type)
+    declarator: (function_declarator
+      declarator: (identifier)
+      parameters: (parameter_list
+        (parameter_declaration
+          type: (primitive_type)
+          declarator: (identifier))))
+    body: (compound_statement
+      (attributed_statement
+        (attribute_macro
+          name: (identifier))
+        (attribute_macro
+          name: (identifier)
+          arguments: (argument_list
+            (identifier)))
+        (return_statement
+          (call_expression
+            function: (identifier)
+            arguments: (argument_list
+              (identifier))))))))
+
+================================================================================
+A macro after the operator of a pointer or a reference declarator
+================================================================================
+
+char * BROTLI_RESTRICT buffer;
+void g(uint8_t* WEBP_RESTRICT const dst, int n);
+void h() { a * b; Foo * BAR; }
+
+--------------------------------------------------------------------------------
+
+(translation_unit
+  (declaration
+    type: (primitive_type)
+    declarator: (pointer_declarator
+      (attribute_macro
+        name: (identifier))
+      declarator: (identifier)))
+  (declaration
+    type: (primitive_type)
+    declarator: (function_declarator
+      declarator: (identifier)
+      parameters: (parameter_list
+        (parameter_declaration
+          type: (primitive_type)
+          declarator: (pointer_declarator
+            (attribute_macro
+              name: (identifier))
+            (type_qualifier)
+            declarator: (identifier)))
+        (parameter_declaration
+          type: (primitive_type)
+          declarator: (identifier)))))
+  (function_definition
+    type: (primitive_type)
+    declarator: (function_declarator
+      declarator: (identifier)
+      parameters: (parameter_list))
+    body: (compound_statement
+      (declaration
+        type: (type_identifier)
+        declarator: (pointer_declarator
+          declarator: (identifier)))
+      (declaration
+        type: (type_identifier)
+        declarator: (pointer_declarator
+          declarator: (identifier))))))
+
+================================================================================
+A braced initializer after the macros of a declarator
+================================================================================
+
+std::atomic<int> gx GUARDED_BY(mu){0};
+void b() { Mutex m GUARDED_BY(mu){0}; }
+
+--------------------------------------------------------------------------------
+
+(translation_unit
+  (declaration
+    type: (qualified_identifier
+      scope: (namespace_identifier)
+      name: (template_type
+        name: (type_identifier)
+        arguments: (template_argument_list
+          (type_descriptor
+            type: (primitive_type)))))
+    declarator: (init_declarator
+      declarator: (attributed_declarator
+        (identifier)
+        (attribute_macro
+          name: (identifier)
+          arguments: (argument_list
+            (identifier))))
+      value: (initializer_list
+        (number_literal))))
+  (function_definition
+    type: (primitive_type)
+    declarator: (function_declarator
+      declarator: (identifier)
+      parameters: (parameter_list))
+    body: (compound_statement
+      (declaration
+        type: (type_identifier)
+        declarator: (init_declarator
+          declarator: (attributed_declarator
+            (identifier)
+            (attribute_macro
+              name: (identifier)
+              arguments: (argument_list
+                (identifier))))
+          value: (initializer_list
+            (number_literal)))))))
+
+================================================================================
+A macro before a keyword type in a template argument
+================================================================================
+
+S<STD size_t> v;
+
+--------------------------------------------------------------------------------
+
+(translation_unit
+  (declaration
+    type: (template_type
+      name: (type_identifier)
+      arguments: (template_argument_list
+        (type_descriptor
+          (attribute_macro
+            name: (identifier))
+          type: (primitive_type))))
+    declarator: (identifier)))
+
+================================================================================
+A macro between the name of a declarator and its parameter list
+================================================================================
+
+struct S {
+  const P& min BOOST_PREVENT_MACRO_SUBSTITUTION () const;
+};
+static T max BOOST_PREVENT_MACRO_SUBSTITUTION (const T& a, const T& b);
+A B C(x);
+
+--------------------------------------------------------------------------------
+
+(translation_unit
+  (struct_specifier
+    name: (type_identifier)
+    body: (field_declaration_list
+      (field_declaration
+        (type_qualifier)
+        type: (type_identifier)
+        declarator: (reference_declarator
+          (function_declarator
+            declarator: (field_identifier)
+            (attribute_macro
+              name: (identifier))
+            parameters: (parameter_list)
+            (type_qualifier))))))
+  (declaration
+    (storage_class_specifier)
+    (attribute_macro
+      name: (identifier))
+    type: (type_identifier)
+    declarator: (function_declarator
+      declarator: (identifier)
+      parameters: (parameter_list
+        (parameter_declaration
+          (type_qualifier)
+          type: (type_identifier)
+          declarator: (reference_declarator
+            (identifier)))
+        (parameter_declaration
+          (type_qualifier)
+          type: (type_identifier)
+          declarator: (reference_declarator
+            (identifier))))))
+  (declaration
+    (attribute_macro
+      name: (identifier))
+    type: (type_identifier)
+    declarator: (function_declarator
+      declarator: (identifier)
+      parameters: (parameter_list
+        (parameter_declaration
+          type: (type_identifier))))))
+
+================================================================================
+A line that holds only macro invocations
+================================================================================
+
+void f(int v) {
+  if (v) { T_ P_(LINE) P(X) }
+  MYTYPE OBJ(ARG);
+}
+
+--------------------------------------------------------------------------------
+
+(translation_unit
+  (function_definition
+    type: (primitive_type)
+    declarator: (function_declarator
+      declarator: (identifier)
+      parameters: (parameter_list
+        (parameter_declaration
+          type: (primitive_type)
+          declarator: (identifier))))
+    body: (compound_statement
+      (if_statement
+        condition: (condition_clause
+          value: (identifier))
+        consequence: (compound_statement
+          (macro_invocation
+            name: (identifier))
+          (macro_invocation
+            name: (identifier)
+            arguments: (token_tree
+              (identifier)))
+          (macro_invocation
+            name: (identifier)
+            arguments: (token_tree
+              (identifier)))))
+      (declaration
+        type: (type_identifier)
+        declarator: (init_declarator
+          declarator: (identifier)
+          value: (argument_list
+            (identifier)))))))

@@ -1,0 +1,813 @@
+================================================================================
+Static assertion messages
+================================================================================
+
+static_assert(sizeof(int) == 4, std::format("{}", 4));
+static_assert(is_valid<T>, message_v<T>);
+static_assert(a < b, "a is not less than b");
+static_assert(false, X());
+
+--------------------------------------------------------------------------------
+
+(translation_unit
+  (static_assert_declaration
+    condition: (binary_expression
+      left: (sizeof_expression
+        type: (type_descriptor
+          type: (primitive_type)))
+      right: (number_literal))
+    message: (call_expression
+      function: (qualified_identifier
+        scope: (namespace_identifier)
+        name: (identifier))
+      arguments: (argument_list
+        (string_literal
+          (string_content))
+        (number_literal))))
+  (static_assert_declaration
+    condition: (template_function
+      name: (identifier)
+      arguments: (template_argument_list
+        (type_descriptor
+          type: (type_identifier))))
+    message: (template_function
+      name: (identifier)
+      arguments: (template_argument_list
+        (type_descriptor
+          type: (type_identifier)))))
+  (static_assert_declaration
+    condition: (binary_expression
+      left: (identifier)
+      right: (identifier))
+    message: (string_literal
+      (string_content)))
+  (static_assert_declaration
+    condition: (false)
+    message: (call_expression
+      function: (identifier)
+      arguments: (argument_list))))
+
+================================================================================
+Default type-ids of type parameters
+================================================================================
+
+template <typename T = void *, class R = C const &, typename A = char[3], typename U = int>
+struct X;
+
+--------------------------------------------------------------------------------
+
+(translation_unit
+  (template_declaration
+    parameters: (template_parameter_list
+      (optional_type_parameter_declaration
+        name: (type_identifier)
+        default_type: (type_descriptor
+          type: (primitive_type)
+          declarator: (abstract_pointer_declarator)))
+      (optional_type_parameter_declaration
+        name: (type_identifier)
+        default_type: (type_descriptor
+          type: (type_identifier)
+          (type_qualifier)
+          declarator: (abstract_reference_declarator)))
+      (optional_type_parameter_declaration
+        name: (type_identifier)
+        default_type: (type_descriptor
+          type: (primitive_type)
+          declarator: (abstract_array_declarator
+            size: (number_literal))))
+      (optional_type_parameter_declaration
+        name: (type_identifier)
+        default_type: (primitive_type)))
+    (struct_specifier
+      name: (type_identifier))))
+
+================================================================================
+Packs of pointers in parameters
+================================================================================
+
+template<class... Ts> void f(Ts*... ts, const Ts * const *... qs, Ts&&... rs);
+
+--------------------------------------------------------------------------------
+
+(translation_unit
+  (template_declaration
+    parameters: (template_parameter_list
+      (variadic_type_parameter_declaration
+        (type_identifier)))
+    (declaration
+      type: (primitive_type)
+      declarator: (function_declarator
+        declarator: (identifier)
+        parameters: (parameter_list
+          (variadic_parameter_declaration
+            type: (type_identifier)
+            declarator: (pointer_declarator
+              declarator: (variadic_declarator
+                (identifier))))
+          (variadic_parameter_declaration
+            (type_qualifier)
+            type: (type_identifier)
+            declarator: (pointer_declarator
+              (type_qualifier)
+              declarator: (pointer_declarator
+                declarator: (variadic_declarator
+                  (identifier)))))
+          (variadic_parameter_declaration
+            type: (type_identifier)
+            declarator: (reference_declarator
+              (variadic_declarator
+                (identifier)))))))))
+
+================================================================================
+Greater-equal comparison in a template argument
+================================================================================
+
+using Container = conditional_t<Operation >= Op::StringFind, A, B>;
+
+--------------------------------------------------------------------------------
+
+(translation_unit
+  (alias_declaration
+    name: (type_identifier)
+    type: (type_descriptor
+      type: (template_type
+        name: (type_identifier)
+        arguments: (template_argument_list
+          (binary_expression
+            left: (identifier)
+            right: (qualified_identifier
+              scope: (namespace_identifier)
+              name: (identifier)))
+          (type_descriptor
+            type: (type_identifier))
+          (type_descriptor
+            type: (type_identifier)))))))
+
+================================================================================
+A greater-equal token does not close a template argument list
+================================================================================
+
+void g() {
+  v<int> = 4;
+  r = a < b && (c) >= d;
+  t = a<b>=c;
+  while (s < e && (c = *s) >= 0x20) {}
+}
+
+--------------------------------------------------------------------------------
+
+(translation_unit
+  (function_definition
+    type: (primitive_type)
+    declarator: (function_declarator
+      declarator: (identifier)
+      parameters: (parameter_list))
+    body: (compound_statement
+      (expression_statement
+        (assignment_expression
+          left: (template_function
+            name: (identifier)
+            arguments: (template_argument_list
+              (type_descriptor
+                type: (primitive_type))))
+          right: (number_literal)))
+      (expression_statement
+        (assignment_expression
+          left: (identifier)
+          right: (binary_expression
+            left: (binary_expression
+              left: (identifier)
+              right: (identifier))
+            right: (binary_expression
+              left: (parenthesized_expression
+                (identifier))
+              right: (identifier)))))
+      (expression_statement
+        (assignment_expression
+          left: (identifier)
+          right: (binary_expression
+            left: (binary_expression
+              left: (identifier)
+              right: (identifier))
+            right: (identifier))))
+      (while_statement
+        condition: (condition_clause
+          value: (binary_expression
+            left: (binary_expression
+              left: (identifier)
+              right: (identifier))
+            right: (binary_expression
+              left: (parenthesized_expression
+                (assignment_expression
+                  left: (identifier)
+                  right: (pointer_expression
+                    argument: (identifier))))
+              right: (number_literal))))
+        body: (compound_statement)))))
+
+================================================================================
+Nested requirement with a negation
+================================================================================
+
+template <class T> concept A = requires(T& t) { requires !std::same_as<T, int>; };
+
+--------------------------------------------------------------------------------
+
+(translation_unit
+  (template_declaration
+    parameters: (template_parameter_list
+      (type_parameter_declaration
+        (type_identifier)))
+    (concept_definition
+      name: (identifier)
+      (requires_expression
+        parameters: (parameter_list
+          (parameter_declaration
+            type: (type_identifier)
+            declarator: (reference_declarator
+              (identifier))))
+        requirements: (requirement_seq
+          (simple_requirement
+            (requires_clause
+              constraint: (unary_expression
+                argument: (qualified_identifier
+                  scope: (namespace_identifier)
+                  name: (template_function
+                    name: (identifier)
+                    arguments: (template_argument_list
+                      (type_descriptor
+                        type: (type_identifier))
+                      (type_descriptor
+                        type: (primitive_type)))))))))))))
+
+================================================================================
+Template-id of an operator function
+================================================================================
+
+template<> bool operator==<0>(A<int>, A<int>);
+
+--------------------------------------------------------------------------------
+
+(translation_unit
+  (template_declaration
+    parameters: (template_parameter_list)
+    (declaration
+      type: (primitive_type)
+      declarator: (function_declarator
+        declarator: (template_function
+          name: (operator_name)
+          arguments: (template_argument_list
+            (number_literal)))
+        parameters: (parameter_list
+          (parameter_declaration
+            type: (template_type
+              name: (type_identifier)
+              arguments: (template_argument_list
+                (type_descriptor
+                  type: (primitive_type)))))
+          (parameter_declaration
+            type: (template_type
+              name: (type_identifier)
+              arguments: (template_argument_list
+                (type_descriptor
+                  type: (primitive_type))))))))))
+
+================================================================================
+Template-id of a destructor
+================================================================================
+
+void f(D d) { d.~GG<int>(); }
+template<typename T> Tape<T>::~Tape<T>() {}
+
+--------------------------------------------------------------------------------
+
+(translation_unit
+  (function_definition
+    (primitive_type)
+    (function_declarator
+      (identifier)
+      (parameter_list
+        (parameter_declaration
+          (type_identifier)
+          (identifier))))
+    (compound_statement
+      (expression_statement
+        (call_expression
+          (field_expression
+            (identifier)
+            (destructor_name
+              (template_type
+                (type_identifier)
+                (template_argument_list
+                  (type_descriptor
+                    (primitive_type))))))
+          (argument_list)))))
+  (template_declaration
+    (template_parameter_list
+      (type_parameter_declaration
+        (type_identifier)))
+    (function_definition
+      (function_declarator
+        (qualified_identifier
+          (template_type
+            (type_identifier)
+            (template_argument_list
+              (type_descriptor
+                (type_identifier))))
+          (destructor_name
+            (template_type
+              (type_identifier)
+              (template_argument_list
+                (type_descriptor
+                  (type_identifier))))))
+        (parameter_list))
+      (compound_statement))))
+
+================================================================================
+Typeid of a comma expression
+================================================================================
+
+void f(A *x) { typeid(false, *x); }
+
+--------------------------------------------------------------------------------
+
+(translation_unit
+  (function_definition
+    type: (primitive_type)
+    declarator: (function_declarator
+      declarator: (identifier)
+      parameters: (parameter_list
+        (parameter_declaration
+          type: (type_identifier)
+          declarator: (pointer_declarator
+            declarator: (identifier)))))
+    body: (compound_statement
+      (expression_statement
+        (typeid_expression
+          value: (comma_expression
+            left: (false)
+            right: (pointer_expression
+              argument: (identifier))))))))
+
+================================================================================
+Deduction guides at namespace scope
+================================================================================
+
+S(int) -> S<long>;
+S(A) -> S<int>;
+explicit S(const char *) -> S<std::string>;
+explicit(true) S(A...) -> S<A...>;
+S() -> S<>;
+S(int) -> S<int> requires C<int>;
+namespace n {
+S(char) -> S<char>;
+}
+export S(float) -> S<float>;
+#if X
+S(double) -> S<double>;
+#endif
+struct O {
+  S(short) -> S<short>;
+};
+
+--------------------------------------------------------------------------------
+
+(translation_unit
+  (declaration
+    declarator: (function_declarator
+      declarator: (identifier)
+      parameters: (parameter_list
+        (parameter_declaration
+          type: (primitive_type)))
+      (trailing_return_type
+        (type_descriptor
+          type: (template_type
+            name: (type_identifier)
+            arguments: (template_argument_list
+              (type_descriptor
+                type: (sized_type_specifier))))))))
+  (declaration
+    declarator: (function_declarator
+      declarator: (identifier)
+      parameters: (parameter_list
+        (parameter_declaration
+          type: (type_identifier)))
+      (trailing_return_type
+        (type_descriptor
+          type: (template_type
+            name: (type_identifier)
+            arguments: (template_argument_list
+              (type_descriptor
+                type: (primitive_type))))))))
+  (declaration
+    (explicit_function_specifier)
+    declarator: (function_declarator
+      declarator: (identifier)
+      parameters: (parameter_list
+        (parameter_declaration
+          (type_qualifier)
+          type: (primitive_type)
+          declarator: (abstract_pointer_declarator)))
+      (trailing_return_type
+        (type_descriptor
+          type: (template_type
+            name: (type_identifier)
+            arguments: (template_argument_list
+              (type_descriptor
+                type: (qualified_identifier
+                  scope: (namespace_identifier)
+                  name: (type_identifier)))))))))
+  (declaration
+    (explicit_function_specifier
+      (true))
+    declarator: (function_declarator
+      declarator: (identifier)
+      parameters: (parameter_list
+        (variadic_parameter_declaration
+          type: (type_identifier)
+          declarator: (variadic_declarator)))
+      (trailing_return_type
+        (type_descriptor
+          type: (template_type
+            name: (type_identifier)
+            arguments: (template_argument_list
+              (parameter_pack_expansion
+                pattern: (type_descriptor
+                  type: (type_identifier)))))))))
+  (declaration
+    declarator: (function_declarator
+      declarator: (identifier)
+      parameters: (parameter_list)
+      (trailing_return_type
+        (type_descriptor
+          type: (template_type
+            name: (type_identifier)
+            arguments: (template_argument_list))))))
+  (declaration
+    declarator: (function_declarator
+      declarator: (identifier)
+      parameters: (parameter_list
+        (parameter_declaration
+          type: (primitive_type)))
+      (trailing_return_type
+        (type_descriptor
+          type: (template_type
+            name: (type_identifier)
+            arguments: (template_argument_list
+              (type_descriptor
+                type: (primitive_type))))))
+      (requires_clause
+        constraint: (template_type
+          name: (type_identifier)
+          arguments: (template_argument_list
+            (type_descriptor
+              type: (primitive_type)))))))
+  (namespace_definition
+    name: (namespace_identifier)
+    body: (declaration_list
+      (declaration
+        declarator: (function_declarator
+          declarator: (identifier)
+          parameters: (parameter_list
+            (parameter_declaration
+              type: (primitive_type)))
+          (trailing_return_type
+            (type_descriptor
+              type: (template_type
+                name: (type_identifier)
+                arguments: (template_argument_list
+                  (type_descriptor
+                    type: (primitive_type))))))))))
+  (export_declaration
+    (declaration
+      declarator: (function_declarator
+        declarator: (identifier)
+        parameters: (parameter_list
+          (parameter_declaration
+            type: (primitive_type)))
+        (trailing_return_type
+          (type_descriptor
+            type: (template_type
+              name: (type_identifier)
+              arguments: (template_argument_list
+                (type_descriptor
+                  type: (primitive_type)))))))))
+  (preproc_if
+    condition: (identifier)
+    (declaration
+      declarator: (function_declarator
+        declarator: (identifier)
+        parameters: (parameter_list
+          (parameter_declaration
+            type: (primitive_type)))
+        (trailing_return_type
+          (type_descriptor
+            type: (template_type
+              name: (type_identifier)
+              arguments: (template_argument_list
+                (type_descriptor
+                  type: (primitive_type)))))))))
+  (struct_specifier
+    name: (type_identifier)
+    body: (field_declaration_list
+      (declaration
+        declarator: (function_declarator
+          declarator: (identifier)
+          parameters: (parameter_list
+            (parameter_declaration
+              type: (sized_type_specifier)))
+          (trailing_return_type
+            (type_descriptor
+              type: (template_type
+                name: (type_identifier)
+                arguments: (template_argument_list
+                  (type_descriptor
+                    type: (sized_type_specifier)))))))))))
+
+================================================================================
+The form of a deduction guide in a block is an expression
+================================================================================
+
+void f() {
+  S(A) -> S<int>;
+}
+
+--------------------------------------------------------------------------------
+
+(translation_unit
+  (function_definition
+    type: (primitive_type)
+    declarator: (function_declarator
+      declarator: (identifier)
+      parameters: (parameter_list))
+    body: (compound_statement
+      (expression_statement
+        (field_expression
+          argument: (call_expression
+            function: (identifier)
+            arguments: (argument_list
+              (identifier)))
+          field: (template_method
+            name: (field_identifier)
+            arguments: (template_argument_list
+              (type_descriptor
+                type: (primitive_type)))))))))
+
+================================================================================
+The return type of a deduction guide is a template-id
+================================================================================
+
+S(int) -> S<long>;
+BENCHMARK(run)->Arg(8);
+FIXTURE(a, b)->Range(1, 2);
+
+--------------------------------------------------------------------------------
+
+(translation_unit
+  (declaration
+    declarator: (function_declarator
+      declarator: (identifier)
+      parameters: (parameter_list
+        (parameter_declaration
+          type: (primitive_type)))
+      (trailing_return_type
+        (type_descriptor
+          type: (template_type
+            name: (type_identifier)
+            arguments: (template_argument_list
+              (type_descriptor
+                type: (sized_type_specifier))))))))
+  (expression_statement
+    (call_expression
+      function: (field_expression
+        argument: (call_expression
+          function: (identifier)
+          arguments: (argument_list
+            (identifier)))
+        field: (field_identifier))
+      arguments: (argument_list
+        (number_literal))))
+  (expression_statement
+    (call_expression
+      function: (field_expression
+        argument: (call_expression
+          function: (identifier)
+          arguments: (argument_list
+            (identifier)
+            (identifier)))
+        field: (field_identifier))
+      arguments: (argument_list
+        (number_literal)
+        (number_literal)))))
+
+================================================================================
+A deeply nested template argument is a type-id
+================================================================================
+
+namespace N::M {
+A::B<T1<T2<T3<T4<T5<I::J, I::K>>>>>> g {};
+}
+
+--------------------------------------------------------------------------------
+
+(translation_unit
+  (namespace_definition
+    name: (nested_namespace_specifier
+      (namespace_identifier)
+      (namespace_identifier))
+    body: (declaration_list
+      (declaration
+        type: (qualified_identifier
+          scope: (namespace_identifier)
+          name: (template_type
+            name: (type_identifier)
+            arguments: (template_argument_list
+              (type_descriptor
+                type: (template_type
+                  name: (type_identifier)
+                  arguments: (template_argument_list
+                    (type_descriptor
+                      type: (template_type
+                        name: (type_identifier)
+                        arguments: (template_argument_list
+                          (type_descriptor
+                            type: (template_type
+                              name: (type_identifier)
+                              arguments: (template_argument_list
+                                (type_descriptor
+                                  type: (template_type
+                                    name: (type_identifier)
+                                    arguments: (template_argument_list
+                                      (type_descriptor
+                                        type: (template_type
+                                          name: (type_identifier)
+                                          arguments: (template_argument_list
+                                            (type_descriptor
+                                              type: (qualified_identifier
+                                                scope: (namespace_identifier)
+                                                name: (type_identifier)))
+                                            (type_descriptor
+                                              type: (qualified_identifier
+                                                scope: (namespace_identifier)
+                                                name: (type_identifier)))))))))))))))))))))
+        declarator: (init_declarator
+          declarator: (identifier)
+          value: (initializer_list))))))
+
+================================================================================
+A template argument is a type-id at eight levels of nesting
+================================================================================
+
+namespace N::M {
+A::B<T1<T2<T3<T4<T5<T6<T7<I::J, I::K>>>>>>>> g {};
+}
+
+--------------------------------------------------------------------------------
+
+(translation_unit
+  (namespace_definition
+    name: (nested_namespace_specifier
+      (namespace_identifier)
+      (namespace_identifier))
+    body: (declaration_list
+      (declaration
+        type: (qualified_identifier
+          scope: (namespace_identifier)
+          name: (template_type
+            name: (type_identifier)
+            arguments: (template_argument_list
+              (type_descriptor
+                type: (template_type
+                  name: (type_identifier)
+                  arguments: (template_argument_list
+                    (type_descriptor
+                      type: (template_type
+                        name: (type_identifier)
+                        arguments: (template_argument_list
+                          (type_descriptor
+                            type: (template_type
+                              name: (type_identifier)
+                              arguments: (template_argument_list
+                                (type_descriptor
+                                  type: (template_type
+                                    name: (type_identifier)
+                                    arguments: (template_argument_list
+                                      (type_descriptor
+                                        type: (template_type
+                                          name: (type_identifier)
+                                          arguments: (template_argument_list
+                                            (type_descriptor
+                                              type: (template_type
+                                                name: (type_identifier)
+                                                arguments: (template_argument_list
+                                                  (type_descriptor
+                                                    type: (template_type
+                                                      name: (type_identifier)
+                                                      arguments: (template_argument_list
+                                                        (type_descriptor
+                                                          type: (qualified_identifier
+                                                            scope: (namespace_identifier)
+                                                            name: (type_identifier)))
+                                                        (type_descriptor
+                                                          type: (qualified_identifier
+                                                            scope: (namespace_identifier)
+                                                            name: (type_identifier)))))))))))))))))))))))))))
+        declarator: (init_declarator
+          declarator: (identifier)
+          value: (initializer_list))))))
+
+================================================================================
+A deeply nested template-id is the type of a declaration
+================================================================================
+
+namespace N::M {
+A::B<T1<T2<T3<T4<T5<T6<T7<T8<T9<T10<T11<T12<T13<T14<T15<I::J, I::K*>>>>>>>>>>>>>>>> g {};
+}
+
+--------------------------------------------------------------------------------
+
+(translation_unit
+  (namespace_definition
+    name: (nested_namespace_specifier
+      (namespace_identifier)
+      (namespace_identifier))
+    body: (declaration_list
+      (declaration
+        type: (qualified_identifier
+          scope: (namespace_identifier)
+          name: (template_type
+            name: (type_identifier)
+            arguments: (template_argument_list
+              (type_descriptor
+                type: (template_type
+                  name: (type_identifier)
+                  arguments: (template_argument_list
+                    (type_descriptor
+                      type: (template_type
+                        name: (type_identifier)
+                        arguments: (template_argument_list
+                          (type_descriptor
+                            type: (template_type
+                              name: (type_identifier)
+                              arguments: (template_argument_list
+                                (type_descriptor
+                                  type: (template_type
+                                    name: (type_identifier)
+                                    arguments: (template_argument_list
+                                      (type_descriptor
+                                        type: (template_type
+                                          name: (type_identifier)
+                                          arguments: (template_argument_list
+                                            (type_descriptor
+                                              type: (template_type
+                                                name: (type_identifier)
+                                                arguments: (template_argument_list
+                                                  (type_descriptor
+                                                    type: (template_type
+                                                      name: (type_identifier)
+                                                      arguments: (template_argument_list
+                                                        (type_descriptor
+                                                          type: (template_type
+                                                            name: (type_identifier)
+                                                            arguments: (template_argument_list
+                                                              (type_descriptor
+                                                                type: (template_type
+                                                                  name: (type_identifier)
+                                                                  arguments: (template_argument_list
+                                                                    (type_descriptor
+                                                                      type: (template_type
+                                                                        name: (type_identifier)
+                                                                        arguments: (template_argument_list
+                                                                          (type_descriptor
+                                                                            type: (template_type
+                                                                              name: (type_identifier)
+                                                                              arguments: (template_argument_list
+                                                                                (type_descriptor
+                                                                                  type: (template_type
+                                                                                    name: (type_identifier)
+                                                                                    arguments: (template_argument_list
+                                                                                      (type_descriptor
+                                                                                        type: (template_type
+                                                                                          name: (type_identifier)
+                                                                                          arguments: (template_argument_list
+                                                                                            (type_descriptor
+                                                                                              type: (template_type
+                                                                                                name: (type_identifier)
+                                                                                                arguments: (template_argument_list
+                                                                                                  (type_descriptor
+                                                                                                    type: (template_type
+                                                                                                      name: (type_identifier)
+                                                                                                      arguments: (template_argument_list
+                                                                                                        (type_descriptor
+                                                                                                          type: (qualified_identifier
+                                                                                                            scope: (namespace_identifier)
+                                                                                                            name: (type_identifier)))
+                                                                                                        (type_descriptor
+                                                                                                          type: (qualified_identifier
+                                                                                                            scope: (namespace_identifier)
+                                                                                                            name: (type_identifier))
+                                                                                                          declarator: (abstract_pointer_declarator))))))))))))))))))))))))))))))))))))))))))))))))))
+        declarator: (init_declarator
+          declarator: (identifier)
+          value: (initializer_list))))))

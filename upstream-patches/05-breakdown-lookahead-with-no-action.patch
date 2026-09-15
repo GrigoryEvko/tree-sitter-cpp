@@ -1,0 +1,59 @@
+Subject: Break down a reused lookahead node that has no action
+
+Read a reused lookahead node with no action as its first leaf.
+
+The copy of the runtime of the tree-sitter-cpp fork has this repair. The fork commit is
+05950d8.
+
+After an edit, the incremental parse can take a node of the old tree as
+the lookahead. If the node has no action after the reductions, the
+parser detected an error and skipped the node. A fresh parse has the
+first leaf of the node as the lookahead at this point. That leaf can be
+a keyword that the parser reads as the word token. The two trees then
+differed: in a function body, the incremental tree made `else` an ERROR,
+and the fresh tree read `else` as the type of a declaration.
+
+ts_parser__advance now replaces such a lookahead with its first leaf,
+and processes the actions of the leaf again.
+
+In the incremental test of 23,768 edits of 2,971 files, the edits whose
+incremental tree differs from the fresh tree go from 54 to 24 with this
+change alone, and to 15 with the error recovery changes. In the test of
+43,560 edits of 1,452 snippets, they go from 19 to 11. The undo test
+does not change.
+
+The repair is not specific to a language. It makes an incremental parse give the tree of a fresh
+parse in more inputs.
+
+Risk for upstream: low.
+
+The patch applies to the upstream tag v0.27.0, after the patches with a smaller number. The
+series compiles with `-Wall -Wextra` and no warning.
+
+The comments hold the marker "(tree-sitter-cpp fork)". Remove the marker before you send the
+patch upstream.
+
+diff -ruN a/lib/src/parser.c b/lib/src/parser.c
+--- a/lib/src/parser.c	2026-09-15 19:00:45.728015329 +0200
++++ b/lib/src/parser.c	2026-09-15 19:00:45.743077499 +0200
+@@ -1780,6 +1780,20 @@
+       return true;
+     }
+ 
++    // If the lookahead is a node of the old tree that has no action, replace it with its first
++    // leaf. A parse with no old tree has that leaf as the lookahead here. The leaf can be a keyword
++    // that the parse reads as the word token below. If the node stays, the parser detects an error
++    // and skips the node (tree-sitter-cpp fork).
++    if (did_reuse && lookahead.ptr && ts_subtree_child_count(lookahead) > 0) {
++      LOG("breakdown_lookahead_without_action sym:%s", TREE_NAME(lookahead));
++      ts_subtree_release(&self->tree_pool, lookahead);
++      while (reusable_node_descend(&self->reusable_node)) {}
++      lookahead = reusable_node_tree(&self->reusable_node);
++      ts_subtree_retain(lookahead);
++      ts_language_table_entry(self->language, state, ts_subtree_symbol(lookahead), &table_entry);
++      continue;
++    }
++
+     // If the current lookahead token is a keyword that is not valid, but the
+     // default word token *is* valid, then treat the lookahead token as the word
+     // token instead.

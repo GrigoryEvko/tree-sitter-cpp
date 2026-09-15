@@ -1,0 +1,282 @@
+### qt_access_slots
+class A : public QObject {
+public slots:
+    void f();
+private Q_SLOTS:
+    void g();
+signals:
+    void changed(int x);
+Q_SIGNALS:
+    void h();
+protected slots: // a comment
+    void k();
+};
+### qt_access_attribute
+class A {
+public __attribute__((annotate("x"))):
+    int x;
+};
+### qt_emit
+void A::f() {
+    emit changed(1);
+    Q_EMIT q->done();
+    if (x) emit this->valueChanged(v);
+    emit ns::sig(), other();
+}
+### qt_emit_call
+void f() {
+    emit(x);
+    emit = 1;
+    emit->g();
+}
+### qt_foreach
+void f() {
+    foreach (const QString &s, list)
+        g(s);
+    Q_FOREACH (s, map.keys()) {
+        g(s);
+    }
+    foreach (QUrl url, event->mimeData()->urls()) {
+        g(url, "a,b(");
+    }
+}
+### qt_foreach_call
+void f() {
+    foreach(std::move(msg));
+    foreach(iterated_allocation);
+    foreach(0, len, iter);
+    foreach(a, f);
+}
+### qt_forever
+void f() {
+    forever {
+        g();
+    }
+    Q_FOREVER g();
+}
+### qt_words_as_identifiers
+int signals, slots, forever, emit;
+void f() { slots[1] = signals; x = forever + emit; }
+### ms_callconv_member
+struct A {
+    HRESULT __stdcall QueryInterface(REFIID riid, void **ppv);
+    ULONG __stdcall AddRef(), __stdcall Release();
+    int __cdecl f0() { return 1; }
+    int __fastcall g0() const { return -1; }
+    virtual void __thiscall h() = 0;
+    static void __vectorcall k() = delete;
+};
+### ms_callconv_after_pointer
+wchar_t* __stdcall GetEnvironmentStringsW(void);
+inline void* __cdecl operator new(size_t, void* p) noexcept { return p; }
+void * __regcall f(int);
+struct B { char ** __cdecl name() const; };
+using F = void *(__stdcall *)(int);
+### gnu_restrict_after_type_and_reference
+static Data & data(AggregateDataPtr __restrict place) { return *place; }
+void f(const char * __restrict a, size_t & __restrict pos, T && __restrict r);
+void g(int *__restrict__ p, int __restrict q, int * __restrict const s);
+void h(const T * __restrict &in, const T & __restrict);
+### gnu_attribute_in_type_id
+using v4u32 = uint32_t __attribute__((vector_size(16)));
+using pi2_t = int __attribute__((address_space(2))) *;
+typedef eigen_packet_wrapper<vint16m1_t __attribute__((riscv_rvv_vector_bits(8))), 18> Packet1Xs;
+auto f() -> int __attribute ((warn_unused_result));
+### gnu_attribute_in_typedef
+typedef __attribute__((neon_vector_type(4))) float16_t float16x4_t;
+typedef ui64 __attribute__ ((__may_alias__)) ui64a;
+typedef int __attribute__((may_alias)) aliasing_array[10];
+### gnu_attribute_after_pointer_and_reference
+void* __attribute__((weak)) aligned_alloc(size_t alignment, size_t size);
+int ****__attribute__((format(printf, 1, 2))) foo(const char *, ...);
+typedef double * __attribute__((align_value(64))) aligned_double;
+S &__attribute__((target("arch=ivybridge"))) operator=(const S &);
+### gnu_attribute_after_alias_name
+using B __attribute__((may_alias)) = enum {};
+### gnu_attribute_on_class_and_enumerator
+struct bad_align { char a; } __attribute__((packed)) __attribute__((aligned(8)));
+enum E { X [[maybe_unused]] __attribute__((unavailable)), Y __attribute__((deprecated)) = 2 };
+### gnu_attribute_on_lambda
+auto l = [](const void *P) __attribute__((nonnull)) { return 3; };
+auto m = [](int i) __attribute__((noinline)) mutable -> int { return i; };
+### gnu_attribute_after_virt_specifier
+struct L : B { void Logv(const char * format, va_list ap) override __attribute__((format(printf, 2, 0))) {} };
+### clang_block_pointer
+typedef void (^dispatch_block_t)(void);
+using UICallback = void (^)(BOOL, NSError *);
+void accept_block(void (^)(void));
+void f(void (^report_discharged)(void* memory, void* info));
+struct S { void (^p)(); int (^const q)(int); };
+### clang_block_literal
+void g() {
+    dispatch_async(queue, ^{ StartEventStream(start, path); });
+    void (^b)(S) = ^(S) {};
+    const char * (^block1)() = ^() { return __FUNCTION__; };
+    int (^V)() = ^{ return one.version(); };
+    ^{ ^{ (void) x; }; };
+    auto r = ^int (int x) { return x; }(3);
+    int y = a ^ b;
+}
+void h(BlockPtr<void()>&& handler = ^{ });
+### ext_cuda_function_specifiers
+__host__ __device__ int f(int x) { return x; }
+template <typename T> __device__ void overload(T) {}
+__global__ void kernel(float *a, int n);
+template __global__ void work<256>();
+struct S { __host__ __device__ S() {} __device__ static int g(); };
+### ext_cuda_kernel_call
+void launch() {
+    kernel<<<grid, block>>>(a, n);
+    kernel <<<policy.grid, policy.block>>> (args...);
+    cutlass::Kernel<GemmKernel><<<grid, block, smem_size, stream>>>(params_);
+    int y = a << b;
+}
+### ms_declspec_arguments
+struct __declspec(align(16)) D {};
+struct __declspec(uuid("00000000-0000-0000-C000-000000000046")) IUnknown;
+__declspec(property(get=GetX, put=PutX)) int x;
+__declspec(dllexport noinline) void f();
+__declspec(deprecated("use g")) void h();
+__declspec() int y;
+__declspec(dllimport, noreturn) void k();
+### ms_interface
+__interface MicrosoftInterface;
+__interface MicrosoftDerivedInterface : public MicrosoftInterface {
+  void foo1();
+  void foo2();
+};
+__interface I4 : I1, I2 { void f(); };
+__interface I5 : private I1 {};
+__interface __declspec(uuid("00000000-0000-0000-C000-000000000046")) __abi_IUnknown {
+public:
+  virtual long __stdcall __abi_QueryInterface(const int &riid, void **ppvObject) = 0;
+};
+class TemplateContext { class Base; __interface Foo : Base {}; };
+void f() { __interface L { void g(); }; }
+### ms_if_exists
+namespace aux {
+#if defined(BOOST_MSVC) && defined(_MSC_EXTENSIONS)
+template<int N> struct the_counter;
+template<typename T,int N = 5 /* for similarity */>
+struct encode_counter {
+    __if_exists(the_counter<N + 256>) {
+        BOOST_STATIC_CONSTANT(unsigned,
+            count=(encode_counter<T,N + 257>::count));
+    }
+    __if_not_exists(the_counter<N + 256>)
+    {
+        __if_not_exists(the_counter<N>) {
+            BOOST_STATIC_CONSTANT(unsigned,count=N);
+            typedef the_counter<N> type;
+        }
+    }
+};
+#else
+template<int N> struct encode_counter : encode_counter<N - 1> {};
+#endif
+}
+int if_exists_creates_no_scope() {
+  __if_exists(MayExist::Type) {
+    int x;
+  }
+  __if_not_exists(MayExist::Type_not) {
+    x++;
+  }
+  return x;
+}
+__if_exists(::g_bFlag) {
+  printf("Entering __if_exists\n");
+}
+template<typename T, typename ...Ts>
+void g(T, Ts...) {
+  __if_exists(T::operator Ts) {
+  }
+  __if_not_exists(Ts::~Ts) { }
+}
+### ms_declspec_typedef_type_enum
+typedef __declspec(align(16)) struct { int x; } S16;
+typedef __declspec(dllexport) void (*FunTy)();
+typedef int __declspec(align(2)) QA;
+template<typename T> struct V { typedef __declspec(align(1)) T type; };
+typedef union __declspec(intrin_type) __declspec(align(8)) __m64 { long long m64_i64; } __m64;
+using AlignedTest = __declspec(align(16)) const Test;
+auto func() -> __declspec(align(16)) int;
+enum __declspec(dllexport) Enum {};
+enum class __declspec(no_init_all) NoInitE { ZERO };
+enum __declspec(uuid("000000A0-0000-0000-C000-000000000046")) E {};
+### gnu_builtin_type_arguments
+void f(va_list args) {
+    const char* buf = va_arg(args, const char*);
+    int next = __builtin_va_arg(args, int);
+    size_t o = offsetof(VDStruct, mat[0]) + __builtin_offsetof(S, a.b[2].c);
+    if (__builtin_available(android 26, *)) {}
+    if (__builtin_available(macOS 10.12.1, iOS 10, *)) {}
+}
+### gnu_type_traits_that_give_a_type
+using T1 = __add_lvalue_reference(T);
+using T2 = __add_pointer(T);
+using T3 = __add_rvalue_reference(T);
+using T4 = __decay(T);
+using T5 = __make_signed(T);
+using T6 = __make_unsigned(T);
+using T7 = __remove_all_extents(T);
+using T8 = __remove_const(T);
+using T9 = __remove_cv(T);
+using T10 = __remove_cvref(T);
+using T11 = __remove_extent(T);
+using T12 = __remove_pointer(T);
+using T13 = __remove_reference(T);
+using T14 = __remove_reference_t(T);
+using T15 = __remove_restrict(T);
+using T16 = __remove_volatile(T);
+using T17 = __underlying_type(E);
+using T18 = __type_pack_element<0, int, char>;
+template <class T> using T19 = L<__bases(T)..., __direct_bases(T)...>;
+template <class T> struct __make_signed { typedef T __type; };
+using T20 = typename __make_signed<T>::__type;
+### gnu_type_traits
+void f() {
+    static_assert(__is_trivially_constructible(int, int), "");
+    static_assert(!__is_constructible(T&, T));
+    SA(!__is_nothrow_invocable(mem_type, int));
+    SA(!__is_invocable(void (F::*)() &&, std::reference_wrapper<F>));
+    static_assert(!__is_constructible(int[]), "");
+    bool c = __is_arithmetic<T>::__value && __array_extent(int[4], 0) == 4;
+    auto d = __builtin_bit_cast(long double, a);
+}
+template <class... Args> bool b = __is_constructible(T, Args...);
+### gnu_qualifier_spellings
+extern char *rindex (__const char *__s, int __c) throw ();
+void f(__volatile__ int x, __signed__ char c, __signed char d, unsigned __const__ int e);
+int * _Nonnull _Nullable_result p;
+### ms_asm_block
+void f() {
+    __asm {
+        mov eax, esp ; a comment with a brace }
+        add eax, 4 // a C++ comment {
+        mov dword ptr [c + 0], eax /* a block } comment */
+    }
+    __asm { cpuid }
+    __asm {}
+}
+### gnu_va_arg_as_identifier
+void f() {
+    INSTKEYWORD(va_arg, VAArg);
+    int va_arg = 0;
+}
+### ms_sealed_abstract
+class A sealed { virtual void f() sealed; };
+class B abstract : public A { virtual void g() abstract; virtual void h() override sealed; };
+int sealed = 1, abstract = 2;
+### asm_label_initializer
+int a asm("s1") = 1; int b __asm__("s2") = 2; int c asm("s3") __attribute__((used)) = 3;
+### asm_label_register
+void f(unsigned long p) { register unsigned long r asm("rdi") = p; }
+### asm_label_member
+struct S { static int x asm("s5"); void g() asm("s6"); int y asm("s7"); };
+### asm_label_arguments
+struct T { T(int); }; T t asm("s8")(1); int u asm("s9") {2};
+### attribute_before_linkage
+__attribute__((weak)) extern "C" void foo() {} __attribute__((visibility("default"))) extern "C" void bar();
+### attribute_before_linkage_block
+__attribute__((weak)) extern "C" { int baz(void); }

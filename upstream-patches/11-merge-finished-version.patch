@@ -1,0 +1,130 @@
+Subject: Merge a version that the version loop completed
+
+Merge a stack version with an equivalent version before it, as soon as the version loop completes
+the work of that version.
+
+The copy of the runtime of the tree-sitter-cpp fork has this repair. The fork commit is
+50fb3cd.
+
+The version loop of one parse step gives each version its own head, also
+where two versions shift the same token into the same state. Only the
+condense step at the end of the loop merges them. The list then holds
+more versions than the mid-step limit of ts_parser__reduce at
+lib/src/parser.c:1051. That limit removes a reduction by the index of
+its version, and the tree depends on the state numbers of the parse
+table. No ERROR node marks the result, and each grammar change that
+moves the state count moves the reading.
+
+In the C++ grammar of the fork, a template argument gives the type
+reading the dynamic precedence 3 and the expression reading 1. [temp.arg]
+p2 asks for the type reading, and GCC and Clang each read a type-id
+first. For `namespace N::M { A::B<T1<...<I::J, I::K>>> g {}; }` the
+limit removed the version of the type reading before a dynamic
+precedence compared the two. The last argument got the expression
+reading from 7 levels. From 14 levels the whole declaration became an
+expression statement: a chain of comparisons with `<` and `>`, and a
+compound literal `g {}` at the end.
+
+At the 7-level form, the version list reached 55 heads, and 24 of them
+had the same state at the same position. The condense step at the end of
+the same parse step took 55 heads to 2. The overflow was made of
+versions that a merge removes, and the budget of the mid-step limit went
+to them.
+
+The patch merges each version as soon as the loop completes its work,
+and only where the list is longer than MAX_VERSION_COUNT. The mid-step
+limit removed 14 reductions of the 7-level form before the patch and
+none after it. For the 8-level form the count goes from 144 to 0. The
+peak version count goes from 55 to 33 and from 53 to 43.
+
+A merge removes no reading, because stack_node_add_link keeps the two
+readings as two links of one node. A measurement counts 5 links that the
+merge adds to one node, and zero links that the MAX_LINK_COUNT limit
+removes.
+
+A MERGE ONLY. DO NOT ADD A REMOVAL HERE. The first form of this patch
+also removed a version that ts_parser__compare_versions makes
+unnecessary, in the same way as the condense step. A fuzz run of
+1,784,374 changes of 4,813 C++ files refuted it with two timeouts. A
+mid-step removal is not the same operation as the condense step, for two
+reasons. A version that the loop has no work for yet can get a lower
+error cost later. And a removal takes the paused versions, which the
+condense step resumes to start the recovery of an error. A C++ file of
+85 KB with a string that has no end then went from 2.21 s to 28.53 s,
+and a second file went from 0.02 s to 15.99 s. With the merge alone, the
+first file parses in 1.99 s, which is faster than before the patch.
+
+The removal gave a deeper repair: the type reading of the example held
+to 18 levels with it, and to 10 levels without it. That depth is not
+worth the error recovery.
+
+On the corpus of 329,387 C++ files, the files with a parse error stay at
+14,263, and the bytes in ERROR nodes stay at 6,693,662. Two files get a
+different tree, and each of the two changes reads a template argument as
+a type-id, which is the rule of [temp.arg] p2. No compiler test file of
+the 7,646 gets a different tree. `xtask fuzz` finds no failure in
+1,784,374 changes of 4,813 inputs. The parse time of the 12 slowest
+corpus files, as the minimum of three runs, goes from 14.736 s to
+14.758 s.
+
+Risk for upstream: medium. The patch changes the version list inside a parse step, so it changes
+which versions the condense step sees. It adds one O(n) scan for each version, and only where the
+list is longer than MAX_VERSION_COUNT.
+
+The patch applies to the upstream tag v0.27.0, after the patches with a smaller number. The
+series compiles with `-Wall -Wextra` and no warning.
+
+The comments hold the marker "(tree-sitter-cpp fork)". Remove the marker before you send the
+patch upstream.
+
+--- ts/lib/src/parser.c	2026-09-16 00:17:02.507445390 +0200
++++ ts-new/lib/src/parser.c	2026-09-16 00:35:42.690422183 +0200
+@@ -2100,6 +2100,31 @@
+   }
+ }
+ 
++// Merge the version `version` with a version before it. Return true if the merge removed `version`,
++// and the caller subtracts one from its index.
++//
++// The version loop of one parse step gives each version its own head, also where two versions shift
++// the same token into the same state. Only the condense step at the end of the loop merges them.
++// The list then holds more versions than the mid-step limit of `ts_parser__reduce`, and that limit
++// drops a reduction by the index of its version. The reading of a deep template argument list then
++// depends on the state numbers of the parse table, and not on the dynamic precedences of the
++// grammar.
++//
++// The caller calls this function for each version that completes its turn. The function removes no
++// reading, because a merge keeps the two readings as two links of one node. It removes no version
++// that a comparison makes unnecessary, although the condense step removes such a version. A version
++// that has no turn yet can still get a lower error cost, and a removal before the condense step also
++// takes the candidates of the recovery of an error.
++static bool ts_parser__merge_finished_version(TSParser *self, StackVersion version) {
++  for (StackVersion j = 0; j < version; j++) {
++    if (ts_stack_merge(self->stack, j, version)) {
++      LOG("merge_finished_version version:%u into:%u", version, j);
++      return true;
++    }
++  }
++  return false;
++}
++
+ static unsigned ts_parser__condense_stack(TSParser *self) {
+   bool made_changes = false;
+   unsigned min_error_cost = UINT_MAX;
+@@ -2492,6 +2517,16 @@
+           break;
+         }
+       }
++
++      // The version completed its turn. A merge with a version before it stops the list from
++      // growing past the mid-step limit of `ts_parser__reduce`. The list is already longer than the
++      // condense step at the end of the loop keeps.
++      if (
++        ts_stack_version_count(self->stack) > MAX_VERSION_COUNT &&
++        ts_parser__merge_finished_version(self, version)
++      ) {
++        version--;
++      }
+     }
+ 
+     // After advancing each version of the stack, re-sort the versions by their cost,

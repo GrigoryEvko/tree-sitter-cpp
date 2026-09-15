@@ -1,0 +1,147 @@
+================================================================================
+Linkage specifications with one class, typedef, or template
+================================================================================
+
+extern "C" struct B : A {};
+extern "C" typedef int T;
+extern "C++" template <class T> struct S;
+
+--------------------------------------------------------------------------------
+
+(translation_unit
+  (linkage_specification
+    (string_literal
+      (string_content))
+    (struct_specifier
+      (type_identifier)
+      (base_class_clause
+        (type_identifier))
+      (field_declaration_list)))
+  (linkage_specification
+    (string_literal
+      (string_content))
+    (type_definition
+      (primitive_type)
+      (type_identifier)))
+  (linkage_specification
+    (string_literal
+      (string_content))
+    (template_declaration
+      (template_parameter_list
+        (type_parameter_declaration
+          (type_identifier)))
+      (struct_specifier
+        (type_identifier)))))
+
+================================================================================
+Declarations with specifiers and no declarator
+================================================================================
+
+static union { int a; float b; };
+void f() { static union { int a; }; }
+
+--------------------------------------------------------------------------------
+
+(translation_unit
+  (declaration
+    (storage_class_specifier)
+    (union_specifier
+      (field_declaration_list
+        (field_declaration
+          (primitive_type)
+          (field_identifier))
+        (field_declaration
+          (primitive_type)
+          (field_identifier)))))
+  (function_definition
+    (primitive_type)
+    (function_declarator
+      (identifier)
+      (parameter_list))
+    (compound_statement
+      (declaration
+        (storage_class_specifier)
+        (union_specifier
+          (field_declaration_list
+            (field_declaration
+              (primitive_type)
+              (field_identifier))))))))
+
+================================================================================
+Unnamed bit-fields
+================================================================================
+
+struct A {
+  int i : 4;
+  int : 0;
+  char a : 1, : 0, b : 1;
+};
+
+--------------------------------------------------------------------------------
+
+(translation_unit
+  (struct_specifier
+    (type_identifier)
+    (field_declaration_list
+      (field_declaration
+        (primitive_type)
+        (field_identifier)
+        (bitfield_clause
+          (number_literal)))
+      (field_declaration
+        (primitive_type)
+        (bitfield_clause
+          (number_literal)))
+      (field_declaration
+        (primitive_type)
+        (field_identifier)
+        (bitfield_clause
+          (number_literal))
+        (bitfield_clause
+          (number_literal))
+        (field_identifier)
+        (bitfield_clause
+          (number_literal))))))
+
+================================================================================
+Macro before namespace
+================================================================================
+
+BOOST_PROCESS_V1_INLINE namespace v1 {
+namespace detail {}
+}
+VULKAN_HPP_EXPORT namespace std {
+template <typename T> struct hash;
+}
+namespace n { EXPORT namespace m {} }
+
+--------------------------------------------------------------------------------
+
+(translation_unit
+  (namespace_definition
+    (attribute_macro
+      name: (identifier))
+    name: (namespace_identifier)
+    body: (declaration_list
+      (namespace_definition
+        name: (namespace_identifier)
+        body: (declaration_list))))
+  (namespace_definition
+    (attribute_macro
+      name: (identifier))
+    name: (namespace_identifier)
+    body: (declaration_list
+      (template_declaration
+        parameters: (template_parameter_list
+          (type_parameter_declaration
+            (type_identifier)))
+        (struct_specifier
+          name: (type_identifier)))))
+  (namespace_definition
+    name: (namespace_identifier)
+    body: (declaration_list
+      (namespace_definition
+        (attribute_macro
+          name: (identifier))
+        name: (namespace_identifier)
+        body: (declaration_list)))))

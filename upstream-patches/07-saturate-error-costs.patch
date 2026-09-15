@@ -1,0 +1,241 @@
+Subject: Stop the sums of error costs at the maximum of 32 bits
+
+Stop the sums of the error costs at the maximum of 32 bits.
+
+The copy of the runtime of the tree-sitter-cpp fork has this repair. The fork commit is
+f8b702b.
+
+ef148db gives a cost of 10000 to each unmatched right brace. It adds an
+assertion that the cost of an ERROR node is at least the sum of these
+costs in its ERROR children. The sums of the costs used 32 bits, and a
+larger sum became smaller than its parts. At 2699626, error recovery at
+an unterminated string added millions of MISSING tokens. A child of an
+ERROR node then got a cost of 4,294,956,930. With the cost 10,601 of a
+second child, the sum became 679, and the assertion stopped the parse.
+
+The error costs of subtrees and of stack versions now stop at
+ERROR_COST_MAX (UINT32_MAX). The sums use 64 bits before they stop, and
+a sum with no part of ERROR_COST_MAX is exact. A part of ERROR_COST_MAX
+gives that cost to the sum. The ERROR node invariant is then true for
+each cost less than the maximum, and the assertion excludes the maximum.
+
+With the previous loop of ts_parser__do_all_potential_reductions, the
+parse of `b<C>(b<D>(e"x` and a `}` on the next line does not stop at the
+assertion. It ends after 37.5 s with 7,040,930 MISSING nodes.
+
+The tree hashes of the 329,387 corpus files and of the 7,646 compiler
+test files do not change.
+
+The repair is not specific to a language. A sum of error costs in 32 bits can become smaller than one of
+its parts. A stack version then gets a cost that is less than the cost of one of its parts. The unmatched bracket
+costs of patch 03 make the sums much larger, but a very large input with many errors also makes
+the sum too large without patch 03.
+
+Risk for upstream: low.
+
+The patch applies to the upstream tag v0.27.0, after the patches with a smaller number. The
+series compiles with `-Wall -Wextra` and no warning.
+
+The comments hold the marker "(tree-sitter-cpp fork)". Remove the marker before you send the
+patch upstream.
+
+diff -ruN a/lib/src/error_costs.h b/lib/src/error_costs.h
+--- a/lib/src/error_costs.h	2026-09-15 19:00:45.713044138 +0200
++++ b/lib/src/error_costs.h	2026-09-15 19:00:45.771517954 +0200
+@@ -1,6 +1,8 @@
+ #ifndef TREE_SITTER_ERROR_COSTS_H_
+ #define TREE_SITTER_ERROR_COSTS_H_
+ 
++#include <stdint.h>
++
+ #define ERROR_STATE 0
+ #define ERROR_COST_PER_RECOVERY 500
+ #define ERROR_COST_PER_MISSING_TREE 110
+@@ -18,4 +20,22 @@
+ #define ERROR_COST_PER_UNMATCHED_BRACE 10000
+ #define ERROR_COST_PER_UNMATCHED_PARENTHESIS 1000
+ 
++// The error costs of subtrees and of stack versions stop at ERROR_COST_MAX. A cost of ERROR_COST_MAX
++// tells that the full cost is ERROR_COST_MAX or more. A sum with a part of ERROR_COST_MAX is also
++// ERROR_COST_MAX, and two such costs are equal. The sums use 64 bits before they stop, and a sum
++// with no such part is exact. A sum of 32 bits can become smaller than one of its parts. An ERROR
++// node then gets a cost that is less than the cost of its unmatched brackets (tree-sitter-cpp fork).
++#define ERROR_COST_MAX UINT32_MAX
++
++// Stop a cost of 64 bits at ERROR_COST_MAX (tree-sitter-cpp fork).
++static inline uint32_t ts_error_cost_saturate(uint64_t cost) {
++  return cost >= ERROR_COST_MAX ? ERROR_COST_MAX : (uint32_t)cost;
++}
++
++// Add an increment to an error cost, and stop the sum at ERROR_COST_MAX. The increment must be
++// less than 2^63 (tree-sitter-cpp fork).
++static inline uint32_t ts_error_cost_add(uint32_t cost, uint64_t increment) {
++  return ts_error_cost_saturate((uint64_t)cost + increment);
++}
++
+ #endif
+diff -ruN a/lib/src/parser.c b/lib/src/parser.c
+--- a/lib/src/parser.c	2026-09-15 19:00:45.757671815 +0200
++++ b/lib/src/parser.c	2026-09-15 19:00:45.772124113 +0200
+@@ -303,7 +303,7 @@
+ ) {
+   unsigned cost = ts_stack_error_cost(self->stack, version);
+   bool is_paused = ts_stack_is_paused(self->stack, version);
+-  if (is_paused) cost += ERROR_COST_PER_SKIPPED_TREE;
++  if (is_paused) cost = ts_error_cost_add(cost, ERROR_COST_PER_SKIPPED_TREE);
+   return (ErrorStatus) {
+     .cost = cost,
+     .node_count = ts_stack_node_count_since_error(self->stack, version),
+@@ -1375,11 +1375,13 @@
+       if (would_merge) continue;
+ 
+       // Do not recover if the result would clearly be worse than some existing stack version.
+-      unsigned new_cost =
+-        current_error_cost +
+-        entry.depth * ERROR_COST_PER_SKIPPED_TREE +
+-        (position.bytes - entry.position.bytes) * ERROR_COST_PER_SKIPPED_CHAR +
+-        (position.extent.row - entry.position.extent.row) * ERROR_COST_PER_SKIPPED_LINE;
++      // The cost stops at ERROR_COST_MAX (tree-sitter-cpp fork).
++      unsigned new_cost = ts_error_cost_add(
++        current_error_cost,
++        (uint64_t)entry.depth * ERROR_COST_PER_SKIPPED_TREE +
++        (uint64_t)(position.bytes - entry.position.bytes) * ERROR_COST_PER_SKIPPED_CHAR +
++        (uint64_t)(position.extent.row - entry.position.extent.row) * ERROR_COST_PER_SKIPPED_LINE
++      );
+       if (ts_parser__better_version_exists(self, version, false, new_cost)) break;
+ 
+       // If the current lookahead token is valid in some previous state, recover to that state.
+@@ -1439,15 +1441,18 @@
+ 
+   // Do not recover if the result would clearly be worse than some existing stack version.
+   // The ERROR at the top of the stack and the lookahead become one ERROR. Include the cost of the
+-  // right brackets of the lookahead that this ERROR does not match (tree-sitter-cpp fork).
++  // right brackets of the lookahead that this ERROR does not match. The cost stops at ERROR_COST_MAX
++  // (tree-sitter-cpp fork).
+   Subtree top_error = node_count_since_error > 0
+     ? ts_stack_top_subtree(self->stack, version)
+     : NULL_SUBTREE;
+-  unsigned new_cost =
+-    current_error_cost + ERROR_COST_PER_SKIPPED_TREE +
+-    ts_subtree_total_bytes(lookahead) * ERROR_COST_PER_SKIPPED_CHAR +
+-    ts_subtree_total_size(lookahead).extent.row * ERROR_COST_PER_SKIPPED_LINE +
+-    ts_subtree_unmatched_bracket_cost_after(top_error, lookahead, self->language);
++  unsigned new_cost = ts_error_cost_add(
++    current_error_cost,
++    ERROR_COST_PER_SKIPPED_TREE +
++    (uint64_t)ts_subtree_total_bytes(lookahead) * ERROR_COST_PER_SKIPPED_CHAR +
++    (uint64_t)ts_subtree_total_size(lookahead).extent.row * ERROR_COST_PER_SKIPPED_LINE +
++    ts_subtree_unmatched_bracket_cost_after(top_error, lookahead, self->language)
++  );
+   if (ts_parser__better_version_exists(self, version, false, new_cost)) {
+     ts_stack_halt(self->stack, version);
+     ts_subtree_release(&self->tree_pool, lookahead);
+diff -ruN a/lib/src/stack.c b/lib/src/stack.c
+--- a/lib/src/stack.c	2026-09-15 19:00:45.713293491 +0200
++++ b/lib/src/stack.c	2026-09-15 19:00:45.771754287 +0200
+@@ -165,7 +165,8 @@
+     node->node_count = previous_node->node_count;
+ 
+     if (subtree.ptr) {
+-      node->error_cost += ts_subtree_error_cost(subtree);
++      // The cost stops at ERROR_COST_MAX (tree-sitter-cpp fork).
++      node->error_cost = ts_error_cost_add(node->error_cost, ts_subtree_error_cost(subtree));
+       node->position = length_add(node->position, ts_subtree_total_size(subtree));
+       node->node_count += stack__subtree_node_count(subtree);
+       node->dynamic_precedence += ts_subtree_dynamic_precedence(subtree);
+@@ -496,7 +497,7 @@
+   if (
+     head->status == StackStatusPaused ||
+     (head->node->state == ERROR_STATE && !head->node->links[0].subtree.ptr)) {
+-    result += ERROR_COST_PER_RECOVERY;
++    result = ts_error_cost_add(result, ERROR_COST_PER_RECOVERY);
+   }
+   return result;
+ }
+diff -ruN a/lib/src/subtree.c b/lib/src/subtree.c
+--- a/lib/src/subtree.c	2026-09-15 19:00:45.713406687 +0200
++++ b/lib/src/subtree.c	2026-09-15 19:00:45.771824642 +0200
+@@ -337,11 +337,11 @@
+ 
+ // The part of an error node's cost that penalizes the extent it spans, as
+ // opposed to the cost of its contents.
+-static inline uint32_t ts_subtree__error_extent_cost(Length size) {
++static inline uint64_t ts_subtree__error_extent_cost(Length size) {
+   return
+     ERROR_COST_PER_RECOVERY +
+-    ERROR_COST_PER_SKIPPED_CHAR * size.bytes +
+-    ERROR_COST_PER_SKIPPED_LINE * size.extent.row;
++    (uint64_t)ERROR_COST_PER_SKIPPED_CHAR * size.bytes +
++    (uint64_t)ERROR_COST_PER_SKIPPED_LINE * size.extent.row;
+ }
+ 
+ static inline bool ts_subtree__is_error_symbol(TSSymbol symbol) {
+@@ -429,7 +429,11 @@
+   uint32_t lookahead_end_byte = 0;
+   bool is_error = ts_subtree__is_error_symbol(self.ptr->symbol);
+   UnmatchedBrackets unmatched = {0, 0, 0, 0};
+-  uint32_t unmatched_cost_of_children = 0;
++  uint64_t unmatched_cost_of_children = 0;
++  // The error cost of the node in 64 bits. A child with the cost ERROR_COST_MAX gives that cost to
++  // the node. Refer to ERROR_COST_MAX in error_costs.h (tree-sitter-cpp fork).
++  uint64_t error_cost = 0;
++  bool is_saturated = false;
+ 
+   const Subtree *children = ts_subtree_children(self);
+   for (uint32_t i = 0; i < self.ptr->child_count; i++) {
+@@ -473,23 +477,25 @@
+     }
+ 
+     uint32_t grandchild_count = ts_subtree_child_count(child);
++    uint32_t child_error_cost = ts_subtree_error_cost(child);
++    if (child_error_cost == ERROR_COST_MAX) is_saturated = true;
+     if (ts_subtree_symbol(child) == ts_builtin_sym_error_repeat) {
+       // Refund an `_ERROR` child's extent penalty, which this node re-charges
+       // as part of its own extent below, so that the grouping is cost-neutral.
+-      uint32_t extent_cost = ts_subtree__error_extent_cost(ts_subtree_size(child));
+-      ts_assert(ts_subtree_error_cost(child) >= extent_cost);
+-      self.ptr->error_cost += ts_subtree_error_cost(child) - extent_cost;
++      uint64_t extent_cost = ts_subtree__error_extent_cost(ts_subtree_size(child));
++      ts_assert(child_error_cost == ERROR_COST_MAX || child_error_cost >= extent_cost);
++      if (child_error_cost >= extent_cost) error_cost += child_error_cost - extent_cost;
+     } else {
+-      self.ptr->error_cost += ts_subtree_error_cost(child);
++      error_cost += child_error_cost;
+       if (
+         self.ptr->symbol == ts_builtin_sym_error ||
+         self.ptr->symbol == ts_builtin_sym_error_repeat
+       ) {
+         if (!ts_subtree_extra(child) && !(ts_subtree_is_error(child) && grandchild_count == 0)) {
+           if (ts_subtree_visible(child)) {
+-            self.ptr->error_cost += ERROR_COST_PER_SKIPPED_TREE;
++            error_cost += ERROR_COST_PER_SKIPPED_TREE;
+           } else if (grandchild_count > 0) {
+-            self.ptr->error_cost += ERROR_COST_PER_SKIPPED_TREE * child.ptr->visible_child_count;
++            error_cost += (uint64_t)ERROR_COST_PER_SKIPPED_TREE * child.ptr->visible_child_count;
+           }
+         }
+       }
+@@ -534,15 +540,19 @@
+     self.ptr->symbol == ts_builtin_sym_error ||
+     self.ptr->symbol == ts_builtin_sym_error_repeat
+   ) {
+-    self.ptr->error_cost += ts_subtree__error_extent_cost(self.ptr->size);
++    error_cost += ts_subtree__error_extent_cost(self.ptr->size);
+   }
+ 
++  // Each ERROR child adds the cost of its unmatched brackets to its own cost. The sum of the children
++  // is then at least the sum of these costs, unless a child has the cost ERROR_COST_MAX
++  // (tree-sitter-cpp fork).
+   if (is_error) {
+-    ts_assert(self.ptr->error_cost >= unmatched_cost_of_children);
+-    self.ptr->error_cost -= unmatched_cost_of_children;
+-    self.ptr->error_cost += ts_subtree__unmatched_cost(unmatched);
++    ts_assert(is_saturated || error_cost >= unmatched_cost_of_children);
++    error_cost = error_cost >= unmatched_cost_of_children ? error_cost - unmatched_cost_of_children : 0;
++    error_cost += ts_subtree__unmatched_cost(unmatched);
+     self.ptr->unmatched = unmatched;
+   }
++  self.ptr->error_cost = is_saturated ? ERROR_COST_MAX : ts_error_cost_saturate(error_cost);
+ 
+   if (self.ptr->child_count > 0) {
+     Subtree first_child = children[0];

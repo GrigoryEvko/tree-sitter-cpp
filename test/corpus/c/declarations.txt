@@ -653,7 +653,6 @@ noreturn void b() {}
       (parameter_list))
     (compound_statement))
   (declaration
-    (type_qualifier)
     (storage_class_specifier)
     (primitive_type)
     (function_declarator
@@ -1002,3 +1001,146 @@ struct __attribute__((__packed__)) foo_t {
       (field_declaration
         (primitive_type)
         (field_identifier)))))
+
+================================================================================
+C11 static assertions
+================================================================================
+
+#define STATIC_ASSERT(e, m) _Static_assert(e, m)
+_Static_assert(sizeof(int) == 4, "int");
+_Static_assert(1);
+struct S { _Static_assert(1, "member"); int x; };
+void f(int c) {
+  _Static_assert(sizeof(long) >= 4, "block");
+lab: _Static_assert(1, "label");
+  switch (c) { case 1: _Static_assert(1, "case"); break; }
+}
+
+--------------------------------------------------------------------------------
+
+(translation_unit
+  (preproc_function_def
+    name: (identifier)
+    parameters: (preproc_params
+      (identifier)
+      (identifier))
+    value: (preproc_arg))
+  (static_assert_declaration
+    condition: (binary_expression
+      left: (sizeof_expression
+        type: (type_descriptor
+          type: (primitive_type)))
+      right: (number_literal))
+    message: (string_literal
+      (string_content)))
+  (static_assert_declaration
+    condition: (number_literal))
+  (struct_specifier
+    name: (type_identifier)
+    body: (field_declaration_list
+      (static_assert_declaration
+        condition: (number_literal)
+        message: (string_literal
+          (string_content)))
+      (field_declaration
+        type: (primitive_type)
+        declarator: (field_identifier))))
+  (function_definition
+    type: (primitive_type)
+    declarator: (function_declarator
+      declarator: (identifier)
+      parameters: (parameter_list
+        (parameter_declaration
+          type: (primitive_type)
+          declarator: (identifier))))
+    body: (compound_statement
+      (static_assert_declaration
+        condition: (binary_expression
+          left: (sizeof_expression
+            type: (type_descriptor
+              type: (sized_type_specifier)))
+          right: (number_literal))
+        message: (string_literal
+          (string_content)))
+      (labeled_statement
+        label: (statement_identifier)
+        (static_assert_declaration
+          condition: (number_literal)
+          message: (string_literal
+            (string_content))))
+      (switch_statement
+        condition: (condition_clause
+          value: (identifier))
+        body: (compound_statement
+          (case_statement
+            value: (number_literal)
+            (static_assert_declaration
+              condition: (number_literal)
+              message: (string_literal
+                (string_content)))
+            (break_statement)))))))
+
+================================================================================
+The GNU keyword __extension__ before a member and before a typedef
+================================================================================
+
+struct S { __extension__ int x; __extension__ __extension__ long long y; };
+__extension__ typedef long long ll;
+
+--------------------------------------------------------------------------------
+
+(translation_unit
+  (struct_specifier
+    name: (type_identifier)
+    body: (field_declaration_list
+      (field_declaration
+        type: (primitive_type)
+        declarator: (field_identifier))
+      (field_declaration
+        type: (sized_type_specifier)
+        declarator: (field_identifier))))
+  (type_definition
+    type: (sized_type_specifier)
+    declarator: (type_identifier)))
+
+================================================================================
+A GNU asm label before an initializer
+================================================================================
+
+int a asm("s1") = 1;
+void f(unsigned long p) { register unsigned long r __asm__("rdi") = p; (void)r; }
+
+--------------------------------------------------------------------------------
+
+(translation_unit
+  (declaration
+    type: (primitive_type)
+    declarator: (init_declarator
+      declarator: (identifier)
+      (gnu_asm_expression
+        assembly_code: (string_literal
+          (string_content)))
+      value: (number_literal)))
+  (function_definition
+    type: (primitive_type)
+    declarator: (function_declarator
+      declarator: (identifier)
+      parameters: (parameter_list
+        (parameter_declaration
+          type: (sized_type_specifier)
+          declarator: (identifier))))
+    body: (compound_statement
+      (declaration
+        (storage_class_specifier)
+        type: (sized_type_specifier)
+        declarator: (init_declarator
+          declarator: (identifier)
+          (gnu_asm_expression
+            assembly_code: (string_literal
+              (string_content)))
+          value: (identifier)))
+      (expression_statement
+        (cast_expression
+          type: (type_descriptor
+            type: (primitive_type))
+          value: (identifier))))))

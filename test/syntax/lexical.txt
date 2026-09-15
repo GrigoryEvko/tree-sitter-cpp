@@ -1,0 +1,151 @@
+### lex_less_scope_template
+std::vector<::std::string> v;
+### lex_less_scope_compare
+bool b = x <::y;
+### lex_less_scope_nested
+std::map<::std::string, std::vector<::std::string>> m;
+### lex_alt_logical
+bool f(bool a, bool b) { return a and b or not a; }
+### lex_alt_bitwise
+int g(int a, int b) { return (a bitand b) bitor (a xor compl b); }
+### lex_alt_assign
+void h(int& a, int b) { a and_eq b; a or_eq b; a xor_eq b; }
+### lex_alt_not_eq
+bool e = a not_eq b;
+### lex_alt_in_conditional_directive
+#if defined(A) and not defined(B) or compl 0 bitand 1
+int x;
+#elif A not_eq 1 bitor 2 xor 3
+int y;
+#endif
+### lex_alt_operator_name_as_macro_name
+#if defined(bitand) || defined(or)
+int x;
+#endif
+### lex_alt_not_consteval
+constexpr int f() { if not consteval { return 1; } return 0; }
+### lex_ppnumber_macro_argument
+#if ENABLE(2022_GLIB_API) && !HAVE(36BIT_ADDRESS)
+int x;
+#endif
+### lex_alt_requires
+template <class T> requires C<T> and D<T> void f();
+### lex_alt_operator_name
+bool operator and(X, X); X operator compl(X); X& operator or_eq(X&, X);
+### lex_raw_prefixes
+auto a = R"(x)"; auto b = LR"(x)"; auto c = uR"(x)"; auto d = UR"(x)"; auto e = u8R"(x)";
+### lex_raw_delimiter_16
+auto s = R"abcdefghijklmnop(x)abcdefghijklmnop"; auto t = u8R"wxyzABCDEFGHIJKL(b)wxyzABCDEFGHIJKL";
+### lex_raw_delimiter_punct
+auto s = R"#(a)#"; auto t = R"--(b)--"; auto u = R"*+=(c)*+="; auto v = R"??(d)??";
+### lex_raw_quote_inside
+auto s = R"(")"; auto t = R"x(a)"b)x";
+### lex_raw_multiline
+auto s = R"(
+line 1 /* not a comment */
+line 2)";
+### lex_raw_backslash_newline
+auto s = R"(a\
+b)";
+### lex_raw_macro_argument
+TEST(R"(a, b)", R"x(c))x");
+### lex_raw_concat
+auto s = "a" R"(b)" "c";
+### lex_raw_udl
+auto s = R"(x)"_json; auto t = R"(y)"sv;
+### lex_udl_string
+auto a = "x"sv; auto b = u8"x"s; auto c = L"x"_w;
+### lex_udl_number
+auto a = 12_km; auto b = 1.0_f; auto c = 0x1p3_q; auto d = 123ms; auto e = 1.5i; auto f = 0b101_bits;
+### lex_udl_char
+auto a = 'c'_x; auto b = u8'c'_x; auto c = L'x'_y;
+### lex_udl_unicode_suffix
+char x1[1_π]; bool b = 1_ħ; int c = 1_$;
+### lex_char_comment_like
+char a = '/'; int b = '/*'; int c = '//'; int d = '*/';
+### lex_ident_ucn_delimited
+int jalape\u{f1}o = 42; int jalape\N{LATIN SMALL LETTER N WITH TILDE}o2 = 42;
+### lex_udl_concat
+auto s = "a"_s "b"; std::string t{"1"s "\0" "1"s}; auto u = "a" "b"_s; auto v = "PATH="sv DEFAULT_PATH_SV;
+### lex_operator_literal
+int operator""_x(unsigned long long); int operator "" _y(const char*);
+### lex_operator_literal_std
+using std::literals::operator""sv; constexpr int operator""if(long double);
+### lex_alt_compl_destructor
+struct S { compl S(); }; S::compl S() {}
+### lex_operator_literal_template
+template <char...> int operator""_b(); int n = operator""_b<'1'>();
+### lex_suffix_ms
+__int64 a = 1i64; unsigned __int64 b = 1ui64; auto c = 0x10i32; auto d = 1I64;
+### lex_suffix_float_vendor
+auto a = 1.0f16; auto b = 1.0F32; auto c = 1e0f64; auto d = 1.0f128; auto e = 1.0q; auto f = 1.0Q; auto g = 1.0w; auto h = 1.0W; auto i = 1.0bf16;
+### lex_digit_separators
+int a = 0b1'0; int b = 0x1'F; double c = 1'000.5e1'0; int d = 0'7; unsigned e = 1'0u; double f = 0x1'Fp1'0;
+### lex_digit_separator_hex_suffix
+auto x = 0x5600'0000U; auto y = 0xb8aa'3b29'5c17'f0bcULL;
+### lex_digit_separator_fraction
+double d = .5'0; double e = 1.0'5; double f = 1e1'0;
+### lex_hex_float
+double a = 0x1p3; double b = 0x1.8p-3; double c = 0x.8p1; float d = 0X1P+3f; long double e = 0x1p3L; double f = 0x1.p3;
+### lex_suffix_size
+auto a = 1uz; auto b = 1z; auto c = 1zu; auto d = 1UZ; auto e = 1Zu;
+### lex_suffix_long
+auto a = 1LLU; auto b = 1uLL; auto c = 1Lu; auto d = 1.0L; auto e = 5.f; auto g = 1.e5;
+### lex_char_prefixes
+auto a = u8'a'; auto b = u'a'; auto c = U'a'; auto d = L'a';
+### lex_char_multichar
+int m = 'abcd'; int n = 'ab';
+### lex_char_escapes
+char a = '\''; char b = '\\'; char c = '\0'; char d = '\177'; char e = '\x7f'; char f = '\?'; char g = '"'; char h = '\e';
+### lex_char_delimited_escapes
+char a = '\x{41}'; char b = '\o{101}'; char32_t c = U'\u{1F600}'; char32_t d = U'\N{LATIN CAPITAL LETTER A}';
+### lex_string_delimited_escapes
+auto a = "\x{41}\o{101}\u{1F600}\N{LATIN SMALL LETTER A}";
+### lex_string_escapes
+auto s = "\a\b\f\n\r\t\v\\\'\"\?\0\177\x7fz\U000000E9\U0001F600";
+### lex_string_comment_like
+auto s = "/* no */ // no";
+### lex_string_splice
+auto s = "ab\
+cd";
+### lex_string_splice_prefix
+auto s = "ab\
+cd"; auto t = u8"ef\
+gh";
+### lex_char_splice
+char c = '\
+x'; auto d = U'\
+y';
+### lex_ident_ucn
+int caf\U000000E9 = 1; struct \U000003B4\U000003C4\U000003C7; int \U0001D49Cx = 2;
+### lex_ident_utf8
+int π = 3; int café = 1; double ħ = 1;
+### lex_ident_dollar
+int $x = 1; int y$ = 2; int a$b = $x;
+### lex_splice_line_comment
+// comment \
+continued
+int x;
+### lex_splice_between_tokens
+int x = 1 +\
+2;
+### lex_reflect_scope_subscript
+int f(int* a) { return a[::b] + a[::b::c]; }
+### lex_reflect_scope_statement
+void g(int* a) { a[::b] = 1; a[::b]; }
+### lex_reflect_scope_array
+int a[::n]; int* p = new int[::n];
+### lex_reflect_splice_index
+int z = members[:i:]; int w = members[:i:] + a[::b];
+### lex_reflect_splice_global
+using T = [:::r:];
+### lex_concat_macro_middle
+void f() { printf("%" PRId64 "\n", x); }
+### lex_concat_macro_end
+void f() { printf("%" PRIu64, x); }
+### lex_concat_macro_start
+const char* s = PRIu64 "x";
+### lex_concat_prefixes
+auto s = L"a" L"b"; auto t = u8"a" "b"; auto r = "a" R"(b)";
+### lex_concat_raw_macro
+auto s = R"(a)" MACRO R"(b)";
