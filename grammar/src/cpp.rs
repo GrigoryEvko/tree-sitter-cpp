@@ -147,6 +147,7 @@ pub fn grammar() -> Grammar {
         // `scan_less_than_digraph` in `src/scanner.c`. The lexer reads the other digraphs, which have no
         // such exception. Refer to `open_brace` in `grammar/src/c.rs`.
         Rule::from("["),
+        s!(_attribute_tokens_marker),
     ];
     g.conflicts = conflict_sets(&[
         // C
@@ -850,6 +851,16 @@ fn macros(g: &mut Grammar) {
     );
     // The arguments of a macro invocation are a token tree in parentheses.
     g.define("_macro_arguments", seq!["(", content(), ")"]);
+    // The arguments of an attribute that the grammar does not read as expressions.
+    // [dcl.attr.grammar]: an attribute-argument-clause is a balanced token sequence. For an attribute
+    // that it does not know, GCC reads balanced tokens (cp_parser_std_attribute, gcc/cp/parser.cc) and
+    // Clang skips to the closing parenthesis (ParseCXX11AttributeArgs,
+    // clang/lib/Parse/ParseDeclCXX.cpp). The external scanner gives the empty token before the `(`
+    // only when the tokens of the clause are not an expression list.
+    g.define(
+        "_attribute_token_arguments",
+        seq![s!(_attribute_tokens_marker), "(", content(), ")"],
+    );
     let arguments = || field("arguments", alias(s!(_macro_arguments), s!(token_tree)));
     // Right associativity gives a `(` after the name to the arguments.
     g.define(
@@ -1760,7 +1771,10 @@ fn types(g: &mut Grammar) {
             optional(seq!["using", field("namespace", s!(identifier)), ":"]),
             optional(seq![field("prefix", attribute_token()), "::"]),
             field("name", attribute_token()),
-            optional(s!(argument_list)),
+            optional(choice![
+                s!(argument_list),
+                alias(s!(_attribute_token_arguments), s!(token_tree)),
+            ]),
         ],
     );
     g.define("annotation", seq!["=", s!(expression)]);

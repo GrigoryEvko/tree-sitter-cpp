@@ -129,6 +129,8 @@ class WTFSemaphore {
 };
 ABSL_CONST_INIT static absl::Mutex g_mu(absl::kConstInit);
 static int g_count ABSL_GUARDED_BY(g_mu) = 0;
+### attr_tokens_unknown
+[[vendor::bar(parallel for)]] void g(); [[vendor::baz(const char*)]] void k();
 ### attr_bracket_comment_gap
 [ /* c */ [nodiscard]] int f(); [[nodiscard] /* c */ ] int g();
 ### attr_bracket_directive_gap

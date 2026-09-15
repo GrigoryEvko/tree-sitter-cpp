@@ -122,6 +122,8 @@ enum TokenType {
     TYPE_TRAIT_TYPE_MARKER,
     /// The `[` of the grammar, for the digraph `<:`.
     OPEN_BRACKET,
+    /// An empty token before the `(` of an attribute-argument-clause that is not an expression list.
+    ATTRIBUTE_TOKENS_MARKER,
 };
 
 /// The maximum number of characters that the scanner reads in the arguments of a macro.
@@ -721,6 +723,9 @@ typedef struct {
     bool statements;
     /// A token shows that an argument in the group is not an expression.
     bool not_expressions;
+    /// Two words are in sequence in an argument, or the word of a type starts an argument. The tokens of
+    /// the group are then the tokens of no expression list: `(a b c)` and `(const char*)`.
+    bool word_sequence;
     /// The group has no token.
     bool empty;
     /// The number of the arguments at the top level of the group.
@@ -1378,6 +1383,7 @@ static bool skip_group(Reader *reader, Arguments *args) {
             bool adjacent = is_word && !prefix_word && (arg.after_word || arg.after_angle);
             if ((arg.tokens == 1 && arg.first_is_type) || adjacent) {
                 args->not_expressions = true;
+                args->word_sequence = true;
             }
         }
         if (opens_angle) {
@@ -5656,6 +5662,27 @@ static bool scan_pack_index_ellipsis(TSLexer *lexer, const Scanner *scanner) {
     return gap.text && !gap.blocked && readable(&reader) && lexer->lookahead == '[';
 }
 
+// The arguments of an attribute.
+
+/// Scan the empty token before the `(` of an attribute-argument-clause whose tokens are not an expression
+/// list. The lookahead is the `(`.
+///
+/// [dcl.attr.grammar]: an attribute-argument-clause is a balanced token sequence. For an attribute that it
+/// does not know, GCC reads balanced tokens (cp_parser_std_attribute, gcc/cp/parser.cc) and Clang skips to
+/// the closing parenthesis (ParseCXX11AttributeArgs, clang/lib/Parse/ParseDeclCXX.cpp). Without name lookup,
+/// the tokens of the clause decide: `[[vendor::foo(a b c)]]` is no expression list, and `[[deprecated("x")]]`
+/// is one. O(n) in the characters of the clause.
+static bool scan_attribute_tokens_marker(TSLexer *lexer, const Scanner *scanner) {
+    mark_end(lexer);
+    Reader reader = start_reader(lexer, MAX_MACRO_ARGUMENTS_LENGTH, scanner);
+    Arguments args = {0};
+    if (!skip_group(&reader, &args)) {
+        return false;
+    }
+    lexer->result_symbol = ATTRIBUTE_TOKENS_MARKER;
+    return args.word_sequence || args.statements;
+}
+
 // The digraphs.
 
 /// Scan the digraph `<:`, which is the token `[` ([lex.digraph]). The lookahead is the `<`.
@@ -7083,6 +7110,7 @@ static bool can_be_empty(TSSymbol symbol) {
         case MACRO_STATEMENT_START:
         case MACRO_CALL_ATTRIBUTE_START:
         case MACRO_CALL_ATTRIBUTE_TOKENS_START:
+        case ATTRIBUTE_TOKENS_MARKER:
         case MACRO_TYPE_START:
         case PARAMETER_MACRO_TYPE_START:
         case STATEMENT_ATTRIBUTE_MACRO_START:
@@ -7225,6 +7253,9 @@ static bool scan_token(Scanner *scanner, TSLexer *lexer, const bool *valid_symbo
     bool name_paren = valid_symbols[NAME_EXPRESSION_PAREN] &&
                       (valid_symbols[CAST_PAREN] || valid_symbols[OPERAND_TYPE_PAREN] || valid_symbols[ALIGNOF_TYPE_PAREN]);
     if (lexer->lookahead == '(') {
+        if (valid_symbols[ATTRIBUTE_TOKENS_MARKER]) {
+            return scan_attribute_tokens_marker(lexer, scanner);
+        }
         return name_paren && scan_parenthesized_name(lexer, scanner, valid_symbols);
     }
 

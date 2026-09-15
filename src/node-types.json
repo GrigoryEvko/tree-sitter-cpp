@@ -1207,6 +1207,10 @@
         {
           "type": "argument_list",
           "named": true
+        },
+        {
+          "type": "token_tree",
+          "named": true
         }
       ]
     }

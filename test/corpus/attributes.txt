@@ -2121,3 +2121,86 @@ A comment and a directive line between the brackets of an attribute
     declarator: (function_declarator
       declarator: (identifier)
       parameters: (parameter_list))))
+
+================================================================================
+Balanced token arguments of an attribute that the grammar does not read
+================================================================================
+
+[[vendor::foo(a b c [x] {y} (z))]] void f();
+[[vendor::bar(parallel for)]] void g();
+[[vendor::baz(const char*)]] void k();
+[[deprecated("x")]] void m();
+[[gnu::format(printf, 1, 2)]] void n(const char*, ...);
+
+--------------------------------------------------------------------------------
+
+(translation_unit
+  (declaration
+    (attribute_declaration
+      (attribute
+        prefix: (identifier)
+        name: (identifier)
+        (token_tree
+          (identifier)
+          (identifier)
+          (identifier)
+          (token_tree
+            (identifier))
+          (token_tree
+            (identifier))
+          (token_tree
+            (identifier)))))
+    type: (primitive_type)
+    declarator: (function_declarator
+      declarator: (identifier)
+      parameters: (parameter_list)))
+  (declaration
+    (attribute_declaration
+      (attribute
+        prefix: (identifier)
+        name: (identifier)
+        (token_tree
+          (identifier))))
+    type: (primitive_type)
+    declarator: (function_declarator
+      declarator: (identifier)
+      parameters: (parameter_list)))
+  (declaration
+    (attribute_declaration
+      (attribute
+        prefix: (identifier)
+        name: (identifier)
+        (token_tree
+          (primitive_type))))
+    type: (primitive_type)
+    declarator: (function_declarator
+      declarator: (identifier)
+      parameters: (parameter_list)))
+  (declaration
+    (attribute_declaration
+      (attribute
+        name: (identifier)
+        (argument_list
+          (string_literal
+            (string_content)))))
+    type: (primitive_type)
+    declarator: (function_declarator
+      declarator: (identifier)
+      parameters: (parameter_list)))
+  (declaration
+    (attribute_declaration
+      (attribute
+        prefix: (identifier)
+        name: (identifier)
+        (argument_list
+          (identifier)
+          (number_literal)
+          (number_literal))))
+    type: (primitive_type)
+    declarator: (function_declarator
+      declarator: (identifier)
+      parameters: (parameter_list
+        (parameter_declaration
+          (type_qualifier)
+          type: (primitive_type)
+          declarator: (abstract_pointer_declarator))))))
