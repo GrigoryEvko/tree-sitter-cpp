@@ -217,16 +217,17 @@ T f(T);
       (type_parameter_declaration
         (type_identifier)))
     (requires_clause
-      (unary_expression
-        (qualified_identifier
-          (namespace_identifier)
-          (template_function
-            (identifier)
-            (template_argument_list
-              (type_descriptor
-                (type_identifier))
-              (type_descriptor
-                (primitive_type)))))))
+      (parenthesized_expression
+        (unary_expression
+          (qualified_identifier
+            (namespace_identifier)
+            (template_function
+              (identifier)
+              (template_argument_list
+                (type_descriptor
+                  (type_identifier))
+                (type_descriptor
+                  (primitive_type))))))))
     (comment)
     (declaration
       (primitive_type)
@@ -1010,9 +1011,10 @@ template<class T> void h() requires (C<T>, true) {}
         declarator: (identifier)
         parameters: (parameter_list)
         (requires_clause
-          constraint: (comma_expression
-            left: (number_literal)
-            right: (true))))
+          constraint: (parenthesized_expression
+            (comma_expression
+              left: (number_literal)
+              right: (true)))))
       body: (compound_statement)))
   (template_declaration
     parameters: (template_parameter_list
@@ -1024,14 +1026,64 @@ template<class T> void h() requires (C<T>, true) {}
         declarator: (identifier)
         parameters: (parameter_list)
         (requires_clause
-          constraint: (comma_expression
-            left: (template_function
-              name: (identifier)
-              arguments: (template_argument_list
-                (type_descriptor
-                  type: (type_identifier))))
-            right: (true))))
+          constraint: (parenthesized_expression
+            (comma_expression
+              left: (template_function
+                name: (identifier)
+                arguments: (template_argument_list
+                  (type_descriptor
+                    type: (type_identifier))))
+              right: (true)))))
       body: (compound_statement))))
+
+================================================================================
+A parenthesized constraint in each of the three positions
+================================================================================
+
+template<class T> concept A = (0, true);
+template<class T> void f() requires (0, true) {}
+template<class T> concept B = requires { requires (0, true); };
+--------------------------------------------------------------------------------
+
+(translation_unit
+  (template_declaration
+    parameters: (template_parameter_list
+      (type_parameter_declaration
+        (type_identifier)))
+    (concept_definition
+      name: (identifier)
+      (parenthesized_expression
+        (comma_expression
+          left: (number_literal)
+          right: (true)))))
+  (template_declaration
+    parameters: (template_parameter_list
+      (type_parameter_declaration
+        (type_identifier)))
+    (function_definition
+      type: (primitive_type)
+      declarator: (function_declarator
+        declarator: (identifier)
+        parameters: (parameter_list)
+        (requires_clause
+          constraint: (parenthesized_expression
+            (comma_expression
+              left: (number_literal)
+              right: (true)))))
+      body: (compound_statement)))
+  (template_declaration
+    parameters: (template_parameter_list
+      (type_parameter_declaration
+        (type_identifier)))
+    (concept_definition
+      name: (identifier)
+      (requires_expression
+        requirements: (requirement_seq
+          (nested_requirement
+            constraint: (parenthesized_expression
+              (comma_expression
+                left: (number_literal)
+                right: (true)))))))))
 
 ================================================================================
 A nested requirement beside the three other requirements

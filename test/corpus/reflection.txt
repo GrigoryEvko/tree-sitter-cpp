@@ -166,13 +166,14 @@ add_member(^^char const *);
         (identifier)
         (parameter_list)
         (requires_clause
-          (binary_expression
-            (reflect_expression
-              (type_descriptor
-                (type_identifier)))
-            (reflect_expression
-              (type_descriptor
-                (primitive_type))))))))
+          (parenthesized_expression
+            (binary_expression
+              (reflect_expression
+                (type_descriptor
+                  (type_identifier)))
+              (reflect_expression
+                (type_descriptor
+                  (primitive_type)))))))))
   (declaration
     (type_qualifier)
     (qualified_identifier
@@ -822,29 +823,30 @@ consteval { TCls<void>::sfn(); }
             (field_identifier)
             (parameter_list)
             (requires_clause
-              (call_expression
-                (lambda_expression
-                  (lambda_capture_specifier)
-                  (compound_statement
-                    (struct_specifier
-                      (type_identifier))
-                    (consteval_block_declaration
-                      (compound_statement
-                        (expression_statement
-                          (call_expression
-                            (qualified_identifier
-                              (namespace_identifier)
+              (parenthesized_expression
+                (call_expression
+                  (lambda_expression
+                    (lambda_capture_specifier)
+                    (compound_statement
+                      (struct_specifier
+                        (type_identifier))
+                      (consteval_block_declaration
+                        (compound_statement
+                          (expression_statement
+                            (call_expression
                               (qualified_identifier
                                 (namespace_identifier)
-                                (identifier)))
-                            (argument_list
-                              (reflect_expression
-                                (type_descriptor
-                                  (type_identifier)))
-                              (initializer_list))))))
-                    (return_statement
-                      (true))))
-                (argument_list))))
+                                (qualified_identifier
+                                  (namespace_identifier)
+                                  (identifier)))
+                              (argument_list
+                                (reflect_expression
+                                  (type_descriptor
+                                    (type_identifier)))
+                                (initializer_list))))))
+                      (return_statement
+                        (true))))
+                  (argument_list)))))
           (compound_statement)))))
   (consteval_block_declaration
     (compound_statement

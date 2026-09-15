@@ -2677,21 +2677,9 @@
     "named": true,
     "fields": {
       "left": {
-        "multiple": true,
+        "multiple": false,
         "required": true,
         "types": [
-          {
-            "type": "(",
-            "named": false
-          },
-          {
-            "type": ")",
-            "named": false
-          },
-          {
-            "type": "comma_expression",
-            "named": true
-          },
           {
             "type": "constraint_conjunction",
             "named": true
@@ -2701,7 +2689,27 @@
             "named": true
           },
           {
-            "type": "expression",
+            "type": "false",
+            "named": true
+          },
+          {
+            "type": "fold_expression",
+            "named": true
+          },
+          {
+            "type": "lambda_expression",
+            "named": true
+          },
+          {
+            "type": "parenthesized_expression",
+            "named": true
+          },
+          {
+            "type": "qualified_identifier",
+            "named": true
+          },
+          {
+            "type": "requires_expression",
             "named": true
           },
           {
@@ -2713,7 +2721,15 @@
             "named": true
           },
           {
+            "type": "true",
+            "named": true
+          },
+          {
             "type": "type_identifier",
+            "named": true
+          },
+          {
+            "type": "type_trait_expression",
             "named": true
           }
         ]
@@ -2733,21 +2749,9 @@
         ]
       },
       "right": {
-        "multiple": true,
+        "multiple": false,
         "required": true,
         "types": [
-          {
-            "type": "(",
-            "named": false
-          },
-          {
-            "type": ")",
-            "named": false
-          },
-          {
-            "type": "comma_expression",
-            "named": true
-          },
           {
             "type": "constraint_conjunction",
             "named": true
@@ -2757,7 +2761,27 @@
             "named": true
           },
           {
-            "type": "expression",
+            "type": "false",
+            "named": true
+          },
+          {
+            "type": "fold_expression",
+            "named": true
+          },
+          {
+            "type": "lambda_expression",
+            "named": true
+          },
+          {
+            "type": "parenthesized_expression",
+            "named": true
+          },
+          {
+            "type": "qualified_identifier",
+            "named": true
+          },
+          {
+            "type": "requires_expression",
             "named": true
           },
           {
@@ -2769,7 +2793,15 @@
             "named": true
           },
           {
+            "type": "true",
+            "named": true
+          },
+          {
             "type": "type_identifier",
+            "named": true
+          },
+          {
+            "type": "type_trait_expression",
             "named": true
           }
         ]
@@ -2781,21 +2813,9 @@
     "named": true,
     "fields": {
       "left": {
-        "multiple": true,
+        "multiple": false,
         "required": true,
         "types": [
-          {
-            "type": "(",
-            "named": false
-          },
-          {
-            "type": ")",
-            "named": false
-          },
-          {
-            "type": "comma_expression",
-            "named": true
-          },
           {
             "type": "constraint_conjunction",
             "named": true
@@ -2805,7 +2825,27 @@
             "named": true
           },
           {
-            "type": "expression",
+            "type": "false",
+            "named": true
+          },
+          {
+            "type": "fold_expression",
+            "named": true
+          },
+          {
+            "type": "lambda_expression",
+            "named": true
+          },
+          {
+            "type": "parenthesized_expression",
+            "named": true
+          },
+          {
+            "type": "qualified_identifier",
+            "named": true
+          },
+          {
+            "type": "requires_expression",
             "named": true
           },
           {
@@ -2817,7 +2857,15 @@
             "named": true
           },
           {
+            "type": "true",
+            "named": true
+          },
+          {
             "type": "type_identifier",
+            "named": true
+          },
+          {
+            "type": "type_trait_expression",
             "named": true
           }
         ]
@@ -2837,21 +2885,9 @@
         ]
       },
       "right": {
-        "multiple": true,
+        "multiple": false,
         "required": true,
         "types": [
-          {
-            "type": "(",
-            "named": false
-          },
-          {
-            "type": ")",
-            "named": false
-          },
-          {
-            "type": "comma_expression",
-            "named": true
-          },
           {
             "type": "constraint_conjunction",
             "named": true
@@ -2861,7 +2897,27 @@
             "named": true
           },
           {
-            "type": "expression",
+            "type": "false",
+            "named": true
+          },
+          {
+            "type": "fold_expression",
+            "named": true
+          },
+          {
+            "type": "lambda_expression",
+            "named": true
+          },
+          {
+            "type": "parenthesized_expression",
+            "named": true
+          },
+          {
+            "type": "qualified_identifier",
+            "named": true
+          },
+          {
+            "type": "requires_expression",
             "named": true
           },
           {
@@ -2873,7 +2929,15 @@
             "named": true
           },
           {
+            "type": "true",
+            "named": true
+          },
+          {
             "type": "type_identifier",
+            "named": true
+          },
+          {
+            "type": "type_trait_expression",
             "named": true
           }
         ]
@@ -9486,21 +9550,9 @@
     "named": true,
     "fields": {
       "constraint": {
-        "multiple": true,
+        "multiple": false,
         "required": true,
         "types": [
-          {
-            "type": "(",
-            "named": false
-          },
-          {
-            "type": ")",
-            "named": false
-          },
-          {
-            "type": "comma_expression",
-            "named": true
-          },
           {
             "type": "constraint_conjunction",
             "named": true
@@ -9510,7 +9562,27 @@
             "named": true
           },
           {
-            "type": "expression",
+            "type": "false",
+            "named": true
+          },
+          {
+            "type": "fold_expression",
+            "named": true
+          },
+          {
+            "type": "lambda_expression",
+            "named": true
+          },
+          {
+            "type": "parenthesized_expression",
+            "named": true
+          },
+          {
+            "type": "qualified_identifier",
+            "named": true
+          },
+          {
+            "type": "requires_expression",
             "named": true
           },
           {
@@ -9522,7 +9594,15 @@
             "named": true
           },
           {
+            "type": "true",
+            "named": true
+          },
+          {
             "type": "type_identifier",
+            "named": true
+          },
+          {
+            "type": "type_trait_expression",
             "named": true
           }
         ]

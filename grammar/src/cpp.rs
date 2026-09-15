@@ -6215,6 +6215,11 @@ fn expressions(g: &mut Grammar) {
     // primary expression (parser.cc:7000, ParseExpr.cpp:1531), and the parentheses hold a full
     // expression with the comma operator (parser.cc:6745, ParseExpr.cpp:790). A unary expression
     // is no primary expression, and `requires !C<T>` is an error in the two front ends.
+    //
+    // The parentheses give a `parenthesized_expression`, as they do in a concept definition and in
+    // a nested requirement. GCC reads them in `cp_parser_primary_expression` (parser.cc:6745) and
+    // Clang in `ParseParenExpression` (ParseExpr.cpp:2662). Clang builds a `ParenExpr` in each of
+    // the three positions. The same text then gives the same tree in each position.
     g.define(
         "_requirement_clause_constraint",
         choice![
@@ -6226,8 +6231,7 @@ fn expressions(g: &mut Grammar) {
             s!(lambda_expression),
             s!(requires_expression),
             s!(type_trait_expression),
-            // A parenthesized expression
-            seq!["(", choice![s!(expression), s!(comma_expression)], ")"],
+            s!(parenthesized_expression),
             // A conjunction or a disjunction of the constraints above
             s!(constraint_conjunction),
             s!(constraint_disjunction),
