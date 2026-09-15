@@ -213,6 +213,13 @@ pub fn grammar() -> Grammar {
         ],
         &["template_type", "qualified_type_identifier"],
         &["qualified_type_identifier", "qualified_identifier"],
+        // After `requires N::`, a `<` starts the template arguments of the name, or a comparison
+        // with the name as its left operand. The name of a constraint has the same ambiguity as
+        // each other qualified name. Refer to `_constraint_qualified_identifier`.
+        &["template_function", "template_type", "_constraint_qualified_identifier"],
+        // After `requires Cs...[0]<T>`, a `::` makes the pack index the scope of a qualified name,
+        // and each other token ends the constraint. Refer to `_constraint_pack_index_template`.
+        &["template_type", "_constraint_pack_index_template"],
         &["comma_expression", "initializer_list"],
         // In the arguments `f({ {} x; })`, the inner `{}` is a block of a GNU statement expression. In
         // `f({ {} })`, it can also be a braced list in a braced list. Only the tokens after the inner `}`
@@ -6220,13 +6227,25 @@ fn expressions(g: &mut Grammar) {
     // a nested requirement. GCC reads them in `cp_parser_primary_expression` (parser.cc:6745) and
     // Clang in `ParseParenExpression` (ParseExpr.cpp:2662). Clang builds a `ParenExpr` in each of
     // the three positions. The same text then gives the same tree in each position.
+    //
+    // A name in a constraint is an id-expression, and it names a value or a concept. The names are
+    // the names of an expression, and not the names of a type: `identifier`,
+    // `qualified_identifier`, `template_function`, and `splice_expression`. In
+    // `requires S<T>::value`, the scope `S<T>` is a nested-name-specifier and stays a
+    // `template_type`, and the name `value` is an `identifier`. GCC
+    // `cp_parser_constraint_primary_expression` (parser.cc:34612) reads the name with
+    // `cp_parser_primary_expression`, and Clang `ParseConstraintLogicalAndExpression`
+    // (ParseExpr.cpp:203) reads it with `ParseCastExpression`. Clang builds a `DeclRefExpr` for a
+    // plain name, a `DependentScopeDeclRefExpr` for a qualified name, and a
+    // `ConceptSpecializationExpr` for a concept-id. A concept definition of the same text already
+    // gives these nodes.
     g.define(
         "_requirement_clause_constraint",
         choice![
             // Primary expressions
             s!(true),
             s!(false),
-            s!(_class_name),
+            s!(_constraint_name),
             s!(fold_expression),
             s!(lambda_expression),
             s!(requires_expression),
@@ -6235,6 +6254,54 @@ fn expressions(g: &mut Grammar) {
             // A conjunction or a disjunction of the constraints above
             s!(constraint_conjunction),
             s!(constraint_disjunction),
+        ],
+    );
+    // The names of an expression, with the shape of `_class_name`. A name in a constraint takes
+    // these nodes, and a name in a type requirement takes the nodes of `_class_name`.
+    g.define(
+        "_constraint_name",
+        prec_right(
+            0,
+            choice![
+                s!(identifier),
+                s!(template_function),
+                alias(s!(_constraint_pack_index_template), s!(template_function)),
+                s!(splice_expression),
+                alias(s!(_constraint_qualified_identifier), s!(qualified_identifier)),
+            ],
+        ),
+    );
+    // C++26 gives a template parameter list a concept pack, and the name of a concept-id can then be
+    // a pack index: `requires Cs...[0]<T>`. The rule has the shape of the second alternative of
+    // `template_type`, with the node of an expression template-id. The precedence gives the `<`
+    // after a pack index to the template arguments.
+    g.define(
+        "_constraint_pack_index_template",
+        prec(
+            1,
+            seq![
+                field("name", s!(pack_index_specifier)),
+                field("arguments", s!(template_argument_list)),
+            ],
+        ),
+    );
+    // The qualified name of a constraint, with the shape of `qualified_type_identifier` and the
+    // names of an expression. The name of a constraint is no declarator, and the rule takes no
+    // member pointer. It also takes no operator function and no destructor, because a constraint
+    // names a value or a concept.
+    g.define(
+        "_constraint_qualified_identifier",
+        seq![
+            s!(_scope_resolution),
+            field(
+                "name",
+                choice![
+                    alias(s!(dependent_identifier), s!(dependent_name)),
+                    alias(s!(_constraint_qualified_identifier), s!(qualified_identifier)),
+                    s!(template_function),
+                    seq![optional("template"), s!(identifier)],
+                ]
+            ),
         ],
     );
     g.define(

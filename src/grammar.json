@@ -36384,7 +36384,7 @@
         },
         {
           "type": "SYMBOL",
-          "name": "_class_name"
+          "name": "_constraint_name"
         },
         {
           "type": "SYMBOL",
@@ -36413,6 +36413,131 @@
         {
           "type": "SYMBOL",
           "name": "constraint_disjunction"
+        }
+      ]
+    },
+    "_constraint_name": {
+      "type": "PREC_RIGHT",
+      "value": 0,
+      "content": {
+        "type": "CHOICE",
+        "members": [
+          {
+            "type": "SYMBOL",
+            "name": "identifier"
+          },
+          {
+            "type": "SYMBOL",
+            "name": "template_function"
+          },
+          {
+            "type": "ALIAS",
+            "content": {
+              "type": "SYMBOL",
+              "name": "_constraint_pack_index_template"
+            },
+            "named": true,
+            "value": "template_function"
+          },
+          {
+            "type": "SYMBOL",
+            "name": "splice_expression"
+          },
+          {
+            "type": "ALIAS",
+            "content": {
+              "type": "SYMBOL",
+              "name": "_constraint_qualified_identifier"
+            },
+            "named": true,
+            "value": "qualified_identifier"
+          }
+        ]
+      }
+    },
+    "_constraint_pack_index_template": {
+      "type": "PREC",
+      "value": 1,
+      "content": {
+        "type": "SEQ",
+        "members": [
+          {
+            "type": "FIELD",
+            "name": "name",
+            "content": {
+              "type": "SYMBOL",
+              "name": "pack_index_specifier"
+            }
+          },
+          {
+            "type": "FIELD",
+            "name": "arguments",
+            "content": {
+              "type": "SYMBOL",
+              "name": "template_argument_list"
+            }
+          }
+        ]
+      }
+    },
+    "_constraint_qualified_identifier": {
+      "type": "SEQ",
+      "members": [
+        {
+          "type": "SYMBOL",
+          "name": "_scope_resolution"
+        },
+        {
+          "type": "FIELD",
+          "name": "name",
+          "content": {
+            "type": "CHOICE",
+            "members": [
+              {
+                "type": "ALIAS",
+                "content": {
+                  "type": "SYMBOL",
+                  "name": "dependent_identifier"
+                },
+                "named": true,
+                "value": "dependent_name"
+              },
+              {
+                "type": "ALIAS",
+                "content": {
+                  "type": "SYMBOL",
+                  "name": "_constraint_qualified_identifier"
+                },
+                "named": true,
+                "value": "qualified_identifier"
+              },
+              {
+                "type": "SYMBOL",
+                "name": "template_function"
+              },
+              {
+                "type": "SEQ",
+                "members": [
+                  {
+                    "type": "CHOICE",
+                    "members": [
+                      {
+                        "type": "STRING",
+                        "value": "template"
+                      },
+                      {
+                        "type": "BLANK"
+                      }
+                    ]
+                  },
+                  {
+                    "type": "SYMBOL",
+                    "name": "identifier"
+                  }
+                ]
+              }
+            ]
+          }
         }
       ]
     },
@@ -41874,6 +41999,15 @@
     [
       "qualified_type_identifier",
       "qualified_identifier"
+    ],
+    [
+      "template_function",
+      "template_type",
+      "_constraint_qualified_identifier"
+    ],
+    [
+      "template_type",
+      "_constraint_pack_index_template"
     ],
     [
       "comma_expression",

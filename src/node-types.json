@@ -2697,6 +2697,10 @@
             "named": true
           },
           {
+            "type": "identifier",
+            "named": true
+          },
+          {
             "type": "lambda_expression",
             "named": true
           },
@@ -2713,19 +2717,15 @@
             "named": true
           },
           {
-            "type": "splice_type_specifier",
+            "type": "splice_expression",
             "named": true
           },
           {
-            "type": "template_type",
+            "type": "template_function",
             "named": true
           },
           {
             "type": "true",
-            "named": true
-          },
-          {
-            "type": "type_identifier",
             "named": true
           },
           {
@@ -2769,6 +2769,10 @@
             "named": true
           },
           {
+            "type": "identifier",
+            "named": true
+          },
+          {
             "type": "lambda_expression",
             "named": true
           },
@@ -2785,19 +2789,15 @@
             "named": true
           },
           {
-            "type": "splice_type_specifier",
+            "type": "splice_expression",
             "named": true
           },
           {
-            "type": "template_type",
+            "type": "template_function",
             "named": true
           },
           {
             "type": "true",
-            "named": true
-          },
-          {
-            "type": "type_identifier",
             "named": true
           },
           {
@@ -2833,6 +2833,10 @@
             "named": true
           },
           {
+            "type": "identifier",
+            "named": true
+          },
+          {
             "type": "lambda_expression",
             "named": true
           },
@@ -2849,19 +2853,15 @@
             "named": true
           },
           {
-            "type": "splice_type_specifier",
+            "type": "splice_expression",
             "named": true
           },
           {
-            "type": "template_type",
+            "type": "template_function",
             "named": true
           },
           {
             "type": "true",
-            "named": true
-          },
-          {
-            "type": "type_identifier",
             "named": true
           },
           {
@@ -2905,6 +2905,10 @@
             "named": true
           },
           {
+            "type": "identifier",
+            "named": true
+          },
+          {
             "type": "lambda_expression",
             "named": true
           },
@@ -2921,19 +2925,15 @@
             "named": true
           },
           {
-            "type": "splice_type_specifier",
+            "type": "splice_expression",
             "named": true
           },
           {
-            "type": "template_type",
+            "type": "template_function",
             "named": true
           },
           {
             "type": "true",
-            "named": true
-          },
-          {
-            "type": "type_identifier",
             "named": true
           },
           {
@@ -9570,6 +9570,10 @@
             "named": true
           },
           {
+            "type": "identifier",
+            "named": true
+          },
+          {
             "type": "lambda_expression",
             "named": true
           },
@@ -9586,19 +9590,15 @@
             "named": true
           },
           {
-            "type": "splice_type_specifier",
+            "type": "splice_expression",
             "named": true
           },
           {
-            "type": "template_type",
+            "type": "template_function",
             "named": true
           },
           {
             "type": "true",
-            "named": true
-          },
-          {
-            "type": "type_identifier",
             "named": true
           },
           {
@@ -10229,6 +10229,10 @@
           },
           {
             "type": "operator_name",
+            "named": true
+          },
+          {
+            "type": "pack_index_specifier",
             "named": true
           }
         ]

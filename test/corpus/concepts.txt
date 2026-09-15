@@ -130,8 +130,8 @@ T f(T);
             (type_identifier)
             (abstract_reference_declarator)))
         (requires_clause
-          (template_type
-            (type_identifier)
+          (template_function
+            (identifier)
             (template_argument_list
               (type_descriptor
                 (type_identifier))))))))
@@ -141,8 +141,8 @@ T f(T);
       (type_parameter_declaration
         (type_identifier)))
     (requires_clause
-      (template_type
-        (type_identifier)
+      (template_function
+        (identifier)
         (template_argument_list
           (type_descriptor
             (type_identifier)))))
@@ -242,13 +242,13 @@ T f(T);
         (type_identifier)))
     (requires_clause
       (constraint_conjunction
-        (template_type
-          (type_identifier)
+        (template_function
+          (identifier)
           (template_argument_list
             (type_descriptor
               (type_identifier))))
-        (template_type
-          (type_identifier)
+        (template_function
+          (identifier)
           (template_argument_list
             (type_descriptor
               (type_identifier))))))
@@ -266,13 +266,13 @@ T f(T);
         (type_identifier)))
     (requires_clause
       (constraint_conjunction
-        (template_type
-          (type_identifier)
+        (template_function
+          (identifier)
           (template_argument_list
             (type_descriptor
               (type_identifier))))
-        (template_type
-          (type_identifier)
+        (template_function
+          (identifier)
           (template_argument_list
             (type_descriptor
               (type_identifier))))))
@@ -290,13 +290,13 @@ T f(T);
         (type_identifier)))
     (requires_clause
       (constraint_disjunction
-        (template_type
-          (type_identifier)
+        (template_function
+          (identifier)
           (template_argument_list
             (type_descriptor
               (type_identifier))))
-        (template_type
-          (type_identifier)
+        (template_function
+          (identifier)
           (template_argument_list
             (type_descriptor
               (type_identifier))))))
@@ -314,13 +314,13 @@ T f(T);
         (type_identifier)))
     (requires_clause
       (constraint_disjunction
-        (template_type
-          (type_identifier)
+        (template_function
+          (identifier)
           (template_argument_list
             (type_descriptor
               (type_identifier))))
-        (template_type
-          (type_identifier)
+        (template_function
+          (identifier)
           (template_argument_list
             (type_descriptor
               (type_identifier))))))
@@ -1141,3 +1141,74 @@ concept C = requires(T t) {
                 type: (type_descriptor
                   type: (type_identifier)))
               right: (number_literal))))))))
+
+================================================================================
+A name in a requires clause is an expression
+================================================================================
+
+template<bool B> requires B void f1();
+template<class T> requires S<T>::value void f2();
+template<class T> requires T::value void f3();
+template<class T> requires std::C<T> void f4();
+--------------------------------------------------------------------------------
+
+(translation_unit
+  (template_declaration
+    parameters: (template_parameter_list
+      (parameter_declaration
+        type: (primitive_type)
+        declarator: (identifier)))
+    (requires_clause
+      constraint: (identifier))
+    (declaration
+      type: (primitive_type)
+      declarator: (function_declarator
+        declarator: (identifier)
+        parameters: (parameter_list))))
+  (template_declaration
+    parameters: (template_parameter_list
+      (type_parameter_declaration
+        (type_identifier)))
+    (requires_clause
+      constraint: (qualified_identifier
+        scope: (template_type
+          name: (type_identifier)
+          arguments: (template_argument_list
+            (type_descriptor
+              type: (type_identifier))))
+        name: (identifier)))
+    (declaration
+      type: (primitive_type)
+      declarator: (function_declarator
+        declarator: (identifier)
+        parameters: (parameter_list))))
+  (template_declaration
+    parameters: (template_parameter_list
+      (type_parameter_declaration
+        (type_identifier)))
+    (requires_clause
+      constraint: (qualified_identifier
+        scope: (namespace_identifier)
+        name: (identifier)))
+    (declaration
+      type: (primitive_type)
+      declarator: (function_declarator
+        declarator: (identifier)
+        parameters: (parameter_list))))
+  (template_declaration
+    parameters: (template_parameter_list
+      (type_parameter_declaration
+        (type_identifier)))
+    (requires_clause
+      constraint: (qualified_identifier
+        scope: (namespace_identifier)
+        name: (template_function
+          name: (identifier)
+          arguments: (template_argument_list
+            (type_descriptor
+              type: (type_identifier))))))
+    (declaration
+      type: (primitive_type)
+      declarator: (function_declarator
+        declarator: (identifier)
+        parameters: (parameter_list)))))

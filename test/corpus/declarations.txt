@@ -1330,8 +1330,8 @@ template<template<class U> requires C<U> class TT = V> struct Z {};
           (parameter_declaration
             type: (type_identifier)))
         (requires_clause
-          constraint: (template_type
-            name: (type_identifier)
+          constraint: (template_function
+            name: (identifier)
             arguments: (template_argument_list
               (type_descriptor
                 type: (type_identifier)))))
@@ -1349,8 +1349,8 @@ template<template<class U> requires C<U> class TT = V> struct Z {};
           (type_parameter_declaration
             (type_identifier)))
         (requires_clause
-          constraint: (template_type
-            name: (type_identifier)
+          constraint: (template_function
+            name: (identifier)
             arguments: (template_argument_list
               (type_descriptor
                 type: (type_identifier)))))
@@ -1378,8 +1378,8 @@ template<template<class U> requires C<U> class TT = V> struct Z {};
           (type_parameter_declaration
             (type_identifier)))
         (requires_clause
-          constraint: (template_type
-            name: (type_identifier)
+          constraint: (template_function
+            name: (identifier)
             arguments: (template_argument_list
               (type_descriptor
                 type: (type_identifier)))))
@@ -2491,8 +2491,8 @@ struct D : B { using A<T>::operator typename A<T>::Nested *; };
           declarator: (abstract_function_declarator
             parameters: (parameter_list)
             (requires_clause
-              constraint: (template_type
-                name: (type_identifier)
+              constraint: (template_function
+                name: (identifier)
                 arguments: (template_argument_list
                   (type_descriptor
                     type: (type_identifier))))))))))

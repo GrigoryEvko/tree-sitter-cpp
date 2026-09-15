@@ -486,8 +486,8 @@ auto f = [](int i) consteval static noexcept -> int { return i + 1; }(5);
           (type_parameter_declaration
             (type_identifier)))
         (requires_clause
-          (template_type
-            (type_identifier)
+          (template_function
+            (identifier)
             (template_argument_list
               (type_descriptor
                 (type_identifier)))))

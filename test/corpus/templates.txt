@@ -457,8 +457,8 @@ struct O {
               (type_descriptor
                 type: (primitive_type))))))
       (requires_clause
-        constraint: (template_type
-          name: (type_identifier)
+        constraint: (template_function
+          name: (identifier)
           arguments: (template_argument_list
             (type_descriptor
               type: (primitive_type)))))))
