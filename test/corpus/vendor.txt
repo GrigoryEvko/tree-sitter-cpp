@@ -1570,3 +1570,41 @@ void f() { asm("nop"); }
         (gnu_asm_expression
           assembly_code: (string_literal
             (string_content)))))))
+
+================================================================================
+The GNU keyword __extension__ in an attribute specifier
+================================================================================
+
+[[__extension__ gnu::unused]] static int q;
+[[__extension__ gnu::unused, gnu::deprecated]] static int r;
+[[__extension__]] static int s;
+
+--------------------------------------------------------------------------------
+
+(translation_unit
+  (declaration
+    (attribute_declaration
+      (attribute
+        prefix: (identifier)
+        name: (identifier)))
+    (storage_class_specifier)
+    type: (primitive_type)
+    declarator: (identifier))
+  (declaration
+    (attribute_declaration
+      (attribute
+        prefix: (identifier)
+        name: (identifier))
+      (attribute
+        prefix: (identifier)
+        name: (identifier)))
+    (storage_class_specifier)
+    type: (primitive_type)
+    declarator: (identifier))
+  (declaration
+    (attribute_declaration
+      (attribute
+        name: (identifier)))
+    (storage_class_specifier)
+    type: (primitive_type)
+    declarator: (identifier)))

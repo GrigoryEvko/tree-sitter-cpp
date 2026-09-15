@@ -1736,7 +1736,18 @@ fn types(g: &mut Grammar) {
         ])
     });
     // GCC `cp_parser_std_attribute`: an attribute token can be a keyword, for example `using`.
-    let attribute_token = || choice![s!(identifier), alias("using", s!(identifier))];
+    //
+    // `__extension__` is also such a keyword. In `[[__extension__]]`, GCC C++ and Clang read an
+    // attribute with the name `extension` and ignore it with a warning. After `[[`, the keyword has
+    // a second reading as the prefix of the attribute list, and the token after it decides. Refer to
+    // `attribute_declaration`.
+    let attribute_token = || {
+        choice![
+            s!(identifier),
+            alias("using", s!(identifier)),
+            alias("__extension__", s!(identifier)),
+        ]
+    };
     g.define(
         "attribute",
         seq![
@@ -1773,9 +1784,26 @@ fn types(g: &mut Grammar) {
             seq![alias(s!(_attribute_close_bracket), "]"), close_bracket()],
         ]
     };
+    // GCC C reads the keyword `__extension__` immediately after `[[`, and then the attribute list:
+    // `[[__extension__ gnu::unused]] static int q;` (`c_parser_std_attribute_specifier`,
+    // c-parser.cc:6333). The keyword stops the pedantic diagnostics of the list, and the tree holds
+    // it as a token of the specifier, as GCC C gives it to no attribute. GCC C++ and Clang reject
+    // the form, and the acceptance of a form is the union of the two front ends.
+    //
+    // The keyword takes a branch of its own with one entry after it. `[[__extension__]]` and
+    // `[[__extension__, a]]` then keep the attribute with the name `extension`, which GCC C++ and
+    // Clang read there. GCC C reads only one such keyword, and only after `[[`.
+    let entries = || seq![optional(entry()), repeat(seq![",", optional(entry())])];
     g.define(
         "attribute_declaration",
-        seq![open(), optional(entry()), repeat(seq![",", optional(entry())]), close()],
+        seq![
+            open(),
+            choice![
+                seq![s!(_extension_specifier), entry(), repeat(seq![",", optional(entry())])],
+                entries(),
+            ],
+            close()
+        ],
     );
     // A GNU attribute can come after the body and before a declarator. The right associativity of
     // `_class_declaration_item` gives that attribute to the class.

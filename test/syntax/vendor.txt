@@ -282,3 +282,5 @@ __attribute__((weak)) extern "C" void foo() {} __attribute__((visibility("defaul
 __attribute__((weak)) extern "C" { int baz(void); }
 ### asm_declaration_positions
 asm("nop"); namespace N { asm("nop"); } extern "C" { asm("nop"); } extern "C" asm("nop"); export asm("nop");
+### extension_in_attribute_specifier
+[[__extension__ gnu::unused]] static int q; [[__extension__ gnu::unused, gnu::deprecated]] static int r; [[__extension__]] static int s;
