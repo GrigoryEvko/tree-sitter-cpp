@@ -1767,6 +1767,10 @@
           {
             "type": "splice_type_specifier",
             "named": true
+          },
+          {
+            "type": "type_identifier",
+            "named": true
           }
         ]
       }

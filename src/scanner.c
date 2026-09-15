@@ -130,6 +130,9 @@ enum TokenType {
     /// A mark before the `(` of the parameter list of a function-like macro. The scanner gives no such
     /// token, and it reads the mark in `valid_symbols` only.
     PREPROC_PARAMS_MARK,
+    /// The name of a class head that the scanner recorded, before the `(` of a functional cast: `A(x)`.
+    /// The token holds the name.
+    FUNCTIONAL_CAST_NAME,
 };
 
 /// The maximum number of characters that the scanner reads in the arguments of a macro.
@@ -7085,6 +7088,43 @@ static bool scan_word_start(Scanner *scanner, TSLexer *lexer, const bool *valid_
     }
     if (is_class_key(word)) {
         return valid_symbols[CLASS_HEAD_MARK] && scan_class_head(scanner, &reader);
+    }
+    // The name of a recorded class head before a `(` is a functional cast: `A(x)`. Only name lookup
+    // tells a type name from a function name there (GCC `cp_parser_postfix_expression`, Clang
+    // `ParsePostfixExpressionSuffix`). The scan reads no more text: the name and the character after it
+    // decide, and each other scan of this function keeps its own reading.
+    //
+    // The token is not valid where a type specifier can start. `TYPE_TRAIT_TYPE_MARKER` is in
+    // `type_specifier`, and its validity tells that a type specifier can start. This condition is
+    // necessary for two forms:
+    // - A declaration. [stmt.ambig] makes `A(x);` a declaration of `x` in a block, and
+    //   `void f(A (x));` a parameter `x`. The token keeps the tree of the declaration.
+    // - A type-id. In a template argument, in a cast, and in the operand of `sizeof`, `A(int)` is the
+    //   type of a function: `std::function<A(int)>`. The token there gives an ERROR node.
+    //
+    // The condition also stops the token where a type specifier can start and a cast is correct.
+    // `A();` at the start of a statement is an expression statement, because it has no declarator. The
+    // token keeps the reading of a call there. The condition above causes this loss.
+    //
+    // THE RULE IS INCORRECT FOR ONE FORM. A function or an object with the name of a class hides that
+    // class ([basic.scope.scope]), and `A(1)` is then a call:
+    //
+    //     struct A { int m; };
+    //     int A(int);
+    //     int f() { return A(1); }
+    //
+    // The two front ends read a call there, and the GCC dump `-fdump-tree-original-raw` gives one
+    // `call_expr`. The record holds names and no scopes. It cannot read this form, and only scoped
+    // name lookup can repair it. A second record of the names that a declaration declares also has no
+    // scopes. The measurement gave 4 incorrect rows of 224 in the 7646 compiler test files, against
+    // approximately 1500 correct casts that a record like that removes in the corpus. Because of this
+    // measurement, the fork keeps the incorrect form.
+    if (valid_symbols[FUNCTIONAL_CAST_NAME] && next == '(' && !valid_symbols[TYPE_TRAIT_TYPE_MARKER] &&
+        !valid_symbols[MACRO_TYPE_START] && !valid_symbols[PARAMETER_MACRO_TYPE_START] &&
+        !is_grammar_keyword(word) && is_class_name(scanner, reader.word_hash)) {
+        mark_end(lexer);
+        lexer->result_symbol = FUNCTIONAL_CAST_NAME;
+        return true;
     }
     bool invocation = valid_symbols[MACRO_LINE_START] || valid_symbols[MACRO_BLOCK_START] ||
                       valid_symbols[MACRO_CALL_START] || valid_symbols[MACRO_ENUMERATOR_START];

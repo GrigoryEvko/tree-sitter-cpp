@@ -18534,6 +18534,32 @@
             ]
           },
           {
+            "type": "SEQ",
+            "members": [
+              {
+                "type": "FIELD",
+                "name": "function",
+                "content": {
+                  "type": "ALIAS",
+                  "content": {
+                    "type": "SYMBOL",
+                    "name": "_functional_cast_name"
+                  },
+                  "named": true,
+                  "value": "type_identifier"
+                }
+              },
+              {
+                "type": "FIELD",
+                "name": "arguments",
+                "content": {
+                  "type": "SYMBOL",
+                  "name": "argument_list"
+                }
+              }
+            ]
+          },
+          {
             "type": "PREC_LEFT",
             "value": 9,
             "content": {
@@ -42236,6 +42262,10 @@
     {
       "type": "SYMBOL",
       "name": "_preproc_params_mark"
+    },
+    {
+      "type": "SYMBOL",
+      "name": "_functional_cast_name"
     }
   ],
   "inline": [

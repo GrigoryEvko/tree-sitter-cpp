@@ -155,6 +155,7 @@ pub fn grammar() -> Grammar {
         // token, and it reads the mark in `valid_symbols` only: a `(` that comes immediately after the name
         // of a macro opens a parameter list, and it is no text of the line.
         s!(_preproc_params_mark),
+        s!(_functional_cast_name),
     ];
     g.conflicts = conflict_sets(&[
         // C
@@ -5782,6 +5783,16 @@ fn expressions(g: &mut Grammar) {
                             alias(s!(_decay_copy_type), s!(placeholder_type_specifier)),
                         ]
                     ),
+                    field("arguments", s!(argument_list)),
+                ],
+                // A functional cast to a class that the file declares: `A(x)`. Only name lookup tells
+                // a type name from a function name in `T(x)` (GCC `cp_parser_postfix_expression`,
+                // Clang `ParsePostfixExpressionSuffix`). The external scanner records the names of the
+                // class heads of the file, and it gives `_functional_cast_name` for such a name before
+                // a `(`, where a declaration cannot start. Refer to `scan_word_start` in
+                // src/scanner.c. A name that the record does not hold keeps the reading of a call.
+                seq![
+                    field("function", alias(s!(_functional_cast_name), s!(type_identifier))),
                     field("arguments", s!(argument_list)),
                 ],
                 // A CUDA kernel call: `kernel<<<blocks, threads>>>(args)` (Clang ParseExpr.cpp,

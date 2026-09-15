@@ -1575,3 +1575,226 @@ void f() {
           declarator: (identifier)
           value: (argument_list
             (null)))))))
+
+================================================================================
+Functional casts to a class that the file declares
+================================================================================
+
+struct A { int m; };
+A make() { return A(); }
+void use(int x) {
+  A a = A(1);
+  f(A(2));
+  throw A(x);
+  (void)A(3);
+}
+void unknown() { Unknown(); Unknown(1); }
+
+--------------------------------------------------------------------------------
+
+(translation_unit
+  (struct_specifier
+    name: (type_identifier)
+    body: (field_declaration_list
+      (field_declaration
+        type: (primitive_type)
+        declarator: (field_identifier))))
+  (function_definition
+    type: (type_identifier)
+    declarator: (function_declarator
+      declarator: (identifier)
+      parameters: (parameter_list))
+    body: (compound_statement
+      (return_statement
+        (call_expression
+          function: (type_identifier)
+          arguments: (argument_list)))))
+  (function_definition
+    type: (primitive_type)
+    declarator: (function_declarator
+      declarator: (identifier)
+      parameters: (parameter_list
+        (parameter_declaration
+          type: (primitive_type)
+          declarator: (identifier))))
+    body: (compound_statement
+      (declaration
+        type: (type_identifier)
+        declarator: (init_declarator
+          declarator: (identifier)
+          value: (call_expression
+            function: (type_identifier)
+            arguments: (argument_list
+              (number_literal)))))
+      (expression_statement
+        (call_expression
+          function: (identifier)
+          arguments: (argument_list
+            (call_expression
+              function: (type_identifier)
+              arguments: (argument_list
+                (number_literal))))))
+      (throw_statement
+        (call_expression
+          function: (type_identifier)
+          arguments: (argument_list
+            (identifier))))
+      (expression_statement
+        (cast_expression
+          type: (type_descriptor
+            type: (primitive_type))
+          value: (call_expression
+            function: (type_identifier)
+            arguments: (argument_list
+              (number_literal)))))))
+  (function_definition
+    type: (primitive_type)
+    declarator: (function_declarator
+      declarator: (identifier)
+      parameters: (parameter_list))
+    body: (compound_statement
+      (expression_statement
+        (call_expression
+          function: (identifier)
+          arguments: (argument_list)))
+      (expression_statement
+        (call_expression
+          function: (identifier)
+          arguments: (argument_list
+            (number_literal)))))))
+
+================================================================================
+A declaration and a type-id keep their tree where the record holds the name
+================================================================================
+
+struct A { int m; };
+template<class T> struct F { int m; };
+void f() { A(x); }
+void g() { A(); }
+void h() { int(x); }
+A (gx);
+A (*gp)[3];
+A (gy)[3];
+void p(A (px));
+struct C { A (*mp)(int); };
+using Fn = F<A(const int &, int)>;
+F<A(int)> fv;
+
+--------------------------------------------------------------------------------
+
+(translation_unit
+  (struct_specifier
+    name: (type_identifier)
+    body: (field_declaration_list
+      (field_declaration
+        type: (primitive_type)
+        declarator: (field_identifier))))
+  (template_declaration
+    parameters: (template_parameter_list
+      (type_parameter_declaration
+        (type_identifier)))
+    (struct_specifier
+      name: (type_identifier)
+      body: (field_declaration_list
+        (field_declaration
+          type: (primitive_type)
+          declarator: (field_identifier)))))
+  (function_definition
+    type: (primitive_type)
+    declarator: (function_declarator
+      declarator: (identifier)
+      parameters: (parameter_list))
+    body: (compound_statement
+      (expression_statement
+        (call_expression
+          function: (identifier)
+          arguments: (argument_list
+            (identifier))))))
+  (function_definition
+    type: (primitive_type)
+    declarator: (function_declarator
+      declarator: (identifier)
+      parameters: (parameter_list))
+    body: (compound_statement
+      (expression_statement
+        (call_expression
+          function: (identifier)
+          arguments: (argument_list)))))
+  (function_definition
+    type: (primitive_type)
+    declarator: (function_declarator
+      declarator: (identifier)
+      parameters: (parameter_list))
+    body: (compound_statement
+      (declaration
+        type: (primitive_type)
+        declarator: (parenthesized_declarator
+          (identifier)))))
+  (expression_statement
+    (call_expression
+      function: (identifier)
+      arguments: (argument_list
+        (identifier))))
+  (declaration
+    type: (type_identifier)
+    declarator: (array_declarator
+      declarator: (parenthesized_declarator
+        (pointer_declarator
+          declarator: (identifier)))
+      size: (number_literal)))
+  (declaration
+    type: (type_identifier)
+    declarator: (array_declarator
+      declarator: (parenthesized_declarator
+        (identifier))
+      size: (number_literal)))
+  (declaration
+    type: (primitive_type)
+    declarator: (function_declarator
+      declarator: (identifier)
+      parameters: (parameter_list
+        (parameter_declaration
+          type: (type_identifier)
+          declarator: (abstract_function_declarator
+            parameters: (parameter_list
+              (parameter_declaration
+                type: (type_identifier))))))))
+  (struct_specifier
+    name: (type_identifier)
+    body: (field_declaration_list
+      (field_declaration
+        type: (type_identifier)
+        declarator: (function_declarator
+          declarator: (parenthesized_declarator
+            (pointer_declarator
+              declarator: (field_identifier)))
+          parameters: (parameter_list
+            (parameter_declaration
+              type: (primitive_type)))))))
+  (alias_declaration
+    name: (type_identifier)
+    type: (type_descriptor
+      type: (template_type
+        name: (type_identifier)
+        arguments: (template_argument_list
+          (type_descriptor
+            type: (type_identifier)
+            declarator: (abstract_function_declarator
+              parameters: (parameter_list
+                (parameter_declaration
+                  (type_qualifier)
+                  type: (primitive_type)
+                  declarator: (abstract_reference_declarator))
+                (parameter_declaration
+                  type: (primitive_type)))))))))
+  (declaration
+    type: (template_type
+      name: (type_identifier)
+      arguments: (template_argument_list
+        (type_descriptor
+          type: (type_identifier)
+          declarator: (abstract_function_declarator
+            parameters: (parameter_list
+              (parameter_declaration
+                type: (primitive_type)))))))
+    declarator: (identifier)))
