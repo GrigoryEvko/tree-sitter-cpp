@@ -6386,9 +6386,14 @@ fn expressions(g: &mut Grammar) {
                 "name",
                 choice![
                     alias(s!(dependent_identifier), s!(dependent_name)),
-                    alias(s!(_constraint_qualified_identifier), s!(qualified_identifier)),
-                    s!(template_function),
-                    seq![optional("template"), s!(identifier)],
+                    prec_dynamic(2, alias(s!(_constraint_qualified_identifier), s!(qualified_identifier))),
+                    // The two names have the dynamic precedence of the names of
+                    // `qualified_type_identifier`. In `requires ns::C<T>::value auto f();` the
+                    // constraint is then the full name, as `cp_parser_primary_expression` and
+                    // `ParseCastExpression` read it, and the `::value` starts no type constraint of
+                    // the placeholder type.
+                    prec_dynamic(1, s!(template_function)),
+                    prec_dynamic(1, seq![optional("template"), s!(identifier)]),
                 ]
             ),
         ],
