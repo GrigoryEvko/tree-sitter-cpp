@@ -4357,6 +4357,24 @@
                   {
                     "type": "SYMBOL",
                     "name": "enum_specifier"
+                  },
+                  {
+                    "type": "CHOICE",
+                    "members": [
+                      {
+                        "type": "SYMBOL",
+                        "name": "primitive_type"
+                      },
+                      {
+                        "type": "ALIAS",
+                        "content": {
+                          "type": "STRING",
+                          "value": "void"
+                        },
+                        "named": true,
+                        "value": "primitive_type"
+                      }
+                    ]
                   }
                 ]
               }
@@ -5058,6 +5076,24 @@
                   {
                     "type": "SYMBOL",
                     "name": "enum_specifier"
+                  },
+                  {
+                    "type": "CHOICE",
+                    "members": [
+                      {
+                        "type": "SYMBOL",
+                        "name": "primitive_type"
+                      },
+                      {
+                        "type": "ALIAS",
+                        "content": {
+                          "type": "STRING",
+                          "value": "void"
+                        },
+                        "named": true,
+                        "value": "primitive_type"
+                      }
+                    ]
                   }
                 ]
               }

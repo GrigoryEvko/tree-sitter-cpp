@@ -68,6 +68,36 @@ void f() { static union { int a; }; }
               (field_identifier))))))))
 
 ================================================================================
+A macro before a built-in type with no declarator
+================================================================================
+
+_VARIANT_BOOL bool;
+EXPORT int;
+void f() { MACRO bool; }
+
+--------------------------------------------------------------------------------
+
+(translation_unit
+  (declaration
+    (attribute_macro
+      name: (identifier))
+    type: (primitive_type))
+  (declaration
+    (attribute_macro
+      name: (identifier))
+    type: (primitive_type))
+  (function_definition
+    type: (primitive_type)
+    declarator: (function_declarator
+      declarator: (identifier)
+      parameters: (parameter_list))
+    body: (compound_statement
+      (declaration
+        (attribute_macro
+          name: (identifier))
+        type: (primitive_type)))))
+
+================================================================================
 Unnamed bit-fields
 ================================================================================
 

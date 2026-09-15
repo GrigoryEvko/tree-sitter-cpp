@@ -1944,6 +1944,13 @@ fn types(g: &mut Grammar) {
             // specifier and no keyword, `struct A {};` stays an empty declaration. The repeat has the
             // content of the repeat in `_declaration_specifiers`, and the `;` after the class decides
             // with no fork.
+            //
+            // A built-in type also needs no declarator: `_VARIANT_BOOL bool;` comes after
+            // `#define _VARIANT_BOOL /##/` in the tests of boost wave. GCC `check_tag_decl`
+            // (cp/decl.cc) gives the permerror "declaration does not declare anything" and reads the
+            // declaration. The macro can expand to nothing, and `bool;` is then the full declaration.
+            // A keyword of a built-in type is no declarator, so this rule has no fork with the
+            // declaration that has one.
             seq![
                 choice![
                     seq![repeat1(s!(_extension_specifier)), specifier_prefix()],
@@ -1961,6 +1968,7 @@ fn types(g: &mut Grammar) {
                         s!(union_specifier),
                         s!(interface_specifier),
                         s!(enum_specifier),
+                        s!(primitive_type),
                     ]
                 ),
                 ";",
