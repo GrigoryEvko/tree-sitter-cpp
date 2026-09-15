@@ -148,6 +148,13 @@ pub fn grammar() -> Grammar {
         // such exception. Refer to `open_brace` in `grammar/src/c.rs`.
         Rule::from("["),
         s!(_attribute_tokens_marker),
+        // The text of a directive line. The scanner reads a literal and a comment as the preprocessor
+        // reads them, and a pattern of the lexer cannot. Refer to `scan_preproc_arg` in src/scanner.c.
+        s!(preproc_arg),
+        // A mark before the `(` of the parameter list of a function-like macro. The scanner gives no such
+        // token, and it reads the mark in `valid_symbols` only: a `(` that comes immediately after the name
+        // of a macro opens a parameter list, and it is no text of the line.
+        s!(_preproc_params_mark),
     ];
     g.conflicts = conflict_sets(&[
         // C
@@ -7086,6 +7093,28 @@ fn preprocessor(g: &mut Grammar) {
         g.redefine(&name, scanner_directive_tokens);
     }
     g.rules.shift_remove("preproc_directive");
+    // The external scanner gives the text of a directive line (`scan_preproc_arg` in src/scanner.c). A
+    // pattern of the lexer reads no literal, so a `//` or a `/*` in the content of a string literal
+    // started a comment, a raw string literal ended at the line break, and a `/` at the end of a line
+    // took the text to the next line.
+    //
+    // The pattern stays as the token of error recovery, where the scanner gives no token. Its first
+    // character is not a `/`, so that a comment after the name of a directive stays a comment: the
+    // scanner gives no token there, and the lexer reads the comment.
+    g.redefine("preproc_arg", |_| {
+        let splice = c::LINE_SPLICE;
+        token(prec(-1, re(&format!(r"[^\s/]([^/\r\n]|\/[^*\r\n]|{splice})*"))))
+    });
+    // The `(` of a parameter list comes immediately after the name of the macro, and the text of the
+    // line starts after the list. The mark before that `(` tells the scanner that a parameter list can
+    // start here. The scanner gives no mark, and the rule has the mark as an option for this reason.
+    g.redefine("preproc_params", |original| {
+        replace_rule(
+            original,
+            &token_immediate("("),
+            &seq![optional(s!(_preproc_params_mark)), token_immediate("(")],
+        )
+    });
     // A comment can come between two parts of the text of a directive: `#define X a /* c */ b`. The
     // preprocessor reads such a comment as a space.
     for rule in ["preproc_def", "preproc_function_def", "preproc_call"] {

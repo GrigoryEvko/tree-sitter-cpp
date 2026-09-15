@@ -745,4 +745,42 @@ mod tests {
             assert_eq!(last.kind(), "declaration", "{text:?}: {sexp}");
         }
     }
+
+    /// The text of a directive line ends at its last character that is not white space, and it holds each
+    /// literal as one token. The external scanner reads it (`scan_preproc_arg` in src/scanner.c).
+    #[test]
+    fn test_the_text_of_a_directive_line_ends_at_its_last_token() {
+        let mut parser = Parser::new();
+        parser
+            .set_language(&super::LANGUAGE.into())
+            .expect("the C++ language loads");
+        // Each input holds one directive. The range is the range of the first `preproc_arg` node.
+        for (text, start, end) in [
+            ("#define A 1   \n", 10, 11),
+            ("#define A 1 /* c */ 2\n", 10, 11),
+            ("#define A 1 // c\n", 10, 11),
+            ("#define A 1/\n", 10, 12),
+            ("#define A \"a/*b*/c\"\n", 10, 19),
+            ("#define A R\"(a\nb)\"\n", 10, 18),
+            // A line splice before the text is white space, and the text starts on the next line.
+            ("#define A \\\n  b c\n", 14, 17),
+            // The `(` of a parameter list comes immediately after the name. With white space before it,
+            // the `(` is the first character of the text.
+            ("#define A (x) y\n", 10, 15),
+        ] {
+            let tree = parser.parse(text, None).expect("the parse ends");
+            let root = tree.root_node();
+            let sexp = root.to_sexp();
+            assert!(!root.has_error(), "{text:?}: {sexp}");
+            let mut cursor = root.walk();
+            let node = root
+                .child(0)
+                .expect("the tree has a child")
+                .children(&mut cursor)
+                .find(|child| child.kind() == "preproc_arg")
+                .expect("the directive has a text node");
+            assert_eq!(node.start_byte(), start, "{text:?}: {sexp}");
+            assert_eq!(node.end_byte(), end, "{text:?}: {sexp}");
+        }
+    }
 }

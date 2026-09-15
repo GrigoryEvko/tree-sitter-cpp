@@ -124,6 +124,12 @@ enum TokenType {
     OPEN_BRACKET,
     /// An empty token before the `(` of an attribute-argument-clause that is not an expression list.
     ATTRIBUTE_TOKENS_MARKER,
+    /// The text of a directive line: the value of a `#define`, the argument of a `#pragma`, and the
+    /// parameters of an `#embed`.
+    PREPROC_ARG,
+    /// A mark before the `(` of the parameter list of a function-like macro. The scanner gives no such
+    /// token, and it reads the mark in `valid_symbols` only.
+    PREPROC_PARAMS_MARK,
 };
 
 /// The maximum number of characters that the scanner reads in the arguments of a macro.
@@ -3610,28 +3616,35 @@ static void skip_number_literal(TSLexer *lexer) {
     }
 }
 
-/// Skip a block comment. The lookahead is the `*` after the `/`. Return true when the comment has a line break.
-static bool skip_block_comment(TSLexer *lexer) {
-    bool line_break = false;
+/// Skip a block comment. The lookahead is the `*` after the `/`. Set `line_break` when the comment holds a line
+/// break. Return true when the comment has its end `*/`, and false at the end of the file.
+static bool skip_block_comment_text(TSLexer *lexer, bool *line_break) {
     advance(lexer);
     for (;;) {
         LOOP_STEP();
         if (lexer->eof(lexer)) {
-            return line_break;
+            return false;
         }
         if (lexer->lookahead == '\n') {
-            line_break = true;
+            *line_break = true;
         }
         if (lexer->lookahead == '*') {
             advance(lexer);
             if (lexer->lookahead == '/') {
                 advance(lexer);
-                return line_break;
+                return true;
             }
             continue;
         }
         advance(lexer);
     }
+}
+
+/// Skip a block comment. The lookahead is the `*` after the `/`. Return true when the comment has a line break.
+static bool skip_block_comment(TSLexer *lexer) {
+    bool line_break = false;
+    skip_block_comment_text(lexer, &line_break);
+    return line_break;
 }
 
 /// Skip the rest of a line comment. The lookahead is the character after `//`. A line splice continues
@@ -3645,6 +3658,96 @@ static void skip_line_comment(TSLexer *lexer) {
             advance(lexer);
         }
     }
+}
+
+/// The result of the scan of the text of a directive line.
+typedef enum {
+    /// The line has only white space before its line break. The lexer is at that line break, and the scan of the
+    /// end of the line reads it.
+    ARG_LINE_END,
+    /// The scan gives the token PREPROC_ARG.
+    ARG_TEXT,
+    /// The text starts with a comment, and the scan gives no token. The lexer is not at the start of the text,
+    /// and the scanner returns false. The lexer of the parser then reads the comment, which is an extra.
+    ARG_STOP,
+} ArgScan;
+
+/// Scan the text of a directive line: the value of a `#define`, the argument of a `#pragma`, and the parameters
+/// of an `#embed`.
+///
+/// The text is the sequence of preprocessing tokens up to the line break of the line ([cpp.replace]). libcpp
+/// `_cpp_lex_direct` (lex.cc:3888) lexes each token of the line. A comment is white space in that text, and the
+/// token ends before it, so that the tree has a node for the comment. A string literal, a character literal, and
+/// a raw string literal are one token each, and a `/*` or a `//` in the content of such a literal starts no
+/// comment. A raw string literal holds each line break of its content: libcpp `get_fresh_line_impl`
+/// (lex.cc:3806) takes a new line in a directive for `lex_raw_string` (lex.cc:2550) only. A digit separator is
+/// part of a number (libcpp `lex_number`, lex.cc:2325), and it starts no character literal. A line splice
+/// continues the line (libcpp `_cpp_clean_line`, lex.cc:877).
+///
+/// The token ends at the last character that is not white space. White space before the text, and a line splice
+/// before the text, are not part of the token. A backslash that starts no line splice is also white space there,
+/// and the token then starts after it. O(n) in the length of the line.
+static ArgScan scan_preproc_arg(TSLexer *lexer) {
+    for (;;) {
+        LOOP_STEP();
+        if (is_splice_space(lexer->lookahead)) {
+            skip(lexer);
+            continue;
+        }
+        if (lexer->lookahead != '\\' || skip_backslash(lexer, true) != BACKSLASH_SPLICE) {
+            break;
+        }
+    }
+    bool has_text = false;
+    for (;;) {
+        LOOP_STEP();
+        int32_t c = lexer->lookahead;
+        if (lexer->eof(lexer) || c == '\n' || c == '\r') {
+            break;
+        }
+        if (is_splice_space(c)) {
+            advance(lexer);
+            continue;
+        }
+        if (c == '\\') {
+            if (skip_backslash(lexer, false) == BACKSLASH_SPLICE) {
+                continue;
+            }
+        } else if (c == '/') {
+            advance(lexer);
+            if (lexer->lookahead == '*' || lexer->lookahead == '/') {
+                if (has_text) {
+                    break;
+                }
+                // The comment comes before the text of the line, and the lexer of the parser reads it as an
+                // extra. A block comment with no end holds the rest of the file, and that lexer has no token
+                // for it. The text of the line then holds the comment.
+                bool line_break = false;
+                if (lexer->lookahead == '/' || skip_block_comment_text(lexer, &line_break)) {
+                    return ARG_STOP;
+                }
+            }
+        } else if (c == '"' || c == '\'') {
+            skip_quoted_literal(lexer);
+        } else if (is_digit(c)) {
+            skip_number_literal(lexer);
+        } else if (is_word_start(c)) {
+            Name name;
+            read_name(lexer, &name);
+            if (lexer->lookahead == '"' && name_is_one_of(&name, RAW_STRING_PREFIXES)) {
+                skip_raw_string_literal(lexer);
+            }
+        } else {
+            advance(lexer);
+        }
+        mark_end(lexer);
+        has_text = true;
+    }
+    if (!has_text) {
+        return ARG_LINE_END;
+    }
+    lexer->result_symbol = PREPROC_ARG;
+    return ARG_TEXT;
 }
 
 /// Skip to the end of a line, over line splices, comments, and literals. The line break is not skipped.
@@ -7166,7 +7269,20 @@ static bool scan_token(Scanner *scanner, TSLexer *lexer, const bool *valid_symbo
             return false;
         }
 
-        // Inside a directive line, a line break ends the line, and the next line is not examined.
+        // Inside a directive line, a line break ends the line, and the next line is not examined. A `(`
+        // that comes immediately after the name of a macro opens a parameter list, and the lexer of the
+        // parser reads it.
+        bool parameters = valid_symbols[PREPROC_PARAMS_MARK] && lexer->lookahead == '(';
+        if (valid_symbols[PREPROC_ARG] && !parameters) {
+            switch (scan_preproc_arg(lexer)) {
+                case ARG_TEXT:
+                    return true;
+                case ARG_STOP:
+                    return false;
+                case ARG_LINE_END:
+                    return valid_symbols[PREPROC_LINE_END] && scan_line_end(lexer);
+            }
+        }
         if (valid_symbols[PREPROC_LINE_END]) {
             return scan_line_end(lexer);
         }

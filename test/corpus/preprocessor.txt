@@ -2481,3 +2481,133 @@ int after;
   (declaration
     type: (primitive_type)
     declarator: (identifier)))
+
+================================================================================
+The text of a directive line ends at the line break after a slash
+================================================================================
+
+#define B 1/
+#define BOOL /##/
+int y;
+
+--------------------------------------------------------------------------------
+
+(translation_unit
+  (preproc_def
+    name: (identifier)
+    value: (preproc_arg))
+  (preproc_def
+    name: (identifier)
+    value: (preproc_arg))
+  (declaration
+    type: (primitive_type)
+    declarator: (identifier)))
+
+================================================================================
+A comment ends the text of a directive line
+================================================================================
+
+#define Y 1 // note
+#pragma once // note
+#define Z 1 /* note */ 2
+int y;
+
+--------------------------------------------------------------------------------
+
+(translation_unit
+  (preproc_def
+    name: (identifier)
+    value: (preproc_arg)
+    (comment))
+  (preproc_call
+    directive: (preproc_directive)
+    argument: (preproc_arg)
+    (comment))
+  (preproc_def
+    name: (identifier)
+    value: (preproc_arg)
+    (comment)
+    value: (preproc_arg))
+  (declaration
+    type: (primitive_type)
+    declarator: (identifier)))
+
+================================================================================
+A literal in the text of a directive line holds the start of a comment
+================================================================================
+
+#define URL "http://example.com"
+#define X "a/*b*/c"
+#define C '/'
+int y;
+
+--------------------------------------------------------------------------------
+
+(translation_unit
+  (preproc_def
+    name: (identifier)
+    value: (preproc_arg))
+  (preproc_def
+    name: (identifier)
+    value: (preproc_arg))
+  (preproc_def
+    name: (identifier)
+    value: (preproc_arg))
+  (declaration
+    type: (primitive_type)
+    declarator: (identifier)))
+
+================================================================================
+A raw string literal in the body of a macro holds each line break
+================================================================================
+
+#define M R"(a
+b)"
+#define N(x) x, R"delim(
+line
+)delim", 0
+int y;
+
+--------------------------------------------------------------------------------
+
+(translation_unit
+  (preproc_def
+    name: (identifier)
+    value: (preproc_arg))
+  (preproc_function_def
+    name: (identifier)
+    parameters: (preproc_params
+      (identifier))
+    value: (preproc_arg))
+  (declaration
+    type: (primitive_type)
+    declarator: (identifier)))
+
+================================================================================
+The parameter list of a macro comes immediately after its name
+================================================================================
+
+#define A(x) x + 1
+#define B (x) y
+#define C(x)((x) * (x))
+int y;
+
+--------------------------------------------------------------------------------
+
+(translation_unit
+  (preproc_function_def
+    name: (identifier)
+    parameters: (preproc_params
+      (identifier))
+    value: (preproc_arg))
+  (preproc_def
+    name: (identifier)
+    value: (preproc_arg))
+  (preproc_function_def
+    name: (identifier)
+    parameters: (preproc_params
+      (identifier))
+    value: (preproc_arg))
+  (declaration
+    type: (primitive_type)
+    declarator: (identifier)))
