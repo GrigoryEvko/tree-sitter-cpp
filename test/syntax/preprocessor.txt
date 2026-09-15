@@ -5,6 +5,24 @@ groups that split a construct, `#if 0` text, `#define` bodies, `#embed`, and `#i
 static const unsigned char lut[1 << 4] = {
 #define B2(n) n, n + 1, n + 1, n + 2
     B2(0), B2(1), B2(1), B2(2)};
+### pp_extra_tokens_after_a_conditional_name
+#ifdef TEST_LIBSTDCXX && !defined(COMPILER_COMPARISON_TABLES)
+int a;
+#endif
+#ifdef  MACRO   Junk
+#endif
+#ifndef B junk
+int b;
+#else
+int c;
+#endif
+#ifdef D
+int d;
+#elifdef E junk
+int e;
+#elifndef F junk
+int f;
+#endif
 ### pp_define_continued_in_initializer_list
 static const int descriptors[] = {
     #define M(NAME) \

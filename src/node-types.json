@@ -8300,6 +8300,10 @@
           "named": true
         },
         {
+          "type": "preproc_arg",
+          "named": true
+        },
+        {
           "type": "preproc_call",
           "named": true
         },
@@ -8859,6 +8863,10 @@
         },
         {
           "type": "namespace_definition",
+          "named": true
+        },
+        {
+          "type": "preproc_arg",
           "named": true
         },
         {

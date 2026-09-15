@@ -26,6 +26,154 @@ int a[] = {
             (number_literal)))))))
 
 ================================================================================
+Extra tokens after the name of a conditional directive
+================================================================================
+
+#ifdef A && !defined(B)
+int a;
+#endif
+#ifndef C junk here
+int b;
+#else
+int c;
+#endif
+#ifdef D
+int d;
+#elifdef E junk
+int e;
+#elifndef F junk
+int f;
+#endif
+#ifdef G /* comment */
+int g;
+#endif
+
+--------------------------------------------------------------------------------
+
+(translation_unit
+  (preproc_ifdef
+    name: (identifier)
+    (preproc_arg)
+    (declaration
+      type: (primitive_type)
+      declarator: (identifier)))
+  (preproc_ifdef
+    name: (identifier)
+    (preproc_arg)
+    (declaration
+      type: (primitive_type)
+      declarator: (identifier))
+    alternative: (preproc_else
+      (declaration
+        type: (primitive_type)
+        declarator: (identifier))))
+  (preproc_ifdef
+    name: (identifier)
+    (declaration
+      type: (primitive_type)
+      declarator: (identifier))
+    alternative: (preproc_elifdef
+      name: (identifier)
+      (preproc_arg)
+      (declaration
+        type: (primitive_type)
+        declarator: (identifier))
+      alternative: (preproc_elifdef
+        name: (identifier)
+        (preproc_arg)
+        (declaration
+          type: (primitive_type)
+          declarator: (identifier)))))
+  (preproc_ifdef
+    name: (identifier)
+    (comment)
+    (declaration
+      type: (primitive_type)
+      declarator: (identifier))))
+
+================================================================================
+Extra tokens after a conditional name in a field list, an enumerator list, and a case body
+================================================================================
+
+struct S {
+#ifdef A junk
+  int m;
+#endif
+};
+enum E {
+#ifdef B junk
+  X,
+#endif
+};
+void f(int i) {
+  switch (i) {
+#ifdef C junk
+  case 1:
+    break;
+#endif
+  }
+}
+
+--------------------------------------------------------------------------------
+
+(translation_unit
+  (struct_specifier
+    name: (type_identifier)
+    body: (field_declaration_list
+      (preproc_ifdef
+        name: (identifier)
+        (preproc_arg)
+        (field_declaration
+          type: (primitive_type)
+          declarator: (field_identifier)))))
+  (enum_specifier
+    name: (type_identifier)
+    body: (enumerator_list
+      (preproc_ifdef
+        name: (identifier)
+        (preproc_arg)
+        (enumerator
+          name: (identifier)))))
+  (function_definition
+    type: (primitive_type)
+    declarator: (function_declarator
+      declarator: (identifier)
+      parameters: (parameter_list
+        (parameter_declaration
+          type: (primitive_type)
+          declarator: (identifier))))
+    body: (compound_statement
+      (switch_statement
+        condition: (condition_clause
+          value: (identifier))
+        body: (compound_statement
+          (preproc_ifdef
+            name: (identifier)
+            (preproc_arg)
+            (case_statement
+              value: (number_literal)
+              (break_statement))))))))
+
+================================================================================
+A line splice in the extra tokens of a conditional directive
+================================================================================
+
+#ifdef A \
+  junk
+int x;
+#endif
+
+--------------------------------------------------------------------------------
+
+(translation_unit
+  (preproc_ifdef
+    name: (identifier)
+    (preproc_arg)
+    (declaration
+      type: (primitive_type)
+      declarator: (identifier))))
+
+================================================================================
 Line group between the consequence and the else clause
 ================================================================================
 

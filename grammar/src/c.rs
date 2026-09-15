@@ -191,6 +191,21 @@ pub fn preprocessor(command: &str) -> Rule {
 /// alternatives with an alias to the rule without the suffix. `branch` gives the content of
 /// one branch, for example `repeat(_block_item)`.
 pub fn preproc_if(g: &mut Grammar, suffix: &str, branch: impl Fn() -> Rule, precedence: i32) {
+    // The tokens after the name of an `#ifdef`, an `#ifndef`, an `#elifdef`, or an `#elifndef` are
+    // extra tokens of the directive line. The preprocessor reads the name, gives a warning, and
+    // removes the rest of the line: libcpp `check_eol` (gcc/libcpp/directives.cc:259) from
+    // `do_ifdef`, `do_ifndef` and `do_elif`, and Clang `Preprocessor::CheckEndOfDirective`
+    // (clang/lib/Lex/PPDirectives.cpp:465). The two front ends compile such a line, so the tokens
+    // are no error. They have no meaning, and the node of the text of a directive line holds them.
+    //
+    // The token of the line end comes after them, as it comes after the value of a `#define`. Only
+    // that token makes the tokens of the branch invalid in this position. The text of `preproc_arg`
+    // has a lower precedence than each other token, and the lexer gives a name or a keyword where
+    // the two are valid. The end of the file also ends the line.
+    //
+    // An `#else` and an `#endif` keep this defect. The line end after them extends the node of the
+    // branch or of the group over the line break, and 235 corpus files then get a different range.
+    let extra_tokens = || seq![optional(repeat1(s!(preproc_arg))), token_immediate(re(r"\r?\n"))];
     let alternative = || {
         let rule = |name: &str| {
             if suffix.is_empty() {
@@ -226,6 +241,7 @@ pub fn preproc_if(g: &mut Grammar, suffix: &str, branch: impl Fn() -> Rule, prec
             seq![
                 choice![preprocessor("ifdef"), preprocessor("ifndef")],
                 field("name", s!(identifier)),
+                extra_tokens(),
                 branch(),
                 field("alternative", alternative()),
                 preprocessor("endif"),
@@ -256,6 +272,7 @@ pub fn preproc_if(g: &mut Grammar, suffix: &str, branch: impl Fn() -> Rule, prec
             seq![
                 choice![preprocessor("elifdef"), preprocessor("elifndef")],
                 field("name", s!(identifier)),
+                extra_tokens(),
                 branch(),
                 field("alternative", alternative()),
             ],
