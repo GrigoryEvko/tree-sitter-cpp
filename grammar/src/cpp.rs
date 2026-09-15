@@ -155,11 +155,17 @@ pub fn grammar() -> Grammar {
         &["type_specifier", "expression"],
         &["sized_type_specifier"],
         &["attributed_statement"],
-        &["_declaration_modifiers", "attributed_statement"],
         &["_declaration_modifiers", "using_declaration"],
         &["_declaration_modifiers", "attributed_statement", "using_declaration"],
+        // The GNU attributes have the same forks as the standard attributes: a declaration or a
+        // statement after them, and a nested attributed statement.
+        &["_gnu_attributed_statement"],
+        &["_declaration_modifiers", "_gnu_attributed_statement"],
         &["_top_level_item", "_top_level_statement"],
         &["_block_item", "statement"],
+        // The body of a namespace, of a linkage specification, and of an export declaration holds the
+        // items of a block. Refer to `_declaration_list_item`.
+        &["_declaration_list_item", "statement"],
         // A GNU asm label after a declarator belongs to a declaration with no initializer, or to an
         // init declarator. Only the token after the label decides. Refer to `c::asm_label`.
         &["_block_declaration", "_declarator_of_function"],
@@ -222,7 +228,6 @@ pub fn grammar() -> Grammar {
         // `requires (T t) { t++; };`. Only the token after `)` tells them apart (Clang
         // `ParseRequiresExpression`).
         &["_declaration_modifiers", "type_descriptor"],
-        &["_declaration_specifiers", "type_descriptor"],
         &["_parameter_declaration_specifiers", "type_descriptor"],
         &["parameter_list", "argument_list"],
         &["type_specifier", "call_expression"],
@@ -230,22 +235,12 @@ pub fn grammar() -> Grammar {
         // `KEYWORD_TYPE`. After the type, `(` starts a declarator or a functional cast.
         &["_declaration_specifiers", "type_specifier"],
         &["_declaration_specifiers", "type_specifier", "call_expression"],
-        &["_declaration_specifiers", "_constructor_specifiers"],
         // After `operator`, the type belongs to the declarator of a conversion function, or to the
         // name of one in an expression. The two sets above have the same ambiguity for a declaration.
         &["_conversion_declaration_specifiers", "_nondefining_type_specifier"],
         // In `operator A B()`, `A` is the type or a macro before the type. The sets of
         // `type_specifier` and `attribute_macro` below have the same ambiguity for a declaration.
         &["_nondefining_type_specifier", "attribute_macro"],
-        // The same fork. A declaration with no declarator shares the repeat of the specifiers, and
-        // the generator names the shared repeat after `declaration`. The specifiers of a structured
-        // binding also share the repeat, and each set with `declaration` names them.
-        &[
-            "declaration",
-            "_declaration_specifiers",
-            "_constructor_specifiers",
-            "_structured_binding_specifiers",
-        ],
         &["_binary_fold_operator", "_fold_operator"],
         &["_function_declarator_seq"],
         // The function declarator of a deduction guide has the parts of `_function_declarator_seq`, and the
@@ -307,74 +302,20 @@ pub fn grammar() -> Grammar {
         // A macro before a declaration, a constructor, or a conversion function. The token
         // after the specifiers decides, as for the conflicts of `_constructor_specifiers`.
         &[
-            "_declaration_specifiers",
             "operator_cast_definition",
             "operator_cast_declaration",
             "constructor_or_destructor_definition",
         ],
-        &[
-            "declaration",
-            "_declaration_specifiers",
-            "operator_cast_definition",
-            "operator_cast_declaration",
-            "constructor_or_destructor_definition",
-            "_structured_binding_specifiers",
-        ],
-        &[
-            "operator_cast_definition",
-            "operator_cast_declaration",
-            "constructor_or_destructor_definition",
-        ],
-        // A block holds no declaration and no definition of a conversion function. This set is the second
-        // set above for the items of a block, for the same ambiguity. Refer to `items`.
-        &[
-            "_block_declaration",
-            "_declaration_specifiers",
-            "constructor_or_destructor_definition",
-            "_structured_binding_specifiers",
-        ],
-        // At namespace scope, a deduction guide starts with the specifiers of a constructor. These sets are
-        // the sets above with `_deduction_guide_declaration`, for the same ambiguity.
-        &[
-            "_declaration_specifiers",
-            "operator_cast_definition",
-            "operator_cast_declaration",
-            "constructor_or_destructor_definition",
-            "_deduction_guide_declaration",
-        ],
-        &[
-            "declaration",
-            "_declaration_specifiers",
-            "operator_cast_definition",
-            "operator_cast_declaration",
-            "constructor_or_destructor_definition",
-            "_deduction_guide_declaration",
-            "_structured_binding_specifiers",
-        ],
+        // At namespace scope, a deduction guide starts with the specifiers of a constructor. This set
+        // is the set above with `_deduction_guide_declaration`, for the same ambiguity.
         &[
             "operator_cast_definition",
             "operator_cast_declaration",
             "constructor_or_destructor_definition",
             "_deduction_guide_declaration",
         ],
-        // The generator names a shared repeat after the first rule that uses it. These sets are the
-        // sets above with `constructor_or_destructor_declaration`, for the same ambiguity.
-        &[
-            "_declaration_specifiers",
-            "operator_cast_definition",
-            "operator_cast_declaration",
-            "constructor_or_destructor_definition",
-            "constructor_or_destructor_declaration",
-        ],
-        &[
-            "declaration",
-            "_declaration_specifiers",
-            "operator_cast_definition",
-            "operator_cast_declaration",
-            "constructor_or_destructor_definition",
-            "constructor_or_destructor_declaration",
-            "_structured_binding_specifiers",
-        ],
+        // The generator names a shared repeat after the first rule that uses it. This set is the
+        // first set above with `constructor_or_destructor_declaration`, for the same ambiguity.
         &[
             "operator_cast_definition",
             "operator_cast_declaration",
@@ -391,9 +332,69 @@ pub fn grammar() -> Grammar {
             "constructor_or_destructor_declaration",
             "friend_declaration",
         ],
+        // Specifiers and attributes before `friend`, before a constructor, and before a member
+        // declaration. The keyword or the type after them decides.
+        &[
+            "_declaration_specifiers",
+            "_constructor_specifiers",
+            "friend_declaration",
+        ],
+        // The specifiers of a declaration with the type `void` are a second reading, and the
+        // specifiers of a block declaration with `extern` before the type are a third reading. Refer
+        // to `_void_declaration_specifiers` and `_extern_declaration_specifiers`. A declaration with
+        // no declarator shares the repeat of the specifiers, and the generator names that repeat
+        // after `declaration`. The specifiers of a structured binding share the repeat too, and each
+        // set with `declaration` names them.
+        &["_extern_storage_class", "storage_class_specifier"],
+        &["_declaration_specifiers", "_void_declaration_specifiers"],
+        &["_declaration_specifiers", "_void_declaration_specifiers", "type_specifier"],
+        &[
+            "_declaration_specifiers",
+            "_void_declaration_specifiers",
+            "type_specifier",
+            "call_expression",
+        ],
+        &["_extern_declaration_specifiers", "type_specifier"],
+        // A calling convention before a constructor or a declaration: `__thiscall I::I() {}`,
+        // `__regcall int f();`. The token after the specifiers decides, as for the other specifiers.
+        &[
+            "_declaration_specifiers",
+            "_void_declaration_specifiers",
+            "constructor_or_destructor_definition",
+        ],
+        &[
+            "_declaration_specifiers",
+            "_void_declaration_specifiers",
+            "_constructor_specifiers",
+        ],
         &[
             "declaration",
             "_declaration_specifiers",
+            "_void_declaration_specifiers",
+            "_constructor_specifiers",
+            "_structured_binding_specifiers",
+        ],
+        &[
+            "declaration",
+            "_declaration_specifiers",
+            "_void_declaration_specifiers",
+            "_constructor_specifiers",
+            "friend_declaration",
+            "_structured_binding_specifiers",
+        ],
+        &[
+            "declaration",
+            "_declaration_specifiers",
+            "_void_declaration_specifiers",
+            "operator_cast_definition",
+            "operator_cast_declaration",
+            "constructor_or_destructor_definition",
+            "_structured_binding_specifiers",
+        ],
+        &[
+            "declaration",
+            "_declaration_specifiers",
+            "_void_declaration_specifiers",
             "operator_cast_definition",
             "operator_cast_declaration",
             "constructor_or_destructor_definition",
@@ -401,28 +402,13 @@ pub fn grammar() -> Grammar {
             "friend_declaration",
             "_structured_binding_specifiers",
         ],
+        // A block holds no declaration and no definition of a conversion function. Refer to `items`.
         &[
-            "operator_cast_definition",
-            "operator_cast_declaration",
+            "_block_declaration",
+            "_declaration_specifiers",
+            "_void_declaration_specifiers",
+            "_extern_declaration_specifiers",
             "constructor_or_destructor_definition",
-            "constructor_or_destructor_declaration",
-            "friend_declaration",
-        ],
-        // Specifiers and attributes before `friend`, before `using`, before a constructor, and
-        // before a member declaration. The keyword or the type after them decides.
-        &["_declaration_modifiers", "friend_declaration"],
-        &["_declaration_modifiers", "friend_declaration", "using_declaration"],
-        &["_constructor_specifiers", "friend_declaration"],
-        &[
-            "_declaration_specifiers",
-            "_constructor_specifiers",
-            "friend_declaration",
-        ],
-        &[
-            "declaration",
-            "_declaration_specifiers",
-            "_constructor_specifiers",
-            "friend_declaration",
             "_structured_binding_specifiers",
         ],
         // `P...[0](x)` calls an element of a value pack or casts to an element of a type pack.
@@ -444,9 +430,6 @@ pub fn grammar() -> Grammar {
         // declarator of a constructor.
         &["_declaration_modifiers", "_grouping_attributes"],
         &["_grouping_attributes", "type_descriptor"],
-        // A calling convention before a constructor or a declaration: `__thiscall I::I() {}`,
-        // `__regcall int f();`. The token after the specifiers decides, as for the other specifiers.
-        &["_declaration_specifiers", "constructor_or_destructor_definition"],
         // After `T (^`, a GNU attribute starts the qualifiers of a block pointer declarator, or the
         // qualifiers of the type of a block literal in a functional cast. The qualifiers of a type
         // also take `__declspec`, and only the tokens after the attributes tell the two apart.
@@ -475,7 +458,6 @@ pub fn grammar() -> Grammar {
     // call comes after the copy.
     name_grouping_declarators(&mut g);
     extension_before_declarations(&mut g);
-    specifier_conflicts(&mut g);
     void_type_in_each_rule(&mut g);
     // The literal keywords replace a symbol in each rule. For this reason, this call comes last.
     reserved_words(&mut g);
@@ -535,64 +517,6 @@ fn extension_before_declarations(g: &mut Grammar) {
         // compares the precedences before it reads the conflict sets.
         g.redefine(name, |original| seq![c::extension_prefix(), original]);
     }
-}
-
-/// Copy each conflict set with `_declaration_specifiers` for the second readings of the specifiers of a
-/// declaration: `_void_declaration_specifiers` and `_extern_declaration_specifiers`. O(n) in the conflict
-/// sets.
-fn specifier_conflicts(g: &mut Grammar) {
-    // After the specifiers, the parser keeps the first reading and each second reading. Each set below is
-    // a source of copies, and it is not a conflict set. The first reading alone takes no conflict. The two
-    // other sets are for the GNU keyword `__extension__` before the specifiers of a member declaration,
-    // where the first reading and the second reading of a constructor stay together.
-    let sources = conflict_sets(&[
-        &["_declaration_specifiers"],
-        &[
-            "_declaration_specifiers",
-            "operator_cast_definition",
-            "operator_cast_declaration",
-            "constructor_or_destructor_definition",
-            "_structured_binding_specifiers",
-        ],
-        &[
-            "_declaration_specifiers",
-            "constructor_or_destructor_definition",
-            "_structured_binding_specifiers",
-        ],
-    ]);
-    let copies: Vec<Vec<String>> = g
-        .conflicts
-        .iter()
-        .chain(sources.iter())
-        .filter(|set| set.iter().any(|name| name == "_declaration_specifiers"))
-        .flat_map(|set| {
-            // A second reading comes next to the first reading, or in its place after a token that only
-            // the second reading takes, as `extern` for `_extern_declaration_specifiers`.
-            let has_others = set.iter().any(|name| name != "_declaration_specifiers");
-            [
-                (true, vec!["_void_declaration_specifiers"]),
-                (true, vec!["_extern_declaration_specifiers"]),
-                (true, vec!["_void_declaration_specifiers", "_extern_declaration_specifiers"]),
-                (false, vec!["_void_declaration_specifiers"]),
-                (false, vec!["_extern_declaration_specifiers"]),
-            ]
-            .into_iter()
-            // A copy of one rule only is not a conflict set. It would permit a conflict in that rule.
-            .filter(move |(with_first, _)| *with_first || has_others)
-            .map(move |(with_first, extra)| {
-                let mut copy = if with_first {
-                    set.clone()
-                } else {
-                    set.iter().filter(|name| *name != "_declaration_specifiers").cloned().collect()
-                };
-                copy.extend(extra.into_iter().map(str::to_owned));
-                copy
-            })
-        })
-        .collect();
-    g.conflicts.extend(copies);
-    // After `extern` in a block, the storage class of each reading of the specifiers is a different rule.
-    g.conflicts.push(vec!["_extern_storage_class".to_owned(), "storage_class_specifier".to_owned()]);
 }
 
 /// The expression statement outside a function, for macro code and code examples.
@@ -4374,8 +4298,6 @@ fn keyword_parameter_grouping(g: &mut Grammar) {
         &["type_specifier", "parameter_declaration"][..],
         &["type_specifier", "parameter_declaration", "call_expression"],
         &["expression", "_keyword_parameter_grouping"],
-        &["type_specifier", "_keyword_parameter_grouping"],
-        &["type_specifier", "expression", "_keyword_parameter_grouping"],
     ] {
         g.conflicts.push(set.iter().map(|&name| name.to_owned()).collect());
     }
@@ -4903,22 +4825,6 @@ fn block_declaration(g: &mut Grammar) {
             seq![field("declarator", s!(operator_name)), s!(_function_declarator_seq)],
         ),
     );
-    for (original, copy) in [
-        ("declaration", "_block_declaration"),
-        ("_block_item", "_declaration_list_item"),
-    ] {
-        let copies: Vec<Vec<String>> = g
-            .conflicts
-            .iter()
-            .filter(|set| set.iter().any(|name| name == original))
-            .map(|set| {
-                set.iter()
-                    .map(|name| if name == original { copy.to_owned() } else { name.clone() })
-                    .collect()
-            })
-            .collect();
-        g.conflicts.extend(copies);
-    }
 }
 
 /// The dynamic precedence of a declaration outside a block in which a grouping of a name is the full
@@ -5537,36 +5443,10 @@ fn statements(g: &mut Grammar) {
         .filter(|member| *member != s!(macro_invocation));
     g.define("_gnu_attributed_statement_body", choice_of(statements_after_attributes));
     g.inline.push("_gnu_attributed_statement_body".to_owned());
-    // The GNU attributes have the forks of the standard attributes: a declaration or a statement after them,
-    // and a nested attributed statement. Each conflict set with `attributed_statement` gets a copy with the
-    // rule of the GNU attributes.
-    let copies: Vec<Vec<String>> = g
-        .conflicts
-        .iter()
-        .filter(|set| set.iter().any(|name| name == "attributed_statement"))
-        .map(|set| {
-            set.iter()
-                .map(|name| {
-                    if name == "attributed_statement" {
-                        "_gnu_attributed_statement".to_owned()
-                    } else {
-                        name.clone()
-                    }
-                })
-                .collect()
-        })
-        .collect();
-    g.conflicts.extend(copies);
     // After `lab: __attribute__((x))`, the attributes start an attributed statement or they are the
     // attributes of the label. Only the token after the attributes tells them apart, and the dynamic
-    // precedence of `labeled_statement` selects the label before `;`. A declaration with the attributes as
-    // specifiers is the third reading: `lab: __attribute__((x)) int y;`.
+    // precedence of `labeled_statement` selects the label before `;`.
     g.conflicts.push(vec!["_gnu_attributed_statement".to_owned(), "labeled_statement".to_owned()]);
-    g.conflicts.push(vec![
-        "_declaration_modifiers".to_owned(),
-        "_gnu_attributed_statement".to_owned(),
-        "labeled_statement".to_owned(),
-    ]);
     // A macro before a statement keyword is an attribute of that statement:
     // `MUST_TAIL_CALL return g(a);`. The macro expands to `[[clang::musttail]]` in ladybird and
     // protobuf, and Clang builds an `AttributedStmt` with a `MustTailAttr` and the return statement.
