@@ -4,7 +4,7 @@ use std::error::Error;
 use std::fs;
 use std::path::Path;
 
-use tree_sitter_generate::{OptLevel, generate_parser_in_directory};
+use tree_sitter_generate::{Diagnostic, OptLevel, generate_parser_in_directory};
 
 /// The ABI version of the generated parser: the version that the runtime in vendor/tree-sitter reads.
 /// The ABI of the fork has 32-bit parse table values and state ids.
@@ -14,6 +14,9 @@ const ABI_VERSION: usize = tree_sitter::LANGUAGE_VERSION;
 ///
 /// With `--check`, compare `src/grammar.json` with the Rust grammar and write nothing. With
 /// `--diagnostics`, print the full text of each diagnostic of the generator.
+///
+/// The command writes the files and then fails when the generator reports a conflict set that the
+/// parse table builder does not use.
 pub fn run(repository: &Path, args: &[String]) -> Result<(), Box<dyn Error>> {
     let (check, show_diagnostics) = match args {
         [] => (false, false),
@@ -57,15 +60,44 @@ pub fn run(repository: &Path, args: &[String]) -> Result<(), Box<dyn Error>> {
         &mut diagnostics,
     )?;
     // The generator reports the conflicts that the grammar declares and does not use, and other
-    // notes about the rules. The full text has more than 100 lines, so the default prints the count.
+    // notes about the rules. The full text of the other notes can be long, so the default prints the
+    // count.
+    let unnecessary: Vec<&Diagnostic> = diagnostics
+        .iter()
+        .filter(|diagnostic| matches!(diagnostic, Diagnostic::UnnecessaryConflicts(_)))
+        .collect();
     if show_diagnostics {
         for diagnostic in &diagnostics {
             println!("{diagnostic}");
         }
-    } else if !diagnostics.is_empty() {
-        let count = diagnostics.len();
-        let name = if count == 1 { "diagnostic" } else { "diagnostics" };
-        println!("the generator reports {count} {name}. Run `cargo xtask generate --diagnostics` to read them.");
+    } else {
+        for diagnostic in &unnecessary {
+            println!("{diagnostic}");
+        }
+        let count = diagnostics.len() - unnecessary.len();
+        if count > 0 {
+            let name = if count == 1 { "diagnostic" } else { "diagnostics" };
+            println!(
+                "the generator reports {count} more {name}. Run `cargo xtask generate --diagnostics` to read them."
+            );
+        }
+    }
+    // A conflict set that the parse table builder does not use makes the generator accept a real
+    // conflict of the same symbols with no report. Declare only the sets that the generator asks for.
+    if !unnecessary.is_empty() {
+        let count: usize = unnecessary
+            .iter()
+            .map(|diagnostic| match diagnostic {
+                Diagnostic::UnnecessaryConflicts(conflicts) => conflicts.len(),
+                _ => 0,
+            })
+            .sum();
+        let name = if count == 1 { "set" } else { "sets" };
+        return Err(format!(
+            "the grammar declares {count} conflict {name} that the parse table builder does not use. \
+             Remove each set above from `g.conflicts`."
+        )
+        .into());
     }
     Ok(())
 }

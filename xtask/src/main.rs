@@ -26,6 +26,8 @@ tasks:
                            src/node-types.json, and src/tree_sitter/ from src/grammar.json.
                            With --check, compare src/grammar.json with the Rust grammar only.
                            With --diagnostics, print each diagnostic of the generator.
+                           Fail when the grammar declares a conflict set that the parse table
+                           builder does not use.
   limits [PARSER_C]        Print the use of each fixed-width limit of the parser tables of
                            src/parser.c or PARSER_C. Fail when a use is more than 90% of its limit.
   test [--update] [NAME]   Run the corpus tests in test/corpus. With --update, write the actual
