@@ -4,6 +4,21 @@ std::vector<::std::string> v;
 bool b = x <::y;
 ### lex_less_scope_nested
 std::map<::std::string, std::vector<::std::string>> m;
+### lex_digraph_braces
+int f() <% int a<:3:>; return a<:0:>; %>
+### lex_digraph_class_and_namespace
+struct S <% int m; %>; namespace N <% int g(); %>
+### lex_digraph_scope_exception
+int n = a<:::b:>; int m = a<::>; bool p = x <::y;
+### lex_digraph_in_c_directive
+int g(void)
+<%
+%:if 1
+  return 1;
+%:else
+  return 2;
+%:endif
+%>
 ### lex_alt_logical
 bool f(bool a, bool b) { return a and b or not a; }
 ### lex_alt_bitwise

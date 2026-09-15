@@ -67,6 +67,28 @@ const BINARY_OPERATORS: [(&str, i32); 18] = [
 /// `Lexer::getEscapedNewLineSize` reads that order as one line break, and the two front ends disagree here.
 pub const LINE_SPLICE: &str = r"\\[ \t\f\v]*(\r\n?|\n)";
 
+/// The `{` of the grammar, with its alternative spelling `<%`.
+///
+/// [lex.digraph]: `<%`, `%>`, `<:`, and `:>` are the tokens `{`, `}`, `[`, and `]`. The lexer reads the
+/// two spellings of one token, and the node keeps the name of the token. GCC reads the digraphs in
+/// `_cpp_lex_direct` (libcpp/lex.cc), and Clang in `LexTokenInternal` (clang/lib/Lex/Lexer.cpp).
+///
+/// The digraph `<:` has an exception that needs the character after `<::`, and the external scanner
+/// reads that digraph. Refer to `scan_less_than_digraph` in `src/scanner.c`.
+pub fn open_brace() -> Rule {
+    alias(token(choice!["{", "<%"]), "{")
+}
+
+/// The `}` of the grammar, with its alternative spelling `%>`. Refer to `open_brace`.
+pub fn close_brace() -> Rule {
+    alias(token(choice!["}", "%>"]), "}")
+}
+
+/// The `]` of the grammar, with its alternative spelling `:>`. Refer to `open_brace`.
+pub fn close_bracket() -> Rule {
+    alias(token(choice!["]", ":>"]), "]")
+}
+
 /// The C grammar.
 pub fn grammar() -> Grammar {
     let mut g = Grammar::new("c");
@@ -563,7 +585,10 @@ fn declarations(g: &mut Grammar) {
             s!(ms_signed_ptr_modifier),
         ],
     );
-    g.define("declaration_list", seq!["{", repeat(s!(_block_item)), "}"]);
+    g.define(
+        "declaration_list",
+        seq![open_brace(), repeat(s!(_block_item)), close_brace()],
+    );
 
     g.define(
         "_declarator",
@@ -733,7 +758,7 @@ fn declarations(g: &mut Grammar) {
                 "[",
                 repeat(choice![s!(type_qualifier), "static"]),
                 field("size", optional(choice![s!(expression), "*"])),
-                "]",
+                close_bracket(),
             ],
         )
     };
@@ -751,7 +776,10 @@ fn declarations(g: &mut Grammar) {
             field("value", choice![s!(initializer_list), s!(expression)]),
         ],
     );
-    g.define("compound_statement", seq!["{", repeat(s!(_block_item)), "}"]);
+    g.define(
+        "compound_statement",
+        seq![open_brace(), repeat(s!(_block_item)), close_brace()],
+    );
     g.define(
         "storage_class_specifier",
         choice![
@@ -869,7 +897,7 @@ fn declarations(g: &mut Grammar) {
     g.define(
         "enumerator_list",
         seq![
-            "{",
+            open_brace(),
             repeat(choice![
                 seq![s!(enumerator), ","],
                 alias(s!(preproc_if_in_enumerator_list), s!(preproc_if)),
@@ -877,7 +905,7 @@ fn declarations(g: &mut Grammar) {
                 seq![s!(preproc_call), ","],
             ]),
             optional(choice![s!(enumerator), s!(preproc_call)]),
-            "}",
+            close_brace(),
         ],
     );
     let record_body = || {
@@ -916,7 +944,7 @@ fn declarations(g: &mut Grammar) {
     );
     g.define(
         "field_declaration_list",
-        seq!["{", repeat(s!(_field_declaration_list_item)), "}"],
+        seq![open_brace(), repeat(s!(_field_declaration_list_item)), close_brace()],
     );
     g.define(
         "_field_declaration_list_item",
@@ -1357,7 +1385,7 @@ fn expressions(g: &mut Grammar) {
                 field("argument", s!(expression)),
                 "[",
                 field("index", s!(expression)),
-                "]",
+                close_bracket(),
             ],
         ),
     );
@@ -1397,7 +1425,7 @@ fn expressions(g: &mut Grammar) {
     );
     let operand = || {
         seq![
-            optional(seq!["[", field("symbol", s!(identifier)), "]"]),
+            optional(seq!["[", field("symbol", s!(identifier)), close_bracket()]),
             field("constraint", s!(string_literal)),
             "(",
             field("value", s!(expression)),
@@ -1467,10 +1495,10 @@ fn expressions(g: &mut Grammar) {
     g.define(
         "initializer_list",
         seq![
-            "{",
+            open_brace(),
             comma_sep(choice![s!(initializer_pair), s!(expression), s!(initializer_list)]),
             optional(","),
-            "}",
+            close_brace(),
         ],
     );
     let value = || field("value", choice![s!(expression), s!(initializer_list)]);
@@ -1492,7 +1520,7 @@ fn expressions(g: &mut Grammar) {
             seq![field("designator", s!(_field_identifier)), ":", value()],
         ],
     );
-    g.define("subscript_designator", seq!["[", s!(expression), "]"]);
+    g.define("subscript_designator", seq!["[", s!(expression), close_bracket()]);
     g.define(
         "subscript_range_designator",
         seq![
@@ -1500,7 +1528,7 @@ fn expressions(g: &mut Grammar) {
             field("start", s!(expression)),
             "...",
             field("end", s!(expression)),
-            "]",
+            close_bracket(),
         ],
     );
     g.define("field_designator", seq![".", s!(_field_identifier)]);

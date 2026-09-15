@@ -4,7 +4,7 @@
 //! extends the C grammar. A rule of the C grammar keeps its position, and a new rule goes to
 //! the end.
 
-use crate::c::{self, preproc_if};
+use crate::c::{self, close_bracket, close_brace, open_brace, preproc_if};
 use crate::dsl::*;
 use crate::{choice, s, seq};
 
@@ -142,6 +142,11 @@ pub fn grammar() -> Grammar {
         s!(_pointer_call_macro_name),
         s!(_declarator_name_macro_name),
         s!(_type_trait_type_marker),
+        // The `[` of the grammar. The scanner gives it for the digraph `<:` ([lex.digraph]). Only the
+        // scanner can read the character after `<::`, which keeps the two tokens `<` and `::`. Refer to
+        // `scan_less_than_digraph` in `src/scanner.c`. The lexer reads the other digraphs, which have no
+        // such exception. Refer to `open_brace` in `grammar/src/c.rs`.
+        Rule::from("["),
     ];
     g.conflicts = conflict_sets(&[
         // C
@@ -839,8 +844,8 @@ fn macros(g: &mut Grammar) {
         "token_tree",
         choice![
             seq!["(", content(), ")"],
-            seq!["[", content(), "]"],
-            seq!["{", content(), "}"],
+            seq!["[", content(), close_bracket()],
+            seq![open_brace(), content(), close_brace()],
         ],
     );
     // The arguments of a macro invocation are a token tree in parentheses.
@@ -1450,9 +1455,9 @@ fn ms_if_exists(g: &mut Grammar) {
                 "(",
                 name(),
                 ")",
-                "{",
+                open_brace(),
                 repeat(sym(item)),
-                "}"
+                close_brace()
             ],
         );
     }
@@ -1551,7 +1556,7 @@ fn types(g: &mut Grammar) {
             field("pack", s!(_type_identifier)),
             pack_index_open(),
             field("index", s!(expression)),
-            "]"
+            close_bracket()
         ],
     );
     // A function-like macro that gives the type of a declaration: `void f(BOOST_FWD_REF(T) x);`,
@@ -1779,7 +1784,7 @@ fn types(g: &mut Grammar) {
     let close = || {
         choice![
             alias(token(seq!["]", re(r"\s*"), "]"]), "]]"),
-            seq![alias(s!(_attribute_close_bracket), "]"), "]"],
+            seq![alias(s!(_attribute_close_bracket), "]"), close_bracket()],
         ]
     };
     g.define(
@@ -1861,7 +1866,7 @@ fn types(g: &mut Grammar) {
     );
     g.define(
         "_nonempty_field_declaration_list",
-        seq!["{", repeat1(s!(_field_declaration_list_item)), "}"],
+        seq![open_brace(), repeat1(s!(_field_declaration_list_item)), close_brace()],
     );
     // A function-like macro in the position of an attribute: `class TSA_CAPABILITY("mutex") M {`.
     // The static precedence gives the `(` after the name to the macro. In `void f() M (int)` the
@@ -2678,7 +2683,7 @@ fn declarations(g: &mut Grammar) {
     // two lists are different rules. The precedence gives each item to the declaration list.
     g.define(
         "declaration_list",
-        seq!["{", repeat(prec(1, s!(_declaration_list_item))), "}"],
+        seq![open_brace(), repeat(prec(1, s!(_declaration_list_item))), close_brace()],
     );
     // The precedence gives `{}` to the other list where a compound statement can also come: to an
     // initializer list in the arguments `f({})`, and to a declaration list in `export {}`.
@@ -2691,7 +2696,12 @@ fn declarations(g: &mut Grammar) {
         "compound_statement",
         prec(
             -1,
-            seq!["{", repeat(s!(label_declaration)), repeat(s!(_block_item)), "}"]
+            seq![
+                open_brace(),
+                repeat(s!(label_declaration)),
+                repeat(s!(_block_item)),
+                close_brace()
+            ]
         ),
     );
     g.define("field_initializer_list", seq![":", comma_sep1(s!(field_initializer))]);
@@ -3542,7 +3552,7 @@ fn declarations(g: &mut Grammar) {
         seq![
             "[",
             comma_sep1(seq![optional("..."), s!(identifier), repeat(s!(attribute_declaration))]),
-            "]",
+            close_bracket(),
         ],
     );
     // [dcl.pre]: a structured binding has only `auto`, cv-qualifiers, storage specifiers, and
@@ -5183,7 +5193,12 @@ fn statements(g: &mut Grammar) {
     // after the keyword, and the brace tells the two apart.
     g.define(
         "ms_asm_statement",
-        seq!["__asm", "{", optional(field("assembly_code", s!(ms_asm_code))), "}"],
+        seq![
+            "__asm",
+            open_brace(),
+            optional(field("assembly_code", s!(ms_asm_code))),
+            close_brace()
+        ],
     );
     g.redefine("_top_level_statement", |original| {
         choice_of([original].into_iter().chain(added()))
@@ -5831,7 +5846,11 @@ fn expressions(g: &mut Grammar) {
     );
     g.define(
         "subscript_argument_list",
-        seq!["[", comma_sep(choice![s!(expression), s!(initializer_list)]), "]"],
+        seq![
+            "[",
+            comma_sep(choice![s!(expression), s!(initializer_list)]),
+            close_bracket()
+        ],
     );
     g.redefine("call_expression", |original| {
         prec_dynamic(
@@ -5989,7 +6008,7 @@ fn expressions(g: &mut Grammar) {
             seq![
                 "[",
                 field("length", optional(choice![s!(expression), s!(comma_expression)])),
-                "]",
+                close_bracket(),
                 // `new int[n] [[a]]`: GCC reads attributes in `cp_parser_direct_new_declarator`.
                 repeat(s!(attribute_declaration)),
                 optional(s!(new_declarator)),
@@ -6011,7 +6030,7 @@ fn expressions(g: &mut Grammar) {
             prec_left(UNARY, s!(expression))
         ],
     );
-    g.define("_delete_array_brackets", prec(LAMBDA + 1, seq!["[", "]"]));
+    g.define("_delete_array_brackets", prec(LAMBDA + 1, seq!["[", close_bracket()]));
     let member_access = |operators: Rule| {
         prec(
             FIELD,
@@ -6125,9 +6144,9 @@ fn expressions(g: &mut Grammar) {
     g.define(
         "compound_requirement",
         seq![
-            "{",
+            open_brace(),
             choice![s!(expression), s!(comma_expression)],
-            "}",
+            close_brace(),
             optional(s!(noexcept)),
             optional(s!(trailing_return_type)),
             ";",
@@ -6155,7 +6174,10 @@ fn expressions(g: &mut Grammar) {
         "_nested_requires_clause",
         seq!["requires", field("constraint", s!(expression))],
     );
-    g.define("requirement_seq", seq!["{", repeat(s!(_requirement)), "}"]);
+    g.define(
+        "requirement_seq",
+        seq![open_brace(), repeat(s!(_requirement)), close_brace()],
+    );
     g.define(
         "constraint_conjunction",
         prec_left(
@@ -6309,7 +6331,7 @@ fn expressions(g: &mut Grammar) {
                     comma_sep(s!(_lambda_capture)),
                     seq![s!(lambda_default_capture), ",", comma_sep1(s!(_lambda_capture))],
                 ],
-                "]",
+                close_bracket(),
             ],
         ),
     );
@@ -6856,7 +6878,7 @@ fn expressions(g: &mut Grammar) {
         );
         insert_after(
             list,
-            |member| *member == Rule::from("{"),
+            |member| *member == open_brace(),
             optional(s!(_initializer_list_marker)),
         )
     });
@@ -6932,8 +6954,8 @@ fn expressions(g: &mut Grammar) {
     );
     let punctuators = [
         ",", ";", "::", ".", "...", "->", "+", "-", "*", "/", "%", "^", "&", "|", "~", "!", "=", "<", ">", "<=", ">=",
-        "==", "!=", "<<", ">>", "&&", "||", "?", ":", "[", "]", "{", "}", "#", "##", "and", "or", "not", "bitand",
-        "bitor", "xor", "compl", "not_eq", "defined",
+        "==", "!=", "<<", ">>", "&&", "||", "?", ":", "[", "#", "##", "and", "or", "not", "bitand", "bitor", "xor",
+        "compl", "not_eq", "defined",
     ];
     let named = [
         "identifier",
@@ -6947,7 +6969,13 @@ fn expressions(g: &mut Grammar) {
     ];
     g.define(
         "_preproc_token",
-        choice_of(named.map(sym).into_iter().chain(punctuators.map(Rule::from))),
+        choice_of(
+            named
+                .map(sym)
+                .into_iter()
+                .chain(punctuators.map(Rule::from))
+                .chain([close_bracket(), open_brace(), close_brace()]),
+        ),
     );
     // A directive reads the alternative tokens as operators: `#if defined(A) and not defined(B)`
     // (libcpp `mark_named_operators`).
@@ -7040,7 +7068,7 @@ fn expressions(g: &mut Grammar) {
             field("pack", s!(identifier)),
             pack_index_open(),
             field("index", s!(expression)),
-            "]"
+            close_bracket()
         ],
     );
     g.define("number_literal", number_literal());

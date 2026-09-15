@@ -120,6 +120,8 @@ enum TokenType {
     /// An empty token before the name of a compiler trait that gives a type: `__underlying_type(E)`.
     /// The token is valid where a type specifier can start.
     TYPE_TRAIT_TYPE_MARKER,
+    /// The `[` of the grammar, for the digraph `<:`.
+    OPEN_BRACKET,
 };
 
 /// The maximum number of characters that the scanner reads in the arguments of a macro.
@@ -4002,7 +4004,10 @@ static bool skip_directive(Reader *reader, Gap *gap) {
 /// A `#` after a comment on its line is a directive only where a declaration can start. After the end of a
 /// construct the scanner does not read it as a directive, and this function returns false for it. O(n) in the
 /// length of the lines that the function reads.
-static bool read_to_next_directive_line(TSLexer *lexer, Name *name) {
+///
+/// A directive line can start with the digraph `%:`, and the scan reads the `%` of a line that starts with a
+/// different `%` token. `percent_read` is then true, and the lexer is after that `%`.
+static bool read_to_next_directive_line(TSLexer *lexer, Name *name, bool *percent_read) {
     skip_rest_of_line(lexer, false);
     for (;;) {
         LOOP_STEP();
@@ -4042,7 +4047,9 @@ static bool read_to_next_directive_line(TSLexer *lexer, Name *name) {
         if (after_comment || (lexer->lookahead != '#' && lexer->lookahead != '%')) {
             return false;
         }
-        return read_directive_name(lexer, name);
+        bool read = read_directive_name(lexer, name);
+        *percent_read = !read;
+        return read;
     }
 }
 
@@ -4124,7 +4131,8 @@ static bool branch_ends_after_line(const Scanner *scanner, TSLexer *lexer) {
     }
     uint32_t count = scanner->group_count;
     Name name;
-    while (count > 0 && read_to_next_directive_line(lexer, &name)) {
+    bool percent_read = false;
+    while (count > 0 && read_to_next_directive_line(lexer, &name, &percent_read)) {
         LOOP_STEP();
         ConditionalKind kind = conditional_kind(&name);
         uint8_t group = scanner->groups[count - 1];
@@ -4710,7 +4718,8 @@ typedef enum {
 static TokenAfter read_token_after_group(const Scanner *scanner, TSLexer *lexer) {
     uint32_t count = scanner->group_count;
     Name name;
-    while (read_to_next_directive_line(lexer, &name)) {
+    bool percent_read = false;
+    while (read_to_next_directive_line(lexer, &name, &percent_read)) {
         LOOP_STEP();
         ConditionalKind kind = conditional_kind(&name);
         if (kind == COND_IF && name_is(&name, "if") && condition_is_false(lexer) && !skip_false_branches(lexer)) {
@@ -4732,6 +4741,10 @@ static TokenAfter read_token_after_group(const Scanner *scanner, TSLexer *lexer)
     }
     if (lexer->eof(lexer)) {
         return AFTER_ITEM_START;
+    }
+    // The scan read the `%` of a line that starts with the digraph `%>`, which is the token `}`.
+    if (percent_read && lexer->lookahead == '>') {
+        return AFTER_CLOSE_BRACE;
     }
     int32_t c = lexer->lookahead;
     if (is_word_start(c)) {
@@ -5641,6 +5654,31 @@ static bool scan_pack_index_ellipsis(TSLexer *lexer, const Scanner *scanner) {
     skip_gap(&reader, &gap);
     lexer->result_symbol = PACK_INDEX_ELLIPSIS;
     return gap.text && !gap.blocked && readable(&reader) && lexer->lookahead == '[';
+}
+
+// The digraphs.
+
+/// Scan the digraph `<:`, which is the token `[` ([lex.digraph]). The lookahead is the `<`.
+///
+/// [lex.pptoken]p3.2: `<::` is the two tokens `<` and `::` when the character after it is neither a `:`
+/// nor a `>`. `std::vector<::std::string>` keeps its tokens for this reason. GCC reads the same
+/// characters in the `<` case of `_cpp_lex_direct` (libcpp/lex.cc), and Clang in `LexTokenInternal`
+/// (clang/lib/Lex/Lexer.cpp). The lexer reads the other digraphs, which have no such exception.
+static bool scan_less_than_digraph(TSLexer *lexer) {
+    advance(lexer);
+    if (lexer->lookahead != ':') {
+        return false;
+    }
+    advance(lexer);
+    mark_end(lexer);
+    if (lexer->lookahead == ':') {
+        advance(lexer);
+        if (lexer->lookahead != ':' && lexer->lookahead != '>') {
+            return false;
+        }
+    }
+    lexer->result_symbol = OPEN_BRACKET;
+    return true;
 }
 
 // The brackets of a splice and of an attribute.
@@ -7149,6 +7187,11 @@ static bool scan_token(Scanner *scanner, TSLexer *lexer, const bool *valid_symbo
     if (lexer->lookahead == ']' && valid_symbols[ATTRIBUTE_CLOSE_BRACKET]) {
         advance(lexer);
         return scan_attribute_bracket(lexer, scanner, ']', ATTRIBUTE_CLOSE_BRACKET);
+    }
+
+    // The digraph `<:`. No other token of this scanner starts with a `<`.
+    if (lexer->lookahead == '<' && valid_symbols[OPEN_BRACKET]) {
+        return scan_less_than_digraph(lexer);
     }
 
     // A macro name after a declarator. No other token of this scanner is valid after a declarator. After

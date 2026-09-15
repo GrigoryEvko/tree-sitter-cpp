@@ -349,3 +349,68 @@ int z = members[:i:];
         argument: (identifier)
         indices: (splice_specifier
           (identifier))))))
+
+================================================================================
+Digraphs
+================================================================================
+
+int f() <% int a<:3:>; return a<:0:>; %>
+struct S <% int m; %>;
+namespace N <% int g(); %>
+int n = a<:::b:>;
+std::vector<::std::string> v;
+
+--------------------------------------------------------------------------------
+
+(translation_unit
+  (function_definition
+    type: (primitive_type)
+    declarator: (function_declarator
+      declarator: (identifier)
+      parameters: (parameter_list))
+    body: (compound_statement
+      (declaration
+        type: (primitive_type)
+        declarator: (array_declarator
+          declarator: (identifier)
+          size: (number_literal)))
+      (return_statement
+        (subscript_expression
+          argument: (identifier)
+          indices: (subscript_argument_list
+            (number_literal))))))
+  (struct_specifier
+    name: (type_identifier)
+    body: (field_declaration_list
+      (field_declaration
+        type: (primitive_type)
+        declarator: (field_identifier))))
+  (namespace_definition
+    name: (namespace_identifier)
+    body: (declaration_list
+      (declaration
+        type: (primitive_type)
+        declarator: (function_declarator
+          declarator: (identifier)
+          parameters: (parameter_list)))))
+  (declaration
+    type: (primitive_type)
+    declarator: (init_declarator
+      declarator: (identifier)
+      value: (subscript_expression
+        argument: (identifier)
+        indices: (subscript_argument_list
+          (qualified_identifier
+            name: (identifier))))))
+  (declaration
+    type: (qualified_identifier
+      scope: (namespace_identifier)
+      name: (template_type
+        name: (type_identifier)
+        arguments: (template_argument_list
+          (type_descriptor
+            type: (qualified_identifier
+              name: (qualified_identifier
+                scope: (namespace_identifier)
+                name: (type_identifier)))))))
+    declarator: (identifier)))
