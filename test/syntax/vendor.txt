@@ -280,3 +280,5 @@ struct T { T(int); }; T t asm("s8")(1); int u asm("s9") {2};
 __attribute__((weak)) extern "C" void foo() {} __attribute__((visibility("default"))) extern "C" void bar();
 ### attribute_before_linkage_block
 __attribute__((weak)) extern "C" { int baz(void); }
+### asm_declaration_positions
+asm("nop"); namespace N { asm("nop"); } extern "C" { asm("nop"); } extern "C" asm("nop"); export asm("nop");

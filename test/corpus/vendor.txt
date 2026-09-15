@@ -1520,3 +1520,53 @@ __attribute__((weak)) extern "C" { int baz(void); }
           parameters: (parameter_list
             (parameter_declaration
               type: (primitive_type))))))))
+
+================================================================================
+An asm declaration at each declaration position
+================================================================================
+
+asm("nop");
+namespace N { __asm__("nop"); }
+extern "C" { asm("nop"); }
+extern "C" asm("nop");
+void f() { asm("nop"); }
+
+--------------------------------------------------------------------------------
+
+(translation_unit
+  (asm_declaration
+    (gnu_asm_expression
+      assembly_code: (string_literal
+        (string_content))))
+  (namespace_definition
+    name: (namespace_identifier)
+    body: (declaration_list
+      (asm_declaration
+        (gnu_asm_expression
+          assembly_code: (string_literal
+            (string_content))))))
+  (linkage_specification
+    value: (string_literal
+      (string_content))
+    body: (declaration_list
+      (asm_declaration
+        (gnu_asm_expression
+          assembly_code: (string_literal
+            (string_content))))))
+  (linkage_specification
+    value: (string_literal
+      (string_content))
+    body: (asm_declaration
+      (gnu_asm_expression
+        assembly_code: (string_literal
+          (string_content)))))
+  (function_definition
+    type: (primitive_type)
+    declarator: (function_declarator
+      declarator: (identifier)
+      parameters: (parameter_list))
+    body: (compound_statement
+      (expression_statement
+        (gnu_asm_expression
+          assembly_code: (string_literal
+            (string_content)))))))

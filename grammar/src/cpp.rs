@@ -220,6 +220,11 @@ pub fn grammar() -> Grammar {
         // After `requires Cs...[0]<T>`, a `::` makes the pack index the scope of a qualified name,
         // and each other token ends the constraint. Refer to `_constraint_pack_index_template`.
         &["template_type", "_constraint_pack_index_template"],
+        // At namespace scope, `asm("nop");` is an asm-declaration. The grammar keeps the expression
+        // statement of the same text for macro code, and that statement has the dynamic precedence
+        // `NAMESPACE_EXPRESSION`. Refer to `asm_declaration`.
+        &["expression", "asm_declaration"],
+        &["_top_level_expression_statement", "asm_declaration"],
         &["comma_expression", "initializer_list"],
         // In the arguments `f({ {} x; })`, the inner `{}` is a block of a GNU statement expression. In
         // `f({ {} })`, it can also be a braced list in a braced list. Only the tokens after the inner `}`
@@ -1202,6 +1207,19 @@ fn items(g: &mut Grammar) {
         ]
         .map(sym)
     };
+    // [dcl.asm] gives the asm-declaration its own production, `asm ( balanced-token-seq ) ;`, among
+    // the declarations. At namespace scope, in a namespace body, and in a linkage specification body,
+    // `asm("nop");` is a declaration and no statement. GCC `cp_parser_block_declaration`
+    // (parser.cc:17849) calls `cp_parser_asm_definition` for it, GCC C
+    // `c_parser_external_declaration` (c-parser.cc:2189) calls `c_parser_asm_definition`, and Clang
+    // `ParseExternalDeclaration` builds a `FileScopeAsmDecl`. A class body takes no asm-declaration,
+    // and the two front ends give an error for `struct S { asm("nop"); };`. In a block, the same text
+    // is a statement, and Clang builds a `GCCAsmStmt` there.
+    //
+    // The node holds `gnu_asm_expression`, as a declaration with a GNU asm label holds it. Only the
+    // plain form is valid at namespace scope, and the front ends reject the qualifiers and the
+    // operands there. The rule takes each form, because the grammar read each form before.
+    g.define("asm_declaration", seq![s!(gnu_asm_expression), ";"]);
     let definitions = || [alias(s!(constructor_or_destructor_definition), s!(function_definition))];
     // A block holds no declaration and no definition of a conversion function. A declaration in a block
     // starts with a decl-specifier (GCC `cp_parser_simple_declaration`, Clang `isCXXSimpleDeclaration`). In a
@@ -1232,6 +1250,7 @@ fn items(g: &mut Grammar) {
         members.extend(definitions());
         members.extend(conversion_functions());
         members.push(deduction_guide());
+        members.push(s!(asm_declaration));
         members.push(s!(ms_if_exists));
         members.push(s!(_extension_empty_declaration));
         Rule::Choice(members)
@@ -1274,7 +1293,7 @@ fn items(g: &mut Grammar) {
             }
         })
         .chain(conversion_functions())
-        .chain([deduction_guide(), s!(_extension_empty_declaration)])
+        .chain([deduction_guide(), s!(_extension_empty_declaration), s!(asm_declaration)])
         .collect();
     // `export` takes an item of a declaration list. Its braces start only a declaration list, and the
     // only statement after it is an expression statement: `export MACRO(x);`.
@@ -4014,6 +4033,7 @@ fn declarations(g: &mut Grammar) {
                         s!(namespace_alias_definition),
                         s!(static_assert_declaration),
                         s!(template_instantiation),
+                        s!(asm_declaration),
                     ]
                 ),
                 seq![field("body", s!(type_specifier)), ";"],

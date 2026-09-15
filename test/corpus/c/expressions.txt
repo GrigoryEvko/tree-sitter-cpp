@@ -229,7 +229,7 @@ asm volatile (
 --------------------------------------------------------------------------------
 
 (translation_unit
-  (expression_statement
+  (asm_declaration
     (gnu_asm_expression
       (gnu_asm_qualifier)
       (concatenated_string

@@ -144,6 +144,10 @@
         },
         {
           "type": "SYMBOL",
+          "name": "asm_declaration"
+        },
+        {
+          "type": "SYMBOL",
           "name": "ms_if_exists"
         },
         {
@@ -416,6 +420,10 @@
         {
           "type": "SYMBOL",
           "name": "_extension_empty_declaration"
+        },
+        {
+          "type": "SYMBOL",
+          "name": "asm_declaration"
         }
       ]
     },
@@ -555,6 +563,10 @@
         {
           "type": "SYMBOL",
           "name": "_extension_empty_declaration"
+        },
+        {
+          "type": "SYMBOL",
+          "name": "asm_declaration"
         }
       ]
     },
@@ -7217,6 +7229,10 @@
                       {
                         "type": "SYMBOL",
                         "name": "template_instantiation"
+                      },
+                      {
+                        "type": "SYMBOL",
+                        "name": "asm_declaration"
                       }
                     ]
                   }
@@ -21382,6 +21398,19 @@
           }
         ]
       }
+    },
+    "asm_declaration": {
+      "type": "SEQ",
+      "members": [
+        {
+          "type": "SYMBOL",
+          "name": "gnu_asm_expression"
+        },
+        {
+          "type": "STRING",
+          "value": ";"
+        }
+      ]
     },
     "_case_body_item": {
       "type": "CHOICE",
@@ -42248,6 +42277,14 @@
     [
       "template_type",
       "_constraint_pack_index_template"
+    ],
+    [
+      "expression",
+      "asm_declaration"
+    ],
+    [
+      "_top_level_expression_statement",
+      "asm_declaration"
     ],
     [
       "comma_expression",
