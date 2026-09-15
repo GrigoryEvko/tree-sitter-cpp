@@ -493,3 +493,40 @@ void f() { int x = 0; __label__ c; (void)x; }
           type: (type_descriptor
             type: (primitive_type))
           value: (identifier))))))
+
+================================================================================
+An assignment and a throw expression in a static assertion
+================================================================================
+
+static_assert(a = b);
+static_assert(throw 1);
+static_assert(true, a = b);
+static_assert(true, throw 1);
+
+--------------------------------------------------------------------------------
+
+(translation_unit
+  (static_assert_declaration
+    condition: (update_expression
+      argument: (assignment_expression
+        left: (identifier)
+        right: (identifier))
+      operator: (MISSING "--")))
+  (static_assert_declaration
+    condition: (update_expression
+      argument: (throw_expression
+        (number_literal))
+      operator: (MISSING "--")))
+  (static_assert_declaration
+    condition: (true)
+    message: (update_expression
+      argument: (assignment_expression
+        left: (identifier)
+        right: (identifier))
+      operator: (MISSING "--")))
+  (static_assert_declaration
+    condition: (true)
+    message: (update_expression
+      argument: (throw_expression
+        (number_literal))
+      operator: (MISSING "--"))))

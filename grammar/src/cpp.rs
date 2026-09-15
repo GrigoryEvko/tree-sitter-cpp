@@ -476,6 +476,7 @@ pub fn grammar() -> Grammar {
     // reason, this call comes after the directive rules.
     top_level_expression_statement(&mut g);
     initializer_arguments(&mut g);
+    conditional_expression_rule(&mut g);
     block_declaration(&mut g);
     // The declaration of a block comes from the declaration outside a block. For this reason, this
     // call comes after the copy.
@@ -4085,11 +4086,22 @@ fn declarations(g: &mut Grammar) {
             ";",
         ],
     );
-    // In C++26, a message is a constant expression (P2741R3): `static_assert(true, Msg{});`,
-    // `static_assert(false, string_view("test"));`. GCC cp_parser_static_assert (parser.cc:19252)
-    // and Clang ParseStaticAssertDeclaration (ParseDeclCXX.cpp:961) look ahead to the `)`. A message
-    // that is not a sequence of string literals then goes to cp_parser_conditional_expression
-    // (parser.cc:19271) and to ParseConstantExpressionInExprEvalContext (ParseDeclCXX.cpp:973).
+    // The condition and the message of a static assertion are each one conditional-expression.
+    // [dcl.pre] gives the condition a constant-expression, and [expr.const] gives
+    // `constant-expression: conditional-expression`. In C++26, a message is a constant expression
+    // too (P2741R3): `static_assert(true, Msg{});`, `static_assert(false, string_view("test"));`.
+    // GCC cp_parser_static_assert (parser.cc:19232) and Clang ParseStaticAssertDeclaration
+    // (ParseDeclCXX.cpp:940) look ahead to the `)`. A message that is not a sequence of string
+    // literals then goes to cp_parser_conditional_expression (parser.cc:19271) and to
+    // ParseConstantExpressionInExprEvalContext (ParseDeclCXX.cpp:973), which reads a
+    // conditional-expression (ParseExpr.cpp:121).
+    //
+    // GCC reads the condition with cp_parser_constant_expression (parser.cc:19232). That function
+    // reads an assignment-expression on purpose, to give a better diagnostic (parser.cc:12297), and
+    // its own comment says that the grammar gives a conditional-expression. GCC then rejects
+    // `static_assert(a = b);` and `static_assert(throw 1);` in finish_static_assert, and Clang
+    // rejects the two forms at the `=` and at the `throw`. The two front ends reject the message
+    // `a = b` and the message `throw 1` at the same tokens.
     //
     // In `static_assert(is_same_v<A, B<C>>)`, the parser also reads the condition `is_same_v < A`
     // and the message `B<C>`. At each nested `<`, that reading adds one version for each version of
@@ -4106,18 +4118,21 @@ fn declarations(g: &mut Grammar) {
             choice!["static_assert", "_Static_assert"],
             "(",
             choice![
-                field("condition", s!(expression)),
+                field("condition", s!(_conditional_expression)),
                 seq![
                     field("condition", s!(_static_assert_condition)),
                     ",",
-                    field("message", s!(expression)),
+                    field("message", s!(_conditional_expression)),
                 ],
             ],
             ")",
             ";",
         ],
     );
-    g.define("_static_assert_condition", prec_dynamic(-10, s!(expression)));
+    g.define("_static_assert_condition", prec_dynamic(-10, s!(_conditional_expression)));
+    // The members come from the final list of `_expression_not_binary`. Refer to
+    // `conditional_expression_rule`.
+    g.define("_conditional_expression", blank());
     g.define(
         "consteval_block_declaration",
         seq!["consteval", field("body", s!(compound_statement))],
@@ -4699,6 +4714,32 @@ fn initializer_arguments(g: &mut Grammar) {
     g.redefine("_initializer_arguments", |_| {
         seq!["(", choice_of(expressions), ")"]
     });
+}
+
+/// The members of `expression` that are no conditional-expression.
+///
+/// [expr.ass] gives `assignment-expression: conditional-expression | ... | throw-expression |
+/// yield-expression`. A pack expansion is no expression of [expr]: it belongs to an expression
+/// list, to a template argument list, and to the other lists of [temp.variadic].
+const NOT_CONDITIONAL_EXPRESSIONS: [&str; 4] = [
+    "assignment_expression",
+    "throw_expression",
+    "co_yield_expression",
+    "parameter_pack_expansion",
+];
+
+/// The conditional-expression of [expr.cond]: each member of `expression` that is not in
+/// `NOT_CONDITIONAL_EXPRESSIONS`.
+///
+/// The members come from the final list of `_expression_not_binary`. For this reason, the grammar
+/// calls this function after the directive rules. O(n) in the members of the list.
+fn conditional_expression_rule(g: &mut Grammar) {
+    let assignments = NOT_CONDITIONAL_EXPRESSIONS.map(sym);
+    let expressions = choice_members(g.rules["_expression_not_binary"].clone())
+        .into_iter()
+        .filter(|member| !assignments.contains(member))
+        .chain([s!(binary_expression)]);
+    g.redefine("_conditional_expression", |_| choice_of(expressions));
 }
 
 /// The dynamic precedence of a reference declarator with no initializer in a block.
