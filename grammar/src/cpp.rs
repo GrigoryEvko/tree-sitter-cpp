@@ -1216,9 +1216,11 @@ fn items(g: &mut Grammar) {
     // and the two front ends give an error for `struct S { asm("nop"); };`. In a block, the same text
     // is a statement, and Clang builds a `GCCAsmStmt` there.
     //
-    // The node holds `gnu_asm_expression`, as a declaration with a GNU asm label holds it. Only the
-    // plain form is valid at namespace scope, and the front ends reject the qualifiers and the
-    // operands there. The rule takes each form, because the grammar read each form before.
+    // The node holds `gnu_asm_expression`, as a declaration with a GNU asm label holds it. The rule
+    // takes each form of that node, because the grammar read each form before. At namespace scope
+    // GCC C++ gives a warning for the qualifier `volatile` (parser.cc:25219), reads the output
+    // operands and the input operands, and rejects the clobbers and the labels (parser.cc:25296).
+    // Clang rejects each qualifier and each operand list there, and GCC C reads only the plain form.
     g.define("asm_declaration", seq![s!(gnu_asm_expression), ";"]);
     let definitions = || [alias(s!(constructor_or_destructor_definition), s!(function_definition))];
     // A block holds no declaration and no definition of a conversion function. A declaration in a block
@@ -6267,9 +6269,9 @@ fn expressions(g: &mut Grammar) {
     // `requires constraint-expression ;`, beside the simple requirement, the type requirement, and
     // the compound requirement. GCC `cp_parser_requirement` (parser.cc:34984) calls the separate
     // `cp_parser_nested_requirement` (parser.cc:35199) for it, and Clang `ParseRequiresExpression`
-    // (ParseExprCXX.cpp:3363) quotes the same production and builds a `NestedRequirement`
-    // (ParseExprCXX.cpp:3376). The node holds the constraint directly, as the three other
-    // requirements hold their operands.
+    // gives the same production in a comment (ParseExprCXX.cpp:3363) and builds a
+    // `NestedRequirement` (ParseExprCXX.cpp:3376). The node holds the constraint directly, as the
+    // three other requirements hold their operands.
     //
     // The constraint is an expression: `requires sizeof(T) == 4;`,
     // `requires !std::same_as<T, int>;` (GCC `cp_parser_constraint_expression`, Clang
