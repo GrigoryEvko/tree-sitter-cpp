@@ -36179,35 +36179,12 @@
           "name": "compound_requirement"
         },
         {
-          "type": "ALIAS",
-          "content": {
-            "type": "SYMBOL",
-            "name": "_nested_requirement"
-          },
-          "named": true,
-          "value": "simple_requirement"
+          "type": "SYMBOL",
+          "name": "nested_requirement"
         }
       ]
     },
-    "_nested_requirement": {
-      "type": "SEQ",
-      "members": [
-        {
-          "type": "ALIAS",
-          "content": {
-            "type": "SYMBOL",
-            "name": "_nested_requires_clause"
-          },
-          "named": true,
-          "value": "requires_clause"
-        },
-        {
-          "type": "STRING",
-          "value": ";"
-        }
-      ]
-    },
-    "_nested_requires_clause": {
+    "nested_requirement": {
       "type": "SEQ",
       "members": [
         {
@@ -36221,6 +36198,10 @@
             "type": "SYMBOL",
             "name": "expression"
           }
+        },
+        {
+          "type": "STRING",
+          "value": ";"
         }
       ]
     },

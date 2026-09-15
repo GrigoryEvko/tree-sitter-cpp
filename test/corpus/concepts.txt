@@ -505,18 +505,17 @@ requires(T a, size_t n) {
               (primitive_type)
               (identifier)))
           (requirement_seq
-            (simple_requirement
-              (requires_clause
-                (template_function
-                  (identifier)
-                  (template_argument_list
-                    (type_descriptor
-                      (type_identifier)
-                      (abstract_pointer_declarator))
-                    (type_descriptor
-                      (decltype
-                        (pointer_expression
-                          (identifier))))))))
+            (nested_requirement
+              (template_function
+                (identifier)
+                (template_argument_list
+                  (type_descriptor
+                    (type_identifier)
+                    (abstract_pointer_declarator))
+                  (type_descriptor
+                    (decltype
+                      (pointer_expression
+                        (identifier)))))))
             (comment)
             (compound_requirement
               (call_expression
@@ -527,33 +526,31 @@ requires(T a, size_t n) {
                 (argument_list))
               (noexcept))
             (comment)
-            (simple_requirement
-              (requires_clause
-                (template_function
-                  (identifier)
-                  (template_argument_list
-                    (type_descriptor
-                      (type_identifier)
-                      (abstract_pointer_declarator))
-                    (type_descriptor
-                      (decltype
-                        (new_expression
-                          (type_identifier))))))))
+            (nested_requirement
+              (template_function
+                (identifier)
+                (template_argument_list
+                  (type_descriptor
+                    (type_identifier)
+                    (abstract_pointer_declarator))
+                  (type_descriptor
+                    (decltype
+                      (new_expression
+                        (type_identifier)))))))
             (comment)
-            (simple_requirement
-              (requires_clause
-                (template_function
-                  (identifier)
-                  (template_argument_list
-                    (type_descriptor
-                      (type_identifier)
-                      (abstract_pointer_declarator))
-                    (type_descriptor
-                      (decltype
-                        (new_expression
-                          (type_identifier)
-                          (new_declarator
-                            (identifier)))))))))
+            (nested_requirement
+              (template_function
+                (identifier)
+                (template_argument_list
+                  (type_descriptor
+                    (type_identifier)
+                    (abstract_pointer_declarator))
+                  (type_descriptor
+                    (decltype
+                      (new_expression
+                        (type_identifier)
+                        (new_declarator
+                          (identifier))))))))
             (comment)
             (compound_requirement
               (delete_expression
@@ -598,40 +595,36 @@ concept C = requires(T t) {
             type: (type_identifier)
             declarator: (identifier)))
         requirements: (requirement_seq
-          (simple_requirement
-            (requires_clause
-              constraint: (binary_expression
-                left: (sizeof_expression
-                  value: (parenthesized_expression
-                    (identifier)))
-                right: (number_literal))))
-          (simple_requirement
-            (requires_clause
-              constraint: (binary_expression
-                left: (identifier)
-                right: (number_literal))))
-          (simple_requirement
-            (requires_clause
-              constraint: (binary_expression
-                left: (parenthesized_expression
-                  (binary_expression
-                    left: (identifier)
-                    right: (number_literal)))
-                right: (template_function
-                  name: (identifier)
-                  arguments: (template_argument_list
-                    (type_descriptor
-                      type: (type_identifier)))))))
-          (simple_requirement
-            (requires_clause
-              constraint: (call_expression
-                function: (template_function
-                  name: (identifier)
-                  arguments: (template_argument_list
-                    (type_descriptor
-                      type: (primitive_type))))
-                arguments: (argument_list
-                  (identifier))))))))))
+          (nested_requirement
+            constraint: (binary_expression
+              left: (sizeof_expression
+                value: (parenthesized_expression
+                  (identifier)))
+              right: (number_literal)))
+          (nested_requirement
+            constraint: (binary_expression
+              left: (identifier)
+              right: (number_literal)))
+          (nested_requirement
+            constraint: (binary_expression
+              left: (parenthesized_expression
+                (binary_expression
+                  left: (identifier)
+                  right: (number_literal)))
+              right: (template_function
+                name: (identifier)
+                arguments: (template_argument_list
+                  (type_descriptor
+                    type: (type_identifier))))))
+          (nested_requirement
+            constraint: (call_expression
+              function: (template_function
+                name: (identifier)
+                arguments: (template_argument_list
+                  (type_descriptor
+                    type: (primitive_type))))
+              arguments: (argument_list
+                (identifier)))))))))
 
 ================================================================================
 Constraints
@@ -873,88 +866,79 @@ concept C = requires(T t) {
             type: (type_identifier)
             declarator: (identifier)))
         requirements: (requirement_seq
-          (simple_requirement
-            (requires_clause
-              constraint: (binary_expression
-                left: (template_function
+          (nested_requirement
+            constraint: (binary_expression
+              left: (template_function
+                name: (identifier)
+                arguments: (template_argument_list
+                  (type_descriptor
+                    type: (type_identifier))))
+              right: (true)))
+          (nested_requirement
+            constraint: (call_expression
+              function: (template_function
+                name: (identifier)
+                arguments: (template_argument_list
+                  (type_descriptor
+                    type: (type_identifier))))
+              arguments: (argument_list)))
+          (nested_requirement
+            constraint: (noexcept_expression
+              value: (call_expression
+                function: (identifier)
+                arguments: (argument_list))))
+          (nested_requirement
+            constraint: (call_expression
+              function: (field_expression
+                argument: (identifier)
+                field: (field_identifier))
+              arguments: (argument_list)))
+          (nested_requirement
+            constraint: (binary_expression
+              left: (sizeof_expression
+                value: (identifier))
+              right: (number_literal)))
+          (nested_requirement
+            constraint: (binary_expression
+              left: (unary_expression
+                argument: (template_function
                   name: (identifier)
                   arguments: (template_argument_list
                     (type_descriptor
-                      type: (type_identifier))))
-                right: (true))))
-          (simple_requirement
-            (requires_clause
-              constraint: (call_expression
-                function: (template_function
-                  name: (identifier)
-                  arguments: (template_argument_list
-                    (type_descriptor
-                      type: (type_identifier))))
-                arguments: (argument_list))))
-          (simple_requirement
-            (requires_clause
-              constraint: (noexcept_expression
-                value: (call_expression
-                  function: (identifier)
-                  arguments: (argument_list)))))
-          (simple_requirement
-            (requires_clause
-              constraint: (call_expression
-                function: (field_expression
-                  argument: (identifier)
-                  field: (field_identifier))
-                arguments: (argument_list))))
-          (simple_requirement
-            (requires_clause
-              constraint: (binary_expression
-                left: (sizeof_expression
-                  value: (identifier))
-                right: (number_literal))))
-          (simple_requirement
-            (requires_clause
-              constraint: (binary_expression
-                left: (unary_expression
-                  argument: (template_function
-                    name: (identifier)
-                    arguments: (template_argument_list
-                      (type_descriptor
-                        type: (type_identifier)))))
-                right: (template_function
+                      type: (type_identifier)))))
+              right: (template_function
+                name: (identifier)
+                arguments: (template_argument_list
+                  (type_descriptor
+                    type: (type_identifier)
+                    declarator: (abstract_pointer_declarator))))))
+          (nested_requirement
+            constraint: (binary_expression
+              left: (template_function
+                name: (identifier)
+                arguments: (template_argument_list
+                  (type_descriptor
+                    type: (type_identifier))))
+              right: (unary_expression
+                argument: (template_function
                   name: (identifier)
                   arguments: (template_argument_list
                     (type_descriptor
                       type: (type_identifier)
                       declarator: (abstract_pointer_declarator)))))))
-          (simple_requirement
-            (requires_clause
-              constraint: (binary_expression
-                left: (template_function
-                  name: (identifier)
-                  arguments: (template_argument_list
-                    (type_descriptor
-                      type: (type_identifier))))
-                right: (unary_expression
-                  argument: (template_function
-                    name: (identifier)
-                    arguments: (template_argument_list
-                      (type_descriptor
-                        type: (type_identifier)
-                        declarator: (abstract_pointer_declarator))))))))
-          (simple_requirement
-            (requires_clause
-              constraint: (binary_expression
-                left: (number_literal)
-                right: (number_literal))))
-          (simple_requirement
-            (requires_clause
-              constraint: (requires_expression
-                requirements: (requirement_seq
-                  (simple_requirement
-                    (call_expression
-                      function: (field_expression
-                        argument: (identifier)
-                        field: (field_identifier))
-                      arguments: (argument_list))))))))))))
+          (nested_requirement
+            constraint: (binary_expression
+              left: (number_literal)
+              right: (number_literal)))
+          (nested_requirement
+            constraint: (requires_expression
+              requirements: (requirement_seq
+                (simple_requirement
+                  (call_expression
+                    function: (field_expression
+                      argument: (identifier)
+                      field: (field_identifier))
+                    arguments: (argument_list)))))))))))
 
 ================================================================================
 Requires clause with a trait and with a comma expression
@@ -1048,3 +1032,60 @@ template<class T> void h() requires (C<T>, true) {}
                   type: (type_identifier))))
             right: (true))))
       body: (compound_statement))))
+
+================================================================================
+A nested requirement beside the three other requirements
+================================================================================
+
+template<class T>
+concept C = requires(T t) {
+  t.f();
+  typename T::type;
+  { t.g() } noexcept -> Same<int>;
+  requires sizeof(T) > 0;
+};
+--------------------------------------------------------------------------------
+
+(translation_unit
+  (template_declaration
+    parameters: (template_parameter_list
+      (type_parameter_declaration
+        (type_identifier)))
+    (concept_definition
+      name: (identifier)
+      (requires_expression
+        parameters: (parameter_list
+          (parameter_declaration
+            type: (type_identifier)
+            declarator: (identifier)))
+        requirements: (requirement_seq
+          (simple_requirement
+            (call_expression
+              function: (field_expression
+                argument: (identifier)
+                field: (field_identifier))
+              arguments: (argument_list)))
+          (type_requirement
+            (qualified_identifier
+              scope: (namespace_identifier)
+              name: (type_identifier)))
+          (compound_requirement
+            (call_expression
+              function: (field_expression
+                argument: (identifier)
+                field: (field_identifier))
+              arguments: (argument_list))
+            (noexcept)
+            (trailing_return_type
+              (type_descriptor
+                type: (template_type
+                  name: (type_identifier)
+                  arguments: (template_argument_list
+                    (type_descriptor
+                      type: (primitive_type)))))))
+          (nested_requirement
+            constraint: (binary_expression
+              left: (sizeof_expression
+                type: (type_descriptor
+                  type: (type_identifier)))
+              right: (number_literal))))))))

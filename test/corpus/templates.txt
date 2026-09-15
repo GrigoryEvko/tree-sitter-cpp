@@ -228,18 +228,17 @@ template <class T> concept A = requires(T& t) { requires !std::same_as<T, int>; 
             declarator: (reference_declarator
               (identifier))))
         requirements: (requirement_seq
-          (simple_requirement
-            (requires_clause
-              constraint: (unary_expression
-                argument: (qualified_identifier
-                  scope: (namespace_identifier)
-                  name: (template_function
-                    name: (identifier)
-                    arguments: (template_argument_list
-                      (type_descriptor
-                        type: (type_identifier))
-                      (type_descriptor
-                        type: (primitive_type)))))))))))))
+          (nested_requirement
+            constraint: (unary_expression
+              argument: (qualified_identifier
+                scope: (namespace_identifier)
+                name: (template_function
+                  name: (identifier)
+                  arguments: (template_argument_list
+                    (type_descriptor
+                      type: (type_identifier))
+                    (type_descriptor
+                      type: (primitive_type))))))))))))
 
 ================================================================================
 Template-id of an operator function

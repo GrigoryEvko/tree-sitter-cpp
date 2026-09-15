@@ -6892,6 +6892,22 @@
     }
   },
   {
+    "type": "nested_requirement",
+    "named": true,
+    "fields": {
+      "constraint": {
+        "multiple": false,
+        "required": true,
+        "types": [
+          {
+            "type": "expression",
+            "named": true
+          }
+        ]
+      }
+    }
+  },
+  {
     "type": "new_declarator",
     "named": true,
     "fields": {
@@ -9451,6 +9467,10 @@
           "named": true
         },
         {
+          "type": "nested_requirement",
+          "named": true
+        },
+        {
           "type": "simple_requirement",
           "named": true
         },
@@ -9649,10 +9669,6 @@
         },
         {
           "type": "expression",
-          "named": true
-        },
-        {
-          "type": "requires_clause",
           "named": true
         }
       ]

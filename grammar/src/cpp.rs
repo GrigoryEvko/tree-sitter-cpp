@@ -6164,21 +6164,23 @@ fn expressions(g: &mut Grammar) {
             alias(s!(expression_statement), s!(simple_requirement)),
             s!(type_requirement),
             s!(compound_requirement),
-            alias(s!(_nested_requirement), s!(simple_requirement)),
+            s!(nested_requirement),
         ],
     );
-    // In a requirement body, `requires` starts a nested requirement, and its constraint is an
-    // expression: `requires sizeof(T) == 4;`, `requires !std::same_as<T, int>;` (GCC
-    // `cp_parser_requirement` and `cp_parser_constraint_expression`, Clang
-    // `ParseRequiresExpression` and `ParseConstraintExpression`). A requires clause is not an
-    // expression, and a simple requirement cannot start with `requires`.
+    // [expr.prim.req.nested] gives the nested requirement its own production,
+    // `requires constraint-expression ;`, beside the simple requirement, the type requirement, and
+    // the compound requirement. GCC `cp_parser_requirement` (parser.cc:34984) calls the separate
+    // `cp_parser_nested_requirement` (parser.cc:35199) for it, and Clang `ParseRequiresExpression`
+    // (ParseExprCXX.cpp:3363) quotes the same production and builds a `NestedRequirement`
+    // (ParseExprCXX.cpp:3376). The node holds the constraint directly, as the three other
+    // requirements hold their operands.
+    //
+    // The constraint is an expression: `requires sizeof(T) == 4;`,
+    // `requires !std::same_as<T, int>;` (GCC `cp_parser_constraint_expression`, Clang
+    // `ParseConstraintExpression`). A simple requirement cannot start with `requires`.
     g.define(
-        "_nested_requirement",
-        seq![alias(s!(_nested_requires_clause), s!(requires_clause)), ";"],
-    );
-    g.define(
-        "_nested_requires_clause",
-        seq!["requires", field("constraint", s!(expression))],
+        "nested_requirement",
+        seq!["requires", field("constraint", s!(expression)), ";"],
     );
     g.define(
         "requirement_seq",
