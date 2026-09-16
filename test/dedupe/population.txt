@@ -22,7 +22,7 @@
 # and also when a reading is REMOVED. The two look the same here, and only the commit that
 # caused the fall knows which one it made.
 #
-# 2831 files, of the corpus of the fork master.
+# 2827 files, of the corpus of the fork master.
 Cataclysm-DDA/src/debug_console.cpp
 Cataclysm-DDA/src/third-party/flatbuffers/hash.h
 Cataclysm-DDA/src/third-party/fmt/base.h
@@ -410,8 +410,6 @@ boost/libs/dynamic_bitset/test/dyn_bitset_unit_tests4.cpp
 boost/libs/filesystem/include/boost/filesystem/cstdio.hpp
 boost/libs/filesystem/src/operations.cpp
 boost/libs/flyweight/example/key_value.cpp
-boost/libs/functional/include/boost/functional/forward_adapter.hpp
-boost/libs/functional/include/boost/functional/lightweight_forward_adapter.hpp
 boost/libs/geometry/include/boost/geometry/srs/projections/impl/pj_datums.hpp
 boost/libs/geometry/include/boost/geometry/srs/projections/impl/pj_ellps.hpp
 boost/libs/geometry/include/boost/geometry/srs/projections/impl/pj_init.hpp
@@ -1916,8 +1914,6 @@ mongo/src/third_party/boost/libs/chrono/include/boost/chrono/process_cpu_clocks.
 mongo/src/third_party/boost/libs/chrono/include/boost/chrono/system_clocks.hpp
 mongo/src/third_party/boost/libs/chrono/include/boost/chrono/thread_clock.hpp
 mongo/src/third_party/boost/libs/filesystem/src/operations.cpp
-mongo/src/third_party/boost/libs/functional/include/boost/functional/forward_adapter.hpp
-mongo/src/third_party/boost/libs/functional/include/boost/functional/lightweight_forward_adapter.hpp
 mongo/src/third_party/boost/libs/interprocess/include/boost/interprocess/detail/atomic.hpp
 mongo/src/third_party/boost/libs/interprocess/include/boost/interprocess/detail/shared_dir_helpers.hpp
 mongo/src/third_party/boost/libs/interprocess/include/boost/interprocess/detail/win32_api.hpp
