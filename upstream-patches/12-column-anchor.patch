@@ -1,0 +1,159 @@
+Subject: Read the line of a column one time for each line, and not for each token
+
+`ts_lexer__get_column` reads the line again from its start at each call, and `ts_lexer_goto`
+invalidates the column data at each move of the lexer. An external scanner that reads the column
+one time for each token of a line then takes a time that grows with the square of the length of
+the line.
+
+The copy of the runtime of the tree-sitter-cpp fork has this repair.
+
+The C++ scanner of that fork reads the column for each `%`, because `%:` is the digraph of `#`,
+and for each name after a declarator. Each measurement below has 50,000 statements on ONE line,
+and each file has the same byte count as the file that it compares with:
+
+- `x = a % b;` took 38.889 s, and `x = a + b;` took 0.418 s. The two differ by 93 times.
+- `x = a % b;` on 50,000 lines took 0.419 s. The length of the line is the cost.
+- `a b;` took 18.989 s on one line, and 0.472 s on 50,000 lines.
+- 50,000 functions `void fN() { a<b,c>d; }` of 1.3 MB took 150.7 s.
+
+A profile of a 125 KB file of `a b;` gives `ts_lexer__get_column` 66.4% of the cycles and
+`ts_lexer__get_lookahead` 28.2%.
+
+`ColumnAnchor` holds the column of one byte position of one row, from the last computation. The
+next computation reads the line from the anchor. A parse that moves forward then reads each line
+one time. The anchor is a fact about the text and the included ranges, so `ts_lexer_goto` keeps
+it. Only a new input and a new list of included ranges clear it.
+
+The same measurements after the patch: 0.329 s, 0.325 s, 0.322 s, 0.371 s, and 1.279 s. A line of
+declarations is then linear in its length: 15 KB 0.019 s, 30 KB 0.037 s, 60 KB 0.075 s, 125 KB
+0.160 s, and 250 KB 0.314 s.
+
+On the corpus of 329,387 C++ files and the 7,646 compiler test files, no file gets a different
+tree hash, no file gets a parse error, and the silent disagreements with Clang do not change.
+
+Risk for upstream: low. The patch adds 16 bytes to `Lexer`, and it changes no result. A column
+that the anchor gives is the column that the walk from the start of the line gives, because the
+anchor holds the result of such a walk on the same row.
+
+The patch applies to the upstream tag v0.27.0, after the patches with a smaller number. No other
+patch of the series changes lib/src/lexer.c or lib/src/lexer.h. The series compiles with
+`-Wall -Wextra` and no warning.
+
+The comments hold the marker "(tree-sitter-cpp fork)". Remove the marker before you send the
+patch upstream.
+
+--- a/lib/src/lexer.h	2026-09-16 04:14:45.382098309 +0200
++++ b/lib/src/lexer.h	2026-09-16 04:14:45.383258509 +0200
+@@ -15,6 +15,23 @@
+   bool valid;
+ } ColumnData;
+ 
++// The character column of one byte position of one row (tree-sitter-cpp fork).
++//
++// `ts_lexer__get_column` reads the line again from its start, and a lexer that moves invalidates
++// `column_data` at each step. A scanner that reads the column one time for each token of a long line
++// then takes a time that grows with the square of the length of the line. The anchor holds the
++// result of the last computation, and the next computation reads the line from the anchor. A parse
++// that moves forward then reads each line one time.
++//
++// The anchor is a fact about the text and the included ranges, and not about the position of the
++// lexer. `ts_lexer_goto` keeps it, and only a new input or a new list of included ranges clears it.
++typedef struct {
++  uint32_t row;
++  uint32_t byte;
++  uint32_t column;
++  bool valid;
++} ColumnAnchor;
++
+ typedef struct {
+   TSLexer data;
+   Length current_position;
+@@ -33,6 +50,7 @@
+   uint32_t lookahead_size;
+   bool did_get_column;
+   ColumnData column_data;
++  ColumnAnchor column_anchor;
+ 
+   char debug_buffer[TREE_SITTER_SERIALIZATION_BUFFER_SIZE];
+ } Lexer;
+--- a/lib/src/lexer.c	2026-09-16 04:14:45.382055072 +0200
++++ b/lib/src/lexer.c	2026-09-16 04:14:45.383221856 +0200
+@@ -326,14 +326,26 @@
+   if (!self->column_data.valid) {
+     // Record current position
+     uint32_t goal_byte = self->current_position.bytes;
++    uint32_t row = self->current_position.extent.row;
++    uint32_t line_start_byte = goal_byte - self->current_position.extent.column;
+ 
+-    // Back up to the beginning of the line
+-    Length start_of_col = {
+-      self->current_position.bytes - self->current_position.extent.column,
+-      {self->current_position.extent.row, 0},
+-    };
++    // Back up to the anchor of the last computation, or to the beginning of the line
++    // (tree-sitter-cpp fork). The anchor holds the column of one byte of one row, so the walk
++    // reads each byte of a line one time for a lexer that moves forward. Refer to `ColumnAnchor`.
++    uint32_t from_byte = line_start_byte;
++    uint32_t from_column = 0;
++    if (
++      self->column_anchor.valid &&
++      self->column_anchor.row == row &&
++      self->column_anchor.byte >= line_start_byte &&
++      self->column_anchor.byte <= goal_byte
++    ) {
++      from_byte = self->column_anchor.byte;
++      from_column = self->column_anchor.column;
++    }
++    Length start_of_col = {from_byte, {row, from_byte - line_start_byte}};
+     ts_lexer_goto(self, start_of_col);
+-    ts_lexer__set_column_data(self, 0);
++    ts_lexer__set_column_data(self, from_column);
+     ts_lexer__get_chunk(self);
+ 
+     if (!ts_lexer__eof(_self)) {
+@@ -347,6 +359,14 @@
+     }
+   }
+ 
++  // Keep the result for the next computation on the same row (tree-sitter-cpp fork).
++  self->column_anchor = (ColumnAnchor) {
++    .row = self->current_position.extent.row,
++    .byte = self->current_position.bytes,
++    .column = self->column_data.value,
++    .valid = self->column_data.valid,
++  };
++
+   return self->column_data.value;
+ }
+ 
+@@ -404,6 +424,12 @@
+     .column_data = {
+       .valid = false,
+       .value = 0
++    },
++    .column_anchor = {
++      .row = 0,
++      .byte = 0,
++      .column = 0,
++      .valid = false
+     }
+   };
+   ts_lexer_set_included_ranges(self, NULL, 0);
+@@ -415,6 +441,8 @@
+ 
+ void ts_lexer_set_input(Lexer *self, TSInput input) {
+   self->input = input;
++  // A new input gives each byte a new column (tree-sitter-cpp fork).
++  self->column_anchor.valid = false;
+   ts_lexer__clear_chunk(self);
+   ts_lexer_goto(self, self->current_position);
+ }
+@@ -499,6 +527,8 @@
+   self->included_ranges = ts_realloc(self->included_ranges, size);
+   memcpy(self->included_ranges, ranges, size);
+   self->included_range_count = count;
++  // New ranges give each byte a new column (tree-sitter-cpp fork).
++  self->column_anchor.valid = false;
+   ts_lexer_goto(self, self->current_position);
+   return true;
+ }

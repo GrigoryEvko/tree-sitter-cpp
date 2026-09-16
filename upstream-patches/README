@@ -78,6 +78,13 @@ The other patches, in the order of the series:
     The patch text says why a removal at the same place is not safe, because an upstream reader will
     otherwise propose one. Risk: medium.
 
+12-column-anchor.patch
+    Read the line of a column one time for each line, and not for each token. `ts_lexer__get_column`
+    reads the line again from its start at each call, and an external scanner that reads the column
+    one time for each token of a line then takes a time that grows with the square of the length of
+    the line. A file of 50,000 statements `x = a % b;` on one line took 38.9 s, and the same
+    statements on 50,000 lines took 0.42 s. Risk: low.
+
 WHAT UPSTREAM ALREADY HAS
 
 Upstream v0.27.0 has its own non-recursive S-expression writer, and it replaces the writer of the
