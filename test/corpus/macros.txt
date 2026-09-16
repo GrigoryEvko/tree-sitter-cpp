@@ -3595,3 +3595,63 @@ class GTEST_API_ Test { int x; };
       (field_declaration
         type: (primitive_type)
         declarator: (field_identifier)))))
+
+================================================================================
+A specifier alone in the arguments of a macro that has a body
+================================================================================
+
+TEST(format_test, enum) { EXPECT_EQ(1, 2); }
+ARROW_PACKED_START(struct, Int96) { int x; };
+TEST(HazptrTest, virtual) { int y; }
+TEST(a, explicit) { int z; }
+NAME(int x) { return x; }
+
+--------------------------------------------------------------------------------
+
+(translation_unit
+  (macro_invocation
+    name: (identifier)
+    arguments: (token_tree
+      (identifier))
+    body: (compound_statement
+      (expression_statement
+        (call_expression
+          function: (identifier)
+          arguments: (argument_list
+            (number_literal)
+            (number_literal))))))
+  (macro_invocation
+    name: (identifier)
+    arguments: (token_tree
+      (identifier))
+    body: (compound_statement
+      (declaration
+        type: (primitive_type)
+        declarator: (identifier))))
+  (expression_statement)
+  (macro_invocation
+    name: (identifier)
+    arguments: (token_tree
+      (identifier))
+    body: (compound_statement
+      (declaration
+        type: (primitive_type)
+        declarator: (identifier))))
+  (macro_invocation
+    name: (identifier)
+    arguments: (token_tree
+      (identifier))
+    body: (compound_statement
+      (declaration
+        type: (primitive_type)
+        declarator: (identifier))))
+  (function_definition
+    declarator: (function_declarator
+      declarator: (identifier)
+      parameters: (parameter_list
+        (parameter_declaration
+          type: (primitive_type)
+          declarator: (identifier))))
+    body: (compound_statement
+      (return_statement
+        (identifier)))))

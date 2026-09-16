@@ -877,6 +877,13 @@ typedef struct {
     bool one_type_id;
     /// An argument is one name that is not the word of a type: `(alias)`, and not `(void)`.
     bool bare_name;
+    /// An argument is one word of `SPECIFIER_WORDS`, so that argument is not a parameter
+    /// declaration: `TEST(format_test, enum)`, `ARROW_PACKED_START(struct, Int96)`.
+    ///
+    /// ONLY THE SCAN OF A BODY READS THIS. `not_parameters` has eight readers, and a group with
+    /// this shape and NO body keeps each of those readings: `MACRO(const, noexcept);` of
+    /// v8/src/base/functional/bind-internal.h:228 gave a NEW ERROR when this flag set that one.
+    bool specifier_only;
     /// The group has one argument with the shape of a parenthesized declarator: a `*`, a `&`, or a
     /// `&&` first, and then the tokens of a type-id: `(*p)`, `(&r)`, `(*const p)`.
     bool pointer_declarator;
@@ -913,6 +920,27 @@ typedef enum {
 static const char *const NOT_PARAMETER_WORDS[] = {
     "true",        "false",        "nullptr",    "sizeof",           "alignof", "typeid", "new", "delete",
     "co_await",    "static_cast", "dynamic_cast", "const_cast", "reinterpret_cast", "throw",   NULL,
+};
+
+/// The words that a declaration can hold and that are not a type.
+///
+/// A PARAMETER DECLARATION NEEDS A TYPE. One of these words alone is a specifier with no type after
+/// it, so it is not a parameter declaration. GCC accepts `void f(int);` and it refuses
+/// `void f(enum);`, `void f(const);`, `void f(static);` and `void f(explicit);`.
+///
+/// `TYPE_WORDS` HOLDS TWELVE OF THESE WORDS, AND THAT IS WHY THE SCAN READ THEM AS A PARAMETER.
+/// `class`, `const`, `enum`, `struct`, `union`, `static`, `inline`, `extern`, `register`, `mutable`,
+/// `volatile` and `constexpr` are in that list, because each of them begins a type in a declaration.
+/// None of them IS a type. `int` alone is a parameter and `const` alone is not.
+///
+/// The words that `NOT_PARAMETER_WORDS` and `STATEMENT_KEYWORDS` already hold are not here. GCC
+/// refuses `void f(new);` and `void f(return);` too, and the scan already marks those groups.
+static const char *const SPECIFIER_WORDS[] = {
+    "enum",     "class",    "struct",       "union",    "const",    "volatile", "static",
+    "inline",   "virtual",  "extern",       "register", "mutable",  "constexpr", "consteval",
+    "constinit", "thread_local", "alignas", "typename", "template", "decltype", "this",
+    "explicit", "friend",   "export",       "concept",  "requires", "operator",
+    NULL,
 };
 
 /// The keywords that start a statement and are not part of an expression or a declaration.
@@ -1400,6 +1428,8 @@ typedef struct {
     bool first_is_type;
     bool first_is_decltype;
     bool first_is_typename;
+    /// The first token is a word of `SPECIFIER_WORDS`.
+    bool first_is_specifier;
     /// The first token is a `*`, a `&`, or a `&&`.
     bool first_is_pointer;
     /// The last token is a word that is not a prefix keyword.
@@ -1448,6 +1478,8 @@ static void end_argument(Arguments *args, const Argument *arg) {
     args->pointer_declarator = args->argument_count == 0 && arg->first_is_pointer && arg->tokens >= 2 &&
                                !arg->not_type_id && arg->type_id_end;
     args->bare_name |= arg->tokens == 1 && arg->first_is_word && !arg->first_is_type;
+    // One specifier and no type. The argument is not a parameter declaration.
+    args->specifier_only |= arg->tokens == 1 && arg->first_is_specifier;
     args->pointer_first |= arg->first_is_pointer;
     args->argument_count++;
     if (arg->tokens == 0) {
@@ -1663,6 +1695,7 @@ static bool skip_group(Reader *reader, Arguments *args) {
             arg.first_is_type = is_word && word_in(word, TYPE_WORDS);
             arg.first_is_decltype = is_word && strcmp(word, "decltype") == 0;
             arg.first_is_typename = is_word && strcmp(word, "typename") == 0;
+            arg.first_is_specifier = is_word && word_in(word, SPECIFIER_WORDS);
             arg.first_is_pointer = pointer_operator;
             if (is_word ? word_in(word, NOT_PARAMETER_WORDS) : token != TOKEN_SCOPE) {
                 args->not_parameters = true;
@@ -3614,7 +3647,7 @@ static Invocation scan_macro_invocation(Reader *reader, const char *name, size_t
                 return INVOCATION_STOP;
             }
             block = true;
-        } else if (call && (args->not_parameters || args->call_arguments)) {
+        } else if (call && (args->not_parameters || args->call_arguments || args->specifier_only)) {
             // A call in an argument gives a body to the macro, and no function definition starts:
             // `MATCHER_P(IsNode, height, absl::StrCat("height ", height)) {`.
             block = lexer->lookahead == '{';
