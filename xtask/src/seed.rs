@@ -20,10 +20,27 @@ use std::path::{Path, PathBuf};
 
 /// The longest name of a seed, in bytes.
 ///
-/// `read_word` of src/scanner.c cuts a word at `MACRO_WORD_SIZE`, 41 bytes, so the scanner cannot
-/// compare a longer name in full. The collector drops such a name, and a file that holds one is a
-/// file that a different tool wrote.
-const MAX_NAME: usize = 40;
+/// THE SEED HAS ITS OWN CONSTANT, AND IT IS NOT `MACRO_WORD_SIZE`. The scanner reads a seed name
+/// into a buffer of `TS_CPP_SEED_WORD_SIZE` bytes, 65, which src/seed.h declares, and the last byte
+/// holds the end of the string. `MACRO_WORD_SIZE` stays 41 and sizes the buffer of a word that
+/// compares with a LIST, whose longest word has 39 characters. The two constants belong to two
+/// consumers, and a change of one must not move the other: `cut` of src/scanner.c reads
+/// `MACRO_WORD_SIZE` and decides whether a word was cut, which the seed does not do.
+///
+/// `the_longest_name_agrees_with_the_header_of_the_scanner` compares this number with the header,
+/// because two constants in two languages drift. The two halves of this task were out of step
+/// within an hour of agreeing the number, and a comment did not stop it.
+///
+/// The cost of the limit, from the collection of task 274. At 64 bytes the collector drops 157
+/// names of 594,857, 0.026%, in 22 of the 64 projects. The largest share is stdexec with 24 of
+/// 2,236, 1.07%, which writes a diagnostic sentence into a type name:
+/// `_A_GET_COMPLETION_SIGNATURES_CUSTOMIZATION_RETURNED_A_TYPE_THAT_IS_NOT_A_COMPLETION_SIGNATURES_SPECIALIZATION`
+/// has 109 bytes. Chromium follows with 30 of 17,984, 0.17%. A limit of 128 bytes would hold 24
+/// diagnostic tags of one project, and each state of the scanner would carry the larger buffer.
+///
+/// At 40 bytes the collector dropped 7,629 names, 1.28%, and Vulkan-Hpp alone lost 548 of its
+/// 3,111, 17.6%. At 64 bytes Vulkan-Hpp loses 2.
+const MAX_NAME: usize = 64;
 /// The first four bytes of the seed struct, `TSSD` in the order of the bytes of the machine. The
 /// value of a little-endian machine is 0x44535354.
 const MAGIC: u32 = u32::from_le_bytes(*b"TSSD");
@@ -108,8 +125,11 @@ impl Seed {
             }
             if name.len() > MAX_NAME {
                 return Err(format!(
-                    "{}:{row}: the name `{name}` has {} bytes, and the scanner compares a maximum of {MAX_NAME}. \
-                     The collector drops such a name.",
+                    "{}:{row}: the name `{name}` has {} bytes, and the scanner compares a maximum of {MAX_NAME}, \
+                     which is TS_CPP_SEED_WORD_SIZE of src/seed.h less the end of the string. The collector drops \
+                     such a name, so a file that holds one comes from a tool that does not agree with this \
+                     reader. The reader refuses the whole file rather than the row, because a seed that \
+                     silently loses names gives a parse that looks correct and is not.",
                     path.display(),
                     name.len()
                 )
@@ -138,7 +158,7 @@ impl Seed {
             previous = name;
             entries.push(Entry {
                 offset: u32::try_from(block.len()).map_err(|_| format!("the seed {} is too large", path.display()))?,
-                length: u16::try_from(name.len()).expect("a name has a maximum of 40 bytes"),
+                length: u16::try_from(name.len()).expect("a name has a maximum of MAX_NAME bytes"),
                 kinds,
             });
             block.extend_from_slice(name.as_bytes());
@@ -500,10 +520,64 @@ mod tests {
         assert!(message("kind", "Aaa\tvariable\n").contains("`variable`"));
         assert!(message("row", "Aaa type\n").contains("name<TAB>kind"));
         assert!(message("empty", "\ttype\n").contains("no name"));
-        assert!(message("long", &format!("{}\ttype\n", "A".repeat(41))).contains("41 bytes"));
-        // A name of 40 bytes is the longest that the scanner compares in full.
-        let file = File::new("longest", &format!("{}\ttype\n", "A".repeat(40)));
+        assert!(message("long", &format!("{}\ttype\n", "A".repeat(MAX_NAME + 1))).contains("65 bytes"));
+        // A name of 64 bytes is the longest that the scanner compares in full.
+        let file = File::new("longest", &format!("{}\ttype\n", "A".repeat(MAX_NAME)));
         assert_eq!(Seed::read(file.path()).expect("the seed reads").names(), 1);
+    }
+
+    /// `MAX_NAME` and `TS_CPP_SEED_WORD_SIZE` of src/seed.h are one number in two languages.
+    ///
+    /// The scanner half of task 275 writes src/seed.h. A tree with no such header holds no reader
+    /// of the seed either, and the test then makes sure that the scanner names no such constant, so
+    /// the skip cannot outlive the condition that gives it. A comment in the place of this test is
+    /// what let the two halves disagree within an hour of the decision.
+    ///
+    /// A HEADER THAT DECLARES A DIFFERENT NAME FAILS, and it does not skip. The name of the
+    /// constant itself drifted between the two halves on the same day, from `SEED_WORD_SIZE` to
+    /// `TS_CPP_SEED_WORD_SIZE`, and a test that skips for a name it cannot find reports success for
+    /// the rest of the life of the project. The search of src/scanner.c reads the name without its
+    /// prefix, so it finds the constant under either spelling.
+    #[test]
+    fn the_longest_name_agrees_with_the_header_of_the_scanner() {
+        const NAME: &str = "TS_CPP_SEED_WORD_SIZE";
+        let header = crate::repository().join("src").join("seed.h");
+        let Ok(text) = fs::read_to_string(&header) else {
+            let scanner = fs::read_to_string(crate::repository().join("src").join("scanner.c"))
+                .expect("src/scanner.c reads");
+            assert!(
+                !scanner.contains("SEED_WORD_SIZE"),
+                "src/scanner.c names a seed word size and {} is not in the tree, so this test cannot \
+                 compare the two constants of the seed",
+                header.display()
+            );
+            return;
+        };
+        let size: usize = text
+            .lines()
+            .find_map(|line| {
+                let value = line.trim().strip_prefix("#define")?.trim_start().strip_prefix(NAME)?;
+                // A define writes at least one blank between the name and the value, and the value
+                // can carry a comment after it.
+                value.starts_with([' ', '\t']).then(|| value.split_whitespace().next())?
+            })
+            .and_then(|value| value.parse().ok())
+            .unwrap_or_else(|| {
+                panic!(
+                    "{} declares no numeric {NAME}. The header is the one declaration of the number, \
+                     and a test that cannot read it must fail and never pass in silence.",
+                    header.display()
+                )
+            });
+        assert_eq!(
+            MAX_NAME,
+            size - 1,
+            "the reader takes a name of {MAX_NAME} bytes and {NAME} of {} is {size}, so the buffer of \
+             the scanner holds a name of {} bytes. The two constants are one number, and the header \
+             declares it.",
+            header.display(),
+            size - 1
+        );
     }
 
     /// A project with no seed file parses with no seed, and the report names it.
