@@ -58,6 +58,208 @@ public:
           parameters: (parameter_list))))))
 
 ================================================================================
+Macro invocations in a class body with a name that is not uppercase
+================================================================================
+
+class TQObject {
+public:
+   static Bool_t BlockAllSignals(Bool_t b);
+
+   ClassDef(TQObject,1) //Base class for object communication mechanism
+};
+class TApplication : public TObject {
+   int x;
+   ClassDefOverride(TApplication,0);
+   ClassDef(C,1)
+#pragma once
+};
+struct S {
+   static_assert(sizeof(int) == 4, "m");
+   Bar(Baz)
+   int z;
+   foo(a, 0);
+};
+
+--------------------------------------------------------------------------------
+
+(translation_unit
+  (class_specifier
+    name: (type_identifier)
+    body: (field_declaration_list
+      (access_specifier)
+      (field_declaration
+        (storage_class_specifier)
+        type: (type_identifier)
+        declarator: (function_declarator
+          declarator: (field_identifier)
+          parameters: (parameter_list
+            (parameter_declaration
+              type: (type_identifier)
+              declarator: (identifier)))))
+      (macro_invocation
+        name: (identifier)
+        arguments: (token_tree
+          (identifier)
+          (number_literal)))
+      (comment)))
+  (class_specifier
+    name: (type_identifier)
+    (base_class_clause
+      (access_specifier)
+      (type_identifier))
+    body: (field_declaration_list
+      (field_declaration
+        type: (primitive_type)
+        declarator: (field_identifier))
+      (macro_invocation
+        name: (identifier)
+        arguments: (token_tree
+          (identifier)
+          (number_literal)))
+      (macro_invocation
+        name: (identifier)
+        arguments: (token_tree
+          (identifier)
+          (number_literal)))
+      (preproc_call
+        directive: (preproc_directive)
+        argument: (preproc_arg))))
+  (struct_specifier
+    name: (type_identifier)
+    body: (field_declaration_list
+      (static_assert_declaration
+        condition: (binary_expression
+          left: (sizeof_expression
+            type: (type_descriptor
+              type: (primitive_type)))
+          right: (number_literal))
+        message: (string_literal
+          (string_content)))
+      (macro_invocation
+        name: (identifier)
+        arguments: (token_tree
+          (identifier)))
+      (field_declaration
+        type: (primitive_type)
+        declarator: (field_identifier))
+      (macro_invocation
+        name: (identifier)
+        arguments: (token_tree
+          (identifier)
+          (number_literal))))))
+
+================================================================================
+A constructor and a parenthesized declarator beside a member macro
+================================================================================
+
+struct Foo {};
+class Vec {
+   Foo (*p);
+   Foo (&r);
+   Foo (*const q);
+   Foo (Vec::*mp);
+   Foo (*fp)(int);
+   Vec(int n);
+   Vec(Foo, Foo);
+   Vec(const Vec& other)
+      requires (sizeof(Foo) > 0)
+      : p(other.p) {}
+   Vec(Vec&& other)
+      NOEXCEPT_MACRO = default;
+};
+
+--------------------------------------------------------------------------------
+
+(translation_unit
+  (struct_specifier
+    name: (type_identifier)
+    body: (field_declaration_list))
+  (class_specifier
+    name: (type_identifier)
+    body: (field_declaration_list
+      (field_declaration
+        type: (type_identifier)
+        declarator: (parenthesized_declarator
+          (pointer_declarator
+            declarator: (field_identifier))))
+      (field_declaration
+        type: (type_identifier)
+        declarator: (parenthesized_declarator
+          (reference_declarator
+            (field_identifier))))
+      (field_declaration
+        type: (type_identifier)
+        declarator: (parenthesized_declarator
+          (pointer_declarator
+            (type_qualifier)
+            declarator: (field_identifier))))
+      (field_declaration
+        type: (type_identifier)
+        declarator: (parenthesized_declarator
+          (member_pointer_declarator
+            scope: (namespace_identifier)
+            declarator: (field_identifier))))
+      (field_declaration
+        type: (type_identifier)
+        declarator: (function_declarator
+          declarator: (parenthesized_declarator
+            (pointer_declarator
+              declarator: (field_identifier)))
+          parameters: (parameter_list
+            (parameter_declaration
+              type: (primitive_type)))))
+      (declaration
+        declarator: (function_declarator
+          declarator: (identifier)
+          parameters: (parameter_list
+            (parameter_declaration
+              type: (primitive_type)
+              declarator: (identifier)))))
+      (declaration
+        declarator: (function_declarator
+          declarator: (identifier)
+          parameters: (parameter_list
+            (parameter_declaration
+              type: (type_identifier))
+            (parameter_declaration
+              type: (type_identifier)))))
+      (function_definition
+        declarator: (function_declarator
+          declarator: (identifier)
+          parameters: (parameter_list
+            (parameter_declaration
+              (type_qualifier)
+              type: (type_identifier)
+              declarator: (reference_declarator
+                (identifier))))
+          (requires_clause
+            constraint: (parenthesized_expression
+              (binary_expression
+                left: (sizeof_expression
+                  type: (type_descriptor
+                    type: (type_identifier)))
+                right: (number_literal)))))
+        (field_initializer_list
+          (field_initializer
+            (field_identifier)
+            (argument_list
+              (field_expression
+                argument: (identifier)
+                field: (field_identifier)))))
+        body: (compound_statement))
+      (function_definition
+        declarator: (function_declarator
+          declarator: (identifier)
+          parameters: (parameter_list
+            (parameter_declaration
+              type: (type_identifier)
+              declarator: (reference_declarator
+                (identifier))))
+          (attribute_macro
+            name: (identifier)))
+        (default_method_clause)))))
+
+================================================================================
 Macro invocations in a function body
 ================================================================================
 
@@ -1301,6 +1503,95 @@ void h() { a * b; Foo * BAR; }
         type: (type_identifier)
         declarator: (pointer_declarator
           declarator: (identifier))))))
+
+================================================================================
+A macro with a lowercase name after the operator of a pointer declarator
+================================================================================
+
+void f(char* absl_nonnull error, const Foo* absl_nullable const p);
+void* absl_nonnull make(int n);
+const char* name ABSL_ATTRIBUTE_UNUSED = "x";
+const T& min BOOST_PREVENT_MACRO_SUBSTITUTION() const;
+register void* thread __asm__("x27") = &t;
+void h() { x * y * z; }
+
+--------------------------------------------------------------------------------
+
+(translation_unit
+  (declaration
+    type: (primitive_type)
+    declarator: (function_declarator
+      declarator: (identifier)
+      parameters: (parameter_list
+        (parameter_declaration
+          type: (primitive_type)
+          declarator: (pointer_declarator
+            (attribute_macro
+              name: (identifier))
+            declarator: (identifier)))
+        (parameter_declaration
+          (type_qualifier)
+          type: (type_identifier)
+          declarator: (pointer_declarator
+            (attribute_macro
+              name: (identifier))
+            (type_qualifier)
+            declarator: (identifier))))))
+  (declaration
+    type: (primitive_type)
+    declarator: (pointer_declarator
+      (attribute_macro
+        name: (identifier))
+      declarator: (function_declarator
+        declarator: (identifier)
+        parameters: (parameter_list
+          (parameter_declaration
+            type: (primitive_type)
+            declarator: (identifier))))))
+  (declaration
+    (type_qualifier)
+    type: (primitive_type)
+    declarator: (init_declarator
+      declarator: (attributed_declarator
+        (pointer_declarator
+          declarator: (identifier))
+        (attribute_macro
+          name: (identifier)))
+      value: (string_literal
+        (string_content))))
+  (declaration
+    (type_qualifier)
+    type: (type_identifier)
+    declarator: (reference_declarator
+      (function_declarator
+        declarator: (identifier)
+        (attribute_macro
+          name: (identifier))
+        parameters: (parameter_list)
+        (type_qualifier))))
+  (declaration
+    (storage_class_specifier)
+    type: (primitive_type)
+    declarator: (init_declarator
+      declarator: (pointer_declarator
+        declarator: (identifier))
+      (gnu_asm_expression
+        assembly_code: (string_literal
+          (string_content)))
+      value: (pointer_expression
+        argument: (identifier))))
+  (function_definition
+    type: (primitive_type)
+    declarator: (function_declarator
+      declarator: (identifier)
+      parameters: (parameter_list))
+    body: (compound_statement
+      (expression_statement
+        (binary_expression
+          left: (binary_expression
+            left: (identifier)
+            right: (identifier))
+          right: (identifier))))))
 
 ================================================================================
 A braced initializer after the macros of a declarator

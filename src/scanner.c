@@ -780,6 +780,9 @@ typedef struct {
     bool one_type_id;
     /// An argument is one name that is not the word of a type: `(alias)`, and not `(void)`.
     bool bare_name;
+    /// The group has one argument with the shape of a parenthesized declarator: a `*`, a `&`, or a
+    /// `&&` first, and then the tokens of a type-id: `(*p)`, `(&r)`, `(*const p)`.
+    bool pointer_declarator;
 } Arguments;
 
 /// The kind of the line that comes after a macro invocation.
@@ -1264,6 +1267,8 @@ typedef struct {
     bool first_is_type;
     bool first_is_decltype;
     bool first_is_typename;
+    /// The first token is a `*`, a `&`, or a `&&`.
+    bool first_is_pointer;
     /// The last token is a word that is not a prefix keyword.
     bool after_word;
     /// The last token is the keyword `operator`.
@@ -1298,9 +1303,15 @@ typedef struct {
 /// The group holds one type-id when the first argument starts with a word, has the other tokens of a
 /// type-id, and no second argument comes after it: `STACK_OF(X509)`, `BOOST_RV_REF(const A<B>&)`. A
 /// type-id never starts with a pointer or reference operator, and `U_SUCCESS(*code)` is an expression.
+///
+/// The group has the shape of a parenthesized declarator when its one argument starts with a pointer
+/// or reference operator, and the other tokens are the tokens of a type-id: `(*p)`, `(&r)`. In a
+/// class body, `Foo (*p);` declares the pointer `p` of type `Foo`.
 static void end_argument(Arguments *args, const Argument *arg) {
     args->one_type_id =
         args->argument_count == 0 && arg->first_is_word && !arg->not_type_id && arg->type_id_end;
+    args->pointer_declarator = args->argument_count == 0 && arg->first_is_pointer && arg->tokens >= 2 &&
+                               !arg->not_type_id && arg->type_id_end;
     args->bare_name |= arg->tokens == 1 && arg->first_is_word && !arg->first_is_type;
     args->argument_count++;
     if (arg->tokens == 0) {
@@ -1435,6 +1446,8 @@ static bool skip_group(Reader *reader, Arguments *args) {
         bool prefix_word = is_word && word_in(word, PREFIX_WORDS);
         bool opens_angle = token == TOKEN_DECLARATOR && strcmp(word, "<") == 0 && arg.after_word;
         bool closes_angle = token == TOKEN_OPERATOR && (strcmp(word, ">") == 0 || strcmp(word, ">>") == 0);
+        bool pointer_operator = token == TOKEN_DECLARATOR && (strcmp(word, "*") == 0 || strcmp(word, "&") == 0 ||
+                                                              strcmp(word, "&&") == 0);
         if (token == TOKEN_SEMICOLON || (is_word && word_in(word, STATEMENT_KEYWORDS))) {
             args->not_parameters = true;
             args->statements = true;
@@ -1468,6 +1481,7 @@ static bool skip_group(Reader *reader, Arguments *args) {
             arg.first_is_type = is_word && word_in(word, TYPE_WORDS);
             arg.first_is_decltype = is_word && strcmp(word, "decltype") == 0;
             arg.first_is_typename = is_word && strcmp(word, "typename") == 0;
+            arg.first_is_pointer = pointer_operator;
             if (is_word ? word_in(word, NOT_PARAMETER_WORDS) : token != TOKEN_SCOPE) {
                 args->not_parameters = true;
             }
@@ -1500,8 +1514,6 @@ static bool skip_group(Reader *reader, Arguments *args) {
         // `BOOST_ASIO_COMPLETION_TOKEN_FOR(Signatures...)` of boost/libs/asio. A name that starts a
         // statement or an expression is not a type.
         bool type_name = is_word && !word_in(word, STATEMENT_KEYWORDS) && !word_in(word, NOT_PARAMETER_WORDS);
-        bool pointer_operator = token == TOKEN_DECLARATOR && (strcmp(word, "*") == 0 || strcmp(word, "&") == 0 ||
-                                                              strcmp(word, "&&") == 0);
         bool scope = token == TOKEN_SCOPE && strcmp(word, "::") == 0;
         bool pack_ellipsis = strcmp(word, "...") == 0 && arg.type_id_end;
         arg.not_type_id |= !(type_name || pointer_operator || scope || opens_angle || pack_ellipsis);
@@ -1600,6 +1612,11 @@ static NextLine classify_next_line(Reader *reader, bool after_parameters, bool s
             if (lexer->lookahead == '(') {
                 return NEXT_BLOCKED;
             }
+        }
+        if (after_parameters && strcmp(word, "requires") == 0) {
+            // A trailing requires-clause continues the declarator ([dcl.decl.general]): `S(int x)` on
+            // one line, and `requires C<T>` on the next line.
+            return NEXT_BLOCKED;
         }
         if (strcmp(word, "operator") == 0 || word_in(word, CALL_MODIFIERS)) {
             return NEXT_DECLARATOR;
@@ -2800,8 +2817,10 @@ typedef enum {
 /// it comes before the name.
 ///
 /// The line form is an uppercase name with 5 or more characters, or an uppercase name with an
-/// argument list, before a line break and a token that can start a line. A long name can have its
-/// argument list on the next line. When a name with no arguments can be the return type of a
+/// argument list, before a line break and a token that can start a line. Where a member starts, a
+/// name of each shape with an argument list also takes the line form and the call form, because a
+/// member with no type is a constructor, and `scan_macro_start` reads the class name. A long name
+/// can have its argument list on the next line. When a name with no arguments can be the return type of a
 /// declarator on the next line, the line form needs a blank line or a comment between them. The
 /// same rule applies to a constructor or a destructor on the next line, where a declaration can have
 /// one. Nearly all such names in real code are attributes: `KOKKOS_FUNCTION` before `View(int n)`. A
@@ -3005,14 +3024,28 @@ static bool scan_macro_start(Reader reader, const char *name, bool has_lower, co
     bool macro_name = is_macro_name(name, has_lower) && !word_in(name, GRAMMAR_WORDS);
     // A SAL annotation with arguments, `_Out_writes_(n)`, is an attribute macro, and never a statement macro.
     bool sal = !macro_name && is_sal_name(name);
-    bool invocation = macro_name && (valid_symbols[MACRO_LINE_START] || valid_symbols[MACRO_BLOCK_START] ||
-                                     valid_symbols[MACRO_CALL_START] || valid_symbols[MACRO_ENUMERATOR_START] ||
-                                     valid_symbols[MACRO_LINE_AFTER_SPECIFIERS]);
     bool member_start = valid_symbols[MACRO_LINE_START] && !valid_symbols[MACRO_CALL_START];
-    bool after_specifiers = !valid_symbols[MACRO_LINE_START] && !valid_symbols[MACRO_CALL_START];
-    const Scanner *classes = member_start || (after_specifiers && macro_name && length >= 2) ? scanner : NULL;
     // A class name before a constructor is a type, not a macro.
     bool class_name = is_class_name(scanner, reader.word_hash);
+    // Where a member starts, a name with an argument list and no type before it is a macro
+    // invocation, and the shape of the name has no effect: `ClassDefOverride(A,0)` of ROOT. A member
+    // declaration with no type is a constructor, a destructor, or a conversion function. The two
+    // front ends reject each other name there (GCC `cp_parser_member_declaration`, Clang
+    // `ParseCXXClassMemberDeclaration`), and they accept `class A { int x; ClassDefOverride(A,0) };`
+    // only with the macro. A recorded class name is the name of a constructor: `Foo(Foo&& other)`
+    // before `V8_NOEXCEPT = default;` on the next line. A name in uppercase keeps its reading of a
+    // macro there, because a macro can have the name of a class: `struct D {};`, `#define D(n)`, and
+    // `D(1)` in a class body (g++.dg/cpp0x/pr85462.C). A SAL annotation is an attribute of the next
+    // declaration. The arguments decide the rest, as for a name in uppercase: `Foo(int x);` and
+    // `Foo(x);` can hold a parameter list, and they stay declarations.
+    bool member_name = member_start && !class_name && !sal && !word_in(name, GRAMMAR_WORDS) &&
+                       !is_grammar_keyword(name);
+    bool invocation = (macro_name || member_name) &&
+                      (valid_symbols[MACRO_LINE_START] || valid_symbols[MACRO_BLOCK_START] ||
+                       valid_symbols[MACRO_CALL_START] || valid_symbols[MACRO_ENUMERATOR_START] ||
+                       valid_symbols[MACRO_LINE_AFTER_SPECIFIERS]);
+    bool after_specifiers = !valid_symbols[MACRO_LINE_START] && !valid_symbols[MACRO_CALL_START];
+    const Scanner *classes = member_start || (after_specifiers && macro_name && length >= 2) ? scanner : NULL;
     bool constructor = valid_symbols[CONSTRUCTOR_MACRO_START] && !is_grammar_keyword(name) && !class_name;
     bool macro_type = valid_symbols[MACRO_TYPE_START] || valid_symbols[PARAMETER_MACRO_TYPE_START];
     bool attribute_call =
@@ -3037,7 +3070,7 @@ static bool scan_macro_start(Reader reader, const char *name, bool has_lower, co
     bool same_line = gap.newlines == 0;
     Arguments args = {0};
     bool call = false;
-    if ((macro_name || sal) && !gap.directive && lexer->lookahead == '(' &&
+    if ((macro_name || sal || member_name) && !gap.directive && lexer->lookahead == '(' &&
         (same_line || length >= MACRO_MIN_BARE_LENGTH)) {
         if (!skip_group(&reader, &args)) {
             return false;
@@ -3049,7 +3082,9 @@ static bool scan_macro_start(Reader reader, const char *name, bool has_lower, co
             return false;
         }
     }
-    if (invocation) {
+    // A name that is a macro only by its place must have the argument list that makes it one. A group
+    // with the shape of a parenthesized declarator declares a member: `Foo (*p);`, `Foo (&r);`.
+    if (invocation && (macro_name || (call && !args.pointer_declarator))) {
         Invocation result =
             scan_macro_invocation(&reader, name, length, same_line, call, &args, &gap, valid_symbols, classes);
         if (result == INVOCATION_TOKEN || result == INVOCATION_STOP) {
@@ -3254,7 +3289,10 @@ static const char *const WORD_OPERATOR_NAMES[] = {
 /// `A B C(int x) : x(x) {}`, and a conversion function, `A B operator T();`.
 ///
 /// Comments and directive lines can come between the tokens (`skip_gap`). `scanner` holds the open groups.
-static bool scan_call_macro_name(TSLexer *lexer, const Scanner *scanner, bool pointer) {
+/// `macro_shaped` tells if the name has the shape of a macro name (`is_macro_name`). A name with a
+/// different shape is a macro by its place only, after the `*` or the `&` of a declarator, and a name
+/// must come after it.
+static bool scan_call_macro_name(TSLexer *lexer, const Scanner *scanner, bool pointer, bool macro_shaped) {
     lexer->result_symbol = pointer ? POINTER_CALL_MACRO_NAME : CALL_MACRO_NAME;
     mark_end(lexer);
     Reader reader = start_reader(lexer, MACRO_SCAN_LIMIT, scanner);
@@ -3264,7 +3302,11 @@ static bool scan_call_macro_name(TSLexer *lexer, const Scanner *scanner, bool po
         return false;
     }
     if (lexer->lookahead == '*') {
-        // A `*` of a pointer declarator, and not the operator `*=` in `*L1 *= 2;`.
+        // A `*` of a pointer declarator, and not the operator `*=` in `*L1 *= 2;`. Only a name with the
+        // shape of a macro takes this form. With a different name, `x * y * z` is an expression.
+        if (!macro_shaped) {
+            return false;
+        }
         advance(lexer);
         return lexer->lookahead != '=';
     }
@@ -3316,12 +3358,32 @@ static bool scan_call_macro_name(TSLexer *lexer, const Scanner *scanner, bool po
             qualified = true;
             continue;
         }
+        bool has_lower = false;
+        for (unsigned i = 0; i < length && i < sizeof text; ++i) {
+            has_lower |= text[i] >= 'a' && text[i] <= 'z';
+        }
+        bool keyword = false;
+        if (length < sizeof text) {
+            text[length] = '\0';
+            keyword = is_grammar_keyword(text);
+        }
         // After a pointer or reference operator the name that follows the macro is the declarator of
         // an object, and the token after it ends the declarator: `char * BROTLI_RESTRICT buffer;`,
         // `void f(int * RESTRICT p, int n)`. A `==` is a comparison, and `a * MASK == b` is no
         // declaration.
         if (pointer) {
             int32_t c = lexer->lookahead;
+            // A qualifier comes between the macro and the name of the declarator.
+            if (length < sizeof text && word_in(text, POINTER_QUALIFIER_WORDS)) {
+                continue;
+            }
+            // A name that is a macro by its place only comes before the name of the declarator. A name
+            // with the shape of a macro, or a keyword, after it is a token after the declarator:
+            // `const char* name ABSL_ATTRIBUTE_UNUSED = "x";` and `void* p __asm__("r1");` declare
+            // `name` and `p`.
+            if (!macro_shaped && (!has_lower || keyword)) {
+                return false;
+            }
             if (c == ';' || c == ',' || c == '[' || c == ')' || c == '{') {
                 return true;
             }
@@ -3329,23 +3391,8 @@ static bool scan_call_macro_name(TSLexer *lexer, const Scanner *scanner, bool po
                 advance(lexer);
                 return lexer->lookahead != '=';
             }
-            // A qualifier comes between the macro and the name of the declarator.
-            if (length < sizeof text) {
-                text[length] = '\0';
-                if (word_in(text, POINTER_QUALIFIER_WORDS)) {
-                    continue;
-                }
-            }
         }
-        bool name_of_a_type = false;
-        if (length < sizeof text) {
-            text[length] = '\0';
-            name_of_a_type = word_in(text, DECLARATION_START_WORDS);
-        }
-        bool has_lower = false;
-        for (unsigned i = 0; i < length && i < sizeof text; ++i) {
-            has_lower |= text[i] >= 'a' && text[i] <= 'z';
-        }
+        bool name_of_a_type = length < sizeof text && word_in(text, DECLARATION_START_WORDS);
         // A second macro in the place of a calling convention can come before the declarator:
         // `void WINAPI QT_WIN_CALLBACK qt_fast_timer_proc(uint timerId, DWORD_PTR user)` of
         // qtbase/src/corelib/kernel/qeventdispatcher_win.cpp:82. The scan gives no token for the first
@@ -7470,9 +7517,9 @@ static bool scan_word_start(Scanner *scanner, TSLexer *lexer, const bool *valid_
          valid_symbols[MACRO_TYPE_START] || valid_symbols[PARAMETER_MACRO_TYPE_START]) &&
         next == '(';
     bool pointer_macro = valid_symbols[POINTER_CALL_MACRO_NAME];
-    if ((valid_symbols[CALL_MACRO_NAME] || pointer_macro) && length >= 2 && is_macro_name(word, has_lower) &&
-        !call_attribute) {
-        return scan_call_macro_name(lexer, scanner, pointer_macro);
+    bool macro_shaped = length >= 2 && is_macro_name(word, has_lower);
+    if ((valid_symbols[CALL_MACRO_NAME] || pointer_macro) && macro_shaped && !call_attribute) {
+        return scan_call_macro_name(lexer, scanner, pointer_macro, true);
     }
     // A calling convention has no arguments, and no `<` comes after it. A name before `(` keeps the scans
     // of a macro call before a parameter, and a name before `<` keeps the scan of a comparison name. Where
@@ -7571,6 +7618,19 @@ static bool scan_word_start(Scanner *scanner, TSLexer *lexer, const bool *valid_
     // the two answers, because a scan that declines cannot go back to the start of the brackets.
     if (comparison || (cast_name && (next == '<' || blank))) {
         return scan_comparison_name(&reader, word, comparison, cast_name);
+    }
+    // After the `*` or the `&` of a declarator, a name before the name of the declarator is a macro,
+    // and the shape of the name has no effect: `char* absl_nonnull error`. A qualifier there is a
+    // keyword of the grammar, and a recorded class name there is the type of a functional cast:
+    // `*proxy(jv)`. The two front ends reject `char* a b` without a macro (GCC
+    // `cp_parser_direct_declarator`, Clang `ParseDirectDeclarator`). Between a type and the name of a
+    // function, `Foo Bar f()` has two readings, and the scan keeps the shape of the name there. This
+    // scan reads the name after the word, and the lexer cannot go back, so it comes after each scan
+    // that reads the next character only.
+    bool pointer_name = pointer_macro && !macro_shaped && !call_attribute && !cast_name && !is_sal_name(word) &&
+                        !is_grammar_keyword(word) && !word_in(word, POINTER_QUALIFIER_WORDS);
+    if (pointer_name) {
+        return scan_call_macro_name(lexer, scanner, true, false);
     }
     return macro && scan_macro_start(reader, word, has_lower, valid_symbols, scanner);
 }

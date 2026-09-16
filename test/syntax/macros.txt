@@ -21,6 +21,13 @@ class Foo : public QObject {
     Q_PROPERTY(int x READ x WRITE setX NOTIFY xChanged)
 public:
 };
+### macro_member_lowercase_name
+class TApplication : public TObject {
+   int x;
+   ClassDefOverride(TApplication,0)  //GUI application singleton
+};
+### macro_pointer_lowercase_name
+void f(char* absl_nonnull error, std::string* absl_nullable out);
 ### macro_call_top_level
 NS_IMPL_FRAMEARENA_HELPERS(nsPageContentFrame)
 void f();
