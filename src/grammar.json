@@ -20609,24 +20609,41 @@
               "type": "SEQ",
               "members": [
                 {
-                  "type": "CHOICE",
+                  "type": "SEQ",
                   "members": [
                     {
-                      "type": "SYMBOL",
-                      "name": "initializer_pair"
-                    },
-                    {
-                      "type": "SYMBOL",
-                      "name": "expression"
-                    },
-                    {
-                      "type": "ALIAS",
+                      "type": "REPEAT",
                       "content": {
-                        "type": "SYMBOL",
-                        "name": "_nested_initializer_list"
-                      },
-                      "named": true,
-                      "value": "initializer_list"
+                        "type": "ALIAS",
+                        "content": {
+                          "type": "SYMBOL",
+                          "name": "_macro_initializer"
+                        },
+                        "named": true,
+                        "value": "macro_invocation"
+                      }
+                    },
+                    {
+                      "type": "CHOICE",
+                      "members": [
+                        {
+                          "type": "SYMBOL",
+                          "name": "initializer_pair"
+                        },
+                        {
+                          "type": "SYMBOL",
+                          "name": "expression"
+                        },
+                        {
+                          "type": "ALIAS",
+                          "content": {
+                            "type": "SYMBOL",
+                            "name": "_nested_initializer_list"
+                          },
+                          "named": true,
+                          "value": "initializer_list"
+                        }
+                      ]
                     }
                   ]
                 },
@@ -20640,24 +20657,41 @@
                         "value": ","
                       },
                       {
-                        "type": "CHOICE",
+                        "type": "SEQ",
                         "members": [
                           {
-                            "type": "SYMBOL",
-                            "name": "initializer_pair"
-                          },
-                          {
-                            "type": "SYMBOL",
-                            "name": "expression"
-                          },
-                          {
-                            "type": "ALIAS",
+                            "type": "REPEAT",
                             "content": {
-                              "type": "SYMBOL",
-                              "name": "_nested_initializer_list"
-                            },
-                            "named": true,
-                            "value": "initializer_list"
+                              "type": "ALIAS",
+                              "content": {
+                                "type": "SYMBOL",
+                                "name": "_macro_initializer"
+                              },
+                              "named": true,
+                              "value": "macro_invocation"
+                            }
+                          },
+                          {
+                            "type": "CHOICE",
+                            "members": [
+                              {
+                                "type": "SYMBOL",
+                                "name": "initializer_pair"
+                              },
+                              {
+                                "type": "SYMBOL",
+                                "name": "expression"
+                              },
+                              {
+                                "type": "ALIAS",
+                                "content": {
+                                  "type": "SYMBOL",
+                                  "name": "_nested_initializer_list"
+                                },
+                                "named": true,
+                                "value": "initializer_list"
+                              }
+                            ]
                           }
                         ]
                       }
@@ -41471,6 +41505,31 @@
       "type": "STRING",
       "value": "this"
     },
+    "_macro_initializer": {
+      "type": "SEQ",
+      "members": [
+        {
+          "type": "SYMBOL",
+          "name": "_initializer_macro_start"
+        },
+        {
+          "type": "FIELD",
+          "name": "name",
+          "content": {
+            "type": "SYMBOL",
+            "name": "identifier"
+          }
+        },
+        {
+          "type": "FIELD",
+          "name": "arguments",
+          "content": {
+            "type": "SYMBOL",
+            "name": "argument_list"
+          }
+        }
+      ]
+    },
     "_nested_initializer_list": {
       "type": "PREC",
       "value": -1,
@@ -41520,24 +41579,41 @@
                   "type": "SEQ",
                   "members": [
                     {
-                      "type": "CHOICE",
+                      "type": "SEQ",
                       "members": [
                         {
-                          "type": "SYMBOL",
-                          "name": "initializer_pair"
-                        },
-                        {
-                          "type": "SYMBOL",
-                          "name": "expression"
-                        },
-                        {
-                          "type": "ALIAS",
+                          "type": "REPEAT",
                           "content": {
-                            "type": "SYMBOL",
-                            "name": "_nested_initializer_list"
-                          },
-                          "named": true,
-                          "value": "initializer_list"
+                            "type": "ALIAS",
+                            "content": {
+                              "type": "SYMBOL",
+                              "name": "_macro_initializer"
+                            },
+                            "named": true,
+                            "value": "macro_invocation"
+                          }
+                        },
+                        {
+                          "type": "CHOICE",
+                          "members": [
+                            {
+                              "type": "SYMBOL",
+                              "name": "initializer_pair"
+                            },
+                            {
+                              "type": "SYMBOL",
+                              "name": "expression"
+                            },
+                            {
+                              "type": "ALIAS",
+                              "content": {
+                                "type": "SYMBOL",
+                                "name": "_nested_initializer_list"
+                              },
+                              "named": true,
+                              "value": "initializer_list"
+                            }
+                          ]
                         }
                       ]
                     },
@@ -41551,24 +41627,41 @@
                             "value": ","
                           },
                           {
-                            "type": "CHOICE",
+                            "type": "SEQ",
                             "members": [
                               {
-                                "type": "SYMBOL",
-                                "name": "initializer_pair"
-                              },
-                              {
-                                "type": "SYMBOL",
-                                "name": "expression"
-                              },
-                              {
-                                "type": "ALIAS",
+                                "type": "REPEAT",
                                 "content": {
-                                  "type": "SYMBOL",
-                                  "name": "_nested_initializer_list"
-                                },
-                                "named": true,
-                                "value": "initializer_list"
+                                  "type": "ALIAS",
+                                  "content": {
+                                    "type": "SYMBOL",
+                                    "name": "_macro_initializer"
+                                  },
+                                  "named": true,
+                                  "value": "macro_invocation"
+                                }
+                              },
+                              {
+                                "type": "CHOICE",
+                                "members": [
+                                  {
+                                    "type": "SYMBOL",
+                                    "name": "initializer_pair"
+                                  },
+                                  {
+                                    "type": "SYMBOL",
+                                    "name": "expression"
+                                  },
+                                  {
+                                    "type": "ALIAS",
+                                    "content": {
+                                      "type": "SYMBOL",
+                                      "name": "_nested_initializer_list"
+                                    },
+                                    "named": true,
+                                    "value": "initializer_list"
+                                  }
+                                ]
                               }
                             ]
                           }
@@ -44939,6 +45032,10 @@
     {
       "type": "SYMBOL",
       "name": "_call_name_macro_name"
+    },
+    {
+      "type": "SYMBOL",
+      "name": "_initializer_macro_start"
     }
   ],
   "inline": [

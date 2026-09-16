@@ -169,6 +169,10 @@ pub fn grammar() -> Grammar {
         // `c_policies::acosh BOOST_MATH_PREVENT_MACRO_SUBSTITUTION(x)`. The token holds the name, and
         // the grammar makes it valid after a qualified name only. Refer to `call_expression`.
         s!(_call_name_macro_name),
+        // An empty token before the name of a macro at the head of an element of a braced list:
+        // `{ PyVarObject_HEAD_INIT(nullptr, 0) "n", 0 }`. The scanner gives it when an element comes
+        // after the arguments of the name and no comma divides the two.
+        s!(_initializer_macro_start),
     ];
     // The conflict sets of the grammar. Each set names the rules of one ambiguity, and it tells the
     // generator to keep each reading in a GLR split.
@@ -7460,17 +7464,53 @@ fn expressions(g: &mut Grammar) {
     // The external scanner never gives `_initializer_list_marker`. The token is valid only after the `{` of a
     // braced list, and the scanner reads its validity. In `f({ FLAG })`, `{` also starts a GNU statement
     // expression, and the macro scan then reads `FLAG` as an element of the list, not as a macro statement.
+    // A MACRO AT THE HEAD OF AN ELEMENT GIVES SEVERAL INITIALIZERS, AND NO COMMA COMES AFTER IT.
+    // `{ PyVarObject_HEAD_INIT(nullptr, 0) "n", 0 }` builds a type object of CPython, and the macro
+    // gives the first two members of the structure with a comma at its end. An X-macro list does the
+    // same: `{ FOR_EACH_OPCODE(V) kFirstOpcode }`.
+    //
+    // THE POSITION GIVES THE EVIDENCE AND THE NAME PROVES NOTHING. A name with an argument list, and
+    // an element after it with no comma, is no element list of C++. GCC `cp_parser_initializer_list`
+    // (gcc/cp/parser.cc:29234) and Clang `Parser::ParseBraceInitializer`
+    // (clang/lib/Parse/ParseInit.cpp:411) end the list at a token that is not a `,`. Both reject the
+    // text without the macro. 510 of the 678 corpus sites hold a lowercase letter in the name, so a
+    // test of the name reaches few of them. The external scanner gives the token. Refer to
+    // `scan_word_start` in `src/scanner.c`.
+    //
+    // The arguments are an `argument_list` and not a `token_tree`. The tokens inside the group then
+    // have the one reading that a call gives them, and only the token after the `)` selects the
+    // element or the macro.
+    g.define(
+        "_macro_initializer",
+        seq![
+            s!(_initializer_macro_start),
+            field("name", s!(identifier)),
+            field("arguments", s!(argument_list)),
+        ],
+    );
     g.redefine("initializer_list", |original| {
         let list = replace_rule(
             original,
             &s!(initializer_list),
             &alias(s!(_nested_initializer_list), s!(initializer_list)),
         );
-        insert_after(
+        let list = insert_after(
             list,
             |member| *member == open_brace(),
             optional(s!(_initializer_list_marker)),
-        )
+        );
+        let item = choice![
+            s!(initializer_pair),
+            s!(expression),
+            alias(s!(_nested_initializer_list), s!(initializer_list)),
+        ];
+        let element = seq![
+            repeat(alias(s!(_macro_initializer), s!(macro_invocation))),
+            item.clone(),
+        ];
+        let replaced = replace_rule(list.clone(), &item, &element);
+        assert!(replaced != list, "the elements of `initializer_list` moved");
+        replaced
     });
     let nested_list = g.rules["initializer_list"].clone();
     g.define("_nested_initializer_list", prec(-1, prec_dynamic(1, nested_list)));

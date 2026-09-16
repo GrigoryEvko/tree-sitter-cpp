@@ -143,6 +143,10 @@ enum TokenType {
     /// The name of a macro between the name of a function and its argument list, in an expression:
     /// `c_policies::acosh BOOST_MATH_PREVENT_MACRO_SUBSTITUTION(x)`. The token holds the name.
     CALL_NAME_MACRO_NAME,
+    /// An empty token before the name of a macro at the head of an element of a braced list:
+    /// `{ PyVarObject_HEAD_INIT(nullptr, 0) "n", 0 }`. The scan gives it when an element comes after
+    /// the arguments of the name and no comma divides the two.
+    INITIALIZER_MACRO_START,
     /// The count of the external tokens, and not a token. `tree_sitter_cpp_external_scanner_create`
     /// compares it with the count of the parser.
     TOKEN_TYPE_COUNT,
@@ -1117,6 +1121,11 @@ static void skip_quoted(Reader *reader) {
 }
 
 /// Go past a raw string literal from its `"`: R"delimiter(content)delimiter".
+///
+/// A d-char is each character of the basic character set except a space, a `(`, a `)`, a `\`, and a
+/// control character ([lex.string] p1). A `"` IS a d-char, and `R""""(x)""""` holds the delimiter
+/// `"""`. A scan that stops at the `"` reads the rest of the literal as ordinary tokens, and the
+/// group around it then ends at the wrong place. `skip_raw_string_literal` reads the same delimiter.
 static void skip_raw_string(Reader *reader) {
     TSLexer *lexer = reader->lexer;
     int32_t delimiter[MAX_DELIMITER_LENGTH];
@@ -1125,7 +1134,7 @@ static void skip_raw_string(Reader *reader) {
     while (readable(reader) && lexer->lookahead != '(') {
         LOOP_STEP();
         int32_t c = lexer->lookahead;
-        if (length == MAX_DELIMITER_LENGTH || c == ')' || c == '\\' || c == '"' || iswspace(c)) {
+        if (length == MAX_DELIMITER_LENGTH || c == ')' || c == '\\' || iswspace(c)) {
             return;
         }
         delimiter[length++] = c;
@@ -7536,6 +7545,24 @@ static bool scan_sign_before_suffixed_number(TSLexer *lexer) {
 ///
 /// The tokens of a member pointer, a class head, and a macro start are empty. The token of a decay-copy,
 /// a structured binding, a call macro, and a comparison name holds the word.
+/// True where an element of a braced list starts and where no expression continues. The lookahead is
+/// the first token after the arguments of a name. A word that continues the expression before it, as
+/// the alternative operator `and` of [lex.digraph], starts no element. O(n) in the length of a word.
+static bool starts_initializer_element(Reader *reader) {
+    TSLexer *lexer = reader->lexer;
+    int32_t c = lexer->lookahead;
+    if (c == '"' || c == '\'' || c == '{' || is_digit(c)) {
+        return true;
+    }
+    if (!is_word_start(c)) {
+        return false;
+    }
+    char word[MACRO_WORD_SIZE];
+    bool has_lower = false;
+    read_word(reader, word, &has_lower);
+    return !word_in(word, CONTINUATION_KEYWORDS);
+}
+
 static bool scan_word_start(Scanner *scanner, TSLexer *lexer, const bool *valid_symbols) {
     mark_end(lexer);
     Reader reader = start_reader(lexer, MACRO_SCAN_LIMIT, scanner);
@@ -7692,6 +7719,39 @@ static bool scan_word_start(Scanner *scanner, TSLexer *lexer, const bool *valid_
     if (pointer_name) {
         return scan_call_macro_name(lexer, scanner, true, false);
     }
+    // A macro at the head of an element of a braced list gives several initializers, and an element
+    // comes after its arguments with no comma between the two:
+    // `{ PyVarObject_HEAD_INIT(nullptr, 0) "n", 0 }` builds a type object of CPython.
+    //
+    // THE POSITION GIVES THE EVIDENCE AND THE NAME PROVES NOTHING. A name with an argument list, and
+    // an element after it with no comma, is no element list of C++. GCC `cp_parser_initializer_list`
+    // (gcc/cp/parser.cc:29234) ends the list at a token that is not a `,` (parser.cc:29396), and
+    // Clang `Parser::ParseBraceInitializer` (clang/lib/Parse/ParseInit.cpp:411) does the same
+    // (ParseInit.cpp:501). Both reject the text without the macro. 510 of the 678 sites in the
+    // 329,387 corpus files of 2026-09-16 hold a lowercase letter in the name, so a test of the name
+    // reaches few of them.
+    //
+    // THE TOKEN IS A HARD GATE. Where the scan gives it, the parser reads the macro and no other
+    // reading of the same text stays alive. Where the scan declines, the macro reading is not
+    // reachable and the text keeps the ERROR node that it has today. A token that this scan gives by
+    // mistake makes a correct call into a macro invocation with no ERROR node, so the condition
+    // takes only text that is invalid without a macro.
+    //
+    // The scan reads the arguments of the name, and the lexer cannot go back, so it comes after each
+    // scan that reads the next character only.
+    if (valid_symbols[INITIALIZER_MACRO_START] && next == '(' && !is_grammar_keyword(word)) {
+        Arguments arguments = {0};
+        if (!skip_group(&reader, &arguments) || reader.budget == 0) {
+            return false;
+        }
+        Gap gap = {0};
+        skip_gap(&reader, &gap);
+        if (gap.blocked || reader.budget == 0 || !starts_initializer_element(&reader)) {
+            return false;
+        }
+        lexer->result_symbol = INITIALIZER_MACRO_START;
+        return true;
+    }
     return macro && scan_macro_start(reader, word, has_lower, valid_symbols, scanner);
 }
 
@@ -7816,6 +7876,7 @@ static bool can_be_empty(TSSymbol symbol) {
         case MEMBER_POINTER_START:
         case PREPROC_LINE_END:
         case PREPROC_EXTRA_MARK:
+        case INITIALIZER_MACRO_START:
         case RAW_STRING_CONTENT:
             return true;
         default:

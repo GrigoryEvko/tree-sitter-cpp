@@ -2568,3 +2568,172 @@ void f(int a, int b, void *p) {
               (type_qualifier)
               (primitive_type)
               (abstract_pointer_declarator))))))))
+
+================================================================================
+A macro at the head of an element of a braced list
+================================================================================
+
+static PyTypeObject T = { PyVarObject_HEAD_INIT(nullptr, 0) "n", 0 };
+int u[] = { 1, DISPATCH(a, b) 4, 5 };
+int v[] = { FOR_EACH_OPCODE(V) FOR_EACH_NAME(V) kFirst };
+int y[] = { M(a) {1, 2} };
+
+--------------------------------------------------------------------------------
+
+(translation_unit
+  (declaration
+    (storage_class_specifier)
+    (type_identifier)
+    (init_declarator
+      (identifier)
+      (initializer_list
+        (macro_invocation
+          (identifier)
+          (argument_list
+            (null)
+            (number_literal)))
+        (string_literal
+          (string_content))
+        (number_literal))))
+  (declaration
+    (primitive_type)
+    (init_declarator
+      (array_declarator
+        (identifier))
+      (initializer_list
+        (number_literal)
+        (macro_invocation
+          (identifier)
+          (argument_list
+            (identifier)
+            (identifier)))
+        (number_literal)
+        (number_literal))))
+  (declaration
+    (primitive_type)
+    (init_declarator
+      (array_declarator
+        (identifier))
+      (initializer_list
+        (macro_invocation
+          (identifier)
+          (argument_list
+            (identifier)))
+        (macro_invocation
+          (identifier)
+          (argument_list
+            (identifier)))
+        (identifier))))
+  (declaration
+    (primitive_type)
+    (init_declarator
+      (array_declarator
+        (identifier))
+      (initializer_list
+        (macro_invocation
+          (identifier)
+          (argument_list
+            (identifier)))
+        (initializer_list
+          (number_literal)
+          (number_literal))))))
+
+================================================================================
+A macro at the head of an element takes no text that an expression continues
+================================================================================
+
+// The token comes only where an element follows the arguments with no comma. A word that
+// continues the expression before it, as the alternative operator `and`, is no element.
+// The delimiter of a raw string holds a `"`, and the group ends after the literal.
+// The body of a statement macro in a GNU statement expression keeps its compound statement.
+void f(int a, int b) {
+  g({f(a), b});
+  g({f(a)});
+  g({f(a) and b});
+  g({{"k", h(R""""(
+    [1]
+  )"""")}});
+  int x = ({ M(a) { g(); } 1; });
+}
+
+--------------------------------------------------------------------------------
+
+(translation_unit
+  (comment)
+  (comment)
+  (comment)
+  (comment)
+  (function_definition
+    (primitive_type)
+    (function_declarator
+      (identifier)
+      (parameter_list
+        (parameter_declaration
+          (primitive_type)
+          (identifier))
+        (parameter_declaration
+          (primitive_type)
+          (identifier))))
+    (compound_statement
+      (expression_statement
+        (call_expression
+          (identifier)
+          (argument_list
+            (initializer_list
+              (call_expression
+                (identifier)
+                (argument_list
+                  (identifier)))
+              (identifier)))))
+      (expression_statement
+        (call_expression
+          (identifier)
+          (argument_list
+            (initializer_list
+              (call_expression
+                (identifier)
+                (argument_list
+                  (identifier)))))))
+      (expression_statement
+        (call_expression
+          (identifier)
+          (argument_list
+            (initializer_list
+              (binary_expression
+                (call_expression
+                  (identifier)
+                  (argument_list
+                    (identifier)))
+                (identifier))))))
+      (expression_statement
+        (call_expression
+          (identifier)
+          (argument_list
+            (initializer_list
+              (initializer_list
+                (string_literal
+                  (string_content))
+                (call_expression
+                  (identifier)
+                  (argument_list
+                    (raw_string_literal
+                      (raw_string_delimiter)
+                      (raw_string_content)
+                      (raw_string_delimiter)))))))))
+      (declaration
+        (primitive_type)
+        (init_declarator
+          (identifier)
+          (parenthesized_expression
+            (compound_statement
+              (macro_invocation
+                (identifier)
+                (token_tree
+                  (identifier))
+                (compound_statement
+                  (expression_statement
+                    (call_expression
+                      (identifier)
+                      (argument_list)))))
+              (expression_statement
+                (number_literal)))))))))
