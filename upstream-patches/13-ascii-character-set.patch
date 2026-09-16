@@ -1,0 +1,157 @@
+Subject: Read an ASCII character of a large character set with a bitmap
+
+A lexer state that tests a large character set does a binary search of the ranges of the set. The
+set of the identifier characters of Unicode has 687 ranges, so the search does approximately ten
+steps. The parser does that search for each letter of each name of each source file. Nearly every
+one of those letters is an ASCII character.
+
+This patch writes a bitmap of the code points 0 to 127 beside the ranges of each large character
+set. The new runtime function `set_contains_ascii` reads one bit of that bitmap for a code point
+less than 128. It calls `set_contains` for the other code points, so the result does not change.
+
+The bitmap uses 16 bytes for each large character set that a parser reads. The C++ grammar of the
+tree-sitter-cpp fork has two of them, so the tables use 32 bytes more.
+
+MEASUREMENTS. 6000 files of the C++ corpus of that fork, with one parser in each run, and with the
+same grammar before and after the patch:
+
+- `set_contains` takes 3.17% of the cycles before the patch. `set_contains_ascii` takes 0.34%
+  after it.
+- The instruction count of the full parse decreases by 2.18%, the cycle count by 3.04%, and the
+  branch misses by 3.11%.
+
+The gain is a minimum. The generated parser.c carries `#pragma GCC optimize ("O0")`, so the
+compiler keeps both functions as calls and inlines neither one.
+
+CORRECTNESS. The trees of 329,387 corpus files and of 7,646 test files do not change, and no tree
+hash changes. The parse operation count reads 1.00000. The inputs below also give the same trees,
+and the corpus reaches none of them, because it holds no identifier with a character above 127:
+
+- An identifier with a letter above 127, at the start of the name and inside it
+- The universal character names `\u00e9` and `\U000000e9`
+- The code point 127 and the code point 128, alone and inside a name
+- A user-defined literal suffix with a letter above 127, which reads the second character set.
+
+The comments hold the marker "(tree-sitter-cpp fork)". Remove the marker before you send the
+patch.
+
+--- a/lib/src/parser.h	2026-09-16 05:18:38.115099506 +0200
++++ b/lib/src/parser.h	2026-09-16 05:18:45.239534464 +0200
+@@ -169,6 +169,27 @@
+   return (lookahead >= range->start && lookahead <= range->end);
+ }
+ 
++// True when a character set holds the character (tree-sitter-cpp fork).
++//
++// `ascii` holds one bit for each of the code points 0 to 127, and the generator writes it beside the
++// ranges of the set. Nearly each character of a source is in that range, and the lexer then reads
++// one bit in the place of a binary search of the ranges. A set of the identifier characters of
++// Unicode has 687 ranges, so the search takes ten steps for each letter of each name.
++//
++// A lookahead that is not in the range 0 to 127, and a lookahead that is negative, take the search.
++static inline bool set_contains_ascii(
++  const TSCharacterRange *ranges,
++  uint32_t len,
++  const uint64_t *ascii,
++  int32_t lookahead
++) {
++  uint32_t code_point = (uint32_t)lookahead;
++  if (code_point < 128) {
++    return (ascii[code_point >> 6] >> (code_point & 63)) & 1;
++  }
++  return set_contains(ranges, len, lookahead);
++}
++
+ /*
+  *  Lexer Macros
+  */
+--- a/crates/generate/src/parser.h.inc	2026-09-16 05:18:38.119258560 +0200
++++ b/crates/generate/src/parser.h.inc	2026-09-16 05:18:45.239604968 +0200
+@@ -169,6 +169,27 @@
+   return (lookahead >= range->start && lookahead <= range->end);
+ }
+ 
++// True when a character set holds the character (tree-sitter-cpp fork).
++//
++// `ascii` holds one bit for each of the code points 0 to 127, and the generator writes it beside the
++// ranges of the set. Nearly each character of a source is in that range, and the lexer then reads
++// one bit in the place of a binary search of the ranges. A set of the identifier characters of
++// Unicode has 687 ranges, so the search takes ten steps for each letter of each name.
++//
++// A lookahead that is not in the range 0 to 127, and a lookahead that is negative, take the search.
++static inline bool set_contains_ascii(
++  const TSCharacterRange *ranges,
++  uint32_t len,
++  const uint64_t *ascii,
++  int32_t lookahead
++) {
++  uint32_t code_point = (uint32_t)lookahead;
++  if (code_point < 128) {
++    return (ascii[code_point >> 6] >> (code_point & 63)) & 1;
++  }
++  return set_contains(ranges, len, lookahead);
++}
++
+ /*
+  *  Lexer Macros
+  */
+--- a/crates/generate/src/render.rs	2026-09-16 05:18:38.122196533 +0200
++++ b/crates/generate/src/render.rs	2026-09-16 05:18:45.239889043 +0200
+@@ -1025,11 +1025,14 @@
+ 
+                 let char_set_info = &mut self.large_character_set_info[large_char_set_ix];
+                 char_set_info.is_used = true;
++                // The bitmap of the code points 0 to 127 comes with the ranges. Refer to
++                // `set_contains_ascii` in parser.h.inc (tree-sitter-cpp fork).
+                 add!(
+                     self,
+-                    "set_contains({}, {}, lookahead)",
++                    "set_contains_ascii({}, {}, {}_ascii, lookahead)",
+                     char_set_info.constant_name,
+                     large_set.range_count(),
++                    char_set_info.constant_name,
+                 );
+                 if check_eof {
+                     add!(self, ")");
+@@ -1136,16 +1139,12 @@
+ 
+     fn add_character_set(&mut self, ix: usize) {
+         let characters = self.large_character_sets[ix].1.clone();
+-        let info = &self.large_character_set_info[ix];
+-        if !info.is_used {
++        if !self.large_character_set_info[ix].is_used {
+             return;
+         }
++        let constant_name = self.large_character_set_info[ix].constant_name.clone();
+ 
+-        add_line!(
+-            self,
+-            "static const TSCharacterRange {}[] = {{",
+-            info.constant_name
+-        );
++        add_line!(self, "static const TSCharacterRange {constant_name}[] = {{");
+ 
+         indent!(self);
+         for (ix, range) in characters.ranges().enumerate() {
+@@ -1167,6 +1166,21 @@
+         add!(self, "\n");
+         dedent!(self);
+         add_line!(self, "}};");
++
++        // The bitmap of the code points 0 to 127 of the set (tree-sitter-cpp fork). The lexer reads
++        // one bit of it in the place of a binary search of the ranges. Refer to `set_contains_ascii`
++        // in parser.h.inc.
++        let mut ascii = [0u64; 2];
++        for code_point in 0u32..128 {
++            if characters.contains(char::from_u32(code_point).expect("a code point below 128 is a character")) {
++                ascii[(code_point >> 6) as usize] |= 1u64 << (code_point & 63);
++            }
++        }
++        add_line!(self, "static const uint64_t {constant_name}_ascii[2] = {{");
++        indent!(self);
++        add_line!(self, "0x{:016x}ULL, 0x{:016x}ULL,", ascii[0], ascii[1]);
++        dedent!(self);
++        add_line!(self, "}};");
+         add_line!(self, "");
+     }
+ 

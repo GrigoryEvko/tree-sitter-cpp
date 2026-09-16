@@ -85,6 +85,16 @@ The other patches, in the order of the series:
     the line. A file of 50,000 statements `x = a % b;` on one line took 38.9 s, and the same
     statements on 50,000 lines took 0.42 s. Risk: low.
 
+13-ascii-character-set.patch
+    Read an ASCII character of a large character set with one bit, and not with a binary search of
+    the ranges. The generator writes a 128-bit bitmap adjacent to the ranges of each large character
+    set. `set_contains_ascii` reads that bitmap for a code point less than 128. The set of the
+    identifier characters of Unicode has 687 ranges, so the search does approximately ten steps for
+    each letter of each name. A profile of 6000 corpus files gives `set_contains` 3.17% of the
+    cycles before the patch and `set_contains_ascii` 0.34% after it. The full parse decreases its
+    instruction count by 2.18% and its cycle count by 3.04%. No tree hash changes, and the parse
+    operation count reads 1.00000. Risk: low.
+
 WHAT UPSTREAM ALREADY HAS
 
 Upstream v0.27.0 has its own non-recursive S-expression writer, and it replaces the writer of the
