@@ -248,12 +248,11 @@ pub fn grammar() -> Grammar {
         // statement have the same start.
         &["_declaration_modifiers", "_linkage_attribute"],
         &["_declaration_modifiers", "_linkage_attribute", "_gnu_attributed_statement"],
-        // After a label, the attributes belong to the label, to a declaration, or to a linkage
-        // specification.
+        // After a label, the attributes belong to the label or to a declaration. A block takes no
+        // linkage specification, so the set names no `_linkage_attribute`.
         &[
             "_declaration_modifiers",
             "labeled_statement",
-            "_linkage_attribute",
             "_gnu_attributed_statement",
         ],
         // `__extension__` starts a declaration or an expression. Each declaration takes the same
@@ -526,7 +525,8 @@ pub fn grammar() -> Grammar {
         ],
         // A block holds no declaration and no definition of a conversion function, and it holds the
         // definition of a constructor with a body only. Refer to `items`. A block holds a typedef,
-        // and the set carries `type_definition` for that reason.
+        // and the set carries `type_definition` for that reason. A block holds no linkage
+        // specification, so the set names no `_linkage_attribute`.
         &[
             "_block_declaration",
             "type_definition",
@@ -535,17 +535,6 @@ pub fn grammar() -> Grammar {
             "_extern_declaration_specifiers",
             "_block_constructor_or_destructor_definition",
             "_structured_binding_specifiers",
-        ],
-        // The set above with `_linkage_attribute`, for the same macro before `extern` in a block.
-        &[
-            "_block_declaration",
-            "type_definition",
-            "_declaration_specifiers",
-            "_void_declaration_specifiers",
-            "_extern_declaration_specifiers",
-            "_block_constructor_or_destructor_definition",
-            "_structured_binding_specifiers",
-            "_linkage_attribute",
         ],
         // `P...[0](x)` calls an element of a value pack or casts to an element of a type pack.
         // Only name lookup tells them apart, as for `T(x)` and `f(x)`.
@@ -1478,10 +1467,19 @@ fn items(g: &mut Grammar) {
             })
             .map(|m| if m == s!(_empty_declaration) { s!(_block_empty_declaration) } else { m })
             .collect();
-        members.extend(declarations());
+        // A block takes no linkage specification. [dcl.link] p4 gives one only at namespace scope,
+        // and the two front ends give "expected unqualified-id" for `void f() { extern "C" { } }`.
+        members.retain(|m| *m != s!(linkage_specification));
+        // A block takes no concept definition. [temp.pre] p6 gives a template declaration only at
+        // namespace scope and at class scope. GCC gives "a template declaration cannot appear at
+        // block scope" and Clang gives "concept declarations may only appear in global or namespace
+        // scope". Refer to `_declaration_list_item`, which takes each of the three.
+        members.extend(declarations().into_iter().filter(|m| *m != s!(concept_definition)));
         // An import declaration is valid only at global scope, as in GCC
         // `cp_parser_import_declaration`. In a block, `import` is an identifier: `import->run();`.
-        members.push(s!(export_declaration));
+        // An export declaration is valid only at namespace scope, and only in the interface unit of
+        // a module ([module.interface] p1). The two front ends give "expected expression" for
+        // `void f() { export int y; }`.
         members.push(alias(s!(preproc_if_in_block), s!(preproc_if)));
         members.push(alias(s!(preproc_ifdef_in_block), s!(preproc_ifdef)));
         members.extend(block_definitions());
@@ -1495,6 +1493,9 @@ fn items(g: &mut Grammar) {
     // The list takes the full definition of a constructor and of a destructor in the place of the
     // block form. A namespace body holds an out-of-line definition with a pure specifier, a
     // defaulted definition, and a deleted definition: `namespace N { S::S() = default; }`.
+    //
+    // The list also takes the three items that a block does not take: a linkage specification, a
+    // concept definition, and an export declaration.
     let declaration_list_items: Vec<Rule> = g.rules["_block_item"]
         .clone()
         .into_members()
@@ -1512,6 +1513,7 @@ fn items(g: &mut Grammar) {
                 member
             }
         })
+        .chain([s!(linkage_specification), s!(concept_definition), s!(export_declaration)])
         .chain(conversion_functions())
         .chain([deduction_guide(), s!(_extension_empty_declaration), s!(asm_declaration)])
         .collect();

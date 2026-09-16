@@ -167,10 +167,6 @@
               "name": "function_definition"
             },
             {
-              "type": "SYMBOL",
-              "name": "linkage_specification"
-            },
-            {
               "type": "ALIAS",
               "content": {
                 "type": "SYMBOL",
@@ -201,10 +197,6 @@
             },
             {
               "type": "SYMBOL",
-              "name": "concept_definition"
-            },
-            {
-              "type": "SYMBOL",
               "name": "namespace_alias_definition"
             },
             {
@@ -230,10 +222,6 @@
             {
               "type": "SYMBOL",
               "name": "template_instantiation"
-            },
-            {
-              "type": "SYMBOL",
-              "name": "export_declaration"
             },
             {
               "type": "ALIAS",
@@ -293,10 +281,6 @@
         },
         {
           "type": "SYMBOL",
-          "name": "linkage_specification"
-        },
-        {
-          "type": "SYMBOL",
           "name": "declaration"
         },
         {
@@ -325,10 +309,6 @@
         },
         {
           "type": "SYMBOL",
-          "name": "concept_definition"
-        },
-        {
-          "type": "SYMBOL",
           "name": "namespace_alias_definition"
         },
         {
@@ -354,10 +334,6 @@
         {
           "type": "SYMBOL",
           "name": "template_instantiation"
-        },
-        {
-          "type": "SYMBOL",
-          "name": "export_declaration"
         },
         {
           "type": "ALIAS",
@@ -389,6 +365,18 @@
         {
           "type": "SYMBOL",
           "name": "ms_if_exists"
+        },
+        {
+          "type": "SYMBOL",
+          "name": "linkage_specification"
+        },
+        {
+          "type": "SYMBOL",
+          "name": "concept_definition"
+        },
+        {
+          "type": "SYMBOL",
+          "name": "export_declaration"
         },
         {
           "type": "ALIAS",
@@ -436,10 +424,6 @@
         },
         {
           "type": "SYMBOL",
-          "name": "linkage_specification"
-        },
-        {
-          "type": "SYMBOL",
           "name": "declaration"
         },
         {
@@ -468,10 +452,6 @@
         },
         {
           "type": "SYMBOL",
-          "name": "concept_definition"
-        },
-        {
-          "type": "SYMBOL",
           "name": "namespace_alias_definition"
         },
         {
@@ -497,10 +477,6 @@
         {
           "type": "SYMBOL",
           "name": "template_instantiation"
-        },
-        {
-          "type": "SYMBOL",
-          "name": "export_declaration"
         },
         {
           "type": "ALIAS",
@@ -532,6 +508,18 @@
         {
           "type": "SYMBOL",
           "name": "ms_if_exists"
+        },
+        {
+          "type": "SYMBOL",
+          "name": "linkage_specification"
+        },
+        {
+          "type": "SYMBOL",
+          "name": "concept_definition"
+        },
+        {
+          "type": "SYMBOL",
+          "name": "export_declaration"
         },
         {
           "type": "ALIAS",
@@ -22564,10 +22552,6 @@
               "name": "function_definition"
             },
             {
-              "type": "SYMBOL",
-              "name": "linkage_specification"
-            },
-            {
               "type": "ALIAS",
               "content": {
                 "type": "SYMBOL",
@@ -22598,10 +22582,6 @@
             },
             {
               "type": "SYMBOL",
-              "name": "concept_definition"
-            },
-            {
-              "type": "SYMBOL",
               "name": "namespace_alias_definition"
             },
             {
@@ -22627,10 +22607,6 @@
             {
               "type": "SYMBOL",
               "name": "template_instantiation"
-            },
-            {
-              "type": "SYMBOL",
-              "name": "export_declaration"
             },
             {
               "type": "ALIAS",
@@ -22692,10 +22668,6 @@
               "name": "function_definition"
             },
             {
-              "type": "SYMBOL",
-              "name": "linkage_specification"
-            },
-            {
               "type": "ALIAS",
               "content": {
                 "type": "SYMBOL",
@@ -22719,10 +22691,6 @@
             {
               "type": "SYMBOL",
               "name": "namespace_definition"
-            },
-            {
-              "type": "SYMBOL",
-              "name": "concept_definition"
             },
             {
               "type": "SYMBOL",
@@ -22751,10 +22719,6 @@
             {
               "type": "SYMBOL",
               "name": "template_instantiation"
-            },
-            {
-              "type": "SYMBOL",
-              "name": "export_declaration"
             },
             {
               "type": "ALIAS",
@@ -45465,7 +45429,6 @@
     [
       "_declaration_modifiers",
       "labeled_statement",
-      "_linkage_attribute",
       "_gnu_attributed_statement"
     ],
     [
@@ -45882,16 +45845,6 @@
       "_extern_declaration_specifiers",
       "_block_constructor_or_destructor_definition",
       "_structured_binding_specifiers"
-    ],
-    [
-      "_block_declaration",
-      "type_definition",
-      "_declaration_specifiers",
-      "_void_declaration_specifiers",
-      "_extern_declaration_specifiers",
-      "_block_constructor_or_destructor_definition",
-      "_structured_binding_specifiers",
-      "_linkage_attribute"
     ],
     [
       "pack_index_specifier",

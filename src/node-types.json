@@ -1903,10 +1903,6 @@
           "named": true
         },
         {
-          "type": "concept_definition",
-          "named": true
-        },
-        {
           "type": "consteval_block_declaration",
           "named": true
         },
@@ -1932,10 +1928,6 @@
         },
         {
           "type": "expansion_statement",
-          "named": true
-        },
-        {
-          "type": "export_declaration",
           "named": true
         },
         {
@@ -1968,10 +1960,6 @@
         },
         {
           "type": "labeled_statement",
-          "named": true
-        },
-        {
-          "type": "linkage_specification",
           "named": true
         },
         {
@@ -2464,10 +2452,6 @@
           "named": true
         },
         {
-          "type": "concept_definition",
-          "named": true
-        },
-        {
           "type": "consteval_block_declaration",
           "named": true
         },
@@ -2480,10 +2464,6 @@
           "named": true
         },
         {
-          "type": "export_declaration",
-          "named": true
-        },
-        {
           "type": "function_definition",
           "named": true
         },
@@ -2493,10 +2473,6 @@
         },
         {
           "type": "label_declaration",
-          "named": true
-        },
-        {
-          "type": "linkage_specification",
           "named": true
         },
         {
@@ -6084,10 +6060,6 @@
           "named": true
         },
         {
-          "type": "concept_definition",
-          "named": true
-        },
-        {
           "type": "consteval_block_declaration",
           "named": true
         },
@@ -6100,19 +6072,11 @@
           "named": true
         },
         {
-          "type": "export_declaration",
-          "named": true
-        },
-        {
           "type": "function_definition",
           "named": true
         },
         {
           "type": "interface_specifier",
-          "named": true
-        },
-        {
-          "type": "linkage_specification",
           "named": true
         },
         {

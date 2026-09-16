@@ -855,7 +855,6 @@ A macro before the keyword of a linkage specification
 SYCL_EXTERNAL extern "C" unsigned int f(bool valid);
 V8_SYMBOL_USED extern "C" int g(int* argc) { return 0; }
 __attribute__((weak)) extern "C" void h() {}
-void k() { MACRO extern "C" int l(); }
 
 --------------------------------------------------------------------------------
 
@@ -902,23 +901,46 @@ void k() { MACRO extern "C" int l(); }
       (function_declarator
         (identifier)
         (parameter_list))
-      (compound_statement)))
+      (compound_statement))))
+
+================================================================================
+A linkage specification in a block
+================================================================================
+
+// A linkage specification is valid only at namespace scope ([dcl.link] p4). For
+// `void k() { extern "C" int l(); }` GCC gives "expected unqualified-id before string constant"
+// and Clang gives "expected unqualified-id", and a macro before the keyword changes nothing,
+// because a linkage specification is never valid there whatever precedes it. A block takes no
+// such item, and the tree holds an error. The test above holds the namespace-scope forms, which
+// both front ends accept.
+void k() { MACRO extern "C" int l(); }
+
+--------------------------------------------------------------------------------
+
+(translation_unit
+  (comment)
+  (comment)
+  (comment)
+  (comment)
+  (comment)
+  (comment)
   (function_definition
-    (primitive_type)
-    (function_declarator
-      (identifier)
-      (parameter_list))
-    (compound_statement
-      (linkage_specification
-        (attribute_macro
-          (identifier))
-        (string_literal
-          (string_content))
-        (declaration
-          (primitive_type)
-          (function_declarator
+    type: (primitive_type)
+    declarator: (function_declarator
+      declarator: (identifier)
+      parameters: (parameter_list))
+    body: (compound_statement
+      (ERROR
+        type: (type_identifier)
+        (storage_class_specifier))
+      (expression_statement
+        (call_expression
+          function: (concatenated_string
+            (string_literal
+              (string_content))
             (identifier)
-            (parameter_list)))))))
+            (identifier))
+          arguments: (argument_list))))))
 
 ================================================================================
 A macro in the head of a friend class
