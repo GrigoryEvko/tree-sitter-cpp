@@ -257,7 +257,7 @@
               "type": "ALIAS",
               "content": {
                 "type": "SYMBOL",
-                "name": "constructor_or_destructor_definition"
+                "name": "_block_constructor_or_destructor_definition"
               },
               "named": true,
               "value": "function_definition"
@@ -22507,7 +22507,7 @@
               "type": "ALIAS",
               "content": {
                 "type": "SYMBOL",
-                "name": "constructor_or_destructor_definition"
+                "name": "_block_constructor_or_destructor_definition"
               },
               "named": true,
               "value": "function_definition"
@@ -22613,7 +22613,7 @@
               "type": "ALIAS",
               "content": {
                 "type": "SYMBOL",
-                "name": "constructor_or_destructor_definition"
+                "name": "_block_constructor_or_destructor_definition"
               },
               "named": true,
               "value": "function_definition"
@@ -30367,6 +30367,245 @@
             {
               "type": "SYMBOL",
               "name": "pure_virtual_clause"
+            }
+          ]
+        }
+      ]
+    },
+    "_block_constructor_or_destructor_definition": {
+      "type": "SEQ",
+      "members": [
+        {
+          "type": "SEQ",
+          "members": [
+            {
+              "type": "REPEAT",
+              "content": {
+                "type": "SYMBOL",
+                "name": "_extension_specifier"
+              }
+            },
+            {
+              "type": "CHOICE",
+              "members": [
+                {
+                  "type": "SYMBOL",
+                  "name": "ms_call_modifier"
+                },
+                {
+                  "type": "BLANK"
+                }
+              ]
+            },
+            {
+              "type": "REPEAT",
+              "content": {
+                "type": "SYMBOL",
+                "name": "_constructor_specifiers"
+              }
+            },
+            {
+              "type": "CHOICE",
+              "members": [
+                {
+                  "type": "FIELD",
+                  "name": "declarator",
+                  "content": {
+                    "type": "SYMBOL",
+                    "name": "function_declarator"
+                  }
+                },
+                {
+                  "type": "SEQ",
+                  "members": [
+                    {
+                      "type": "REPEAT1",
+                      "content": {
+                        "type": "SEQ",
+                        "members": [
+                          {
+                            "type": "CHOICE",
+                            "members": [
+                              {
+                                "type": "SYMBOL",
+                                "name": "attribute_macro"
+                              },
+                              {
+                                "type": "CHOICE",
+                                "members": [
+                                  {
+                                    "type": "ALIAS",
+                                    "content": {
+                                      "type": "SYMBOL",
+                                      "name": "_macro_call_attribute"
+                                    },
+                                    "named": true,
+                                    "value": "attribute_macro"
+                                  },
+                                  {
+                                    "type": "ALIAS",
+                                    "content": {
+                                      "type": "SYMBOL",
+                                      "name": "_macro_call_attribute_tokens"
+                                    },
+                                    "named": true,
+                                    "value": "attribute_macro"
+                                  }
+                                ]
+                              }
+                            ]
+                          },
+                          {
+                            "type": "REPEAT",
+                            "content": {
+                              "type": "SYMBOL",
+                              "name": "_constructor_specifiers"
+                            }
+                          }
+                        ]
+                      }
+                    },
+                    {
+                      "type": "FIELD",
+                      "name": "declarator",
+                      "content": {
+                        "type": "ALIAS",
+                        "content": {
+                          "type": "SYMBOL",
+                          "name": "_named_function_declarator"
+                        },
+                        "named": true,
+                        "value": "function_declarator"
+                      }
+                    }
+                  ]
+                },
+                {
+                  "type": "SEQ",
+                  "members": [
+                    {
+                      "type": "ALIAS",
+                      "content": {
+                        "type": "SYMBOL",
+                        "name": "_constructor_first_macro"
+                      },
+                      "named": true,
+                      "value": "attribute_macro"
+                    },
+                    {
+                      "type": "REPEAT",
+                      "content": {
+                        "type": "SYMBOL",
+                        "name": "_constructor_specifiers"
+                      }
+                    },
+                    {
+                      "type": "REPEAT",
+                      "content": {
+                        "type": "SEQ",
+                        "members": [
+                          {
+                            "type": "CHOICE",
+                            "members": [
+                              {
+                                "type": "ALIAS",
+                                "content": {
+                                  "type": "SYMBOL",
+                                  "name": "_constructor_attribute_macro"
+                                },
+                                "named": true,
+                                "value": "attribute_macro"
+                              },
+                              {
+                                "type": "CHOICE",
+                                "members": [
+                                  {
+                                    "type": "ALIAS",
+                                    "content": {
+                                      "type": "SYMBOL",
+                                      "name": "_macro_call_attribute"
+                                    },
+                                    "named": true,
+                                    "value": "attribute_macro"
+                                  },
+                                  {
+                                    "type": "ALIAS",
+                                    "content": {
+                                      "type": "SYMBOL",
+                                      "name": "_macro_call_attribute_tokens"
+                                    },
+                                    "named": true,
+                                    "value": "attribute_macro"
+                                  }
+                                ]
+                              }
+                            ]
+                          },
+                          {
+                            "type": "REPEAT",
+                            "content": {
+                              "type": "SYMBOL",
+                              "name": "_constructor_specifiers"
+                            }
+                          }
+                        ]
+                      }
+                    },
+                    {
+                      "type": "FIELD",
+                      "name": "declarator",
+                      "content": {
+                        "type": "ALIAS",
+                        "content": {
+                          "type": "SYMBOL",
+                          "name": "_named_function_declarator"
+                        },
+                        "named": true,
+                        "value": "function_declarator"
+                      }
+                    }
+                  ]
+                }
+              ]
+            }
+          ]
+        },
+        {
+          "type": "CHOICE",
+          "members": [
+            {
+              "type": "SEQ",
+              "members": [
+                {
+                  "type": "CHOICE",
+                  "members": [
+                    {
+                      "type": "SYMBOL",
+                      "name": "field_initializer_list"
+                    },
+                    {
+                      "type": "BLANK"
+                    }
+                  ]
+                },
+                {
+                  "type": "FIELD",
+                  "name": "body",
+                  "content": {
+                    "type": "SYMBOL",
+                    "name": "compound_statement"
+                  }
+                }
+              ]
+            },
+            {
+              "type": "ALIAS",
+              "content": {
+                "type": "SYMBOL",
+                "name": "constructor_try_statement"
+              },
+              "named": true,
+              "value": "try_statement"
             }
           ]
         }
@@ -45279,7 +45518,7 @@
       "_declaration_specifiers",
       "_void_declaration_specifiers",
       "_extern_declaration_specifiers",
-      "constructor_or_destructor_definition",
+      "_block_constructor_or_destructor_definition",
       "_structured_binding_specifiers"
     ],
     [
@@ -45288,7 +45527,7 @@
       "_declaration_specifiers",
       "_void_declaration_specifiers",
       "_extern_declaration_specifiers",
-      "constructor_or_destructor_definition",
+      "_block_constructor_or_destructor_definition",
       "_structured_binding_specifiers",
       "_linkage_attribute"
     ],

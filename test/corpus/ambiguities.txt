@@ -2905,3 +2905,220 @@ template<typename W> struct V { alignas(W) char a; };
                 type: (type_identifier))))
           type: (primitive_type)
           declarator: (field_identifier))))))
+
+================================================================================
+A call assigned zero in a block
+================================================================================
+
+// [dcl.pre] gives a simple-declaration a decl-specifier-seq, and only a member-declaration
+// omits one, for a constructor, a destructor, and a conversion function. So a block holds no
+// declaration that starts with a declarator, and `c<N>::f() = 0;` in a block is an assignment.
+// GCC `cp_parser_simple_declaration` (parser.cc:17999) says "In a block scope, a valid
+// declaration must always have a decl-specifier-seq". Clang `isCXXDeclarationStatement`
+// (ParseTentative.cpp:19) reads a declaration with no specifier only for the name of the
+// current class, for a deduction guide, and for a qualified name that an identifier follows.
+// Both front ends give `BinaryOperator '='` over a `CallExpr` for each of the three lines.
+// A class body keeps the pure specifier, the defaulted definition, and the deleted definition.
+// Each reading below was decided by the order of the stack versions before this test, and the
+// scope with a template-id read as a pure-virtual definition at block scope.
+struct q {};
+struct op_queue_access { static int& front(q&); };
+int& GetCapacity();
+template <int N> struct counter {
+    static int& adjust_size_count();
+    static void init(q& e) {
+        counter<N>::adjust_size_count() = 0;
+        op_queue_access::front(e) = 0;
+        GetCapacity() = 0;
+    }
+};
+struct base { virtual void v() = 0; base() = default; base(const base&) = delete; };
+
+--------------------------------------------------------------------------------
+
+(translation_unit
+  (comment)
+  (comment)
+  (comment)
+  (comment)
+  (comment)
+  (comment)
+  (comment)
+  (comment)
+  (comment)
+  (comment)
+  (comment)
+  (struct_specifier
+    name: (type_identifier)
+    body: (field_declaration_list))
+  (struct_specifier
+    name: (type_identifier)
+    body: (field_declaration_list
+      (field_declaration
+        (storage_class_specifier)
+        type: (primitive_type)
+        declarator: (reference_declarator
+          (function_declarator
+            declarator: (field_identifier)
+            parameters: (parameter_list
+              (parameter_declaration
+                type: (type_identifier)
+                declarator: (abstract_reference_declarator))))))))
+  (declaration
+    type: (primitive_type)
+    declarator: (reference_declarator
+      (function_declarator
+        declarator: (identifier)
+        parameters: (parameter_list))))
+  (template_declaration
+    parameters: (template_parameter_list
+      (parameter_declaration
+        type: (primitive_type)
+        declarator: (identifier)))
+    (struct_specifier
+      name: (type_identifier)
+      body: (field_declaration_list
+        (field_declaration
+          (storage_class_specifier)
+          type: (primitive_type)
+          declarator: (reference_declarator
+            (function_declarator
+              declarator: (field_identifier)
+              parameters: (parameter_list))))
+        (function_definition
+          (storage_class_specifier)
+          type: (primitive_type)
+          declarator: (function_declarator
+            declarator: (field_identifier)
+            parameters: (parameter_list
+              (parameter_declaration
+                type: (type_identifier)
+                declarator: (reference_declarator
+                  (identifier)))))
+          body: (compound_statement
+            (expression_statement
+              (assignment_expression
+                left: (call_expression
+                  function: (qualified_identifier
+                    scope: (template_type
+                      name: (type_identifier)
+                      arguments: (template_argument_list
+                        (type_descriptor
+                          type: (type_identifier))))
+                    name: (identifier))
+                  arguments: (argument_list))
+                right: (number_literal)))
+            (expression_statement
+              (assignment_expression
+                left: (call_expression
+                  function: (qualified_identifier
+                    scope: (namespace_identifier)
+                    name: (identifier))
+                  arguments: (argument_list
+                    (identifier)))
+                right: (number_literal)))
+            (expression_statement
+              (assignment_expression
+                left: (call_expression
+                  function: (identifier)
+                  arguments: (argument_list))
+                right: (number_literal))))))))
+  (struct_specifier
+    name: (type_identifier)
+    body: (field_declaration_list
+      (field_declaration
+        type: (primitive_type)
+        declarator: (function_declarator
+          declarator: (field_identifier)
+          parameters: (parameter_list))
+        default_value: (number_literal))
+      (function_definition
+        declarator: (function_declarator
+          declarator: (identifier)
+          parameters: (parameter_list))
+        (default_method_clause))
+      (function_definition
+        declarator: (function_declarator
+          declarator: (identifier)
+          parameters: (parameter_list
+            (parameter_declaration
+              (type_qualifier)
+              type: (type_identifier)
+              declarator: (abstract_reference_declarator))))
+        (delete_method_clause)))))
+
+================================================================================
+A definition of a constructor in a block and at namespace scope
+================================================================================
+
+// The readings that the block rule must not take away. At namespace scope an out-of-line
+// definition keeps each form, and a defaulted definition is valid there. In a block the
+// grammar keeps the form with a body, because macro code writes `name(a, b) { ... }` there.
+// The snippet ext_bpf_foreach holds the same macro line.
+struct s { s(); ~s(); };
+s::s() = default;
+s::~s() { }
+void f(int* prog, int* obj) { bpf_object__for_each_program(prog, obj) { g(prog); } }
+
+--------------------------------------------------------------------------------
+
+(translation_unit
+  (comment)
+  (comment)
+  (comment)
+  (comment)
+  (struct_specifier
+    name: (type_identifier)
+    body: (field_declaration_list
+      (declaration
+        declarator: (function_declarator
+          declarator: (identifier)
+          parameters: (parameter_list)))
+      (declaration
+        declarator: (function_declarator
+          declarator: (destructor_name
+            (identifier))
+          parameters: (parameter_list)))))
+  (function_definition
+    declarator: (function_declarator
+      declarator: (qualified_identifier
+        scope: (namespace_identifier)
+        name: (identifier))
+      parameters: (parameter_list))
+    (default_method_clause))
+  (function_definition
+    declarator: (function_declarator
+      declarator: (qualified_identifier
+        scope: (namespace_identifier)
+        name: (destructor_name
+          (identifier)))
+      parameters: (parameter_list))
+    body: (compound_statement))
+  (function_definition
+    type: (primitive_type)
+    declarator: (function_declarator
+      declarator: (identifier)
+      parameters: (parameter_list
+        (parameter_declaration
+          type: (primitive_type)
+          declarator: (pointer_declarator
+            declarator: (identifier)))
+        (parameter_declaration
+          type: (primitive_type)
+          declarator: (pointer_declarator
+            declarator: (identifier)))))
+    body: (compound_statement
+      (function_definition
+        declarator: (function_declarator
+          declarator: (identifier)
+          parameters: (parameter_list
+            (parameter_declaration
+              type: (type_identifier))
+            (parameter_declaration
+              type: (type_identifier))))
+        body: (compound_statement
+          (expression_statement
+            (call_expression
+              function: (identifier)
+              arguments: (argument_list
+                (identifier)))))))))

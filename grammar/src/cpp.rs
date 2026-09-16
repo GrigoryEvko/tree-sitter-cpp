@@ -519,15 +519,16 @@ pub fn grammar() -> Grammar {
             "_structured_binding_specifiers",
             "_linkage_attribute",
         ],
-        // A block holds no declaration and no definition of a conversion function. Refer to `items`.
-        // A block holds a typedef, and the set carries `type_definition` for that reason.
+        // A block holds no declaration and no definition of a conversion function, and it holds the
+        // definition of a constructor with a body only. Refer to `items`. A block holds a typedef,
+        // and the set carries `type_definition` for that reason.
         &[
             "_block_declaration",
             "type_definition",
             "_declaration_specifiers",
             "_void_declaration_specifiers",
             "_extern_declaration_specifiers",
-            "constructor_or_destructor_definition",
+            "_block_constructor_or_destructor_definition",
             "_structured_binding_specifiers",
         ],
         // The set above with `_linkage_attribute`, for the same macro before `extern` in a block.
@@ -537,7 +538,7 @@ pub fn grammar() -> Grammar {
             "_declaration_specifiers",
             "_void_declaration_specifiers",
             "_extern_declaration_specifiers",
-            "constructor_or_destructor_definition",
+            "_block_constructor_or_destructor_definition",
             "_structured_binding_specifiers",
             "_linkage_attribute",
         ],
@@ -1415,6 +1416,17 @@ fn items(g: &mut Grammar) {
     // Clang rejects each qualifier and each operand list there, and GCC C reads only the plain form.
     g.define("asm_declaration", seq![s!(gnu_asm_expression), ";"]);
     let definitions = || [alias(s!(constructor_or_destructor_definition), s!(function_definition))];
+    // A block takes the form with a body only. A constructor definition has no decl-specifier-seq,
+    // and a declaration in a block must have one. GCC `cp_parser_simple_declaration`
+    // (parser.cc:17999) says so in its own comment: "In a block scope, a valid declaration must
+    // always have a decl-specifier-seq", and it gives "expected declaration" for a block declaration
+    // with no specifier. Clang `isCXXDeclarationStatement` (ParseTentative.cpp:19) takes a
+    // declaration with no specifier only for the name of the current class, for a deduction guide,
+    // and for a qualified name that an identifier follows. So `s::c() = 0;` in a block is an
+    // assignment, and both front ends read it that way. Refer to
+    // `_block_constructor_or_destructor_definition`.
+    let block_definitions =
+        || [alias(s!(_block_constructor_or_destructor_definition), s!(function_definition))];
     // A block holds no declaration and no definition of a conversion function. A declaration in a block
     // starts with a decl-specifier (GCC `cp_parser_simple_declaration`, Clang `isCXXSimpleDeclaration`). In a
     // block, `B::operator bool();` calls a conversion function. Refer to `_conversion_function_id`.
@@ -1464,13 +1476,17 @@ fn items(g: &mut Grammar) {
         members.push(s!(export_declaration));
         members.push(alias(s!(preproc_if_in_block), s!(preproc_if)));
         members.push(alias(s!(preproc_ifdef_in_block), s!(preproc_ifdef)));
-        members.extend(definitions());
+        members.extend(block_definitions());
         members.push(alias(s!(_ms_if_exists_in_block), s!(ms_if_exists)));
         Rule::Choice(members)
     });
     // The body of a namespace, of a linkage specification, and of an export declaration holds the
     // items of a block with the declarations and the conditional groups of a namespace. A block item
     // is a declaration of a block. Refer to `block_declaration`.
+    //
+    // The list takes the full definition of a constructor and of a destructor in the place of the
+    // block form. A namespace body holds an out-of-line definition with a pure specifier, a
+    // defaulted definition, and a deleted definition: `namespace N { S::S() = default; }`.
     let declaration_list_items: Vec<Rule> = g.rules["_block_item"]
         .clone()
         .into_members()
@@ -1482,6 +1498,8 @@ fn items(g: &mut Grammar) {
                 alias(s!(preproc_ifdef_in_declaration_list), s!(preproc_ifdef))
             } else if member == alias(s!(_ms_if_exists_in_block), s!(ms_if_exists)) {
                 s!(ms_if_exists)
+            } else if member == block_definitions()[0] {
+                definitions()[0].clone()
             } else {
                 member
             }
@@ -3614,6 +3632,27 @@ fn declarations(g: &mut Grammar) {
                 s!(default_method_clause),
                 s!(delete_method_clause),
                 s!(pure_virtual_clause),
+            ],
+        ],
+    );
+    // The definition in a block. A block holds no declaration whose decl-specifier-seq is absent,
+    // and a constructor definition has none, so C++ has no such definition in a block. The grammar
+    // keeps the form with a body, because macro code writes `name(a, b) { ... }` in a block and the
+    // reading gives no error node there. It keeps no form with `= 0`, `= default`, or `= delete`:
+    // no macro definition makes `name(a, b) = 0;` a declaration, because a macro that takes the name
+    // gives an expression and the text is then an assignment. Refer to `_block_item`.
+    define_after(
+        g,
+        "constructor_or_destructor_definition",
+        "_block_constructor_or_destructor_definition",
+        seq![
+            constructor_head(),
+            choice![
+                seq![
+                    optional(s!(field_initializer_list)),
+                    field("body", s!(compound_statement))
+                ],
+                alias(s!(constructor_try_statement), s!(try_statement)),
             ],
         ],
     );
