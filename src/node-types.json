@@ -9746,7 +9746,7 @@
         "required": true,
         "types": [
           {
-            "type": "parenthesized_expression",
+            "type": "expression",
             "named": true
           }
         ]
@@ -11182,6 +11182,14 @@
           "named": true
         },
         {
+          "type": "seh_leave_statement",
+          "named": true
+        },
+        {
+          "type": "seh_try_statement",
+          "named": true
+        },
+        {
           "type": "static_assert_declaration",
           "named": true
         },
@@ -12440,6 +12448,10 @@
   },
   {
     "type": "__builtin_va_arg",
+    "named": false
+  },
+  {
+    "type": "__catch",
     "named": false
   },
   {

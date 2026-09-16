@@ -1608,3 +1608,145 @@ The GNU keyword __extension__ in an attribute specifier
     (storage_class_specifier)
     type: (primitive_type)
     declarator: (identifier)))
+
+================================================================================
+MS structured exception handling
+================================================================================
+
+void f() {
+  __try {
+    int x = 1;
+    if (x) __leave;
+  } __except (filter(_exception_code())) {
+  }
+  __try {
+  } __finally {
+  }
+  __try { } __except (1) { }
+}
+void g() { int __except = 0; }
+
+--------------------------------------------------------------------------------
+
+(translation_unit
+  (function_definition
+    (primitive_type)
+    (function_declarator
+      (identifier)
+      (parameter_list))
+    (compound_statement
+      (seh_try_statement
+        (compound_statement
+          (declaration
+            (primitive_type)
+            (init_declarator
+              (identifier)
+              (number_literal)))
+          (if_statement
+            (condition_clause
+              (identifier))
+            (seh_leave_statement)))
+        (seh_except_clause
+          (call_expression
+            (identifier)
+            (argument_list
+              (call_expression
+                (identifier)
+                (argument_list))))
+          (compound_statement)))
+      (seh_try_statement
+        (compound_statement)
+        (seh_finally_clause
+          (compound_statement)))
+      (seh_try_statement
+        (compound_statement)
+        (seh_except_clause
+          (number_literal)
+          (compound_statement)))))
+  (function_definition
+    (primitive_type)
+    (function_declarator
+      (identifier)
+      (parameter_list))
+    (compound_statement
+      (declaration
+        (primitive_type)
+        (init_declarator
+          (identifier)
+          (number_literal))))))
+
+================================================================================
+The libstdc++ macros __try and __catch
+================================================================================
+
+void f() {
+  __try
+    {
+      g();
+    }
+  __catch(...)
+    {
+      throw;
+    }
+}
+void h() {
+  __try { g(); }
+  __catch(__cxxabiv1::__forced_unwind&) { throw; }
+  __catch(const std::exception& e) { report(e); }
+}
+
+--------------------------------------------------------------------------------
+
+(translation_unit
+  (function_definition
+    (primitive_type)
+    (function_declarator
+      (identifier)
+      (parameter_list))
+    (compound_statement
+      (try_statement
+        (compound_statement
+          (expression_statement
+            (call_expression
+              (identifier)
+              (argument_list))))
+        (catch_clause
+          (parameter_list)
+          (compound_statement
+            (throw_statement))))))
+  (function_definition
+    (primitive_type)
+    (function_declarator
+      (identifier)
+      (parameter_list))
+    (compound_statement
+      (try_statement
+        (compound_statement
+          (expression_statement
+            (call_expression
+              (identifier)
+              (argument_list))))
+        (catch_clause
+          (parameter_list
+            (parameter_declaration
+              (qualified_identifier
+                (namespace_identifier)
+                (type_identifier))
+              (abstract_reference_declarator)))
+          (compound_statement
+            (throw_statement)))
+        (catch_clause
+          (parameter_list
+            (parameter_declaration
+              (type_qualifier)
+              (qualified_identifier
+                (namespace_identifier)
+                (type_identifier))
+              (reference_declarator
+                (identifier))))
+          (compound_statement
+            (expression_statement
+              (call_expression
+                (identifier)
+                (argument_list
+                  (identifier))))))))))

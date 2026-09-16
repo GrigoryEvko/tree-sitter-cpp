@@ -15646,6 +15646,14 @@
                     {
                       "type": "SYMBOL",
                       "name": "ms_asm_statement"
+                    },
+                    {
+                      "type": "SYMBOL",
+                      "name": "seh_try_statement"
+                    },
+                    {
+                      "type": "SYMBOL",
+                      "name": "seh_leave_statement"
                     }
                   ]
                 },
@@ -15801,6 +15809,14 @@
             {
               "type": "SYMBOL",
               "name": "ms_asm_statement"
+            },
+            {
+              "type": "SYMBOL",
+              "name": "seh_try_statement"
+            },
+            {
+              "type": "SYMBOL",
+              "name": "seh_leave_statement"
             }
           ]
         },
@@ -16879,12 +16895,20 @@
           "value": "__except"
         },
         {
+          "type": "STRING",
+          "value": "("
+        },
+        {
           "type": "FIELD",
           "name": "filter",
           "content": {
             "type": "SYMBOL",
-            "name": "parenthesized_expression"
+            "name": "expression"
           }
+        },
+        {
+          "type": "STRING",
+          "value": ")"
         },
         {
           "type": "FIELD",
@@ -35388,8 +35412,17 @@
       "type": "SEQ",
       "members": [
         {
-          "type": "STRING",
-          "value": "try"
+          "type": "CHOICE",
+          "members": [
+            {
+              "type": "STRING",
+              "value": "try"
+            },
+            {
+              "type": "STRING",
+              "value": "__try"
+            }
+          ]
         },
         {
           "type": "FIELD",
@@ -35412,8 +35445,17 @@
       "type": "SEQ",
       "members": [
         {
-          "type": "STRING",
-          "value": "catch"
+          "type": "CHOICE",
+          "members": [
+            {
+              "type": "STRING",
+              "value": "catch"
+            },
+            {
+              "type": "STRING",
+              "value": "__catch"
+            }
+          ]
         },
         {
           "type": "FIELD",
@@ -35563,6 +35605,14 @@
         {
           "type": "SYMBOL",
           "name": "ms_asm_statement"
+        },
+        {
+          "type": "SYMBOL",
+          "name": "seh_try_statement"
+        },
+        {
+          "type": "SYMBOL",
+          "name": "seh_leave_statement"
         },
         {
           "type": "ALIAS",

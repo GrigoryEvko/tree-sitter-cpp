@@ -5336,9 +5336,42 @@ fn statements(g: &mut Grammar) {
             "qt_foreach_statement",
             "qt_forever_statement",
             "ms_asm_statement",
+            "seh_try_statement",
+            "seh_leave_statement",
         ]
         .map(sym)
     };
+    // MS structured exception handling: `__try { } __except (filter) { }` and
+    // `__try { } __finally { }`. `__leave` goes to the end of the try block. Clang reads the form
+    // with `-fms-extensions` in `ParseSEHTryBlock`, `ParseSEHExceptBlock`, `ParseSEHFinallyBlock`,
+    // and `ParseSEHLeaveStatement` (ParseStmt.cpp), and it builds `SEHTryStmt` with a
+    // `SEHExceptStmt` or a `SEHFinallyStmt`, and `SEHLeaveStmt`. GCC gives "'__try' was not declared
+    // in this scope" for each form, and Clang is the only front end that reads it.
+    //
+    // The filter of `__except` is an expression, and its value selects the handler. A `__finally`
+    // block runs for each exit of the try block, and it takes no filter. The three node kinds stay
+    // apart from `try_statement` and `catch_clause`, because a filter is no handler and a
+    // `__finally` block catches no exception, as Clang keeps `SEHTryStmt` apart from `CXXTryStmt`.
+    g.define(
+        "seh_try_statement",
+        seq![
+            "__try",
+            field("body", s!(compound_statement)),
+            choice![s!(seh_except_clause), s!(seh_finally_clause)],
+        ],
+    );
+    g.define(
+        "seh_except_clause",
+        seq![
+            "__except",
+            "(",
+            field("filter", s!(expression)),
+            ")",
+            field("body", s!(compound_statement)),
+        ],
+    );
+    g.define("seh_finally_clause", seq!["__finally", field("body", s!(compound_statement))]);
+    g.define("seh_leave_statement", seq!["__leave", ";"]);
     // An MS inline assembly block: `__asm { mov eax, 1 }`. The external scanner reads the block as
     // text (Clang ParseStmtAsm.cpp, ParseMicrosoftAsmStatement). A GNU `__asm ("...")` has `(`
     // after the keyword, and the brace tells the two apart.
@@ -5595,14 +5628,30 @@ fn statements(g: &mut Grammar) {
             ";",
         ],
     );
+    // libstdc++ defines `__try` as `try` and `__catch(X)` as `catch(X)` in bits/c++config.h, and it
+    // writes the two words in each header that catches an exception. GCC and Clang read the
+    // expansion and build a try statement with a handler. The grammar reads the two words as the
+    // two keywords, as it reads `emit` and `Q_FOREACH` of Qt.
+    //
+    // With `-fno-exceptions` the same header defines `__try` as `if (true)` and `__catch(X)` as
+    // `else if (false)`. The grammar has no preprocessor state, and it reads the form of the
+    // configuration that the two front ends read for the files of the corpus.
+    //
+    // `__try` also starts an MS structured exception handling block. The word after the body tells
+    // the two apart: `__catch` gives a handler, and `__except` or `__finally` gives
+    // `seh_try_statement`.
     g.define(
         "try_statement",
-        seq!["try", field("body", s!(compound_statement)), repeat1(s!(catch_clause))],
+        seq![
+            choice!["try", "__try"],
+            field("body", s!(compound_statement)),
+            repeat1(s!(catch_clause))
+        ],
     );
     g.define(
         "catch_clause",
         seq![
-            "catch",
+            choice!["catch", "__catch"],
             field("parameters", s!(parameter_list)),
             field("body", s!(compound_statement)),
         ],
