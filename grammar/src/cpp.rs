@@ -486,6 +486,7 @@ pub fn grammar() -> Grammar {
     declarations(&mut g);
     statements(&mut g);
     expressions(&mut g);
+    macro_scope_names(&mut g);
     macros(&mut g);
     // The directive rules change the item lists of the other rules. For this reason, this call comes
     // after the other rule functions.
@@ -605,6 +606,18 @@ fn top_level_expression_statement(g: &mut Grammar) {
 /// `FUNCTION_GROUPING` says. A macro statement keeps its reading, because the declaration of the same
 /// text has the precedence `NAME_GROUPING_OUTSIDE_BLOCK`.
 const NAMESPACE_EXPRESSION: i32 = -100;
+
+/// The dynamic precedence of a macro that gives a nested-name-specifier, before the name that it
+/// qualifies: `CGAL_NTS abs(a)`. Two adjacent names are no expression of C++, and each other reading
+/// of the two names wins. `void f(T &g(U x));` keeps the parameter `U x` of its function declarator,
+/// and `T x = A B;` keeps the declaration of `x`.
+const MACRO_SCOPE_NAME: i32 = -200;
+
+/// The static precedence of the same rule. It decides a conflict of a shift against the reduction of
+/// the two names, and the shift wins. A token that continues a different reading of the second name
+/// keeps that reading: `typeid(C C::*)` is a type-id of a pointer to a member, because the `::` after
+/// the second name goes to `abstract_member_pointer_declarator`.
+const MACRO_SCOPE_NAME_SHIFT: i32 = -1;
 
 /// The keywords that cannot start a type name, and that the lexer gives as keywords where a type
 /// name can start.
@@ -7341,6 +7354,41 @@ fn expressions(g: &mut Grammar) {
         seq![choice![s!(string_literal), s!(raw_string_literal)], s!(literal_suffix)],
     );
     g.define("_namespace_identifier", alias(s!(identifier), s!(namespace_identifier)));
+}
+
+/// A macro that gives a nested-name-specifier, before the name that it qualifies.
+///
+/// `CGAL_NTS` is `::CGAL::NTS::` (cgal/Number_types/include/CGAL/number_type_config.h:32), and `STD`
+/// is `std::` or nothing (STL/tests/tr1/include/tdefs.h:39 and 42). After the expansion the macro and
+/// the name after it are one qualified-id ([expr.prim.id.qual]), and the two front ends read
+/// `CGAL_NTS abs(a)` as a call of `::CGAL::NTS::abs`. The rule gives a `qualified_identifier` with the
+/// macro as its scope and no `::` token, which is the node of the name that the front ends build.
+///
+/// Two adjacent names are no expression of C++, so the rule reads text that gave an ERROR node. Each
+/// other reading of the two names wins. The static precedence `MACRO_SCOPE_NAME_SHIFT` gives a token
+/// after the second name to the reading that continues with it, and the dynamic precedence
+/// `MACRO_SCOPE_NAME` loses each tie that stays. `T x = A B;` keeps its declaration, and
+/// `typeid(C C::*)` keeps its type-id of a pointer to a member.
+fn macro_scope_names(g: &mut Grammar) {
+    g.define(
+        "_macro_scope_expression_name",
+        prec(
+            MACRO_SCOPE_NAME_SHIFT,
+            prec_dynamic(
+                MACRO_SCOPE_NAME,
+                seq![
+                    field("scope", s!(_namespace_identifier)),
+                    field("name", choice![s!(identifier), s!(template_function)]),
+                ],
+            ),
+        ),
+    );
+    g.redefine("_expression_not_binary", |original| {
+        choice![
+            original,
+            alias(s!(_macro_scope_expression_name), s!(qualified_identifier)),
+        ]
+    });
 }
 
 /// The directive rules that are extras. They are not items of the lists of declarations and statements.

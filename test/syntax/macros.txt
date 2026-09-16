@@ -265,3 +265,22 @@ void f() { static RDS_LOCAL(int, x) }
 ### macro_that_gives_a_type_keeps_its_declaration
 extern LZMA_API(lzma_ret) lzma_code(lzma_stream *strm);
 static int counter;
+### macro_scope_of_a_name_in_an_expression
+void f(int a, int b) {
+  int g = CGAL_NTS abs(a) + CGAL_NTS gcd(a, b);
+  return CGAL_NTS sign(r.evaluate(equation));
+}
+void g() { ofs_str.open(STD string(tn)); }
+void h() { STD transform(first, mid, first + 1, dest, STD modulus<char>()); }
+void i() { STDx clock_t tc = STDx clock(); p = &STDx memchr; }
+### macro_scope_keeps_each_other_reading
+STD vector<int> w;
+void j(STDx size_t n);
+void k(T &m(U x));
+### macro_scope_keeps_a_pointer_to_a_member_type_id
+void g(C C::*p);
+C C::*q = nullptr;
+unsigned long a = sizeof(C C::*);
+unsigned long b = alignof(C C::*);
+const std::type_info &c = typeid(C C::*);
+void *d = (C C::*)0 ? (void *)0 : (void *)0;

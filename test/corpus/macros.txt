@@ -1506,3 +1506,96 @@ extern LZMA_API(lzma_ret) lzma_code(lzma_stream *strm);
           type: (type_identifier)
           declarator: (pointer_declarator
             declarator: (identifier)))))))
+
+================================================================================
+A macro that gives the scope of a name in an expression
+================================================================================
+
+void f(int a, int b) {
+  int g = CGAL_NTS abs(a);
+  p = &STDx memchr;
+}
+void h(T &k(U x));
+
+--------------------------------------------------------------------------------
+
+(translation_unit
+  (function_definition
+    type: (primitive_type)
+    declarator: (function_declarator
+      declarator: (identifier)
+      parameters: (parameter_list
+        (parameter_declaration
+          type: (primitive_type)
+          declarator: (identifier))
+        (parameter_declaration
+          type: (primitive_type)
+          declarator: (identifier))))
+    body: (compound_statement
+      (declaration
+        type: (primitive_type)
+        declarator: (init_declarator
+          declarator: (identifier)
+          value: (call_expression
+            function: (qualified_identifier
+              scope: (namespace_identifier)
+              name: (identifier))
+            arguments: (argument_list
+              (identifier)))))
+      (expression_statement
+        (assignment_expression
+          left: (identifier)
+          right: (pointer_expression
+            argument: (qualified_identifier
+              scope: (namespace_identifier)
+              name: (identifier)))))))
+  (declaration
+    type: (primitive_type)
+    declarator: (function_declarator
+      declarator: (identifier)
+      parameters: (parameter_list
+        (parameter_declaration
+          type: (type_identifier)
+          declarator: (reference_declarator
+            (function_declarator
+              declarator: (identifier)
+              parameters: (parameter_list
+                (parameter_declaration
+                  type: (type_identifier)
+                  declarator: (identifier))))))))))
+
+================================================================================
+A type-id of a pointer to a member keeps its two names
+================================================================================
+
+void f() {
+  (void)typeid(C C::*);
+  g = sizeof(C C::*);
+}
+
+--------------------------------------------------------------------------------
+
+(translation_unit
+  (function_definition
+    type: (primitive_type)
+    declarator: (function_declarator
+      declarator: (identifier)
+      parameters: (parameter_list))
+    body: (compound_statement
+      (expression_statement
+        (cast_expression
+          type: (type_descriptor
+            type: (primitive_type))
+          value: (typeid_expression
+            type: (type_descriptor
+              type: (type_identifier)
+              declarator: (abstract_member_pointer_declarator
+                scope: (namespace_identifier))))))
+      (expression_statement
+        (assignment_expression
+          left: (identifier)
+          right: (sizeof_expression
+            type: (type_descriptor
+              type: (type_identifier)
+              declarator: (abstract_member_pointer_declarator
+                scope: (namespace_identifier)))))))))

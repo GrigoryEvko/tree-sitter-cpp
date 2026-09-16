@@ -15951,227 +15951,241 @@
                                 "type": "CHOICE",
                                 "members": [
                                   {
-                                    "type": "SYMBOL",
-                                    "name": "conditional_expression"
-                                  },
-                                  {
-                                    "type": "ALIAS",
-                                    "content": {
-                                      "type": "SYMBOL",
-                                      "name": "_top_level_assignment_expression"
-                                    },
-                                    "named": true,
-                                    "value": "assignment_expression"
-                                  },
-                                  {
-                                    "type": "SYMBOL",
-                                    "name": "unary_expression"
-                                  },
-                                  {
-                                    "type": "SYMBOL",
-                                    "name": "update_expression"
-                                  },
-                                  {
-                                    "type": "SYMBOL",
-                                    "name": "cast_expression"
-                                  },
-                                  {
-                                    "type": "SYMBOL",
-                                    "name": "pointer_expression"
-                                  },
-                                  {
-                                    "type": "SYMBOL",
-                                    "name": "sizeof_expression"
-                                  },
-                                  {
-                                    "type": "SYMBOL",
-                                    "name": "alignof_expression"
-                                  },
-                                  {
-                                    "type": "SYMBOL",
-                                    "name": "offsetof_expression"
-                                  },
-                                  {
-                                    "type": "SYMBOL",
-                                    "name": "generic_expression"
-                                  },
-                                  {
-                                    "type": "SYMBOL",
-                                    "name": "subscript_expression"
-                                  },
-                                  {
-                                    "type": "SYMBOL",
-                                    "name": "call_expression"
-                                  },
-                                  {
-                                    "type": "SYMBOL",
-                                    "name": "field_expression"
-                                  },
-                                  {
-                                    "type": "SYMBOL",
-                                    "name": "compound_literal_expression"
-                                  },
-                                  {
-                                    "type": "SYMBOL",
-                                    "name": "identifier"
-                                  },
-                                  {
-                                    "type": "SYMBOL",
-                                    "name": "number_literal"
-                                  },
-                                  {
-                                    "type": "SYMBOL",
-                                    "name": "_string"
-                                  },
-                                  {
-                                    "type": "ALIAS",
-                                    "content": {
-                                      "type": "CHOICE",
-                                      "members": [
-                                        {
-                                          "type": "STRING",
-                                          "value": "TRUE"
+                                    "type": "CHOICE",
+                                    "members": [
+                                      {
+                                        "type": "SYMBOL",
+                                        "name": "conditional_expression"
+                                      },
+                                      {
+                                        "type": "ALIAS",
+                                        "content": {
+                                          "type": "SYMBOL",
+                                          "name": "_top_level_assignment_expression"
                                         },
-                                        {
-                                          "type": "STRING",
-                                          "value": "true"
-                                        }
-                                      ]
-                                    },
-                                    "named": true,
-                                    "value": "true"
-                                  },
-                                  {
-                                    "type": "ALIAS",
-                                    "content": {
-                                      "type": "CHOICE",
-                                      "members": [
-                                        {
-                                          "type": "STRING",
-                                          "value": "FALSE"
+                                        "named": true,
+                                        "value": "assignment_expression"
+                                      },
+                                      {
+                                        "type": "SYMBOL",
+                                        "name": "unary_expression"
+                                      },
+                                      {
+                                        "type": "SYMBOL",
+                                        "name": "update_expression"
+                                      },
+                                      {
+                                        "type": "SYMBOL",
+                                        "name": "cast_expression"
+                                      },
+                                      {
+                                        "type": "SYMBOL",
+                                        "name": "pointer_expression"
+                                      },
+                                      {
+                                        "type": "SYMBOL",
+                                        "name": "sizeof_expression"
+                                      },
+                                      {
+                                        "type": "SYMBOL",
+                                        "name": "alignof_expression"
+                                      },
+                                      {
+                                        "type": "SYMBOL",
+                                        "name": "offsetof_expression"
+                                      },
+                                      {
+                                        "type": "SYMBOL",
+                                        "name": "generic_expression"
+                                      },
+                                      {
+                                        "type": "SYMBOL",
+                                        "name": "subscript_expression"
+                                      },
+                                      {
+                                        "type": "SYMBOL",
+                                        "name": "call_expression"
+                                      },
+                                      {
+                                        "type": "SYMBOL",
+                                        "name": "field_expression"
+                                      },
+                                      {
+                                        "type": "SYMBOL",
+                                        "name": "compound_literal_expression"
+                                      },
+                                      {
+                                        "type": "SYMBOL",
+                                        "name": "identifier"
+                                      },
+                                      {
+                                        "type": "SYMBOL",
+                                        "name": "number_literal"
+                                      },
+                                      {
+                                        "type": "SYMBOL",
+                                        "name": "_string"
+                                      },
+                                      {
+                                        "type": "ALIAS",
+                                        "content": {
+                                          "type": "CHOICE",
+                                          "members": [
+                                            {
+                                              "type": "STRING",
+                                              "value": "TRUE"
+                                            },
+                                            {
+                                              "type": "STRING",
+                                              "value": "true"
+                                            }
+                                          ]
                                         },
-                                        {
-                                          "type": "STRING",
-                                          "value": "false"
-                                        }
-                                      ]
-                                    },
-                                    "named": true,
-                                    "value": "false"
+                                        "named": true,
+                                        "value": "true"
+                                      },
+                                      {
+                                        "type": "ALIAS",
+                                        "content": {
+                                          "type": "CHOICE",
+                                          "members": [
+                                            {
+                                              "type": "STRING",
+                                              "value": "FALSE"
+                                            },
+                                            {
+                                              "type": "STRING",
+                                              "value": "false"
+                                            }
+                                          ]
+                                        },
+                                        "named": true,
+                                        "value": "false"
+                                      },
+                                      {
+                                        "type": "SYMBOL",
+                                        "name": "null"
+                                      },
+                                      {
+                                        "type": "SYMBOL",
+                                        "name": "char_literal"
+                                      },
+                                      {
+                                        "type": "SYMBOL",
+                                        "name": "parenthesized_expression"
+                                      },
+                                      {
+                                        "type": "SYMBOL",
+                                        "name": "gnu_asm_expression"
+                                      },
+                                      {
+                                        "type": "SYMBOL",
+                                        "name": "extension_expression"
+                                      }
+                                    ]
                                   },
                                   {
                                     "type": "SYMBOL",
-                                    "name": "null"
+                                    "name": "co_await_expression"
                                   },
                                   {
                                     "type": "SYMBOL",
-                                    "name": "char_literal"
+                                    "name": "co_yield_expression"
                                   },
                                   {
                                     "type": "SYMBOL",
-                                    "name": "parenthesized_expression"
+                                    "name": "throw_expression"
                                   },
                                   {
                                     "type": "SYMBOL",
-                                    "name": "gnu_asm_expression"
+                                    "name": "requires_expression"
                                   },
                                   {
                                     "type": "SYMBOL",
-                                    "name": "extension_expression"
+                                    "name": "template_function"
+                                  },
+                                  {
+                                    "type": "SYMBOL",
+                                    "name": "qualified_identifier"
+                                  },
+                                  {
+                                    "type": "SYMBOL",
+                                    "name": "new_expression"
+                                  },
+                                  {
+                                    "type": "SYMBOL",
+                                    "name": "delete_expression"
+                                  },
+                                  {
+                                    "type": "SYMBOL",
+                                    "name": "lambda_expression"
+                                  },
+                                  {
+                                    "type": "SYMBOL",
+                                    "name": "parameter_pack_expansion"
+                                  },
+                                  {
+                                    "type": "SYMBOL",
+                                    "name": "this"
+                                  },
+                                  {
+                                    "type": "SYMBOL",
+                                    "name": "user_defined_literal"
+                                  },
+                                  {
+                                    "type": "SYMBOL",
+                                    "name": "fold_expression"
+                                  },
+                                  {
+                                    "type": "SYMBOL",
+                                    "name": "reflect_expression"
+                                  },
+                                  {
+                                    "type": "SYMBOL",
+                                    "name": "splice_expression"
+                                  },
+                                  {
+                                    "type": "SYMBOL",
+                                    "name": "typeid_expression"
+                                  },
+                                  {
+                                    "type": "SYMBOL",
+                                    "name": "noexcept_expression"
+                                  },
+                                  {
+                                    "type": "SYMBOL",
+                                    "name": "pack_index_expression"
+                                  },
+                                  {
+                                    "type": "SYMBOL",
+                                    "name": "operator_name"
+                                  },
+                                  {
+                                    "type": "SYMBOL",
+                                    "name": "block_literal"
+                                  },
+                                  {
+                                    "type": "SYMBOL",
+                                    "name": "va_arg_expression"
+                                  },
+                                  {
+                                    "type": "SYMBOL",
+                                    "name": "availability_check_expression"
+                                  },
+                                  {
+                                    "type": "SYMBOL",
+                                    "name": "type_trait_expression"
                                   }
                                 ]
                               },
                               {
-                                "type": "SYMBOL",
-                                "name": "co_await_expression"
-                              },
-                              {
-                                "type": "SYMBOL",
-                                "name": "co_yield_expression"
-                              },
-                              {
-                                "type": "SYMBOL",
-                                "name": "throw_expression"
-                              },
-                              {
-                                "type": "SYMBOL",
-                                "name": "requires_expression"
-                              },
-                              {
-                                "type": "SYMBOL",
-                                "name": "template_function"
-                              },
-                              {
-                                "type": "SYMBOL",
-                                "name": "qualified_identifier"
-                              },
-                              {
-                                "type": "SYMBOL",
-                                "name": "new_expression"
-                              },
-                              {
-                                "type": "SYMBOL",
-                                "name": "delete_expression"
-                              },
-                              {
-                                "type": "SYMBOL",
-                                "name": "lambda_expression"
-                              },
-                              {
-                                "type": "SYMBOL",
-                                "name": "parameter_pack_expansion"
-                              },
-                              {
-                                "type": "SYMBOL",
-                                "name": "this"
-                              },
-                              {
-                                "type": "SYMBOL",
-                                "name": "user_defined_literal"
-                              },
-                              {
-                                "type": "SYMBOL",
-                                "name": "fold_expression"
-                              },
-                              {
-                                "type": "SYMBOL",
-                                "name": "reflect_expression"
-                              },
-                              {
-                                "type": "SYMBOL",
-                                "name": "splice_expression"
-                              },
-                              {
-                                "type": "SYMBOL",
-                                "name": "typeid_expression"
-                              },
-                              {
-                                "type": "SYMBOL",
-                                "name": "noexcept_expression"
-                              },
-                              {
-                                "type": "SYMBOL",
-                                "name": "pack_index_expression"
-                              },
-                              {
-                                "type": "SYMBOL",
-                                "name": "operator_name"
-                              },
-                              {
-                                "type": "SYMBOL",
-                                "name": "block_literal"
-                              },
-                              {
-                                "type": "SYMBOL",
-                                "name": "va_arg_expression"
-                              },
-                              {
-                                "type": "SYMBOL",
-                                "name": "availability_check_expression"
-                              },
-                              {
-                                "type": "SYMBOL",
-                                "name": "type_trait_expression"
+                                "type": "ALIAS",
+                                "content": {
+                                  "type": "SYMBOL",
+                                  "name": "_comparison_name"
+                                },
+                                "named": true,
+                                "value": "identifier"
                               }
                             ]
                           },
@@ -16179,10 +16193,19 @@
                             "type": "ALIAS",
                             "content": {
                               "type": "SYMBOL",
-                              "name": "_comparison_name"
+                              "name": "_conversion_function_id"
                             },
                             "named": true,
-                            "value": "identifier"
+                            "value": "operator_cast"
+                          },
+                          {
+                            "type": "ALIAS",
+                            "content": {
+                              "type": "SYMBOL",
+                              "name": "_qualified_conversion_function_id"
+                            },
+                            "named": true,
+                            "value": "qualified_identifier"
                           }
                         ]
                       },
@@ -16190,16 +16213,7 @@
                         "type": "ALIAS",
                         "content": {
                           "type": "SYMBOL",
-                          "name": "_conversion_function_id"
-                        },
-                        "named": true,
-                        "value": "operator_cast"
-                      },
-                      {
-                        "type": "ALIAS",
-                        "content": {
-                          "type": "SYMBOL",
-                          "name": "_qualified_conversion_function_id"
+                          "name": "_macro_scope_expression_name"
                         },
                         "named": true,
                         "value": "qualified_identifier"
@@ -16941,222 +16955,236 @@
                       "type": "CHOICE",
                       "members": [
                         {
-                          "type": "SYMBOL",
-                          "name": "conditional_expression"
-                        },
-                        {
-                          "type": "SYMBOL",
-                          "name": "assignment_expression"
-                        },
-                        {
-                          "type": "SYMBOL",
-                          "name": "unary_expression"
-                        },
-                        {
-                          "type": "SYMBOL",
-                          "name": "update_expression"
-                        },
-                        {
-                          "type": "SYMBOL",
-                          "name": "cast_expression"
-                        },
-                        {
-                          "type": "SYMBOL",
-                          "name": "pointer_expression"
-                        },
-                        {
-                          "type": "SYMBOL",
-                          "name": "sizeof_expression"
-                        },
-                        {
-                          "type": "SYMBOL",
-                          "name": "alignof_expression"
-                        },
-                        {
-                          "type": "SYMBOL",
-                          "name": "offsetof_expression"
-                        },
-                        {
-                          "type": "SYMBOL",
-                          "name": "generic_expression"
-                        },
-                        {
-                          "type": "SYMBOL",
-                          "name": "subscript_expression"
-                        },
-                        {
-                          "type": "SYMBOL",
-                          "name": "call_expression"
-                        },
-                        {
-                          "type": "SYMBOL",
-                          "name": "field_expression"
-                        },
-                        {
-                          "type": "SYMBOL",
-                          "name": "compound_literal_expression"
-                        },
-                        {
-                          "type": "SYMBOL",
-                          "name": "identifier"
-                        },
-                        {
-                          "type": "SYMBOL",
-                          "name": "number_literal"
-                        },
-                        {
-                          "type": "SYMBOL",
-                          "name": "_string"
-                        },
-                        {
-                          "type": "ALIAS",
-                          "content": {
-                            "type": "CHOICE",
-                            "members": [
-                              {
-                                "type": "STRING",
-                                "value": "TRUE"
+                          "type": "CHOICE",
+                          "members": [
+                            {
+                              "type": "SYMBOL",
+                              "name": "conditional_expression"
+                            },
+                            {
+                              "type": "SYMBOL",
+                              "name": "assignment_expression"
+                            },
+                            {
+                              "type": "SYMBOL",
+                              "name": "unary_expression"
+                            },
+                            {
+                              "type": "SYMBOL",
+                              "name": "update_expression"
+                            },
+                            {
+                              "type": "SYMBOL",
+                              "name": "cast_expression"
+                            },
+                            {
+                              "type": "SYMBOL",
+                              "name": "pointer_expression"
+                            },
+                            {
+                              "type": "SYMBOL",
+                              "name": "sizeof_expression"
+                            },
+                            {
+                              "type": "SYMBOL",
+                              "name": "alignof_expression"
+                            },
+                            {
+                              "type": "SYMBOL",
+                              "name": "offsetof_expression"
+                            },
+                            {
+                              "type": "SYMBOL",
+                              "name": "generic_expression"
+                            },
+                            {
+                              "type": "SYMBOL",
+                              "name": "subscript_expression"
+                            },
+                            {
+                              "type": "SYMBOL",
+                              "name": "call_expression"
+                            },
+                            {
+                              "type": "SYMBOL",
+                              "name": "field_expression"
+                            },
+                            {
+                              "type": "SYMBOL",
+                              "name": "compound_literal_expression"
+                            },
+                            {
+                              "type": "SYMBOL",
+                              "name": "identifier"
+                            },
+                            {
+                              "type": "SYMBOL",
+                              "name": "number_literal"
+                            },
+                            {
+                              "type": "SYMBOL",
+                              "name": "_string"
+                            },
+                            {
+                              "type": "ALIAS",
+                              "content": {
+                                "type": "CHOICE",
+                                "members": [
+                                  {
+                                    "type": "STRING",
+                                    "value": "TRUE"
+                                  },
+                                  {
+                                    "type": "STRING",
+                                    "value": "true"
+                                  }
+                                ]
                               },
-                              {
-                                "type": "STRING",
-                                "value": "true"
-                              }
-                            ]
-                          },
-                          "named": true,
-                          "value": "true"
-                        },
-                        {
-                          "type": "ALIAS",
-                          "content": {
-                            "type": "CHOICE",
-                            "members": [
-                              {
-                                "type": "STRING",
-                                "value": "FALSE"
+                              "named": true,
+                              "value": "true"
+                            },
+                            {
+                              "type": "ALIAS",
+                              "content": {
+                                "type": "CHOICE",
+                                "members": [
+                                  {
+                                    "type": "STRING",
+                                    "value": "FALSE"
+                                  },
+                                  {
+                                    "type": "STRING",
+                                    "value": "false"
+                                  }
+                                ]
                               },
-                              {
-                                "type": "STRING",
-                                "value": "false"
-                              }
-                            ]
-                          },
-                          "named": true,
-                          "value": "false"
+                              "named": true,
+                              "value": "false"
+                            },
+                            {
+                              "type": "SYMBOL",
+                              "name": "null"
+                            },
+                            {
+                              "type": "SYMBOL",
+                              "name": "char_literal"
+                            },
+                            {
+                              "type": "SYMBOL",
+                              "name": "parenthesized_expression"
+                            },
+                            {
+                              "type": "SYMBOL",
+                              "name": "gnu_asm_expression"
+                            },
+                            {
+                              "type": "SYMBOL",
+                              "name": "extension_expression"
+                            }
+                          ]
                         },
                         {
                           "type": "SYMBOL",
-                          "name": "null"
+                          "name": "co_await_expression"
                         },
                         {
                           "type": "SYMBOL",
-                          "name": "char_literal"
+                          "name": "co_yield_expression"
                         },
                         {
                           "type": "SYMBOL",
-                          "name": "parenthesized_expression"
+                          "name": "throw_expression"
                         },
                         {
                           "type": "SYMBOL",
-                          "name": "gnu_asm_expression"
+                          "name": "requires_expression"
                         },
                         {
                           "type": "SYMBOL",
-                          "name": "extension_expression"
+                          "name": "template_function"
+                        },
+                        {
+                          "type": "SYMBOL",
+                          "name": "qualified_identifier"
+                        },
+                        {
+                          "type": "SYMBOL",
+                          "name": "new_expression"
+                        },
+                        {
+                          "type": "SYMBOL",
+                          "name": "delete_expression"
+                        },
+                        {
+                          "type": "SYMBOL",
+                          "name": "lambda_expression"
+                        },
+                        {
+                          "type": "SYMBOL",
+                          "name": "parameter_pack_expansion"
+                        },
+                        {
+                          "type": "SYMBOL",
+                          "name": "this"
+                        },
+                        {
+                          "type": "SYMBOL",
+                          "name": "user_defined_literal"
+                        },
+                        {
+                          "type": "SYMBOL",
+                          "name": "fold_expression"
+                        },
+                        {
+                          "type": "SYMBOL",
+                          "name": "reflect_expression"
+                        },
+                        {
+                          "type": "SYMBOL",
+                          "name": "splice_expression"
+                        },
+                        {
+                          "type": "SYMBOL",
+                          "name": "typeid_expression"
+                        },
+                        {
+                          "type": "SYMBOL",
+                          "name": "noexcept_expression"
+                        },
+                        {
+                          "type": "SYMBOL",
+                          "name": "pack_index_expression"
+                        },
+                        {
+                          "type": "SYMBOL",
+                          "name": "operator_name"
+                        },
+                        {
+                          "type": "SYMBOL",
+                          "name": "block_literal"
+                        },
+                        {
+                          "type": "SYMBOL",
+                          "name": "va_arg_expression"
+                        },
+                        {
+                          "type": "SYMBOL",
+                          "name": "availability_check_expression"
+                        },
+                        {
+                          "type": "SYMBOL",
+                          "name": "type_trait_expression"
                         }
                       ]
                     },
                     {
-                      "type": "SYMBOL",
-                      "name": "co_await_expression"
-                    },
-                    {
-                      "type": "SYMBOL",
-                      "name": "co_yield_expression"
-                    },
-                    {
-                      "type": "SYMBOL",
-                      "name": "throw_expression"
-                    },
-                    {
-                      "type": "SYMBOL",
-                      "name": "requires_expression"
-                    },
-                    {
-                      "type": "SYMBOL",
-                      "name": "template_function"
-                    },
-                    {
-                      "type": "SYMBOL",
-                      "name": "qualified_identifier"
-                    },
-                    {
-                      "type": "SYMBOL",
-                      "name": "new_expression"
-                    },
-                    {
-                      "type": "SYMBOL",
-                      "name": "delete_expression"
-                    },
-                    {
-                      "type": "SYMBOL",
-                      "name": "lambda_expression"
-                    },
-                    {
-                      "type": "SYMBOL",
-                      "name": "parameter_pack_expansion"
-                    },
-                    {
-                      "type": "SYMBOL",
-                      "name": "this"
-                    },
-                    {
-                      "type": "SYMBOL",
-                      "name": "user_defined_literal"
-                    },
-                    {
-                      "type": "SYMBOL",
-                      "name": "fold_expression"
-                    },
-                    {
-                      "type": "SYMBOL",
-                      "name": "reflect_expression"
-                    },
-                    {
-                      "type": "SYMBOL",
-                      "name": "splice_expression"
-                    },
-                    {
-                      "type": "SYMBOL",
-                      "name": "typeid_expression"
-                    },
-                    {
-                      "type": "SYMBOL",
-                      "name": "noexcept_expression"
-                    },
-                    {
-                      "type": "SYMBOL",
-                      "name": "pack_index_expression"
-                    },
-                    {
-                      "type": "SYMBOL",
-                      "name": "operator_name"
-                    },
-                    {
-                      "type": "SYMBOL",
-                      "name": "block_literal"
-                    },
-                    {
-                      "type": "SYMBOL",
-                      "name": "va_arg_expression"
-                    },
-                    {
-                      "type": "SYMBOL",
-                      "name": "availability_check_expression"
-                    },
-                    {
-                      "type": "SYMBOL",
-                      "name": "type_trait_expression"
+                      "type": "ALIAS",
+                      "content": {
+                        "type": "SYMBOL",
+                        "name": "_comparison_name"
+                      },
+                      "named": true,
+                      "value": "identifier"
                     }
                   ]
                 },
@@ -17164,10 +17192,19 @@
                   "type": "ALIAS",
                   "content": {
                     "type": "SYMBOL",
-                    "name": "_comparison_name"
+                    "name": "_conversion_function_id"
                   },
                   "named": true,
-                  "value": "identifier"
+                  "value": "operator_cast"
+                },
+                {
+                  "type": "ALIAS",
+                  "content": {
+                    "type": "SYMBOL",
+                    "name": "_qualified_conversion_function_id"
+                  },
+                  "named": true,
+                  "value": "qualified_identifier"
                 }
               ]
             },
@@ -17175,16 +17212,7 @@
               "type": "ALIAS",
               "content": {
                 "type": "SYMBOL",
-                "name": "_conversion_function_id"
-              },
-              "named": true,
-              "value": "operator_cast"
-            },
-            {
-              "type": "ALIAS",
-              "content": {
-                "type": "SYMBOL",
-                "name": "_qualified_conversion_function_id"
+                "name": "_macro_scope_expression_name"
               },
               "named": true,
               "value": "qualified_identifier"
@@ -27423,6 +27451,15 @@
               "value": "qualified_identifier"
             },
             {
+              "type": "ALIAS",
+              "content": {
+                "type": "SYMBOL",
+                "name": "_macro_scope_expression_name"
+              },
+              "named": true,
+              "value": "qualified_identifier"
+            },
+            {
               "type": "SYMBOL",
               "name": "preproc_embed"
             },
@@ -33744,6 +33781,15 @@
           "content": {
             "type": "SYMBOL",
             "name": "_qualified_conversion_function_id"
+          },
+          "named": true,
+          "value": "qualified_identifier"
+        },
+        {
+          "type": "ALIAS",
+          "content": {
+            "type": "SYMBOL",
+            "name": "_macro_scope_expression_name"
           },
           "named": true,
           "value": "qualified_identifier"
@@ -41149,6 +41195,44 @@
       },
       "named": true,
       "value": "namespace_identifier"
+    },
+    "_macro_scope_expression_name": {
+      "type": "PREC",
+      "value": -1,
+      "content": {
+        "type": "PREC_DYNAMIC",
+        "value": -200,
+        "content": {
+          "type": "SEQ",
+          "members": [
+            {
+              "type": "FIELD",
+              "name": "scope",
+              "content": {
+                "type": "SYMBOL",
+                "name": "_namespace_identifier"
+              }
+            },
+            {
+              "type": "FIELD",
+              "name": "name",
+              "content": {
+                "type": "CHOICE",
+                "members": [
+                  {
+                    "type": "SYMBOL",
+                    "name": "identifier"
+                  },
+                  {
+                    "type": "SYMBOL",
+                    "name": "template_function"
+                  }
+                ]
+              }
+            }
+          ]
+        }
+      }
     },
     "_token_tree_item": {
       "type": "CHOICE",
