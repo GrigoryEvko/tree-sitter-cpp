@@ -1697,9 +1697,14 @@ fn types(g: &mut Grammar) {
     // Clang reads a calling convention before each declarator of a typedef, as it does in a
     // declaration: `typedef long __stdcall F(long);`. After a comma, MSVC and Clang read and ignore
     // it: `typedef void __cdecl G(void), __cdecl H(int);` (ParseDecl.cpp, ParseDeclGroup).
+    //
+    // A macro can take the place of that keyword, as it does in a declaration:
+    // `typedef int32_t U_CALLCONV UCharIteratorGetIndex(UCharIterator *iter, int origin);` in the ICU
+    // headers, where `U_CALLCONV` is `__cdecl` or nothing. The external scanner reads the name.
     g.redefine("_type_definition_declarators", |_| {
         comma_sep1(seq![
             optional(s!(ms_call_modifier)),
+            optional(call_macro()),
             field("declarator", s!(_type_declarator))
         ])
     });

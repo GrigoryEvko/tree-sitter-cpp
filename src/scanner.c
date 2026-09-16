@@ -3063,14 +3063,43 @@ static bool is_keyword_before_parenthesis(const char *text, unsigned length) {
     return false;
 }
 
+/// Go past the name of a macro between the name of a declarator and its parameter list:
+/// `BOOST_MATH_PREVENT_MACRO_SUBSTITUTION` in
+/// `double BOOST_MATH_TR1_DECL boost_acosh BOOST_MATH_PREVENT_MACRO_SUBSTITUTION(double x);`.
+///
+/// The name has the shape that `read_macro_name` reads, and the `(` after it is the parameter list of
+/// the declarator. The scanner gives that name its own token (`DECLARATOR_NAME_MACRO_NAME`), and the
+/// scan of the macro before the declarator goes past it to find the parameter list. Return true when
+/// the scan read such a name and the gap after it. O(n) in the length of the name and the gap.
+static bool skip_declarator_name_macro(Reader *reader) {
+    TSLexer *lexer = reader->lexer;
+    if (!is_word_start(lexer->lookahead) || !read_macro_name(lexer)) {
+        return false;
+    }
+    Gap gap = {0};
+    skip_gap(reader, &gap);
+    return !gap.blocked;
+}
+
+/// The operator names that are words ([over.oper.general], [lex.digraph]). A word after `operator` is
+/// one of these names, or the type of a conversion function. No name of a type is in this list.
+static const char *const WORD_OPERATOR_NAMES[] = {
+    "new",    "delete", "co_await", "and",    "and_eq", "bitand", "bitor",
+    "compl",  "not",    "not_eq",   "or",     "or_eq",  "xor",    "xor_eq", NULL,
+};
+
 /// Scan the name of a macro between the type and the declarator, in the place of a calling
 /// convention: `WINAPI` in `DWORD WINAPI f(LPVOID p);`, `NODELETE` in `bool NODELETE f() const;`.
 /// The scan starts after the name, and the token ends there.
 ///
 /// After the name come a `*`, an operator function, or the name of a function, its parameters,
-/// and a token that is not `:`. The name of the function can be qualified, and line breaks can
-/// come before and after the macro. In `const int MAX_SIZE = 8;` and `int FLAGS(int);` the
-/// uppercase name is the declarator.
+/// and a token that is not `:`. The name of the function can be qualified, a second macro can come
+/// between that name and the parameter list, and line breaks can come before and after the macro. In
+/// `const int MAX_SIZE = 8;` and `int FLAGS(int);` the uppercase name is the declarator.
+///
+/// The name of an operator function can be a word: `operator new`, `operator delete`, `operator
+/// co_await`, and each alternative token ([lex.digraph]). The name of a conversion function is also a
+/// word, and `WORD_OPERATOR_NAMES` tells the two apart.
 ///
 /// The parser can have a second stack version in which the name is a second macro before the
 /// type or before a constructor. That version cannot shift this token, and it stops. The scanner
@@ -3093,6 +3122,7 @@ static bool scan_call_macro_name(TSLexer *lexer, const Scanner *scanner, bool po
         return lexer->lookahead != '=';
     }
     char text[24];
+    bool qualified = false;
     for (;;) {
         LOOP_STEP();
         unsigned length = read_identifier(lexer, text, sizeof text);
@@ -3108,7 +3138,19 @@ static bool scan_call_macro_name(TSLexer *lexer, const Scanner *scanner, bool po
             if (gap.blocked) {
                 return gap.slash;
             }
-            return !(c == '_' || (c >= 'a' && c <= 'z') || (c >= 'A' && c <= 'Z') || c >= 0x80);
+            if (is_word_start(c)) {
+                // An operator name can be a word: `static void* U_EXPORT2 operator new(size_t);`. A
+                // conversion function has the name of a type there, and no name of a type is an
+                // operator name.
+                char name[MACRO_WORD_SIZE];
+                unsigned name_length = read_identifier(lexer, name, sizeof name - 1);
+                if (name_length >= sizeof name - 1) {
+                    return false;
+                }
+                name[name_length] = '\0';
+                return word_in(name, WORD_OPERATOR_NAMES);
+            }
+            return true;
         }
         if (gap.blocked) {
             return false;
@@ -3124,6 +3166,7 @@ static bool scan_call_macro_name(TSLexer *lexer, const Scanner *scanner, bool po
             if (gap.blocked) {
                 return false;
             }
+            qualified = true;
             continue;
         }
         // After a pointer or reference operator the name that follows the macro is the declarator of
@@ -3145,6 +3188,29 @@ static bool scan_call_macro_name(TSLexer *lexer, const Scanner *scanner, bool po
                 if (word_in(text, POINTER_QUALIFIER_WORDS)) {
                     continue;
                 }
+            }
+        }
+        // A macro can come between the name of the declarator and its parameter list, and the scan goes
+        // past it: `double DECL acosh BOOST_MATH_PREVENT_MACRO_SUBSTITUTION(double x);`.
+        //
+        // The name before that macro is the declarator, so it is no keyword of a type, it has no scope,
+        // and it is no name of a macro. Without the three conditions, the second macro of
+        // `INTERFACE WEAK void SCUDO_PREFIX(free)(void *ptr)`, of
+        // `MACRO MACRO std::uint32_t F1(std::uint32_t x)`, and of
+        // `BOOST_FORCEINLINE BOOST_CONSTEXPR WORD_ MAKELANGID_(WORD_ p)` takes the name of the
+        // declaration, and the tokens before it become the type.
+        if (lexer->lookahead != '(') {
+            bool name_of_a_type = false;
+            if (length < sizeof text) {
+                text[length] = '\0';
+                name_of_a_type = word_in(text, DECLARATION_START_WORDS);
+            }
+            bool has_lower = false;
+            for (unsigned i = 0; i < length && i < sizeof text; ++i) {
+                has_lower |= text[i] >= 'a' && text[i] <= 'z';
+            }
+            if (qualified || name_of_a_type || !has_lower || !skip_declarator_name_macro(&reader)) {
+                return false;
             }
         }
         if (lexer->lookahead != '(' || !skip_parentheses(&reader)) {

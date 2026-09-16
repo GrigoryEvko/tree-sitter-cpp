@@ -6425,6 +6425,23 @@
               ]
             },
             {
+              "type": "CHOICE",
+              "members": [
+                {
+                  "type": "ALIAS",
+                  "content": {
+                    "type": "SYMBOL",
+                    "name": "_call_attribute_macro"
+                  },
+                  "named": true,
+                  "value": "attribute_macro"
+                },
+                {
+                  "type": "BLANK"
+                }
+              ]
+            },
+            {
               "type": "FIELD",
               "name": "declarator",
               "content": {
@@ -6452,6 +6469,23 @@
                       {
                         "type": "SYMBOL",
                         "name": "ms_call_modifier"
+                      },
+                      {
+                        "type": "BLANK"
+                      }
+                    ]
+                  },
+                  {
+                    "type": "CHOICE",
+                    "members": [
+                      {
+                        "type": "ALIAS",
+                        "content": {
+                          "type": "SYMBOL",
+                          "name": "_call_attribute_macro"
+                        },
+                        "named": true,
+                        "value": "attribute_macro"
                       },
                       {
                         "type": "BLANK"

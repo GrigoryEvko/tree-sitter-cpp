@@ -77,6 +77,27 @@ Java_org_Service_nativeInit(JNIEnv* env, jobject thiz) {}
 static UStringEnumeration * U_EXPORT2 fromUEnumeration(UEnumeration* enumToAdopt, UErrorCode& status);
 TBB_EXPORT d1::task_group_context* __TBB_EXPORTED_FUNC current_context();
 struct S { static SelectorQueryCache& NODELETE singleton(); const Cell * ALWAYS_INLINE firstPopulatedCell() const { return c; } };
+### attr_macro_before_a_typedef_declarator
+typedef int32_t U_CALLCONV
+UCharIteratorGetIndex(UCharIterator *iter, int origin);
+typedef void U_CALLCONV G(void), U_CALLCONV H(int);
+### attr_macro_before_a_word_operator_name
+struct S {
+  static void* U_EXPORT2 operator new(unsigned long);
+  static void U_EXPORT2 operator delete(void*);
+  void* MACRO operator new[](unsigned long);
+  bool MACRO operator not();
+  bool MACRO operator and(S);
+};
+### attr_macro_before_a_declarator_with_a_name_macro
+double BOOST_MATH_TR1_DECL boost_acosh BOOST_MATH_PREVENT_MACRO_SUBSTITUTION(double x) BOOST_MATH_C99_THROW_SPEC;
+float BOOST_MATH_TR1_DECL boost_acoshf BOOST_MATH_PREVENT_MACRO_SUBSTITUTION(float x);
+struct P { const P& min BOOST_PREVENT_MACRO_SUBSTITUTION () const; };
+### attr_macro_with_a_name_macro_does_not_take_a_type_or_a_scope
+APICALL EXPORT std::string PLUGIN_API_VERSION() { return "1"; }
+WAI_NOINLINE WAI_FUNCSPEC int WAI_PREFIX(getExecutablePath)(char* out, int capacity) { return 0; }
+static BOOST_FORCEINLINE BOOST_CXX14_CONSTEXPR std::uint32_t F1(std::uint32_t x) { return x; }
+INTERFACE WEAK void SCUDO_PREFIX(free)(void *ptr) {}
 ### attr_macro_with_a_comment_in_the_group
 DWORD WINAPI f(LPVOID p /* ( */);
 DWORD WINAPI g( // (
