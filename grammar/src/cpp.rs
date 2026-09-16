@@ -178,6 +178,10 @@ pub fn grammar() -> Grammar {
         // `{ PyVarObject_HEAD_INIT(nullptr, 0) "n", 0 }`. The scanner gives it when an element comes
         // after the arguments of the name and no comma divides the two.
         s!(_initializer_macro_start),
+        // An empty token before the name of a macro that is an attribute of the statement after it, and
+        // whose arguments are not an expression list: `SkDEBUGCODE(bool found =) find(1);`. Refer to
+        // `_statement_attribute_macro_tokens`.
+        s!(_statement_attribute_macro_tokens_start),
     ];
     // The conflict sets of the grammar. Each set names the rules of one ambiguity, and it tells the
     // generator to keep each reading in a GLR split.
@@ -6055,10 +6059,28 @@ fn statements(g: &mut Grammar) {
             ],
         ),
     );
+    // The scanner gives a different token when the arguments are not an expression list, and the
+    // arguments are then a token tree: `SkDEBUGCODE(bool found =) find(1);` in skia, where the macro
+    // gives the first part of a declaration. The macro of `TEST_CYCLE() dst.setTo(val);` in opencv has
+    // no argument of its own. Such a group is no expression list, and only a token tree holds it.
+    g.define(
+        "_statement_attribute_macro_tokens",
+        prec_right(
+            0,
+            seq![
+                s!(_statement_attribute_macro_tokens_start),
+                field("name", s!(identifier)),
+                field("arguments", alias(s!(_macro_arguments), s!(token_tree))),
+            ],
+        ),
+    );
     g.define(
         "_macro_attributed_statement",
         seq![
-            repeat1(alias(s!(_statement_attribute_macro), s!(attribute_macro))),
+            repeat1(choice![
+                alias(s!(_statement_attribute_macro), s!(attribute_macro)),
+                alias(s!(_statement_attribute_macro_tokens), s!(attribute_macro)),
+            ]),
             s!(_gnu_attributed_statement_body),
         ],
     );

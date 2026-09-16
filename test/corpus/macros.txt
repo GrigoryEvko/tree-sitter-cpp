@@ -2737,3 +2737,59 @@ void f(int a, int b) {
                       (argument_list)))))
               (expression_statement
                 (number_literal)))))))))
+
+================================================================================
+A macro attribute before an expression statement
+================================================================================
+
+void g(int a, int b) {
+    BOOST_ASIO_WRITE_HANDLER_CHECK(WriteHandler, handler) type_check;
+    MACRO(a, b) find(1);
+    SKDEBUGCODE(bool found =) find(1);
+}
+
+--------------------------------------------------------------------------------
+
+(translation_unit
+  (function_definition
+    type: (primitive_type)
+    declarator: (function_declarator
+      declarator: (identifier)
+      parameters: (parameter_list
+        (parameter_declaration
+          type: (primitive_type)
+          declarator: (identifier))
+        (parameter_declaration
+          type: (primitive_type)
+          declarator: (identifier))))
+    body: (compound_statement
+      (attributed_statement
+        (attribute_macro
+          name: (identifier)
+          arguments: (argument_list
+            (identifier)
+            (identifier)))
+        (expression_statement
+          (identifier)))
+      (attributed_statement
+        (attribute_macro
+          name: (identifier)
+          arguments: (argument_list
+            (identifier)
+            (identifier)))
+        (expression_statement
+          (call_expression
+            function: (identifier)
+            arguments: (argument_list
+              (number_literal)))))
+      (attributed_statement
+        (attribute_macro
+          name: (identifier)
+          arguments: (token_tree
+            (primitive_type)
+            (identifier)))
+        (expression_statement
+          (call_expression
+            function: (identifier)
+            arguments: (argument_list
+              (number_literal))))))))

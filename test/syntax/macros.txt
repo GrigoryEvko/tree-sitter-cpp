@@ -374,3 +374,22 @@ void f() { MACRO(1) try { g(); } catch (...) { } }
 ### macro_attribute_with_no_arguments_before_a_statement
 void g(int x) { MUST_TAIL_CALL if (x) { f(); } }
 void h(int x) { MACRO while (x) { f(); } }
+### macro_attribute_before_an_expression_statement
+template <typename WriteHandler> void write(WriteHandler handler) {
+    BOOST_ASIO_WRITE_HANDLER_CHECK(WriteHandler, handler) type_check;
+}
+void bench(int a, int b) { MACRO(a, b) find(1); }
+void cache() { SKDEBUGCODE(bool found =) fCache.find(key, nullptr); }
+### macro_with_a_trailing_macro_and_a_body_is_no_statement_attribute
+TEST(Mutex, MutexReaderDecrementBug) ABSL_NO_THREAD_SAFETY_ANALYSIS {
+  ReaderDecrementBugStruct x;
+  x.cond = false;
+}
+TEST(CheckedLockTest, AcquireNonPredecessor) NO_THREAD_SAFETY_ANALYSIS {
+  CheckedLock lock1;
+}
+### calls_that_stay_expressions_beside_a_macro_attribute
+void g(int a, int b, int c) { MAX(a, b) * c; }
+void h() { STACK_OF(X509) **sk; }
+void i() { NS_IMETHOD_(void) Unlink(void *p); }
+void j(int n) { QPoint Point(1, 2); }

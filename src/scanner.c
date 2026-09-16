@@ -151,6 +151,9 @@ enum TokenType {
     /// `{ PyVarObject_HEAD_INIT(nullptr, 0) "n", 0 }`. The scan gives it when an element comes after
     /// the arguments of the name and no comma divides the two.
     INITIALIZER_MACRO_START,
+    /// An empty token before the name of a macro that is an attribute of the statement after it, and
+    /// whose arguments are not an expression list: `SkDEBUGCODE(bool found =) find(1);`.
+    STATEMENT_ATTRIBUTE_MACRO_TOKENS_START,
     /// The count of the external tokens, and not a token. `tree_sitter_cpp_external_scanner_create`
     /// compares it with the count of the parser.
     TOKEN_TYPE_COUNT,
@@ -2162,8 +2165,18 @@ typedef enum {
     AFTER_CALL_CONSTRUCTOR,
     /// A declarator with no type before it. The macro gives the type.
     AFTER_CALL_TYPE,
+    /// The same, with a pointer or a reference operator between the macro and the declarator:
+    /// `STACK_OF(X509) **sk;`. The text is also the product of a call and a name, `MAX(a, b) * c;`,
+    /// and the macro is no attribute of a statement there.
+    AFTER_CALL_TYPE_POINTER,
     /// The keyword of a statement. The macro is an attribute of that statement.
     AFTER_CALL_STATEMENT,
+    /// An expression statement, which no declaration can be: `MACRO(a, b) find(1);`. The macro is an
+    /// attribute of that statement, and it gives no type.
+    AFTER_CALL_EXPRESSION,
+    /// One name and a `;` or an assignment. The macro gives the type of a declaration, or it is an
+    /// attribute of an expression statement. `args.one_type_id` tells the two apart.
+    AFTER_CALL_TYPE_OR_STATEMENT,
     /// More macro invocations and the end of the line. The call is a macro invocation.
     AFTER_CALL_MACRO_LINE,
 } AfterCall;
@@ -2440,7 +2453,7 @@ static AfterCall scan_after_macro_call(Reader *reader, const Scanner *classes, b
                     return AFTER_CALL_NONE;
                 }
             }
-            return ends_macro_type_declarator(reader, true, parameter) ? AFTER_CALL_TYPE : AFTER_CALL_NONE;
+            return ends_macro_type_declarator(reader, true, parameter) ? AFTER_CALL_TYPE_POINTER : AFTER_CALL_NONE;
         }
         // The rest of a qualified name, and its template arguments.
         uint32_t previous = 0;
@@ -2484,6 +2497,18 @@ static AfterCall scan_after_macro_call(Reader *reader, const Scanner *classes, b
             }
         }
         c = lexer->lookahead;
+        // A member access after the name is no part of a declarator, and the text is an expression
+        // statement: `TEST_CYCLE() dst.setTo(val);` in opencv, `SkDEBUGCODE(bool found =)
+        // fCache.find(key, nullptr);` in skia. [dcl.decl] gives a declarator no `.` and no `->`.
+        if (!type && !pointer && (c == '.' || c == '-')) {
+            if (c == '-') {
+                step(reader);
+                if (lexer->lookahead != '>') {
+                    return AFTER_CALL_NONE;
+                }
+            }
+            return AFTER_CALL_EXPRESSION;
+        }
         // A name of one character with arguments can be an element of a line of macro invocations:
         // `P_(LINE) P(X)` in the test drivers of bde.
         bool short_macro = macro_line && !type && c == '(' && is_macro_name(word, has_lower);
@@ -2503,8 +2528,17 @@ static AfterCall scan_after_macro_call(Reader *reader, const Scanner *classes, b
                 // A parameter list after one name is a function declarator, and the macro gives the
                 // return type: `NS_IMETHOD_(void) Unlink(void *p) = 0;`.
                 Arguments parameters = {0};
-                if (!skip_group(reader, &parameters) || parameters.not_parameters ||
-                    !scan_declarator_suffix(reader)) {
+                if (!skip_group(reader, &parameters)) {
+                    return AFTER_CALL_NONE;
+                }
+                if (parameters.not_parameters) {
+                    // The group cannot be a parameter list, so the name and the group are a call, and
+                    // a `;` after them ends an expression statement: `MACRO(a, b) find(1);`.
+                    gap = (Gap){0};
+                    skip_gap(reader, &gap);
+                    return !gap.blocked && lexer->lookahead == ';' ? AFTER_CALL_EXPRESSION : AFTER_CALL_NONE;
+                }
+                if (!scan_declarator_suffix(reader)) {
                     return AFTER_CALL_NONE;
                 }
                 return ends_macro_type_declarator(reader, false, parameter) ? AFTER_CALL_TYPE : AFTER_CALL_NONE;
@@ -2534,7 +2568,16 @@ static AfterCall scan_after_macro_call(Reader *reader, const Scanner *classes, b
         }
         // One name after the call is the declarator, and the macro gives the type: `STACK_OF(X509) sk;`,
         // `void f(BOOST_RV_REF(T) value, int n)`.
-        return ends_macro_type_declarator(reader, false, parameter) ? AFTER_CALL_TYPE : AFTER_CALL_NONE;
+        //
+        // A `;` or an assignment after that name also ends an expression statement, and the macro can
+        // be the attribute of that statement: `MACRO(a, b) type_check;`. A `{`, a `,`, a `)`, or a `[`
+        // ends no statement, and the name belongs to a declaration or to the head of a macro with a
+        // body: `TEST(Mutex, Bug) ABSL_NO_THREAD_SAFETY_ANALYSIS {`.
+        int32_t end = lexer->lookahead;
+        if (!ends_macro_type_declarator(reader, false, parameter)) {
+            return AFTER_CALL_NONE;
+        }
+        return end == ';' || end == '=' ? AFTER_CALL_TYPE_OR_STATEMENT : AFTER_CALL_TYPE;
     }
 }
 
@@ -3157,7 +3200,9 @@ static bool scan_macro_start(Reader reader, const char *name, bool has_lower, co
          macro_type) &&
         ((macro_name && length >= 2) || sal);
     // A macro before a statement keyword is an attribute of that statement.
-    bool statement_attribute = valid_symbols[STATEMENT_ATTRIBUTE_MACRO_START] && macro_name && length >= 2;
+    bool statement_attribute =
+        (valid_symbols[STATEMENT_ATTRIBUTE_MACRO_START] || valid_symbols[STATEMENT_ATTRIBUTE_MACRO_TOKENS_START]) &&
+        macro_name && length >= 2;
     // A line that holds only macro invocations, where a statement can start: `T_ P_(LINE) P(X)`.
     bool macro_line_possible = valid_symbols[MACRO_LINE_START] && valid_symbols[MACRO_CALL_START] && macro_name;
     if (!invocation && !constructor && !attribute_call && !statement_attribute) {
@@ -3225,17 +3270,29 @@ static bool scan_macro_start(Reader reader, const char *name, bool has_lower, co
             return false;
         }
         bool tokens = args.not_expressions || args.statements;
-        if (after == AFTER_CALL_STATEMENT) {
-            lexer->result_symbol = STATEMENT_ATTRIBUTE_MACRO_START;
-            return statement_attribute;
+        // The arguments of an attribute of a statement are a token tree when they are no expression
+        // list. Refer to `_statement_attribute_macro_tokens`.
+        TSSymbol statement_symbol = tokens ? STATEMENT_ATTRIBUTE_MACRO_TOKENS_START : STATEMENT_ATTRIBUTE_MACRO_START;
+        if (after == AFTER_CALL_STATEMENT || after == AFTER_CALL_EXPRESSION) {
+            lexer->result_symbol = statement_symbol;
+            return statement_attribute && valid_symbols[statement_symbol];
         }
-        if (after == AFTER_CALL_TYPE) {
-            // The macro gives the type, and its one argument is a type-id. A macro with other
-            // arguments gives no token, and `MAX(a, b) * c;` stays an expression. A recorded class
-            // name is the declarator of a constructor: `HAMT(const HAMT& h) V8_NOEXCEPT = default;`.
-            lexer->result_symbol =
-                valid_symbols[PARAMETER_MACRO_TYPE_START] ? PARAMETER_MACRO_TYPE_START : MACRO_TYPE_START;
-            return args.one_type_id && macro_type && !class_name;
+        if (after == AFTER_CALL_TYPE || after == AFTER_CALL_TYPE_POINTER || after == AFTER_CALL_TYPE_OR_STATEMENT) {
+            // The macro gives the type, and its one argument is a type-id. A recorded class name is
+            // the declarator of a constructor: `HAMT(const HAMT& h) V8_NOEXCEPT = default;`.
+            if (args.one_type_id && macro_type && !class_name) {
+                lexer->result_symbol =
+                    valid_symbols[PARAMETER_MACRO_TYPE_START] ? PARAMETER_MACRO_TYPE_START : MACRO_TYPE_START;
+                return true;
+            }
+            // The macro gives no type, because its arguments are no type-id. Where a statement can
+            // start, the text after the macro is an expression statement, and the macro is an
+            // attribute of that statement: `BOOST_ASIO_WRITE_HANDLER_CHECK(H, handler) type_check;`.
+            if (after == AFTER_CALL_TYPE_OR_STATEMENT && statement_attribute && valid_symbols[statement_symbol]) {
+                lexer->result_symbol = statement_symbol;
+                return true;
+            }
+            return false;
         }
         if (after == AFTER_CALL_CONSTRUCTOR && constructor && !tokens) {
             lexer->result_symbol = CONSTRUCTOR_MACRO_START;
@@ -7959,6 +8016,7 @@ static bool can_be_empty(TSSymbol symbol) {
         case MACRO_TYPE_START:
         case PARAMETER_MACRO_TYPE_START:
         case STATEMENT_ATTRIBUTE_MACRO_START:
+        case STATEMENT_ATTRIBUTE_MACRO_TOKENS_START:
         case CONSTRUCTOR_MACRO_START:
         case CLASS_HEAD_MARK:
         case CLASS_MACRO_MARK:
