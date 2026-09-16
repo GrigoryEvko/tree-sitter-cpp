@@ -1735,6 +1735,15 @@ fn types(g: &mut Grammar) {
     });
     // GCC spells `signed` as `__signed` and `__signed__` (c-common.cc, c_common_reswords).
     //
+    // `__vector`, `__pixel` and `__bool` are the AltiVec type specifiers of PowerPC, and they come
+    // before the other size keywords and before the base type: `__vector signed char`,
+    // `__vector __bool char`, `__vector float`. Each one is part of the type. GCC defines the three as
+    // conditional macros of an attribute (rs6000-c.cc:633, `__vector=__attribute__((altivec(vector__)))`,
+    // and the same for `__pixel` and `__bool`), and Clang gives each one a keyword that sets a field of
+    // the decl-specifier (ParseDecl.cpp:4460, `SetTypeAltiVecVector`, `SetTypeAltiVecPixel`,
+    // `SetTypeAltiVecBool`). The spellings with no leading underscores are context-sensitive, and this
+    // grammar does not read them: `vector` is the name of a class template in most code.
+    //
     // A size keyword combines with `char`, `int`, `double`, and the other size keywords, and not with a
     // type name ([dcl.type.general]). Clang rejects `T unsigned x;` (DeclSpec.cpp, DeclSpec::Finish), and
     // GCC accepts it only as an extension with a pedantic warning (decl.cc, grokdeclarator). A name before
@@ -1745,7 +1754,17 @@ fn types(g: &mut Grammar) {
         let keywords = replace_rule(
             original,
             &choice!["signed", "unsigned", "long", "short"],
-            &choice!["signed", "unsigned", "long", "short", "__signed", "__signed__"],
+            &choice![
+                "signed",
+                "unsigned",
+                "long",
+                "short",
+                "__signed",
+                "__signed__",
+                "__vector",
+                "__pixel",
+                "__bool"
+            ],
         );
         let mut forms = keywords.into_members();
         forms[0] = replace_rule(

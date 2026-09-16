@@ -1,0 +1,10 @@
+### altivec_type_specifiers
+using Native = __vector signed char;
+using vec_bool_t = __vector __bool char;
+using vb_int = __vector __bool int;
+using vf = __vector float;
+using vd = __vector double;
+using vp = __vector __pixel;
+__vector unsigned char cast(__vector unsigned char a) { return (__vector unsigned char)a; }
+unsigned long n = sizeof(__vector float) / sizeof(float);
+void store(void *p, __vector double v) { vec_vsx_st((__vector double)(v), 0, (double *)(p)); }

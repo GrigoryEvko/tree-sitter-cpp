@@ -13454,6 +13454,18 @@
                   {
                     "type": "STRING",
                     "value": "__signed__"
+                  },
+                  {
+                    "type": "STRING",
+                    "value": "__vector"
+                  },
+                  {
+                    "type": "STRING",
+                    "value": "__pixel"
+                  },
+                  {
+                    "type": "STRING",
+                    "value": "__bool"
                   }
                 ]
               }
@@ -13521,6 +13533,18 @@
                   {
                     "type": "STRING",
                     "value": "__signed__"
+                  },
+                  {
+                    "type": "STRING",
+                    "value": "__vector"
+                  },
+                  {
+                    "type": "STRING",
+                    "value": "__pixel"
+                  },
+                  {
+                    "type": "STRING",
+                    "value": "__bool"
                   }
                 ]
               }
@@ -13558,6 +13582,18 @@
                   {
                     "type": "STRING",
                     "value": "__signed__"
+                  },
+                  {
+                    "type": "STRING",
+                    "value": "__vector"
+                  },
+                  {
+                    "type": "STRING",
+                    "value": "__pixel"
+                  },
+                  {
+                    "type": "STRING",
+                    "value": "__bool"
                   }
                 ]
               }
@@ -13641,6 +13677,18 @@
                               {
                                 "type": "STRING",
                                 "value": "__signed__"
+                              },
+                              {
+                                "type": "STRING",
+                                "value": "__vector"
+                              },
+                              {
+                                "type": "STRING",
+                                "value": "__pixel"
+                              },
+                              {
+                                "type": "STRING",
+                                "value": "__bool"
                               }
                             ]
                           }
@@ -13685,6 +13733,18 @@
                               {
                                 "type": "STRING",
                                 "value": "__signed__"
+                              },
+                              {
+                                "type": "STRING",
+                                "value": "__vector"
+                              },
+                              {
+                                "type": "STRING",
+                                "value": "__pixel"
+                              },
+                              {
+                                "type": "STRING",
+                                "value": "__bool"
                               }
                             ]
                           }

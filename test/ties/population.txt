@@ -247,7 +247,7 @@ WebKit/Source/WTF/wtf/Variant.h	4	select_earlier symbol:template_argument_list, 
 WebKit/Source/WTF/wtf/WTFConfig.cpp	1	select_earlier symbol:alignas_qualifier, over_symbol:alignas_qualifier
 WebKit/Source/WTF/wtf/dragonbox/detail/cache_holder.h	1	select_earlier symbol:binary_expression, over_symbol:binary_expression
 WebKit/Source/WTF/wtf/fast_float/fast_float.h	2	select_earlier symbol:binary_expression, over_symbol:binary_expression
-WebKit/Source/WTF/wtf/simdutf/simdutf_impl.cpp.h	4	select_earlier symbol:template_argument_list_repeat1, over_symbol:template_argument_list_repeat1
+WebKit/Source/WTF/wtf/simdutf/simdutf_impl.cpp.h	3	select_earlier symbol:template_argument_list_repeat1, over_symbol:template_argument_list_repeat1
 WebKit/Source/WTF/wtf/text/StringImpl.cpp	1	select_earlier symbol:function_definition, over_symbol:function_definition
 WebKit/Source/WTF/wtf/win/MemoryFootprintWin.cpp	1	select_earlier symbol:alignas_qualifier, over_symbol:alignas_qualifier
 WebKit/Source/WebCore/css/values/backgrounds/CSSBorderImage.cpp	2	select_earlier symbol:template_argument_list, over_symbol:template_argument_list

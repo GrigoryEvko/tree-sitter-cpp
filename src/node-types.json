@@ -12556,6 +12556,10 @@
     "named": false
   },
   {
+    "type": "__bool",
+    "named": false
+  },
+  {
     "type": "__builtin_available",
     "named": false
   },
@@ -12672,6 +12676,10 @@
     "named": false
   },
   {
+    "type": "__pixel",
+    "named": false
+  },
+  {
     "type": "__pragma",
     "named": false
   },
@@ -12741,6 +12749,10 @@
   },
   {
     "type": "__unaligned",
+    "named": false
+  },
+  {
+    "type": "__vector",
     "named": false
   },
   {
