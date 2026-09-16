@@ -47,6 +47,13 @@
 //!   change of the count, fails no check. `test/ties/baseline.txt` covers that case for the 3,000
 //!   files of `test/ties/sample.txt`, and `cargo test --workspace` runs that comparison.
 //!
+//! WHO WRITES THE BASELINE AGAIN. A commit that adds a reading to the grammar adds sites, and the
+//! author of that commit writes the baseline again and gives the reason. The first run of the check
+//! on a master that moved found 43 counts that rose and 4 that fell, 341 sites more, from the four
+//! commits between 5271a72 and 215b2b0. A parser with the two branches of `ts_subtree_compare`
+//! turned around reads the 41 files, and 40 of them give the same visible tree, so the added sites
+//! are in the classes that a consumer does not see.
+//!
 //! WHICH TIES A CONSUMER SEES. A parser with the two branches of `ts_subtree_compare` turned around
 //! reads the 3,697 files with ties, and 2,829 of them give the same visible tree. The class of a tie
 //! then tells whether the reading of the tree depends on it:
