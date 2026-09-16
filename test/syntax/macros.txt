@@ -284,3 +284,24 @@ unsigned long a = sizeof(C C::*);
 unsigned long b = alignof(C C::*);
 const std::type_info &c = typeid(C C::*);
 void *d = (C C::*)0 ? (void *)0 : (void *)0;
+### call_macro_before_a_template_id_declarator
+template <> void MLASCALL MlasComputeExp<float>(const float* Input, float* Output, size_t N) {}
+template void MLASCALL MlasBlockwiseQuantizedBufferSizes<2>(int block_size, bool columnwise);
+template<> bool NODELETE isLookalikeCharacterOfScriptType<USCRIPT_ARMENIAN>(char32_t codePoint) { return false; }
+### call_macro_after_a_pointer_in_a_typedef
+typedef char * U_CALLCONV StripForCompareFn(char *dst, const char *name);
+typedef const char* U_CALLCONV GetNameFn(int index);
+### call_macro_before_an_abstract_declarator
+using create_registry_delegate = HRESULT WINAPI(IMLOperatorRegistry **registry);
+using ArraySegmentOperation = EncodedJSValue SYSV_ABI (&)(Instance *, uint32_t a);
+using YarrJITCode8 = UGPRPair SYSV_ABI (*)(const Latin1Character *input, UCPURegister start);
+template <typename Result, typename... Args> struct FunctionTraits<Result SYSV_ABI(Args...)> : public FunctionTraits<Result(Args...)> {};
+void g(void *proc) { BOOL ret = reinterpret_cast<BOOL WINAPI(*)(HANDLE, DWORD)>(proc)(a, b); }
+### call_macro_keeps_the_type_of_a_declaration_with_two_macros
+INTERFACE WEAK void SCUDO_PREFIX(free)(void *ptr) {}
+MACRO MACRO std::uint32_t F1(std::uint32_t x) { return x; }
+BOOST_FORCEINLINE BOOST_CONSTEXPR WORD_ MAKELANGID_(WORD_ p) { return p; }
+APICALL EXPORT std::string PLUGIN_API_VERSION() { return {}; }
+LLVM_ABI LLVM_READNONE LLT getLCMType(LLT OrigTy, LLT TargetTy);
+extern "C" WINBASEAPI BOOL WINAPI GetPhysicallyInstalledSystemMemory(PULONGLONG p);
+template <class T, class U> VULKAN_HPP_CONSTEXPR_14 VULKAN_HPP_INLINE T exchange(T &obj, U &&newValue) { return obj; }

@@ -1764,7 +1764,17 @@ fn types(g: &mut Grammar) {
             .into_iter()
             .flat_map(|member| match member {
                 Rule::Field { ref name, .. } if name == "declarator" => {
-                    vec![optional(s!(ms_call_modifier)), member]
+                    vec![
+                        optional(s!(ms_call_modifier)),
+                        // A macro takes the place of the keyword, and an abstract declarator follows
+                        // it: `using F = HRESULT WINAPI(IMLOperatorRegistry **registry);`. The macro
+                        // comes only with that declarator, so a name and a `<` after a type stay the
+                        // template-id of `template_type`.
+                        choice![
+                            member.clone(),
+                            seq![s!(attribute_macro), field("declarator", s!(_abstract_declarator))],
+                        ],
+                    ]
                 }
                 other => vec![qualifiers_with_attributes(other)],
             })
@@ -2528,6 +2538,10 @@ fn declarations(g: &mut Grammar) {
                 optional("extern"),
                 "template",
                 optional(s!(_declaration_specifiers)),
+                // A macro in the place of a calling convention comes before the declarator, as it
+                // does in a declaration: `template void MLASCALL MlasBlockwiseQuantizedBufferSizes<2>(
+                // int block_size, bool columnwise);`.
+                optional(call_macro()),
                 // The explicit instantiation of a class has no declarator: `template class S<int>;`.
                 optional(field("declarator", s!(_declarator))),
                 ";",
@@ -3671,8 +3685,10 @@ fn declarations(g: &mut Grammar) {
         });
     }
     // A macro can come after the `*` and the qualifiers of a named declarator, in the place of a
-    // calling convention: `const char * U_EXPORT2 f(int);`.
-    for name in ["pointer_declarator", "pointer_field_declarator"] {
+    // calling convention: `const char * U_EXPORT2 f(int);`. A typedef takes the same macro after the
+    // `*` of its declarator, as it takes the keyword:
+    // `typedef char * U_CALLCONV StripForCompareFn(char *dst, const char *name);`.
+    for name in ["pointer_declarator", "pointer_field_declarator", "pointer_type_declarator"] {
         g.redefine(name, |original| {
             insert_after(
                 original,

@@ -1599,3 +1599,72 @@ void f() {
               type: (type_identifier)
               declarator: (abstract_member_pointer_declarator
                 scope: (namespace_identifier)))))))))
+
+================================================================================
+Three more shapes of a declarator after a call macro
+================================================================================
+
+template <> void MLASCALL MlasComputeExp<float>(float *out) {}
+template void MLASCALL MlasBlockwiseQuantizedBufferSizes<2>(int block_size);
+typedef char * U_CALLCONV StripForCompareFn(char *dst);
+using create_registry_delegate = HRESULT WINAPI(IMLOperatorRegistry **registry);
+
+--------------------------------------------------------------------------------
+
+(translation_unit
+  (template_declaration
+    parameters: (template_parameter_list)
+    (function_definition
+      type: (primitive_type)
+      (attribute_macro
+        name: (identifier))
+      declarator: (function_declarator
+        declarator: (template_function
+          name: (identifier)
+          arguments: (template_argument_list
+            (type_descriptor
+              type: (primitive_type))))
+        parameters: (parameter_list
+          (parameter_declaration
+            type: (primitive_type)
+            declarator: (pointer_declarator
+              declarator: (identifier)))))
+      body: (compound_statement)))
+  (template_instantiation
+    type: (primitive_type)
+    (attribute_macro
+      name: (identifier))
+    declarator: (function_declarator
+      declarator: (template_function
+        name: (identifier)
+        arguments: (template_argument_list
+          (number_literal)))
+      parameters: (parameter_list
+        (parameter_declaration
+          type: (primitive_type)
+          declarator: (identifier)))))
+  (type_definition
+    type: (primitive_type)
+    declarator: (pointer_declarator
+      (attribute_macro
+        name: (identifier))
+      declarator: (function_declarator
+        declarator: (type_identifier)
+        parameters: (parameter_list
+          (parameter_declaration
+            type: (primitive_type)
+            declarator: (pointer_declarator
+              declarator: (identifier)))))))
+  (alias_declaration
+    name: (type_identifier)
+    type: (type_descriptor
+      type: (type_identifier)
+      (attribute_macro
+        name: (identifier))
+      declarator: (abstract_function_declarator
+        parameters: (parameter_list
+          (parameter_declaration
+            type: (type_identifier)
+            declarator: (pointer_declarator
+              declarator: (pointer_declarator
+                declarator: (identifier)))))))))

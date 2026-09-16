@@ -3243,25 +3243,47 @@ static bool scan_call_macro_name(TSLexer *lexer, const Scanner *scanner, bool po
                 }
             }
         }
-        // A macro can come between the name of the declarator and its parameter list, and the scan goes
-        // past it: `double DECL acosh BOOST_MATH_PREVENT_MACRO_SUBSTITUTION(double x);`.
+        bool name_of_a_type = false;
+        if (length < sizeof text) {
+            text[length] = '\0';
+            name_of_a_type = word_in(text, DECLARATION_START_WORDS);
+        }
+        bool has_lower = false;
+        for (unsigned i = 0; i < length && i < sizeof text; ++i) {
+            has_lower |= text[i] >= 'a' && text[i] <= 'z';
+        }
+        // A second macro in the place of a calling convention can come before the declarator:
+        // `void WINAPI QT_WIN_CALLBACK qt_fast_timer_proc(uint timerId, DWORD_PTR user)` of
+        // qtbase/src/corelib/kernel/qeventdispatcher_win.cpp:82. The scan gives no token for the first
+        // of the two names, because no lexical signal tells that shape from
+        // `LLVM_ABI LLVM_READNONE LLT getLCMType(LLT OrigTy, LLT TargetTy);` of
+        // llvm-project/llvm/include/llvm/CodeGen/GlobalISel/Utils.h:379, where the two macros come
+        // before the type and `specifier_prefix` reads them. The scan sees the same three names in the
+        // two shapes, and only name lookup tells the type from the macro. The measurement of
+        // 329,387 files gives 6 files of the first shape and 38 of the second.
         //
-        // The name before that macro is the declarator, so it is no keyword of a type, it has no scope,
-        // and it is no name of a macro. Without the three conditions, the second macro of
-        // `INTERFACE WEAK void SCUDO_PREFIX(free)(void *ptr)`, of
-        // `MACRO MACRO std::uint32_t F1(std::uint32_t x)`, and of
-        // `BOOST_FORCEINLINE BOOST_CONSTEXPR WORD_ MAKELANGID_(WORD_ p)` takes the name of the
-        // declaration, and the tokens before it become the type.
-        if (lexer->lookahead != '(') {
-            bool name_of_a_type = false;
-            if (length < sizeof text) {
-                text[length] = '\0';
-                name_of_a_type = word_in(text, DECLARATION_START_WORDS);
+        // The declarator after the macro can be a template-id, in the explicit specialization and in
+        // the explicit instantiation of a function template:
+        // `template <> void MLASCALL MlasComputeExp<float>(const float* Input, float* Output, size_t N)`
+        // of onnxruntime/onnxruntime/core/mlas/lib/compute.cpp:236. The scan goes past the template
+        // argument list to the parameter list. The name has the same three conditions.
+        //
+        // The macro before such a declarator can also be the type of the declaration, with a macro among
+        // the specifiers before it: `MLAS_FORCEINLINE MLAS_FLOAT16X8 PoolInit16x8<MaxPoolAggregation>()`
+        // of onnxruntime/onnxruntime/core/mlas/lib/pooling_fp16.cpp:65 gives the type `MLAS_FORCEINLINE`
+        // and the macro `MLAS_FLOAT16X8`. The scan sees the same two names in the two shapes, and only
+        // name lookup tells the type from the macro. A second external token with a lower dynamic
+        // precedence does not select the other reading, because a token of this scanner takes the place
+        // of the name and the reading with the name does not continue.
+        if (lexer->lookahead == '<' && !qualified && !name_of_a_type && has_lower) {
+            gap = (Gap){0};
+            if (!skip_template_arguments(&reader, &gap)) {
+                return false;
             }
-            bool has_lower = false;
-            for (unsigned i = 0; i < length && i < sizeof text; ++i) {
-                has_lower |= text[i] >= 'a' && text[i] <= 'z';
-            }
+        } else if (lexer->lookahead != '(') {
+            // A macro can come between the name of the declarator and its parameter list, and the scan
+            // goes past it: `double DECL acosh BOOST_MATH_PREVENT_MACRO_SUBSTITUTION(double x);`. The
+            // name before that macro is the declarator, and it has the same three conditions.
             if (qualified || name_of_a_type || !has_lower || !skip_declarator_name_macro(&reader)) {
                 return false;
             }
