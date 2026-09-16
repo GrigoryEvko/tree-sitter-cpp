@@ -3170,3 +3170,185 @@ struct C { friend operator int(); };
           type: (primitive_type)
           declarator: (parenthesized_declarator
             (MISSING identifier)))))))
+
+================================================================================
+A conversion function defined outside its class after a specifier or a macro
+================================================================================
+
+// The name of a conversion function defined outside its class is a qualified conversion-function-id
+// ([class.conv.fct], [class.mfct] p2). GCC reads the keyword `operator` and then a
+// conversion-type-id in `cp_parser_conversion_function_id` (gcc/cp/parser.cc:19612), and Clang in
+// `Parser::ParseUnqualifiedId` (clang/lib/Parse/ParseExprCXX.cpp:2785). The keyword is never a
+// name. The specifier or the macro before the qualified name splits the parse before `n`, and the
+// keyword has no action after `n::X::` in the version of a declaration. Before this test, the lexer
+// gave the word token there, and the fork read `n::X::operator` as the type of the first three
+// definitions and the conversion-type-id as the name of a function, with no error node. The fourth
+// definition has no specifier, and its tree is the same before and after the test. Refer to
+// `QUALIFIED_TYPE_NAME_RESERVED_WORDS`.
+struct T { };
+template <class U> struct Vec { };
+namespace std { struct string { }; }
+namespace n { struct X { operator T() const; operator Vec<T>() const; constexpr operator std::string() const; }; }
+template <class U> struct R { operator U() noexcept; };
+inline n::X::operator T() const LIFETIME_BOUND { return T(); }
+constexpr n::X::operator std::string() const { return std::string(); }
+template <class U> SIMDJSON_INLINE R<U>::operator U() noexcept { return U(); }
+n::X::operator Vec<T>() const { return Vec<T>(); }
+
+--------------------------------------------------------------------------------
+
+(translation_unit
+  (comment)
+  (comment)
+  (comment)
+  (comment)
+  (comment)
+  (comment)
+  (comment)
+  (comment)
+  (comment)
+  (comment)
+  (struct_specifier
+    name: (type_identifier)
+    body: (field_declaration_list))
+  (template_declaration
+    parameters: (template_parameter_list
+      (type_parameter_declaration
+        (type_identifier)))
+    (struct_specifier
+      name: (type_identifier)
+      body: (field_declaration_list)))
+  (namespace_definition
+    name: (namespace_identifier)
+    body: (declaration_list
+      (struct_specifier
+        name: (type_identifier)
+        body: (field_declaration_list))))
+  (namespace_definition
+    name: (namespace_identifier)
+    body: (declaration_list
+      (struct_specifier
+        name: (type_identifier)
+        body: (field_declaration_list
+          (declaration
+            declarator: (operator_cast
+              type: (type_identifier)
+              declarator: (abstract_function_declarator
+                parameters: (parameter_list)
+                (type_qualifier))))
+          (declaration
+            declarator: (operator_cast
+              type: (template_type
+                name: (type_identifier)
+                arguments: (template_argument_list
+                  (type_descriptor
+                    type: (type_identifier))))
+              declarator: (abstract_function_declarator
+                parameters: (parameter_list)
+                (type_qualifier))))
+          (declaration
+            (type_qualifier)
+            declarator: (operator_cast
+              type: (qualified_identifier
+                scope: (namespace_identifier)
+                name: (type_identifier))
+              declarator: (abstract_function_declarator
+                parameters: (parameter_list)
+                (type_qualifier))))))))
+  (template_declaration
+    parameters: (template_parameter_list
+      (type_parameter_declaration
+        (type_identifier)))
+    (struct_specifier
+      name: (type_identifier)
+      body: (field_declaration_list
+        (declaration
+          declarator: (operator_cast
+            type: (type_identifier)
+            declarator: (abstract_function_declarator
+              parameters: (parameter_list)
+              (noexcept)))))))
+  (function_definition
+    (storage_class_specifier)
+    declarator: (qualified_identifier
+      scope: (namespace_identifier)
+      name: (qualified_identifier
+        scope: (namespace_identifier)
+        name: (operator_cast
+          type: (type_identifier)
+          declarator: (abstract_function_declarator
+            parameters: (parameter_list)
+            (type_qualifier)
+            (attribute_macro
+              name: (identifier))))))
+    body: (compound_statement
+      (return_statement
+        (call_expression
+          function: (type_identifier)
+          arguments: (argument_list)))))
+  (function_definition
+    (type_qualifier)
+    declarator: (qualified_identifier
+      scope: (namespace_identifier)
+      name: (qualified_identifier
+        scope: (namespace_identifier)
+        name: (operator_cast
+          type: (qualified_identifier
+            scope: (namespace_identifier)
+            name: (type_identifier))
+          declarator: (abstract_function_declarator
+            parameters: (parameter_list)
+            (type_qualifier)))))
+    body: (compound_statement
+      (return_statement
+        (call_expression
+          function: (qualified_identifier
+            scope: (namespace_identifier)
+            name: (identifier))
+          arguments: (argument_list)))))
+  (template_declaration
+    parameters: (template_parameter_list
+      (type_parameter_declaration
+        (type_identifier)))
+    (function_definition
+      (attribute_macro
+        name: (identifier))
+      declarator: (qualified_identifier
+        scope: (template_type
+          name: (type_identifier)
+          arguments: (template_argument_list
+            (type_descriptor
+              type: (type_identifier))))
+        name: (operator_cast
+          type: (type_identifier)
+          declarator: (abstract_function_declarator
+            parameters: (parameter_list)
+            (noexcept))))
+      body: (compound_statement
+        (return_statement
+          (call_expression
+            function: (identifier)
+            arguments: (argument_list))))))
+  (function_definition
+    declarator: (qualified_identifier
+      scope: (namespace_identifier)
+      name: (qualified_identifier
+        scope: (namespace_identifier)
+        name: (operator_cast
+          type: (template_type
+            name: (type_identifier)
+            arguments: (template_argument_list
+              (type_descriptor
+                type: (type_identifier))))
+          declarator: (abstract_function_declarator
+            parameters: (parameter_list)
+            (type_qualifier)))))
+    body: (compound_statement
+      (return_statement
+        (call_expression
+          function: (template_type
+            name: (type_identifier)
+            arguments: (template_argument_list
+              (type_descriptor
+                type: (type_identifier))))
+          arguments: (argument_list))))))

@@ -302,6 +302,7 @@ padded_input	type
 padded_memory_map	type
 padded_string	type
 padded_string_builder	type
+padded_string_view	type
 parse_options	type
 parse_options_t	template
 parse_result	type
@@ -323,6 +324,7 @@ rapidjson_approx	type
 rapidjson_base	template
 rapidjson_insitu	type
 rapidjson_sax	type
+raw_json_string	type
 rebind	template
 rename_t	template
 result_differ	template
@@ -378,6 +380,7 @@ stream_format	type
 string_builder	template
 string_constant	template
 string_runner	template
+string_view	type
 structural_scanner	type
 structure_analyzer	type
 sym_t	template

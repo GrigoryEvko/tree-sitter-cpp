@@ -842,21 +842,44 @@ const TYPE_NAME_RESERVED_WORDS: [&str; 22] = [
     "const_cast",
 ];
 
+/// The keywords that cannot be the type name after a scope, and that the lexer gives as keywords
+/// where such a name can come. The set `qualified_type_name` holds these words and the words of
+/// `TYPE_NAME_RESERVED_WORDS`.
+///
+/// `operator` is a keyword ([lex.key]). GCC gives it as `RID_OPERATOR` and Clang as `kw_operator`,
+/// and no front end reads it as a name: `cp_parser_conversion_function_id` (gcc/cp/parser.cc:19612)
+/// and `Parser::ParseUnqualifiedId` (clang/lib/Parse/ParseExprCXX.cpp:2785) read the keyword and
+/// then a conversion-type-id. In `inline A::operator T() const { }`, the specifier splits the parse
+/// before `A`. In the version of a declaration, the keyword has no action after `A::`, and without
+/// this set the lexer gives the word token. `A::operator` is then the type of a function named `T`,
+/// and two points of dynamic precedence (`function_declarator` and the name of
+/// `qualified_type_identifier`) put that tree over `operator_cast_definition`, with no error node.
+/// The reserved keyword stops that version at `operator`, and the conversion function stays. The
+/// corpus holds 601 such definitions in 95 files, 394 of them in simdjson.
+const QUALIFIED_TYPE_NAME_RESERVED_WORDS: [&str; 1] = ["operator"];
+
 /// The named casts. Each is a keyword ([lex.key]), and the tree reads it as the name of a template
 /// function: `static_cast<T>(x)`.
 const NAMED_CASTS: [&str; 4] = ["static_cast", "dynamic_cast", "reinterpret_cast", "const_cast"];
 
-/// Define the reserved word sets, and apply the set of type names to the type name of a type
-/// specifier.
+/// Define the reserved word sets, apply the set of type names to the type name of a type specifier,
+/// and apply the set of qualified type names to the type name after a scope.
 ///
 /// The first set applies to each word token outside a `reserved` rule, and it is empty. A parse state
 /// in which a type specifier can start gets the set `type_name`: a parameter list, a block, a template
-/// argument list, and each other place where a type can start. In such a state, a keyword of the set
-/// with no action stops the parse version, and a different version continues. The two sets change
+/// argument list, and each other place where a type can start. A parse state after the `::` of a
+/// qualified type name gets the set `qualified_type_name`. In such a state, a keyword of the set
+/// with no action stops the parse version, and a different version continues. The sets change
 /// nothing where the state has an action for the keyword.
 ///
-/// The set applies only to the start of a type specifier. A name after `*`, `->`, or `struct` keeps
-/// the empty set, because C code uses `new` and `delete` as names there: `struct list_head *new;`.
+/// The set `type_name` applies only to the start of a type specifier. A name after `*`, `->`, or
+/// `struct` keeps the empty set, because C code uses `new` and `delete` as names there:
+/// `struct list_head *new;`. The set `qualified_type_name` holds `operator`, and the set `type_name`
+/// does not. In the arguments of a macro that the parse reads as parameters,
+/// `CPP_auto_fun(operator())` and `SAFE_BUFFERS(operator bool)`, the keyword at the start of a
+/// parameter is a name, with no error node. `operator` in `type_name` gives 18 such corpus files
+/// an error node, 2 of them with no error before it, and it repairs
+/// `MACRO constexpr operator T() const { }` in 57 files. Refer to `QUALIFIED_TYPE_NAME_RESERVED_WORDS`.
 ///
 /// A reserved word is a keyword, and the lexer reads a keyword with the word token. The C grammar
 /// reads `true` and `false` as one token each, which the lexer does not read as a keyword. Each
@@ -874,12 +897,28 @@ fn reserved_words(g: &mut Grammar) {
         "type_name".to_owned(),
         TYPE_NAME_RESERVED_WORDS.iter().map(|&word| Rule::from(word)).collect(),
     );
-    for name in ["type_specifier", "_nondefining_type_specifier"] {
+    // The set of the type name after a scope holds the set of type names and `operator`. A parse
+    // state takes the set with the highest id among the word tokens that it expects. A set that
+    // comes after `type_name` must then hold each word of `type_name`. C code declares no name
+    // after `::`, so the words of `type_name` cost nothing here.
+    g.reserved.insert(
+        "qualified_type_name".to_owned(),
+        TYPE_NAME_RESERVED_WORDS
+            .iter()
+            .chain(QUALIFIED_TYPE_NAME_RESERVED_WORDS.iter())
+            .map(|&word| Rule::from(word))
+            .collect(),
+    );
+    for (name, context) in [
+        ("type_specifier", "type_name"),
+        ("_nondefining_type_specifier", "type_name"),
+        ("qualified_type_identifier", "qualified_type_name"),
+    ] {
         g.redefine(name, |original| {
             replace_rule(
                 original,
                 &s!(_type_identifier),
-                &alias(reserved("type_name", s!(identifier)), s!(type_identifier)),
+                &alias(reserved(context, s!(identifier)), s!(type_identifier)),
             )
         });
     }

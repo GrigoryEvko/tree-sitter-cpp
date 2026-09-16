@@ -42713,8 +42713,17 @@
                 "type": "PREC_DYNAMIC",
                 "value": 1,
                 "content": {
-                  "type": "SYMBOL",
-                  "name": "_type_identifier"
+                  "type": "ALIAS",
+                  "content": {
+                    "type": "RESERVED",
+                    "content": {
+                      "type": "SYMBOL",
+                      "name": "identifier"
+                    },
+                    "context_name": "qualified_type_name"
+                  },
+                  "named": true,
+                  "value": "type_identifier"
                 }
               }
             ]
@@ -47021,6 +47030,100 @@
       {
         "type": "STRING",
         "value": "const_cast"
+      }
+    ],
+    "qualified_type_name": [
+      {
+        "type": "STRING",
+        "value": "__extension__"
+      },
+      {
+        "type": "STRING",
+        "value": "__label__"
+      },
+      {
+        "type": "STRING",
+        "value": "nullptr"
+      },
+      {
+        "type": "STRING",
+        "value": "NULL"
+      },
+      {
+        "type": "STRING",
+        "value": "true"
+      },
+      {
+        "type": "STRING",
+        "value": "false"
+      },
+      {
+        "type": "STRING",
+        "value": "new"
+      },
+      {
+        "type": "STRING",
+        "value": "delete"
+      },
+      {
+        "type": "STRING",
+        "value": "sizeof"
+      },
+      {
+        "type": "STRING",
+        "value": "typeid"
+      },
+      {
+        "type": "STRING",
+        "value": "alignof"
+      },
+      {
+        "type": "STRING",
+        "value": "_Alignof"
+      },
+      {
+        "type": "STRING",
+        "value": "__alignof"
+      },
+      {
+        "type": "STRING",
+        "value": "__alignof__"
+      },
+      {
+        "type": "STRING",
+        "value": "__real__"
+      },
+      {
+        "type": "STRING",
+        "value": "__real"
+      },
+      {
+        "type": "STRING",
+        "value": "__imag__"
+      },
+      {
+        "type": "STRING",
+        "value": "__imag"
+      },
+      {
+        "type": "STRING",
+        "value": "static_cast"
+      },
+      {
+        "type": "STRING",
+        "value": "dynamic_cast"
+      },
+      {
+        "type": "STRING",
+        "value": "reinterpret_cast"
+      },
+      {
+        "type": "STRING",
+        "value": "const_cast"
+      },
+      {
+        "type": "STRING",
+        "value": "operator"
       }
     ]
   }
