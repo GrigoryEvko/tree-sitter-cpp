@@ -9,6 +9,13 @@
 # one file, with no change of the count, fails no check. The per-site
 # baseline test/ties/baseline.txt covers that case for the 3,000 files of
 # test/ties/sample.txt.
+#
+# THE FILE HOLDS THE MEASUREMENT OF THE FORK MASTER. integrate.sh writes it
+# again at each landing whose gate found fallen counts, with the rows of that
+# gate. So a gate that reads `fallen 0` measures a commit that moves no tie,
+# and a count that is not zero is the work of the commit under that gate. A
+# file that is not refreshed reports the falls of an earlier landing to each
+# later gate, and the count then measures history and not the commit.
 Cataclysm-DDA/src/cata_imgui.cpp	1	select_earlier symbol:expression_statement, over_symbol:expression_statement
 Cataclysm-DDA/src/cata_small_literal_vector.h	2	select_earlier symbol:alignas_qualifier, over_symbol:alignas_qualifier
 Cataclysm-DDA/src/debug.cpp	1	select_earlier symbol:alignas_qualifier, over_symbol:alignas_qualifier
@@ -263,7 +270,7 @@ abseil-cpp/absl/base/exception_safety_testing_test.cc	4	select_earlier symbol:al
 abseil-cpp/absl/base/exception_safety_testing_test.cc	2	select_earlier symbol:expression_statement, over_symbol:expression_statement
 abseil-cpp/absl/base/internal/endian_test.cc	1	select_earlier symbol:binary_expression, over_symbol:binary_expression
 abseil-cpp/absl/base/internal/low_level_alloc.cc	3	select_earlier symbol:alignas_qualifier, over_symbol:alignas_qualifier
-abseil-cpp/absl/base/no_destructor.h	3	select_earlier symbol:alignas_qualifier, over_symbol:alignas_qualifier
+abseil-cpp/absl/base/no_destructor.h	1	select_earlier symbol:alignas_qualifier, over_symbol:alignas_qualifier
 abseil-cpp/absl/cleanup/internal/cleanup.h	1	select_earlier symbol:alignas_qualifier, over_symbol:alignas_qualifier
 abseil-cpp/absl/container/btree_test.cc	1	select_earlier symbol:alignas_qualifier, over_symbol:alignas_qualifier
 abseil-cpp/absl/container/btree_test.cc	1	select_earlier symbol:expression_statement, over_symbol:expression_statement
@@ -288,7 +295,7 @@ abseil-cpp/absl/flags/internal/usage.cc	2	select_earlier symbol:declaration, ove
 abseil-cpp/absl/functional/any_invocable.h	1	select_earlier symbol:template_argument_list, over_symbol:template_argument_list
 abseil-cpp/absl/functional/any_invocable_test.h	1	select_earlier symbol:binary_expression, over_symbol:binary_expression
 abseil-cpp/absl/functional/internal/any_invocable.h	1	select_earlier symbol:alignas_qualifier, over_symbol:alignas_qualifier
-abseil-cpp/absl/log/internal/check_op.h	28	select_earlier symbol:template_argument_list, over_symbol:template_argument_list
+abseil-cpp/absl/log/internal/check_op.h	14	select_earlier symbol:template_argument_list, over_symbol:template_argument_list
 abseil-cpp/absl/random/mocking_bit_gen.h	10	select_earlier symbol:template_argument_list_repeat1, over_symbol:template_argument_list_repeat1
 abseil-cpp/absl/status/internal/statusor_internal.h	16	select_earlier symbol:template_argument_list, over_symbol:template_argument_list
 abseil-cpp/absl/status/internal/statusor_internal.h	50	select_earlier symbol:template_argument_list_repeat1, over_symbol:template_argument_list_repeat1
@@ -733,7 +740,6 @@ boost/libs/histogram/include/boost/histogram/detail/common_type.hpp	4	select_ear
 boost/libs/histogram/include/boost/histogram/detail/operators.hpp	4	select_earlier symbol:template_argument_list, over_symbol:template_argument_list
 boost/libs/histogram/test/axis_traits_test.cpp	1	select_earlier symbol:binary_expression, over_symbol:binary_expression
 boost/libs/histogram/test/indexed_test.cpp	4	select_earlier symbol:template_argument_list, over_symbol:template_argument_list
-boost/libs/hof/include/boost/hof/pack.hpp	4	select_earlier symbol:argument_list_repeat1, over_symbol:argument_list_repeat1
 boost/libs/icl/example/large_bitset_/large_bitset.hpp	178	select_earlier symbol:base_class_clause_repeat1, over_symbol:base_class_clause_repeat1
 boost/libs/icl/example/large_bitset_/large_bitset.hpp	3055	select_earlier symbol:template_argument_list_repeat1, over_symbol:template_argument_list_repeat1
 boost/libs/icl/include/boost/icl/concept/element_map.hpp	3	select_earlier symbol:template_argument_list, over_symbol:template_argument_list
@@ -1418,7 +1424,7 @@ boost/libs/spirit/include/boost/spirit/home/qi/detail/attributes.hpp	1	select_ea
 boost/libs/spirit/include/boost/spirit/home/qi/nonterminal/rule.hpp	2	select_earlier symbol:comma_expression, over_symbol:comma_expression
 boost/libs/spirit/include/boost/spirit/home/support/attributes.hpp	10	select_earlier symbol:template_argument_list, over_symbol:template_argument_list
 boost/libs/spirit/include/boost/spirit/home/support/attributes.hpp	3	select_earlier symbol:template_argument_list_repeat1, over_symbol:template_argument_list_repeat1
-boost/libs/spirit/include/boost/spirit/home/support/meta_compiler.hpp	6	select_earlier symbol:template_argument_list, over_symbol:template_argument_list
+boost/libs/spirit/include/boost/spirit/home/support/meta_compiler.hpp	2	select_earlier symbol:template_argument_list, over_symbol:template_argument_list
 boost/libs/spirit/include/boost/spirit/home/support/nonterminal/extract_param.hpp	5	select_earlier symbol:template_argument_list_repeat1, over_symbol:template_argument_list_repeat1
 boost/libs/spirit/include/boost/spirit/home/x3/binary/binary.hpp	1	select_earlier symbol:alignas_qualifier, over_symbol:alignas_qualifier
 boost/libs/spirit/include/boost/spirit/home/x3/support/traits/attribute_category.hpp	4	select_earlier symbol:template_argument_list, over_symbol:template_argument_list
@@ -2260,10 +2266,8 @@ libstdcxx/libstdc++-v3/src/c++20/tzdb.cc	1	select_earlier symbol:alignas_qualifi
 libunifex/examples/async_trace.cpp	2	select_earlier symbol:binary_expression, over_symbol:binary_expression
 libunifex/examples/when_all.cpp	1	select_earlier symbol:binary_expression, over_symbol:binary_expression
 libunifex/examples/when_all_2.cpp	1	select_earlier symbol:binary_expression, over_symbol:binary_expression
-libunifex/include/unifex/any_object.hpp	2	select_earlier symbol:alignas_qualifier, over_symbol:alignas_qualifier
-libunifex/include/unifex/bind_back.hpp	1	select_earlier symbol:parameter_list, over_symbol:parameter_list
+libunifex/include/unifex/any_object.hpp	1	select_earlier symbol:alignas_qualifier, over_symbol:alignas_qualifier
 libunifex/include/unifex/create_basic_sender.hpp	1	select_earlier symbol:template_argument_list_repeat1, over_symbol:template_argument_list_repeat1
-libunifex/include/unifex/for_each.hpp	1	select_earlier symbol:parameter_list, over_symbol:parameter_list
 libunifex/include/unifex/spawn_detached.hpp	1	select_earlier symbol:alignas_qualifier, over_symbol:alignas_qualifier
 libunifex/include/unifex/type_list.hpp	1	select_earlier symbol:template_argument_list, over_symbol:template_argument_list
 libunifex/test/any_object_test.cpp	1	select_earlier symbol:alignas_qualifier, over_symbol:alignas_qualifier
@@ -2857,7 +2861,6 @@ llvm-project/mlir/tools/mlir-tblgen/BytecodeDialectGen.cpp	1	select_earlier symb
 llvm-project/openmp/device/src/Allocator.cpp	1	select_earlier symbol:alignas_qualifier, over_symbol:alignas_qualifier
 llvm-project/orc-rt/include/orc-rt/support/Error.h	2	select_earlier symbol:alignas_qualifier, over_symbol:alignas_qualifier
 llvm-project/orc-rt/include/orc-rt/support/sps/SimplePackedSerialization.h	1	select_earlier symbol:binary_expression, over_symbol:binary_expression
-llvm-project/polly/lib/External/isl/include/isl/typed_cpp.h	98	select_earlier symbol:comma_expression, over_symbol:comma_expression
 llvm-project/third-party/boost-math/include/boost/math/ccmath/fma.hpp	40	select_earlier symbol:template_argument_list_repeat1, over_symbol:template_argument_list_repeat1
 llvm-project/third-party/boost-math/include/boost/math/constants/calculate_constants.hpp	1	select_earlier symbol:binary_expression, over_symbol:binary_expression
 llvm-project/third-party/boost-math/include/boost/math/quadrature/gauss.hpp	34	select_earlier symbol:template_argument_list_repeat1, over_symbol:template_argument_list_repeat1
@@ -2936,7 +2939,7 @@ mongo/src/third_party/abseil-cpp/dist/absl/base/exception_safety_testing_test.cc
 mongo/src/third_party/abseil-cpp/dist/absl/base/exception_safety_testing_test.cc	2	select_earlier symbol:expression_statement, over_symbol:expression_statement
 mongo/src/third_party/abseil-cpp/dist/absl/base/internal/endian_test.cc	1	select_earlier symbol:binary_expression, over_symbol:binary_expression
 mongo/src/third_party/abseil-cpp/dist/absl/base/internal/low_level_alloc.cc	3	select_earlier symbol:alignas_qualifier, over_symbol:alignas_qualifier
-mongo/src/third_party/abseil-cpp/dist/absl/base/no_destructor.h	3	select_earlier symbol:alignas_qualifier, over_symbol:alignas_qualifier
+mongo/src/third_party/abseil-cpp/dist/absl/base/no_destructor.h	1	select_earlier symbol:alignas_qualifier, over_symbol:alignas_qualifier
 mongo/src/third_party/abseil-cpp/dist/absl/cleanup/internal/cleanup.h	1	select_earlier symbol:alignas_qualifier, over_symbol:alignas_qualifier
 mongo/src/third_party/abseil-cpp/dist/absl/container/btree_test.cc	1	select_earlier symbol:alignas_qualifier, over_symbol:alignas_qualifier
 mongo/src/third_party/abseil-cpp/dist/absl/container/btree_test.cc	1	select_earlier symbol:expression_statement, over_symbol:expression_statement
@@ -2965,7 +2968,7 @@ mongo/src/third_party/abseil-cpp/dist/absl/random/internal/generate_real.h	2	sel
 mongo/src/third_party/abseil-cpp/dist/absl/random/mocking_bit_gen.h	10	select_earlier symbol:template_argument_list_repeat1, over_symbol:template_argument_list_repeat1
 mongo/src/third_party/abseil-cpp/dist/absl/status/internal/statusor_internal.h	14	select_earlier symbol:template_argument_list, over_symbol:template_argument_list
 mongo/src/third_party/abseil-cpp/dist/absl/status/internal/statusor_internal.h	23	select_earlier symbol:template_argument_list_repeat1, over_symbol:template_argument_list_repeat1
-mongo/src/third_party/abseil-cpp/dist/absl/status/statusor.h	3	select_earlier symbol:template_argument_list, over_symbol:template_argument_list
+mongo/src/third_party/abseil-cpp/dist/absl/status/statusor.h	1	select_earlier symbol:template_argument_list, over_symbol:template_argument_list
 mongo/src/third_party/abseil-cpp/dist/absl/strings/internal/str_format/arg.h	1	select_earlier symbol:template_argument_list_repeat1, over_symbol:template_argument_list_repeat1
 mongo/src/third_party/abseil-cpp/dist/absl/synchronization/mutex_test.cc	1	select_earlier symbol:alignas_qualifier, over_symbol:alignas_qualifier
 mongo/src/third_party/abseil-cpp/dist/absl/time/internal/cctz/include/cctz/time_zone.h	1	select_earlier symbol:argument_list_repeat1, over_symbol:argument_list_repeat1
@@ -3161,7 +3164,7 @@ mongo/src/third_party/boost/libs/spirit/include/boost/spirit/home/qi/detail/attr
 mongo/src/third_party/boost/libs/spirit/include/boost/spirit/home/qi/nonterminal/rule.hpp	2	select_earlier symbol:comma_expression, over_symbol:comma_expression
 mongo/src/third_party/boost/libs/spirit/include/boost/spirit/home/support/attributes.hpp	10	select_earlier symbol:template_argument_list, over_symbol:template_argument_list
 mongo/src/third_party/boost/libs/spirit/include/boost/spirit/home/support/attributes.hpp	3	select_earlier symbol:template_argument_list_repeat1, over_symbol:template_argument_list_repeat1
-mongo/src/third_party/boost/libs/spirit/include/boost/spirit/home/support/meta_compiler.hpp	6	select_earlier symbol:template_argument_list, over_symbol:template_argument_list
+mongo/src/third_party/boost/libs/spirit/include/boost/spirit/home/support/meta_compiler.hpp	2	select_earlier symbol:template_argument_list, over_symbol:template_argument_list
 mongo/src/third_party/boost/libs/spirit/include/boost/spirit/home/support/nonterminal/extract_param.hpp	5	select_earlier symbol:template_argument_list_repeat1, over_symbol:template_argument_list_repeat1
 mongo/src/third_party/boost/libs/spirit/include/boost/spirit/home/x3/binary/binary.hpp	1	select_earlier symbol:alignas_qualifier, over_symbol:alignas_qualifier
 mongo/src/third_party/boost/libs/spirit/include/boost/spirit/home/x3/support/traits/attribute_category.hpp	4	select_earlier symbol:template_argument_list, over_symbol:template_argument_list
@@ -3607,34 +3610,27 @@ qtbase/tests/manual/wasm/qstdweb/files_main.cpp	1	select_earlier symbol:binary_e
 range-v3/example/comprehensions.cpp	3	select_earlier symbol:binary_expression, over_symbol:binary_expression
 range-v3/include/meta/meta.hpp	30	select_earlier symbol:template_argument_list, over_symbol:template_argument_list
 range-v3/include/meta/meta.hpp	23	select_earlier symbol:template_argument_list_repeat1, over_symbol:template_argument_list_repeat1
-range-v3/include/range/v3/algorithm/transform.hpp	1	select_earlier symbol:comma_expression, over_symbol:comma_expression
 range-v3/include/range/v3/detail/variant.hpp	2	select_earlier symbol:expression_statement, over_symbol:expression_statement
 range-v3/include/range/v3/detail/variant.hpp	1	select_earlier symbol:template_function, over_symbol:template_function
 range-v3/include/range/v3/detail/variant.hpp	1	select_earlier symbol:template_type, over_symbol:template_type
-range-v3/include/range/v3/functional/invoke.hpp	2	select_earlier symbol:parameter_list, over_symbol:parameter_list
-range-v3/include/range/v3/iterator/basic_iterator.hpp	35	select_earlier symbol:parameter_list, over_symbol:parameter_list
-range-v3/include/range/v3/iterator/basic_iterator.hpp	7	select_earlier symbol:template_argument_list, over_symbol:template_argument_list
-range-v3/include/range/v3/iterator/basic_iterator.hpp	32	select_earlier symbol:template_argument_list_repeat1, over_symbol:template_argument_list_repeat1
+range-v3/include/range/v3/iterator/basic_iterator.hpp	13	select_earlier symbol:parameter_list, over_symbol:parameter_list
+range-v3/include/range/v3/iterator/basic_iterator.hpp	5	select_earlier symbol:template_argument_list, over_symbol:template_argument_list
+range-v3/include/range/v3/iterator/basic_iterator.hpp	26	select_earlier symbol:template_argument_list_repeat1, over_symbol:template_argument_list_repeat1
 range-v3/include/range/v3/iterator/common_iterator.hpp	3	select_earlier symbol:binary_expression, over_symbol:binary_expression
-range-v3/include/range/v3/iterator/concepts.hpp	4	select_earlier symbol:comma_expression, over_symbol:comma_expression
 range-v3/include/range/v3/iterator/concepts.hpp	3	select_earlier symbol:template_argument_list, over_symbol:template_argument_list
-range-v3/include/range/v3/iterator/concepts.hpp	26	select_earlier symbol:template_argument_list_repeat1, over_symbol:template_argument_list_repeat1
+range-v3/include/range/v3/iterator/concepts.hpp	20	select_earlier symbol:template_argument_list_repeat1, over_symbol:template_argument_list_repeat1
 range-v3/include/range/v3/iterator/traits.hpp	6	select_earlier symbol:template_argument_list, over_symbol:template_argument_list
-range-v3/include/range/v3/numeric/inner_product.hpp	4	select_earlier symbol:template_argument_list_repeat1, over_symbol:template_argument_list_repeat1
-range-v3/include/range/v3/numeric/partial_sum.hpp	1	select_earlier symbol:binary_expression, over_symbol:binary_expression
 range-v3/include/range/v3/range/access.hpp	2	select_earlier symbol:template_argument_list, over_symbol:template_argument_list
 range-v3/include/range/v3/range/concepts.hpp	4	select_earlier symbol:template_argument_list, over_symbol:template_argument_list
 range-v3/include/range/v3/range/concepts.hpp	46	select_earlier symbol:template_argument_list_repeat1, over_symbol:template_argument_list_repeat1
-range-v3/include/range/v3/range/conversion.hpp	2	select_earlier symbol:parameter_list, over_symbol:parameter_list
 range-v3/include/range/v3/utility/semiregular_box.hpp	2	select_earlier symbol:template_argument_list, over_symbol:template_argument_list
 range-v3/include/range/v3/view/adjacent_filter.hpp	4	select_earlier symbol:parameter_list, over_symbol:parameter_list
 range-v3/include/range/v3/view/cartesian_product.hpp	6	select_earlier symbol:binary_expression, over_symbol:binary_expression
 range-v3/include/range/v3/view/common.hpp	1	select_earlier symbol:template_argument_list_repeat1, over_symbol:template_argument_list_repeat1
 range-v3/include/range/v3/view/iota.hpp	2	select_earlier symbol:binary_expression, over_symbol:binary_expression
 range-v3/include/range/v3/view/iota.hpp	6	select_earlier symbol:parameter_list, over_symbol:parameter_list
-range-v3/include/range/v3/view/join.hpp	4	select_earlier symbol:parameter_list, over_symbol:parameter_list
+range-v3/include/range/v3/view/join.hpp	2	select_earlier symbol:parameter_list, over_symbol:parameter_list
 range-v3/include/range/v3/view/ref.hpp	2	select_earlier symbol:parameter_list, over_symbol:parameter_list
-range-v3/include/range/v3/view/slice.hpp	12	select_earlier symbol:parameter_list, over_symbol:parameter_list
 range-v3/include/range/v3/view/sliding.hpp	1	select_earlier symbol:parameter_list, over_symbol:parameter_list
 range-v3/include/range/v3/view/transform.hpp	2	select_earlier symbol:template_argument_list, over_symbol:template_argument_list
 range-v3/include/range/v3/view/zip_with.hpp	1	select_earlier symbol:binary_expression, over_symbol:binary_expression
@@ -4037,7 +4033,6 @@ tensorflow/tensorflow/lite/delegates/gpu/common/transformations/remove_noop.cc	1
 tensorflow/tensorflow/lite/delegates/nnapi/nnapi_delegate_test.cc	1	select_earlier symbol:binary_expression, over_symbol:binary_expression
 tensorflow/tensorflow/lite/experimental/acceleration/mini_benchmark/model_modifier/validation_graph_builder.cc	4	select_earlier symbol:binary_expression, over_symbol:binary_expression
 tensorflow/tensorflow/lite/simple_memory_arena_test.cc	2	select_earlier symbol:alignas_qualifier, over_symbol:alignas_qualifier
-tensorflow/third_party/xla/xla/backends/autotuner/autotuner.cc	1	select_earlier symbol:binary_expression, over_symbol:binary_expression
 tensorflow/third_party/xla/xla/backends/cpu/runtime/thunk_executor.h	1	select_earlier symbol:alignas_qualifier, over_symbol:alignas_qualifier
 tensorflow/third_party/xla/xla/backends/cpu/runtime/ynnpack/slinky_threadpool.cc	1	select_earlier symbol:alignas_qualifier, over_symbol:alignas_qualifier
 tensorflow/third_party/xla/xla/backends/gpu/codegen/emitters/reduction_base.cc	1	select_earlier symbol:expression_statement, over_symbol:expression_statement
@@ -4069,7 +4064,7 @@ tensorflow/third_party/xla/xla/mlir_hlo/stablehlo_ext/transforms/chlo_preserve_h
 tensorflow/third_party/xla/xla/mlir_hlo/stablehlo_ext/transforms/chlo_recompose_ops.cpp	1	select_earlier symbol:comma_expression, over_symbol:comma_expression
 tensorflow/third_party/xla/xla/mlir_hlo/utils/convert_op_folder.cc	1	select_earlier symbol:comma_expression, over_symbol:comma_expression
 tensorflow/third_party/xla/xla/pjrt/c_api_client/pjrt_c_api_client.cc	1	select_earlier symbol:binary_expression, over_symbol:binary_expression
-tensorflow/third_party/xla/xla/pjrt/common_pjrt_client.cc	2	select_earlier symbol:binary_expression, over_symbol:binary_expression
+tensorflow/third_party/xla/xla/pjrt/common_pjrt_client.cc	1	select_earlier symbol:binary_expression, over_symbol:binary_expression
 tensorflow/third_party/xla/xla/pjrt/gpu/se_gpu_pjrt_client_benchmark_test.cc	1	select_earlier symbol:binary_expression, over_symbol:binary_expression
 tensorflow/third_party/xla/xla/pjrt/interpreter/interpreter_client.cc	1	select_earlier symbol:binary_expression, over_symbol:binary_expression
 tensorflow/third_party/xla/xla/pjrt/pjrt_client_test.cc	1	select_earlier symbol:binary_expression, over_symbol:binary_expression
