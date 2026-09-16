@@ -8234,6 +8234,13 @@ static bool scan_word_start(Scanner *scanner, TSLexer *lexer, const bool *valid_
     word[MACRO_WORD_SIZE - 1] = '\0';
     int length = (int)strlen(word);
     int32_t next = lexer->lookahead;
+    // THE TEMPLATE HEAD COMES BEFORE EVERY BRANCH THAT READS `next`. `template<` with no blank puts
+    // a `<` there, and the member pointer branch below takes a word before a `<`, so a check after
+    // it never saw `template<` and saw only `template <`. The word is a keyword and can be the name
+    // of nothing, so no other branch loses a reading to this one.
+    if (valid_symbols[TEMPLATE_HEAD_MARK] && strcmp(word, "template") == 0) {
+        return scan_template_head(scanner, &reader);
+    }
     bool is_decltype = strcmp(word, "decltype") == 0;
     if (valid_symbols[MEMBER_POINTER_START] && (next == ':' || next == '<' || (is_decltype && next == '('))) {
         lexer->result_symbol = MEMBER_POINTER_START;
@@ -8313,9 +8320,6 @@ static bool scan_word_start(Scanner *scanner, TSLexer *lexer, const bool *valid_
     }
     if (is_class_key(word)) {
         return valid_symbols[CLASS_HEAD_MARK] && scan_class_head(scanner, &reader);
-    }
-    if (valid_symbols[TEMPLATE_HEAD_MARK] && strcmp(word, "template") == 0) {
-        return scan_template_head(scanner, &reader);
     }
     // A macro in the head of a class that has no member. The parser takes the mark after a class key
     // only, and the validity of the token is the evidence of that position.

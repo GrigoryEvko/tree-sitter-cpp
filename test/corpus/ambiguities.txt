@@ -2857,3 +2857,35 @@ struct T { alignas(B) char b; };
             (identifier)))
         type: (primitive_type)
         declarator: (field_identifier)))))
+
+================================================================================
+A template head that no blank follows
+================================================================================
+
+// `template<typename W>` and `template <typename W>` declare the same parameter. The scan of
+// the head was given after the branch that takes a word before a `<`, so only the spelling
+// with a blank reached it. The test holds both, because the test that held one had the same
+// blind spot as the rule.
+template<typename W> struct V { alignas(W) char a; };
+
+--------------------------------------------------------------------------------
+
+(translation_unit
+  (comment)
+  (comment)
+  (comment)
+  (comment)
+  (template_declaration
+    parameters: (template_parameter_list
+      (type_parameter_declaration
+        (type_identifier)))
+    (struct_specifier
+      name: (type_identifier)
+      body: (field_declaration_list
+        (field_declaration
+          (type_qualifier
+            (alignas_qualifier
+              (type_descriptor
+                type: (type_identifier))))
+          type: (primitive_type)
+          declarator: (field_identifier))))))
