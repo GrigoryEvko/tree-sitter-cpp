@@ -795,16 +795,25 @@ fn run_corpus(repository: &Path, args: &[String]) -> Result<(), Box<dyn Error>> 
     for site in &comparison.added {
         println!("NEW     {}:{}:{}  {}", site.path, site.row, site.column, site.what);
     }
-    if comparison.added.is_empty() {
+    // A REMOVED SITE AND A CHANGED SITE ALSO FAIL, AND THE BASELINE GOES INTO THE COMMIT THAT
+    // MOVES THEM. A check that fails for an added site alone leaves each site that a landing
+    // removed in the file, and the file then permits that site to come back with no failure. The
+    // measurement of 2026-09-16: the baseline held 8 sites that no commit had produced for an
+    // unknown number of landings, so 8 sites stood pre-approved. Refer to task 283.
+    if comparison.added.is_empty() && comparison.removed.is_empty() && comparison.changed.is_empty() {
         return Ok(());
     }
     Err(format!(
-        "{} sites where the symbol order selects the tree and the baseline holds none. \
-         Each of them is one more tree that a later change of the grammar can flip with no ERROR \
-         node. Repair the tie with a rule, or write the baseline again with \
-         `cargo xtask ties corpus --write-baseline ROOT LIST` and give the reason in the commit \
-         message.",
-        comparison.added.len()
+        "{} sites where the symbol order selects the tree and the baseline holds none, {} sites of \
+         the baseline that are gone, and {} sites whose message changed. An added site is one more \
+         tree that a later change of the grammar can flip with no ERROR node. A site that is gone \
+         is a repair, and a baseline that keeps it permits it to come back with no failure. Repair \
+         an added tie with a rule, and write the baseline again with \
+         `cargo xtask ties corpus --write-baseline ROOT LIST` in the commit that moves the sites. \
+         Give the reason in the commit message.",
+        comparison.added.len(),
+        comparison.removed.len(),
+        comparison.changed.len()
     )
     .into())
 }
@@ -888,25 +897,37 @@ fn run_versions(repository: &Path, args: &[String]) -> Result<(), Box<dyn Error>
     let read: BTreeSet<&str> = paths.iter().copied().collect();
     let added: Vec<&FileVersions> =
         found.iter().filter(|file| !held.contains(file.path.as_str())).collect();
-    for file in &baseline {
-        if read.contains(file.path.as_str()) && !now.contains(file.path.as_str()) {
-            println!("gone    {} ({} versions)", file.path, file.versions);
-        }
+    let gone: Vec<&FileVersions> = baseline
+        .iter()
+        .filter(|file| read.contains(file.path.as_str()) && !now.contains(file.path.as_str()))
+        .collect();
+    for file in &gone {
+        println!("gone    {} ({} versions)", file.path, file.versions);
     }
     for file in &added {
         println!("NEW     {}:{}:{}  {} versions", file.path, file.row, file.column, file.versions);
     }
-    println!("baseline {}, found {}, added {}", baseline.len(), found.len(), added.len());
-    if added.is_empty() {
+    println!(
+        "baseline {}, found {}, added {}, gone {}",
+        baseline.len(),
+        found.len(),
+        added.len(),
+        gone.len()
+    );
+    // A FILE THAT IS GONE ALSO FAILS. The baseline of 2026-09-16 held 59 files and the corpus gave
+    // 1, so 58 files were permitted to pass the limit again with no failure. Refer to task 283.
+    if added.is_empty() && gone.is_empty() {
         return Ok(());
     }
     Err(format!(
-        "{} files whose version count passes the limit {limit} and the baseline holds none. \
-         The condense step of the runtime then removes a version by arrival order. Repair the \
-         ambiguity that makes the versions, or write the baseline again with \
-         `cargo xtask ties versions --write-baseline ROOT LIST` and give the reason in the commit \
-         message.",
-        added.len()
+        "{} files whose version count passes the limit {limit} and the baseline holds none, and {} \
+         files of the baseline that no longer pass it. The condense step of the runtime removes a \
+         version of such a file by arrival order. A file that no longer passes the limit is a \
+         repair, and a baseline that keeps it permits it to pass the limit again with no failure. \
+         Repair the ambiguity that makes the versions, and write the baseline again with \
+         `cargo xtask ties versions --write-baseline ROOT LIST` in the commit that moves the files.",
+        added.len(),
+        gone.len()
     )
     .into())
 }
@@ -1304,10 +1325,13 @@ E(2,1),R(2,1,0,0),R(2,1,0,0),E(1,1),S(9),
 
     /// The sites of the sample list of the corpus agree with the baseline.
     ///
-    /// The test fails for a site that the baseline does not hold, and it does not fail for a site of
-    /// the baseline that is gone. A repair of a tie must never fail its own check. A machine with no
+    /// The test fails for a site that the baseline does not hold, for a site of the baseline that is
+    /// gone, and for a site whose message changed. A repair of a tie must write the baseline again
+    /// in its own commit, with `cargo xtask ties corpus --write-baseline`, because a baseline that
+    /// keeps a site that is gone permits that site to come back with no failure. A machine with no
     /// corpus in `CORPUS` reads no file, and the test then compares nothing. The test also compares
-    /// the files whose version count passes `MAX_VERSION_COUNT` with `test/ties/versions.txt`.
+    /// the files whose version count passes `MAX_VERSION_COUNT` with `test/ties/versions.txt`, in
+    /// the two directions.
     #[test]
     fn the_sites_of_the_sample_hold_no_site_that_the_baseline_does_not_hold() {
         let repository = repository();
@@ -1336,19 +1360,50 @@ E(2,1),R(2,1,0,0),R(2,1,0,0),E(1,1),S(9),
             over.len(),
             over.iter().take(5).map(|file| &file.path).collect::<Vec<_>>()
         );
+        let read: BTreeSet<&str> = paths.iter().copied().collect();
+        let over_now: BTreeSet<&str> = run
+            .versions
+            .iter()
+            .filter(|file| file.versions > limit)
+            .map(|file| file.path.as_str())
+            .collect();
+        let gone: Vec<&str> = versions
+            .iter()
+            .map(|file| file.path.as_str())
+            .filter(|path| read.contains(path) && !over_now.contains(path))
+            .collect();
+        assert!(
+            gone.is_empty(),
+            "{} files of test/ties/versions.txt no longer pass {limit}: {:?}. Write the baseline again \
+             with `cargo xtask ties versions --write-baseline` in the commit that repairs them, because \
+             a baseline that keeps them permits them to pass the limit again with no failure.",
+            gone.len(),
+            gone.iter().take(5).collect::<Vec<_>>()
+        );
 
         let comparison = compare(&baseline, &found);
-        let names: Vec<String> = comparison
-            .added
-            .iter()
-            .take(10)
-            .map(|site| format!("{}:{}:{}  {}", site.path, site.row, site.column, site.what))
-            .collect();
+        let show = |sites: &[Site]| {
+            sites
+                .iter()
+                .take(10)
+                .map(|site| format!("{}:{}:{}  {}", site.path, site.row, site.column, site.what))
+                .collect::<Vec<String>>()
+                .join("\n")
+        };
         assert!(
             comparison.added.is_empty(),
             "{} sites where the symbol order selects the tree and the baseline holds none:\n{}",
             comparison.added.len(),
-            names.join("\n")
+            show(&comparison.added)
+        );
+        assert!(
+            comparison.removed.is_empty() && comparison.changed.is_empty(),
+            "{} sites of test/ties/baseline.txt are gone and {} changed their message. Write the baseline \
+             again with `cargo xtask ties corpus --write-baseline` in the commit that moves them, because \
+             a baseline that keeps a site that is gone permits it to come back with no failure.\n{}",
+            comparison.removed.len(),
+            comparison.changed.len(),
+            show(&comparison.removed)
         );
     }
 }
