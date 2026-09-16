@@ -1115,8 +1115,21 @@ fn label(nodes: &[ClangNode], index: u32, source: &[u8]) -> Option<(Label, u32, 
         }
         "AttributedStmt" if text.starts_with(b"#") => return None,
         "AttributedStmt" => Label::new(C::AttributedStatement),
-        // A call of a conversion function has the range of its operand and no parentheses.
-        "CXXMemberCallExpr" if !text.ends_with(b")") => return None,
+        // A call of a conversion function that the compiler inserts has the range of its operand,
+        // and the source has no call for it. `Sema::BuildCXXMemberCallExpr` gives the `MemberExpr`
+        // an empty `SourceLocation` and an empty `DeclarationNameInfo`, and it creates the
+        // `CXXMemberCallExpr` with no argument and with the END OF THE OPERAND in the place of the
+        // right parenthesis (clang/lib/Sema/SemaOverload.cpp:15266 to :15275). The call then ends
+        // where its callee ends. `Sema::BuildCallToObjectOfClassType` wraps it in an
+        // `ImplicitCastExpr` with `CK_UserDefinedConversion` (SemaOverload.cpp:16866 to :16873).
+        //
+        // A call that the source writes ends at its `)`, which comes after the callee:
+        // `a.f()` ends after the callee `a.f`. The two forms differ in that one end.
+        "CXXMemberCallExpr"
+            if !text.ends_with(b")") || nodes[index as usize + 1..].first().is_some_and(|c| c.end == node.end) =>
+        {
+            return None;
+        }
         "CallExpr" | "CXXMemberCallExpr" | "CUDAKernelCallExpr" => Label::new(C::Call),
         "CXXOperatorCallExpr" => operator_label(node)?,
         "MemberExpr" if flags & flag::IMPLICIT_BASE != 0 => name_label(node, text)?,
