@@ -263,6 +263,17 @@ pub fn grammar() -> Grammar {
         ],
         // `__extension__` starts a declaration or an expression. Each declaration takes the same
         // prefix rule, and the token after the prefix decides. Refer to `c::extension_prefix`.
+        //
+        // THE PREFIX BEFORE THE DECLARATION OF A FOR-INIT STATEMENT STAYS ACCEPTED, AND THAT IS A
+        // PRICED REFUSAL. GCC reads the keyword at four sites only, `cp_parser_unary_expression`,
+        // `cp_parser_declaration`, `cp_parser_block_declaration` and `cp_parser_member_declaration`,
+        // each through `cp_parser_extension_opt`. A for-init statement calls none of them, and Clang
+        // `ParseForStatement` (ParseStmt.cpp:1977) has no `kw___extension__` branch, so both reject
+        // `for (__extension__ int i = 0; i < 1; ++i);`. The demand over the 329,387 corpus files at
+        // f27dcd0 is 0 sites, out of 1,869 lines of the keyword in 408 files. A condition is a
+        // different case: the installed Clang 22 rejects `if (__extension__ int x = 1)`, and the
+        // LLVM source of 2026-09 accepts it in `ParseCondition` (ParseExprCXX.cpp:1885) for the
+        // init-statement of C2y, so that half is a moving target and no rule of the fork refuses it.
         &["_extension_specifier", "extension_expression"],
         // C++
         &["template_function", "template_type"],
@@ -2130,9 +2141,24 @@ fn types(g: &mut Grammar) {
         ],
     );
     g.define("annotation", seq!["=", s!(expression)]);
-    // One list holds attributes and C++26 annotations, for example `[[nodiscard, =1]]`. GCC
-    // `cp_parser_std_attribute_list` permits an empty entry, `[[ , ]]`, and a pack expansion of an
-    // attribute, `[[a(T)...]]`.
+    // THE FORK READS ATTRIBUTES AND C++26 ANNOTATIONS IN ONE LIST, AND NO FRONT END DOES. GCC decides
+    // the kind of a list from the token after `[[`: `cp_parser_std_attribute_specifier`
+    // (parser.cc:34019) sends a `=` to `cp_parser_annotation_list` and each other token to
+    // `cp_parser_std_attribute_list`, and a `=` inside the second gives "mixing annotations and
+    // attributes in the same list" (parser.cc:33471). `[[nodiscard, =1]]` is that error, and `[[=1]]`
+    // alone is accepted. Clang 22 implements no annotation at all, and the LLVM source of 2026-09 has
+    // none either, so Clang rejects `[[=1]]` with "expected ']'".
+    //
+    // WHAT WE CHOSE: one `entry` closure for the two kinds, so a mixed list parses with no error.
+    // That is an over-acceptance that a concrete syntax tree could refuse, because one token after
+    // `[[` decides the kind. It stays because its demand is zero: a text search of the corpus for
+    // `[[=` gives 226 lines in 68 files, and the ones read are FileCheck patterns inside comments
+    // of llvm-project and swift test files, not annotations. The repair is two list rules chosen by
+    // the first token. The syntax snippets `s26_annotation_mixed` and `cxx26_annotations` record the
+    // mixed form as a text the fork accepts, and not as a text the language permits.
+    //
+    // GCC `cp_parser_std_attribute_list` permits an empty entry, `[[ , ]]`, and a pack expansion of
+    // an attribute, `[[a(T)...]]`.
     let entry = || choice![seq![s!(attribute), optional("...")], s!(annotation)];
     // [dcl.attr.grammar]: an attribute-specifier is the tokens `[ [ ... ] ]`. White space between the two brackets
     // does not change the tokens, and `[ [nodiscard] ] int f();` is a declaration with an attribute. GCC
@@ -7392,6 +7418,18 @@ fn expressions(g: &mut Grammar) {
             seq![attributes(), s!(trailing_return_type)],
         ],
     );
+    // A CAPTURE-DEFAULT OUTSIDE A FUNCTION BODY STAYS ACCEPTED, AND THAT IS A PRICED REFUSAL. Both
+    // front ends give the same text for `int y; auto f = [=] { return y; };` at namespace scope:
+    // "non-local lambda expression cannot have a capture-default". GCC decides it in the parser,
+    // `cp_parser_lambda_introducer` (parser.cc:12949): the scope is no `FUNCTION_DECL`, no
+    // non-static data member initializer, and no contract. Clang decides it in Sema
+    // (SemaLambda.cpp:1420) with the same three contexts. `[]` and `[y]` at namespace scope are
+    // accepted. The repair is the same as for the statement expression: an expression rule split by
+    // context. The demand over the 329,387 corpus files at f27dcd0 is 14 sites in 3 files that parse
+    // with no error, and every one is a macro argument, `GROUP_BY_BENCHMARK(Name, [&] { ... })`, an
+    // include fragment, or a test-data file of a different C++ parser. A model that asked for a
+    // `function_definition` ancestor counted 1,928 sites, and the difference is the macro
+    // accommodation: `TEST_CASE("x") { ... }` puts a block where a function body really is.
     g.define(
         "lambda_expression",
         seq![
@@ -7527,6 +7565,15 @@ fn expressions(g: &mut Grammar) {
     g.redefine("cast_expression", |original| {
         replace_string(original, "(", &open_paren(s!(_cast_paren)))
     });
+    // A GNU STATEMENT EXPRESSION OUTSIDE A FUNCTION BODY STAYS ACCEPTED, AND THAT IS A PRICED
+    // REFUSAL. `c::parenthesized_expression` takes a `compound_statement` at every position. Both
+    // front ends refuse `int x = ({ int y = 1; y; });` at namespace scope: GCC
+    // `cp_parser_primary_expression` (parser.cc:6710) tests `!parser->in_function_body`, and Clang
+    // `ParseParenExpression` (ParseExpr.cpp:2713) tests `!getCurScope()->getFnParent() &&
+    // !getCurScope()->getBlockParent()`. The repair is an expression rule split by context, at every
+    // position that holds an expression. The demand over the 329,387 corpus files at f27dcd0 is 0
+    // sites in a file that parses with no error, and the 4 sites in 3 erroring files are a braced
+    // initializer inside a macro argument, `M(x, ({{1, 0}, {0, 1}}))`, and not a statement expression.
     g.redefine("parenthesized_expression", |original| {
         replace_string(original, "(", &open_paren(s!(_name_expression_paren)))
     });
@@ -8231,6 +8278,20 @@ fn expressions(g: &mut Grammar) {
     );
     // A directive reads the alternative tokens as operators: `#if defined(A) and not defined(B)`
     // (libcpp `mark_named_operators`).
+    //
+    // AN ALTERNATIVE TOKEN AS THE OPERAND OF `defined` IS A DECISION, NOT A DEFECT. `#if defined(bitand)`
+    // parses with no error, with `bitand` as the `identifier` of `preproc_defined`. Both front ends
+    // reject it in standard C++: libcpp `parse_defined` (expr.cc) wants a `CPP_NAME` and gives
+    // "operator 'defined' requires an identifier", and Clang `Preprocessor::ReadMacroName`
+    // (PPDirectives.cpp:375) tests `isCPlusPlusOperatorKeyword()` and gives "C++ operator 'bitand'
+    // (aka '&') used as a macro name". Clang defines THE SAME TEXT as an Extension under
+    // `-fms-extensions`, `ext_pp_operator_used_as_macro_name`, with its own test
+    // `clang/test/Preprocessor/cxx_oper_keyword_ms_compat.cpp`, because MSVC accepts the form. The
+    // corpus writes it on purpose for that compiler: `boost/libs/mpl/include/boost/mpl/{and,bitand,
+    // bitor,or}.hpp` and the copy that mongo vendors hold `#if defined(and)` and its relatives, 16
+    // sites in 8 files that parse with no error. The acceptance is the union of the front ends, as
+    // `attribute_declaration` states it for `[[__extension__ ...]]`, and MSVC is the third front end
+    // of that union here. The set is the 11 `CXX_KEYWORD_OPERATOR` entries of TokenKinds.def.
     g.redefine("preproc_binary_expression", |original| {
         choice_of(
             [original]
