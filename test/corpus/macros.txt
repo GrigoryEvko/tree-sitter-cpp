@@ -3938,3 +3938,80 @@ bool g(int a, int b);
         (parameter_declaration
           type: (primitive_type)
           declarator: (identifier))))))
+
+================================================================================
+A line of macro invocations that a line break ends
+================================================================================
+
+void f() {
+  if (veryVerbose) {
+    P_(LINE) P_(INPUT)
+    if (SUCCESS) { g(); }
+  }
+}
+DECLARE_UNARY_INT(x) DECLARE_UNARY_UINT(x)
+DECLARE_UNARY_INT(y) DECLARE_UNARY_UINT(y)
+SWIFT_EXPORT_FROM(swift_Concurrency) SWIFT_CC(swift)
+size_t swift_task_registryCount(int a);
+
+--------------------------------------------------------------------------------
+
+(translation_unit
+  (function_definition
+    type: (primitive_type)
+    declarator: (function_declarator
+      declarator: (identifier)
+      parameters: (parameter_list))
+    body: (compound_statement
+      (if_statement
+        condition: (condition_clause
+          value: (identifier))
+        consequence: (compound_statement
+          (macro_invocation
+            name: (identifier)
+            arguments: (token_tree
+              (identifier)))
+          (macro_invocation
+            name: (identifier)
+            arguments: (token_tree
+              (identifier)))
+          (if_statement
+            condition: (condition_clause
+              value: (identifier))
+            consequence: (compound_statement
+              (expression_statement
+                (call_expression
+                  function: (identifier)
+                  arguments: (argument_list)))))))))
+  (macro_invocation
+    name: (identifier)
+    arguments: (token_tree
+      (identifier)))
+  (macro_invocation
+    name: (identifier)
+    arguments: (token_tree
+      (identifier)))
+  (macro_invocation
+    name: (identifier)
+    arguments: (token_tree
+      (identifier)))
+  (macro_invocation
+    name: (identifier)
+    arguments: (token_tree
+      (identifier)))
+  (declaration
+    (attribute_macro
+      name: (identifier)
+      arguments: (argument_list
+        (identifier)))
+    (attribute_macro
+      name: (identifier)
+      arguments: (argument_list
+        (identifier)))
+    type: (primitive_type)
+    declarator: (function_declarator
+      declarator: (identifier)
+      parameters: (parameter_list
+        (parameter_declaration
+          type: (primitive_type)
+          declarator: (identifier))))))

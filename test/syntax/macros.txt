@@ -457,3 +457,12 @@ AsyncTaskAndContext swift_task_create(int a);
 ### macro_chain_before_a_keyword
 ATTR_WARN_UNUSED_RESULT ATTR_NONNULL(1, 2)
 bool g(int a, int b);
+### macro_line_before_a_statement_keyword
+void f() { if (v) { P_(LINE) P_(INPUT)
+    if (SUCCESS) { g(); } } }
+### macro_line_before_another_macro_line
+DECLARE_UNARY_INT(x) DECLARE_UNARY_UINT(x)
+DECLARE_UNARY_INT(y) DECLARE_UNARY_UINT(y)
+### macro_chain_before_a_declaration_stays_attributes
+SWIFT_EXPORT_FROM(swift_Concurrency) SWIFT_CC(swift)
+size_t swift_task_registryCount(int a);

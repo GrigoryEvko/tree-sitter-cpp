@@ -2684,7 +2684,12 @@ static AfterCall scan_after_macro_call(Reader *reader, const Scanner *classes, b
         // Each name of the line is a macro invocation. The first name of this scan has arguments, and
         // `MYTYPE OBJ(ARG);` is no such line, because its first name has none. A line break does not end
         // such a line, because a declaration on the next line takes the names as its attribute macros:
-        // `ATTR_WARN_UNUSED_RESULT ATTR_NONNULL(1, 2)` and `bool g(int a, int b);`.
+        // `SWIFT_EXPORT_FROM(swift_Concurrency) SWIFT_CC(swift)` and
+        // `size_t swift_task_registryCount(int a);` of swift.
+        //
+        // AN EARLIER COMMENT NAMED `bool g(int a, int b);` HERE, AND THE KEYWORD TEST BELOW DECIDES
+        // THAT ONE WHATEVER THIS TERMINATOR DOES. The word after the break must be a NAME for this
+        // rule to matter.
         if (chain && !gap.blocked && (!readable(reader) || lexer->lookahead == '}' || lexer->lookahead == ';')) {
             return AFTER_CALL_MACRO_LINE;
         }
@@ -2787,6 +2792,12 @@ static AfterCall scan_after_macro_call(Reader *reader, const Scanner *classes, b
         // times over the corpus. 474 of those held a keyword, which the test below stops anyway. The
         // guard alone decided 50, and 48 of those held the shape above, at 23 sites of one file.
 
+        // A chain that crossed a line break and then meets the keyword of a statement is a line of
+        // macro invocations, and not the attributes of that statement. The names are alone on their
+        // line: `P_(LINE) P_(INPUT)` of bde, and `if (SUCCESS) {` on the line after.
+        if (crossed_line && (word_in(word, STATEMENT_ATTRIBUTE_WORDS) || is_macro_name(word, has_lower))) {
+            return AFTER_CALL_MACRO_LINE;
+        }
         // The keyword of a statement starts no declaration, and the macro is an attribute of that
         // statement: `MACRO(x) return g(a);`.
         if (word_in(word, STATEMENT_ATTRIBUTE_WORDS)) {
