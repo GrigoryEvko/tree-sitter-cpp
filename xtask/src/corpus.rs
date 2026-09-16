@@ -3,7 +3,7 @@
 //! The output has one TSV line for each file of the list: the path, the bytes, the ERROR
 //! nodes, the MISSING nodes, the bytes in ERROR nodes, the row, kind, and text of the first
 //! error, the source line of the first error, the parse time in microseconds, and 1 if the
-//! time limit stopped the parse.
+//! budget stopped the parse.
 
 use std::error::Error;
 use std::fs;
@@ -11,13 +11,33 @@ use std::io::{BufWriter, Write};
 use std::ops::ControlFlow;
 use std::path::Path;
 use std::sync::atomic::{AtomicUsize, Ordering};
-use std::time::{Duration, Instant};
+use std::time::Instant;
 
 use rayon::prelude::*;
 use tree_sitter::{Language, Node, ParseOptions, ParseState, Parser, Tree};
 
-/// The parse of one file stops after this time.
-const LIMIT: Duration = Duration::from_secs(20);
+/// The budget of one parse, as a count of the progress callbacks of the runtime.
+///
+/// The runtime calls the progress callback one time for each 100 parse operations
+/// (`OP_COUNT_PER_PARSER_CALLBACK_CHECK` in vendor/tree-sitter/src/parser.c), so the budget is
+/// 200,000,000 operations. The count of the callbacks of one parse is the same on each machine,
+/// under each load, and in each run.
+///
+/// A WALL-CLOCK LIMIT IS NOT THE SAME IN EACH RUN, AND THIS FUNCTION HAD ONE. The largest count of
+/// the 329,387 corpus files is 148,044, for the 6.8 MB generated file
+/// `OpenRCT2/src/openrct2/ride/VehicleSubpositionData.cpp`. That file parses in 2.2 s alone, and
+/// the count is 148,044 in each run. Under the load of five parallel gates the same parse took more
+/// than the old limit of 20 s. The limit then stopped it, `xtask trees` wrote `stopped` in the
+/// place of the tree hash, and the gate reported a changed hash for a file that no change touched.
+/// The budget is 13 times the largest count, and the second largest count is 147,695.
+const BUDGET: u64 = 2_000_000;
+/// The largest count of progress callbacks of the 329,387 corpus files, for the 6.8 MB generated
+/// file `OpenRCT2/src/openrct2/ride/VehicleSubpositionData.cpp`.
+const LARGEST_CORPUS_CHECKS: u64 = 148_044;
+/// The budget holds ten times the largest count of the corpus files. A build with a smaller budget
+/// stops the parse of a file that has no defect, and the reports of the gate then move with the
+/// load of the machine.
+const _: () = assert!(BUDGET >= 10 * LARGEST_CORPUS_CHECKS);
 /// The maximum length of the source line of the first error.
 const LINE_BYTES: usize = 120;
 /// The maximum length of the text of the first error.
@@ -128,14 +148,24 @@ fn scan(root: Node, source: &[u8], record: &mut Record) {
     }
 }
 
-/// Parse a source with no old tree. Stop the parse after the time limit.
+/// Parse a source with no old tree, with the budget `BUDGET`.
 ///
-/// Return None when the time limit stopped the parse. The parser is then reset, and it is ready
-/// for the next source.
+/// Return None when the budget stopped the parse. The parser is then reset, and it is ready for the
+/// next source.
 pub fn parse_with_limit(parser: &mut Parser, source: &[u8]) -> Option<Tree> {
-    let started = Instant::now();
+    parse_with_budget(parser, source, BUDGET)
+}
+
+/// Parse a source with no old tree. Stop the parse after `budget` progress callbacks.
+///
+/// Return None when the budget stopped the parse. The parser is then reset, and it is ready for the
+/// next source. The count of the callbacks of one parse is the same in each run, so the result is
+/// the same in each run. Refer to `BUDGET`.
+pub fn parse_with_budget(parser: &mut Parser, source: &[u8], budget: u64) -> Option<Tree> {
+    let mut checks: u64 = 0;
     let mut stop = |_: &ParseState| {
-        if started.elapsed() > LIMIT {
+        checks += 1;
+        if checks > budget {
             ControlFlow::Break(())
         } else {
             ControlFlow::Continue(())
@@ -237,4 +267,71 @@ pub fn run(args: &[String]) -> Result<(), Box<dyn Error>> {
         started.elapsed().as_secs_f64(),
     );
     Ok(())
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    /// A source with a parse of more than one progress callback.
+    fn source_of_many_callbacks() -> String {
+        let mut text = String::from("int f() { return 0");
+        for index in 0..600 {
+            text.push_str(&format!(" + g{index}(1, 2)"));
+        }
+        text.push_str("; }");
+        text
+    }
+
+    /// The smallest budget that gives a tree, up to `max`.
+    ///
+    /// A budget that gives a tree also gives one with each larger budget, so a binary search finds
+    /// the smallest budget. O(log n) parses of the source.
+    fn smallest_budget(source: &str, max: u64) -> u64 {
+        let language = Language::new(tree_sitter_cpp::LANGUAGE);
+        let mut parser = new_parser(&language);
+        let mut gives_tree = |budget: u64| parse_with_budget(&mut parser, source.as_bytes(), budget).is_some();
+        assert!(
+            gives_tree(max),
+            "the parse of the source takes more than {max} progress callbacks"
+        );
+        let (mut low, mut high) = (0u64, max);
+        while low < high {
+            let middle = low + (high - low) / 2;
+            if gives_tree(middle) {
+                high = middle;
+            } else {
+                low = middle + 1;
+            }
+        }
+        low
+    }
+
+    /// The budget of a parse counts the progress callbacks of the runtime, and it reads no clock.
+    ///
+    /// The test fails for a wall-clock limit. The parse of the source takes milliseconds, so each
+    /// budget gives a tree with a clock. It also fails when the count of the callbacks of one parse
+    /// is not the same in each run, because the two searches then give two values.
+    #[test]
+    fn the_budget_of_a_parse_counts_the_progress_callbacks_and_reads_no_clock() {
+        let source = source_of_many_callbacks();
+        let smallest = smallest_budget(&source, 10_000);
+        assert!(
+            smallest > 1,
+            "the source of the test must take more than one progress callback, and it takes {smallest}"
+        );
+        let language = Language::new(tree_sitter_cpp::LANGUAGE);
+        let mut parser = new_parser(&language);
+        assert!(
+            parse_with_budget(&mut parser, source.as_bytes(), smallest - 1).is_none(),
+            "a budget of {} gives a tree, and the smallest budget is {smallest}",
+            smallest - 1
+        );
+        assert!(parse_with_budget(&mut parser, source.as_bytes(), smallest).is_some());
+        assert_eq!(
+            smallest,
+            smallest_budget(&source, 10_000),
+            "the count of the progress callbacks of one parse is not the same in each run"
+        );
+    }
 }

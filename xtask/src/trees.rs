@@ -4,8 +4,8 @@
 //!
 //! 1. The path, relative to ROOT
 //! 2. 1 if the tree has an ERROR or a MISSING node, or if the parse gave no tree. 0 if not
-//! 3. The hash of the full tree as 16 hexadecimal digits. `stopped` if the time limit stopped the
-//!    parse, or `unreadable` if the file is not readable
+//! 3. The hash of the full tree as 16 hexadecimal digits. `stopped` if the budget of the parse
+//!    stopped it, or `unreadable` if the file is not readable
 //! 4. The number of nodes
 //! 5. The start byte of the first ERROR or MISSING node, or `-`
 //! 6. The kind of that node (`ERROR`, or `MISSING` and the kind of the missing node), or `-`
