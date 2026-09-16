@@ -330,3 +330,29 @@ template <unsigned N> constexpr bool check() {
   static_assert(__has_unique_object_representations(unsigned _BitInt(N)) == (sizeof(unsigned _BitInt(N)) * 8u == N));
   return true;
 }
+### macro_template_with_a_requires_clause
+struct take_base_fn {
+    template(typename Rng)(
+        requires viewable_range<Rng>)
+    take_view<all_t<Rng>> operator()(Rng && rng, range_difference_t<Rng> n) const
+    {
+        return {all(static_cast<Rng &&>(rng)), n};
+    }
+};
+### macro_template_with_the_and_macro
+template(typename I, typename S)(
+    requires input_iterator<I> AND sentinel_for<S, I>)
+constexpr I operator()(I first, S last) const;
+template(typename Sender, typename Func)           //
+    (requires(!tag_invocable<_fn, Sender, Func>))  //
+    auto
+    operator()(Sender&& predecessor, Func&& func) const;
+### macro_template_with_a_concept
+template(typename T, typename V)(
+concept (output_range_)(T, V),
+    output_iterator<iterator_t<T>, V>
+);
+### macro_template_with_a_template_template_parameter
+template(template<typename...> class ContT, typename Rng, typename C = meta::invoke<detail::from_range<ContT>, Rng>)(
+    requires range<Rng>)
+auto operator()(Rng && rng) const -> C;

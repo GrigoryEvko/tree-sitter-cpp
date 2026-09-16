@@ -475,6 +475,10 @@ pub fn grammar() -> Grammar {
         &["preproc_argument_list", "_preproc_token"],
         &["_preproc_expression", "_preproc_token"],
         &["preproc_defined", "_preproc_token"],
+        // The second group of the macro `template(...)` holds a requires-clause or tokens. Only a token
+        // that is not part of a constraint, as `AND` in `(requires C<T> AND D<T>)`, tells them apart.
+        // Refer to `_macro_template_requires_group`.
+        &["requires_clause", "_token_tree_item"],
         // `int (__attribute__((x))` starts a grouping or a parameter list, and only the tokens after
         // the attributes tell them apart (Clang ParseParenDeclarator). Where a statement and a
         // constructor can start, `(__attribute__((x))` also starts a cast, or the grouping of the
@@ -2579,25 +2583,62 @@ fn declarations(g: &mut Grammar) {
         "_macro_before_template",
         prec(1, prec_dynamic(-1, field("name", s!(identifier)))),
     );
+    let template_body = || {
+        choice![
+            s!(_empty_declaration),
+            s!(alias_declaration),
+            s!(declaration),
+            s!(template_declaration),
+            s!(function_definition),
+            s!(concept_definition),
+            s!(friend_declaration),
+            alias(s!(constructor_or_destructor_declaration), s!(declaration)),
+            alias(s!(constructor_or_destructor_definition), s!(function_definition)),
+            alias(s!(operator_cast_declaration), s!(declaration)),
+            alias(s!(operator_cast_definition), s!(function_definition)),
+        ]
+    };
+    // range-v3 and libunifex define a function-like macro with the name of the keyword:
+    // `#define template(...) template<__VA_ARGS__ CPP_TEMPLATE_AUX_` (range-v3
+    // include/range/v3/detail/prologue.hpp:33, libunifex include/unifex/detail/prologue.hpp:34).
+    // The parameters come in parentheses, and a second group gives the requires-clause:
+    // `template(typename Rng)(requires viewable_range<Rng>) take_view<Rng> operator()(Rng &&rng);`.
+    // The second group is mandatory, because the expansion ends its `<` with the tokens of that group.
+    // GCC `cp_parser_template_declaration_after_parameters` and Clang `ParseTemplateDeclarationOrSpecialization`
+    // read the expansion, which is a template head with a requires-clause. The keyword before `(` is
+    // no other construct of C++, so the grammar reads the keyword itself, and no scanner token is
+    // necessary.
+    //
+    // The second group is a requires-clause when the grammar reads its tokens as a constraint. The
+    // codebases spell the conjunction of two constraints with the macro `AND`, and 602 of the 1006
+    // groups of the corpus hold it (2026-09-16). Such a group is a token tree, with the lower dynamic
+    // precedence. In range-v3 the second group also gives a concept: `template(typename T)(concept
+    // (input_range_)(T), input_iterator<iterator_t<T>>);`, and a `;` then ends the declaration.
+    g.define(
+        "_macro_template_requires_group",
+        choice![
+            seq!["(", s!(requires_clause), ")"],
+            prec_dynamic(-1, alias(s!(_macro_arguments), s!(token_tree))),
+        ],
+    );
     g.define(
         "template_declaration",
-        seq![
-            optional(alias(s!(_macro_before_template), s!(attribute_macro))),
-            "template",
-            field("parameters", s!(template_parameter_list)),
-            optional(s!(requires_clause)),
-            choice![
-                s!(_empty_declaration),
-                s!(alias_declaration),
-                s!(declaration),
-                s!(template_declaration),
-                s!(function_definition),
-                s!(concept_definition),
-                s!(friend_declaration),
-                alias(s!(constructor_or_destructor_declaration), s!(declaration)),
-                alias(s!(constructor_or_destructor_definition), s!(function_definition)),
-                alias(s!(operator_cast_declaration), s!(declaration)),
-                alias(s!(operator_cast_definition), s!(function_definition)),
+        choice![
+            seq![
+                optional(alias(s!(_macro_before_template), s!(attribute_macro))),
+                "template",
+                field("parameters", s!(template_parameter_list)),
+                optional(s!(requires_clause)),
+                template_body(),
+            ],
+            seq![
+                "template",
+                field(
+                    "parameters",
+                    alias(s!(_macro_template_parameter_list), s!(template_parameter_list))
+                ),
+                s!(_macro_template_requires_group),
+                choice![template_body(), ";"],
             ],
         ],
     );
@@ -2619,24 +2660,29 @@ fn declarations(g: &mut Grammar) {
             ],
         ),
     );
+    let template_parameters = || {
+        comma_sep(choice![
+            s!(parameter_declaration),
+            alias(
+                s!(_optional_template_parameter_declaration),
+                s!(optional_parameter_declaration)
+            ),
+            s!(type_parameter_declaration),
+            s!(variadic_parameter_declaration),
+            s!(variadic_type_parameter_declaration),
+            s!(optional_type_parameter_declaration),
+            s!(template_template_parameter_declaration),
+        ])
+    };
     g.define(
         "template_parameter_list",
-        seq![
-            "<",
-            comma_sep(choice![
-                s!(parameter_declaration),
-                alias(
-                    s!(_optional_template_parameter_declaration),
-                    s!(optional_parameter_declaration)
-                ),
-                s!(type_parameter_declaration),
-                s!(variadic_parameter_declaration),
-                s!(variadic_type_parameter_declaration),
-                s!(optional_type_parameter_declaration),
-                s!(template_template_parameter_declaration),
-            ]),
-            closing_angle(),
-        ],
+        seq!["<", template_parameters(), closing_angle()],
+    );
+    // The parameters of the macro `template(...)` of range-v3 and libunifex. Refer to
+    // `template_declaration`.
+    g.define(
+        "_macro_template_parameter_list",
+        seq!["(", template_parameters(), ")"],
     );
     // In a template parameter list the default can be a type, for the constrained parameter of
     // `template <C T = int>`. The dynamic precedences are those of a template argument list.

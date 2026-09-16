@@ -10741,6 +10741,10 @@
           "named": true
         },
         {
+          "type": "token_tree",
+          "named": true
+        },
+        {
           "type": "type_specifier",
           "named": true
         }

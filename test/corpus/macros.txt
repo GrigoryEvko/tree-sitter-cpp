@@ -2011,3 +2011,121 @@ void deferred(CompletionToken t);
           (parameter_declaration
             type: (type_identifier)
             declarator: (identifier)))))))
+
+================================================================================
+The macro template of range-v3 and libunifex
+================================================================================
+
+template(typename Rng)(
+    requires view_<Rng>)
+using take_view = ranges::take_view<Rng>;
+template(typename I, typename S)
+    (requires input_iterator<I> AND sentinel_for<S, I>)  //
+    constexpr I f(I first, S last) { return first; }
+template(typename T)(
+    concept (input_range_)(T),
+        input_iterator<iterator_t<T>>
+    );
+struct S {
+    template(typename CPO, typename R)  //
+        (requires same_as<R, S>)  //
+        friend void tag_invoke(CPO cpo, const R &r);
+};
+
+--------------------------------------------------------------------------------
+
+(translation_unit
+  (template_declaration
+    parameters: (template_parameter_list
+      (type_parameter_declaration
+        (type_identifier)))
+    (requires_clause
+      constraint: (template_function
+        name: (identifier)
+        arguments: (template_argument_list
+          (type_descriptor
+            type: (type_identifier)))))
+    (alias_declaration
+      name: (type_identifier)
+      type: (type_descriptor
+        type: (qualified_identifier
+          scope: (namespace_identifier)
+          name: (template_type
+            name: (type_identifier)
+            arguments: (template_argument_list
+              (type_descriptor
+                type: (type_identifier))))))))
+  (template_declaration
+    parameters: (template_parameter_list
+      (type_parameter_declaration
+        (type_identifier))
+      (type_parameter_declaration
+        (type_identifier)))
+    (token_tree
+      (identifier)
+      (identifier)
+      (identifier)
+      (identifier)
+      (identifier)
+      (identifier))
+    (comment)
+    (function_definition
+      (type_qualifier)
+      type: (type_identifier)
+      declarator: (function_declarator
+        declarator: (identifier)
+        parameters: (parameter_list
+          (parameter_declaration
+            type: (type_identifier)
+            declarator: (identifier))
+          (parameter_declaration
+            type: (type_identifier)
+            declarator: (identifier))))
+      body: (compound_statement
+        (return_statement
+          (identifier)))))
+  (template_declaration
+    parameters: (template_parameter_list
+      (type_parameter_declaration
+        (type_identifier)))
+    (token_tree
+      (token_tree
+        (identifier))
+      (token_tree
+        (identifier))
+      (identifier)
+      (identifier)
+      (identifier)))
+  (struct_specifier
+    name: (type_identifier)
+    body: (field_declaration_list
+      (template_declaration
+        parameters: (template_parameter_list
+          (type_parameter_declaration
+            (type_identifier))
+          (type_parameter_declaration
+            (type_identifier)))
+        (comment)
+        (requires_clause
+          constraint: (template_function
+            name: (identifier)
+            arguments: (template_argument_list
+              (type_descriptor
+                type: (type_identifier))
+              (type_descriptor
+                type: (type_identifier)))))
+        (comment)
+        (friend_declaration
+          (declaration
+            type: (primitive_type)
+            declarator: (function_declarator
+              declarator: (identifier)
+              parameters: (parameter_list
+                (parameter_declaration
+                  type: (type_identifier)
+                  declarator: (identifier))
+                (parameter_declaration
+                  (type_qualifier)
+                  type: (type_identifier)
+                  declarator: (reference_declarator
+                    (identifier)))))))))))
