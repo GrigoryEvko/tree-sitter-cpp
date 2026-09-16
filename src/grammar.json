@@ -13013,47 +13013,39 @@
               }
             },
             {
-              "type": "CHOICE",
-              "members": [
-                {
-                  "type": "FIELD",
-                  "name": "type",
-                  "content": {
+              "type": "FIELD",
+              "name": "type",
+              "content": {
+                "type": "CHOICE",
+                "members": [
+                  {
+                    "type": "PREC_DYNAMIC",
+                    "value": -2,
+                    "content": {
+                      "type": "SYMBOL",
+                      "name": "_type_identifier"
+                    }
+                  },
+                  {
                     "type": "CHOICE",
                     "members": [
                       {
-                        "type": "PREC_DYNAMIC",
-                        "value": -2,
-                        "content": {
-                          "type": "SYMBOL",
-                          "name": "_type_identifier"
-                        }
+                        "type": "SYMBOL",
+                        "name": "primitive_type"
                       },
                       {
-                        "type": "CHOICE",
-                        "members": [
-                          {
-                            "type": "SYMBOL",
-                            "name": "primitive_type"
-                          },
-                          {
-                            "type": "ALIAS",
-                            "content": {
-                              "type": "STRING",
-                              "value": "void"
-                            },
-                            "named": true,
-                            "value": "primitive_type"
-                          }
-                        ]
+                        "type": "ALIAS",
+                        "content": {
+                          "type": "STRING",
+                          "value": "void"
+                        },
+                        "named": true,
+                        "value": "primitive_type"
                       }
                     ]
                   }
-                },
-                {
-                  "type": "BLANK"
-                }
-              ]
+                ]
+              }
             },
             {
               "type": "REPEAT1",

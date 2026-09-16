@@ -858,10 +858,18 @@ fn declarations(g: &mut Grammar) {
     // A type qualifier in a sized type comes before a base type or a size keyword: `unsigned const
     // int`, `long const long`. A qualifier after the last keyword is a declaration specifier or a
     // qualifier of the type-id: `unsigned long const x;`, as for `int const x;`.
+    //
+    // The first form holds a base type. Without one it reads a sequence of size keywords, which is
+    // also the second form with no base type and no qualifier. `unsigned long long` then had two
+    // readings of one text with the same precedence, and the version order of the GLR parser picked
+    // one of them. The two readings give the same children, because the repeat rule of the second
+    // form is auxiliary. A base type in the first form leaves one reading. The first form still
+    // reads a size keyword after the base type, and it reads a base type with no size keyword
+    // before it: `int long`, `long int long`.
     g.define(
         "sized_type_specifier",
         choice![
-            seq![repeat(size_keyword()), optional(base_type()), repeat1(size_keyword())],
+            seq![repeat(size_keyword()), base_type(), repeat1(size_keyword())],
             seq![
                 repeat1(size_keyword()),
                 optional(choice![
