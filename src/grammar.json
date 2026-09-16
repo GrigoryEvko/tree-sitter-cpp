@@ -6625,6 +6625,45 @@
           }
         },
         {
+          "type": "REPEAT",
+          "content": {
+            "type": "CHOICE",
+            "members": [
+              {
+                "type": "SYMBOL",
+                "name": "_declaration_modifiers"
+              },
+              {
+                "type": "SYMBOL",
+                "name": "attribute_macro"
+              },
+              {
+                "type": "CHOICE",
+                "members": [
+                  {
+                    "type": "ALIAS",
+                    "content": {
+                      "type": "SYMBOL",
+                      "name": "_macro_call_attribute"
+                    },
+                    "named": true,
+                    "value": "attribute_macro"
+                  },
+                  {
+                    "type": "ALIAS",
+                    "content": {
+                      "type": "SYMBOL",
+                      "name": "_macro_call_attribute_tokens"
+                    },
+                    "named": true,
+                    "value": "attribute_macro"
+                  }
+                ]
+              }
+            ]
+          }
+        },
+        {
           "type": "STRING",
           "value": "typedef"
         },
@@ -6672,6 +6711,29 @@
               {
                 "type": "SYMBOL",
                 "name": "attribute_macro"
+              },
+              {
+                "type": "CHOICE",
+                "members": [
+                  {
+                    "type": "ALIAS",
+                    "content": {
+                      "type": "SYMBOL",
+                      "name": "_macro_call_attribute"
+                    },
+                    "named": true,
+                    "value": "attribute_macro"
+                  },
+                  {
+                    "type": "ALIAS",
+                    "content": {
+                      "type": "SYMBOL",
+                      "name": "_macro_call_attribute_tokens"
+                    },
+                    "named": true,
+                    "value": "attribute_macro"
+                  }
+                ]
               }
             ]
           }
@@ -43785,16 +43847,18 @@
       "constructor_or_destructor_declaration"
     ],
     [
+      "type_definition",
+      "_declaration_specifiers",
+      "_constructor_specifiers",
+      "friend_declaration"
+    ],
+    [
+      "type_definition",
       "_declaration_specifiers",
       "operator_cast_definition",
       "operator_cast_declaration",
       "constructor_or_destructor_definition",
       "constructor_or_destructor_declaration",
-      "friend_declaration"
-    ],
-    [
-      "_declaration_specifiers",
-      "_constructor_specifiers",
       "friend_declaration"
     ],
     [
@@ -43832,6 +43896,7 @@
     ],
     [
       "declaration",
+      "type_definition",
       "_declaration_specifiers",
       "_void_declaration_specifiers",
       "_constructor_specifiers",
@@ -43856,21 +43921,23 @@
       "operator_cast_definition",
       "operator_cast_declaration",
       "constructor_or_destructor_definition",
-      "_structured_binding_specifiers"
-    ],
-    [
-      "declaration",
-      "_declaration_specifiers",
-      "_void_declaration_specifiers",
-      "operator_cast_definition",
-      "operator_cast_declaration",
-      "constructor_or_destructor_definition",
       "constructor_or_destructor_declaration",
       "friend_declaration",
       "_structured_binding_specifiers"
     ],
     [
+      "declaration",
+      "type_definition",
+      "_declaration_specifiers",
+      "_void_declaration_specifiers",
+      "operator_cast_definition",
+      "operator_cast_declaration",
+      "constructor_or_destructor_definition",
+      "_structured_binding_specifiers"
+    ],
+    [
       "_block_declaration",
+      "type_definition",
       "_declaration_specifiers",
       "_void_declaration_specifiers",
       "_extern_declaration_specifiers",

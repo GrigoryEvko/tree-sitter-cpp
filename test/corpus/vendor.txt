@@ -1884,3 +1884,81 @@ typedef void (*F)(int) API;
           (primitive_type)))
       (attribute_macro
         (identifier)))))
+
+================================================================================
+An attribute and an attribute macro before the keyword typedef
+================================================================================
+
+MBEDTLS_DEPRECATED typedef int t1;
+[[deprecated("m")]] typedef int t2;
+__attribute__((deprecated)) typedef int t3;
+const typedef int t4;
+DEPRECATED("x") typedef int t5;
+typedef GNUDEP("x") int t6;
+struct C { [[maybe_unused]] typedef int t7; };
+void f() { [[maybe_unused]] typedef int t8; }
+
+--------------------------------------------------------------------------------
+
+(translation_unit
+  (type_definition
+    (attribute_macro
+      (identifier))
+    (primitive_type)
+    (type_identifier))
+  (type_definition
+    (attribute_declaration
+      (attribute
+        (identifier)
+        (argument_list
+          (string_literal
+            (string_content)))))
+    (primitive_type)
+    (type_identifier))
+  (type_definition
+    (attribute_specifier
+      (argument_list
+        (identifier)))
+    (primitive_type)
+    (type_identifier))
+  (type_definition
+    (type_qualifier)
+    (primitive_type)
+    (type_identifier))
+  (type_definition
+    (attribute_macro
+      (identifier)
+      (argument_list
+        (string_literal
+          (string_content))))
+    (primitive_type)
+    (type_identifier))
+  (type_definition
+    (attribute_macro
+      (identifier)
+      (argument_list
+        (string_literal
+          (string_content))))
+    (primitive_type)
+    (type_identifier))
+  (struct_specifier
+    (type_identifier)
+    (field_declaration_list
+      (type_definition
+        (attribute_declaration
+          (attribute
+            (identifier)))
+        (primitive_type)
+        (type_identifier))))
+  (function_definition
+    (primitive_type)
+    (function_declarator
+      (identifier)
+      (parameter_list))
+    (compound_statement
+      (type_definition
+        (attribute_declaration
+          (attribute
+            (identifier)))
+        (primitive_type)
+        (type_identifier)))))

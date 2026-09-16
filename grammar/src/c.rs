@@ -507,10 +507,26 @@ fn declarations(g: &mut Grammar) {
             ";",
         ],
     );
+    // `typedef` is a specifier of the declaration, and the specifiers have no fixed order. The C front
+    // end reads it in `c_parser_declspecs` (gcc/c/c-parser.cc), which takes `RID_TYPEDEF` among the
+    // storage class specifiers, and Clang reads `tok::kw_typedef` in `ParseDeclarationSpecifiers`
+    // (clang/lib/Parse/ParseDecl.cpp) in the same group. An attribute and a qualifier can come before
+    // the keyword: `MBEDTLS_DEPRECATED typedef int t;` (dolphin/Externals/mbedtls, after the macro
+    // expands to `__attribute__((deprecated))`) and `const typedef int T;`.
+    //
+    // The prefix is the prefix of a declaration, so that the two rules share it. The parser reads the
+    // specifiers with no fork, and the `typedef` token then selects this rule.
+    //
+    // WITHOUT THE PREFIX THE TREE HELD NO ERROR NODE AND WAS WRONG. The state after an attribute had
+    // no action for `typedef`, the lexer gives a keyword as an identifier in such a state, and the
+    // rule of an attribute macro then read the keyword. `[[deprecated]] typedef int T;` gave a
+    // `declaration` of a VARIABLE named `T`, with `typedef` as an `attribute_macro` and with the
+    // declarator as an `identifier` and not a `type_identifier`.
     g.define(
         "type_definition",
         seq![
             extension_prefix(),
+            repeat(s!(_declaration_modifiers)),
             "typedef",
             s!(_type_definition_type),
             s!(_type_definition_declarators),

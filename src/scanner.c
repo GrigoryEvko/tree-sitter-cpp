@@ -2339,7 +2339,11 @@ static AfterCall scan_after_macro_call(Reader *reader, const Scanner *classes, b
             }
             continue;
         }
-        if (word_in(word, DECLARATION_START_WORDS)) {
+        // `typedef` is a specifier of a declaration, and a macro before it is an attribute of that
+        // typedef: `DEPRECATED("m") typedef int T;`. The word stays out of DECLARATION_START_WORDS,
+        // because the scan of a bare macro reads that list as the names of the types of a
+        // declaration (`name_of_a_type`), and `typedef` names no type.
+        if (word_in(word, DECLARATION_START_WORDS) || strcmp(word, "typedef") == 0) {
             return AFTER_CALL_DECLARATION;
         }
         // A calling convention comes between the type and the declarator: `BOOL __stdcall f(`.

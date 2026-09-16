@@ -359,21 +359,24 @@ pub fn grammar() -> Grammar {
             "constructor_or_destructor_definition",
             "constructor_or_destructor_declaration",
         ],
-        // A friend declaration also starts with specifiers and attribute macros:
-        // `ALWAYS_INLINE friend bool operator==(A, A);`. The keyword `friend` decides.
+        // Specifiers and attributes before `friend`, before a constructor, before a member
+        // declaration, and before the `typedef` of a member typedef. The keyword or the type after
+        // them decides. A friend declaration also starts with specifiers and attribute macros:
+        // `ALWAYS_INLINE friend bool operator==(A, A);`. Refer to `c::type_definition` for the
+        // reason that `type_definition` is in each set of this group.
         &[
+            "type_definition",
+            "_declaration_specifiers",
+            "_constructor_specifiers",
+            "friend_declaration",
+        ],
+        &[
+            "type_definition",
             "_declaration_specifiers",
             "operator_cast_definition",
             "operator_cast_declaration",
             "constructor_or_destructor_definition",
             "constructor_or_destructor_declaration",
-            "friend_declaration",
-        ],
-        // Specifiers and attributes before `friend`, before a constructor, and before a member
-        // declaration. The keyword or the type after them decides.
-        &[
-            "_declaration_specifiers",
-            "_constructor_specifiers",
             "friend_declaration",
         ],
         // The specifiers of a declaration with the type `void` are a second reading, and the
@@ -404,8 +407,12 @@ pub fn grammar() -> Grammar {
             "_void_declaration_specifiers",
             "_constructor_specifiers",
         ],
+        // A typedef takes the same specifiers before its keyword, and it shares their repeat. This
+        // set is the set above with `type_definition`, for the same ambiguity: the token after the
+        // specifiers decides, and for a typedef that token is `typedef`.
         &[
             "declaration",
+            "type_definition",
             "_declaration_specifiers",
             "_void_declaration_specifiers",
             "_constructor_specifiers",
@@ -430,22 +437,25 @@ pub fn grammar() -> Grammar {
             "operator_cast_definition",
             "operator_cast_declaration",
             "constructor_or_destructor_definition",
+            "constructor_or_destructor_declaration",
+            "friend_declaration",
             "_structured_binding_specifiers",
         ],
         &[
             "declaration",
+            "type_definition",
             "_declaration_specifiers",
             "_void_declaration_specifiers",
             "operator_cast_definition",
             "operator_cast_declaration",
             "constructor_or_destructor_definition",
-            "constructor_or_destructor_declaration",
-            "friend_declaration",
             "_structured_binding_specifiers",
         ],
         // A block holds no declaration and no definition of a conversion function. Refer to `items`.
+        // A block holds a typedef, and the set carries `type_definition` for that reason.
         &[
             "_block_declaration",
+            "type_definition",
             "_declaration_specifiers",
             "_void_declaration_specifiers",
             "_extern_declaration_specifiers",
@@ -1843,13 +1853,27 @@ fn types(g: &mut Grammar) {
     // Clang read `typedef`, the other specifiers, and GNU attributes in one decl-specifier-seq
     // (cp_parser_decl_specifier_seq, ParseDeclarationSpecifiers). After the type, an identifier is
     // the declarator, and the macro can come only before the type.
+    // The prefix before `typedef` is the prefix of a declaration, with the attribute macros of C++.
+    // Refer to `c::type_definition` for the reason and for the tree that the fork built without it.
+    // `specifier_prefix` gives the two rules one repeat symbol, so the parser reads the specifiers
+    // with no fork and the `typedef` token selects this rule.
+    g.redefine("type_definition", |original| {
+        edit_sequence(original, |mut members| {
+            members[1] = specifier_prefix();
+            members
+        })
+    });
     g.redefine("_type_definition_type", |original| {
         edit_sequence(edit_members(original, &qualifiers_with_attributes), |mut members| {
             members[0] = repeat(choice![
                 s!(type_qualifier),
                 s!(attribute_specifier),
                 s!(ms_declspec_modifier),
-                s!(attribute_macro)
+                s!(attribute_macro),
+                // A function-like macro between `typedef` and the type, as before the type of a
+                // declaration: `typedef GNUDEP("x") int T;`, where the macro expands to a GNU
+                // attribute. GCC and Clang read the expansion among the decl-specifiers.
+                macro_call_attribute()
             ]);
             // A macro can also give the type: `typedef BOOST_CONTAINER_IMPDEF(impl) value_compare;`.
             members[1] = field("type", choice![s!(type_specifier), s!(macro_type_specifier)]);
