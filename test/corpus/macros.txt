@@ -994,14 +994,11 @@ void f(int x) {
 --------------------------------------------------------------------------------
 
 (translation_unit
-  (function_definition
-    declarator: (function_declarator
-      declarator: (identifier)
-      parameters: (parameter_list
-        (parameter_declaration
-          type: (type_identifier))
-        (parameter_declaration
-          type: (type_identifier))))
+  (macro_invocation
+    name: (identifier)
+    arguments: (token_tree
+      (identifier)
+      (identifier))
     body: (compound_statement
       (expression_statement
         (call_expression
@@ -3129,38 +3126,27 @@ struct S {
       (declaration
         type: (primitive_type)
         declarator: (identifier))))
-  (function_definition
-    declarator: (function_declarator
-      declarator: (identifier)
-      parameters: (parameter_list
-        (parameter_declaration
-          type: (primitive_type))
-        (parameter_declaration
-          type: (type_identifier))
-        (parameter_declaration
-          type: (type_identifier)
-          declarator: (identifier))
-        (parameter_declaration
-          type: (primitive_type)
-          declarator: (function_declarator
-            declarator: (parenthesized_declarator
-              (block_pointer_declarator
-                declarator: (identifier)))
-            parameters: (parameter_list
-              (parameter_declaration
-                type: (primitive_type)))))))
+  (macro_invocation
+    name: (identifier)
+    arguments: (token_tree
+      (primitive_type)
+      (identifier)
+      (identifier)
+      (identifier)
+      (primitive_type)
+      (token_tree
+        (identifier))
+      (token_tree
+        (primitive_type)))
     body: (compound_statement
       (declaration
         type: (primitive_type)
         declarator: (identifier))))
-  (function_definition
-    declarator: (function_declarator
-      declarator: (identifier)
-      parameters: (parameter_list
-        (parameter_declaration
-          type: (type_identifier))
-        (parameter_declaration
-          type: (type_identifier))))
+  (macro_invocation
+    name: (identifier)
+    arguments: (token_tree
+      (identifier)
+      (identifier))
     body: (compound_statement
       (declaration
         type: (primitive_type)
@@ -3645,16 +3631,129 @@ NAME(int x) { return x; }
       (declaration
         type: (primitive_type)
         declarator: (identifier))))
-  (function_definition
-    declarator: (function_declarator
-      declarator: (identifier)
-      parameters: (parameter_list
-        (parameter_declaration
-          type: (primitive_type)
-          declarator: (identifier))))
+  (macro_invocation
+    name: (identifier)
+    arguments: (token_tree
+      (primitive_type)
+      (identifier))
     body: (compound_statement
       (return_statement
         (identifier)))))
+
+================================================================================
+An enumerator list or a braced initializer after a macro name with arguments
+================================================================================
+
+BOOST_SCOPED_ENUM_START(traffic_light) { red=0, yellow, green }; BOOST_SCOPED_ENUM_END
+DECLARE(cpu_thread::g_threads_created){0};
+DECLARE(f) { [](){ return 1; } };
+BOOST_SCOPED_ENUM_DECLARE_BEGIN(timezone)
+{
+  utc, local
+}
+BOOST_SCOPED_ENUM_DECLARE_END(timezone)
+TEST(a, b) { { g(); } }
+TEST(c, d) {}
+TEST(e, f) { g(); };
+BOOST_MSM_EUML_ACTION(No_Transition) { template <class T> void operator()(T) { } };
+
+--------------------------------------------------------------------------------
+
+(translation_unit
+  (declaration
+    type: (type_identifier)
+    declarator: (init_declarator
+      declarator: (parenthesized_declarator
+        (identifier))
+      value: (initializer_list
+        (assignment_expression
+          left: (identifier)
+          right: (number_literal))
+        (identifier)
+        (identifier))))
+  (macro_invocation
+    name: (identifier))
+  (declaration
+    type: (type_identifier)
+    declarator: (init_declarator
+      declarator: (parenthesized_declarator
+        (qualified_identifier
+          scope: (namespace_identifier)
+          name: (identifier)))
+      value: (initializer_list
+        (number_literal))))
+  (declaration
+    type: (type_identifier)
+    declarator: (init_declarator
+      declarator: (parenthesized_declarator
+        (identifier))
+      value: (initializer_list
+        (lambda_expression
+          captures: (lambda_capture_specifier)
+          declarator: (lambda_declarator
+            parameters: (parameter_list))
+          body: (compound_statement
+            (return_statement
+              (number_literal)))))))
+  (declaration
+    type: (type_identifier)
+    declarator: (init_declarator
+      declarator: (parenthesized_declarator
+        (identifier))
+      value: (initializer_list
+        (identifier)
+        (identifier)))
+    (MISSING ";"))
+  (macro_invocation
+    name: (identifier)
+    arguments: (token_tree
+      (identifier)))
+  (macro_invocation
+    name: (identifier)
+    arguments: (token_tree
+      (identifier)
+      (identifier))
+    body: (compound_statement
+      (compound_statement
+        (expression_statement
+          (call_expression
+            function: (identifier)
+            arguments: (argument_list))))))
+  (macro_invocation
+    name: (identifier)
+    arguments: (token_tree
+      (identifier)
+      (identifier))
+    body: (compound_statement))
+  (macro_invocation
+    name: (identifier)
+    arguments: (token_tree
+      (identifier)
+      (identifier))
+    body: (compound_statement
+      (expression_statement
+        (call_expression
+          function: (identifier)
+          arguments: (argument_list)))))
+  (expression_statement)
+  (macro_invocation
+    name: (identifier)
+    arguments: (token_tree
+      (identifier))
+    body: (compound_statement
+      (template_declaration
+        parameters: (template_parameter_list
+          (type_parameter_declaration
+            (type_identifier)))
+        (function_definition
+          type: (primitive_type)
+          declarator: (function_declarator
+            declarator: (operator_name)
+            parameters: (parameter_list
+              (parameter_declaration
+                type: (type_identifier))))
+          body: (compound_statement)))))
+  (expression_statement))
 
 ================================================================================
 Two macro invocations in one item of an enumerator list

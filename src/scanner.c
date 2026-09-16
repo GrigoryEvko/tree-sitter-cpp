@@ -877,8 +877,15 @@ static bool skip_directive(Reader *reader, Gap *gap);
 typedef struct {
     /// A token shows that the group is not a parameter list.
     bool not_parameters;
-    /// A `;` or a statement keyword shows that the group holds statements.
+    /// A `;` or a statement keyword shows that the group holds statements. A body after a parameter
+    /// list in a group in braces also shows it.
     bool statements;
+    /// A `;` or a statement keyword is at the top level of the group. A lambda with a parameter list
+    /// sets `statements` and not this field: `{ [](){ return 1; } }` is a braced initializer.
+    ///
+    /// ONLY THE SCAN OF A BODY AFTER A GROUP THAT CAN BE A PARAMETER LIST READS THIS. Refer to
+    /// `scan_macro_invocation`.
+    bool statement_token;
     /// A token shows that an argument in the group is not an expression.
     bool not_expressions;
     /// Two words are in sequence in an argument, or the word of a type starts an argument. The tokens of
@@ -1680,6 +1687,7 @@ static bool skip_group(Reader *reader, Arguments *args) {
         if (token == TOKEN_SEMICOLON || (is_word && word_in(word, STATEMENT_KEYWORDS))) {
             args->not_parameters = true;
             args->statements = true;
+            args->statement_token = true;
         }
         if (arg.angles > 0) {
             // A template argument list can end an expression, as a variable template does:
@@ -3713,6 +3721,48 @@ static Invocation scan_macro_invocation(Reader *reader, const char *name, size_t
             // A call in an argument gives a body to the macro, and no function definition starts:
             // `MATCHER_P(IsNode, height, absl::StrCat("height ", height)) {`.
             block = lexer->lookahead == '{';
+        } else if (call && valid_symbols[MACRO_CALL_START] && lexer->lookahead == '{') {
+            // A NAME WITH A GROUP AND A BODY IS A MACRO WHERE A CALL STATEMENT CAN START. The other
+            // reading of that text is a constructor definition, which has no decl-specifier-seq. At
+            // namespace scope C++ takes that definition only with a QUALIFIED name, and GCC gives
+            // "expected constructor, destructor, or type conversion" for `A() { }` there. So the
+            // arguments need no shape, and `TEST(a, b) { ... }` of Google Test gets its body.
+            //
+            // `MACRO_CALL_START` IS THE EVIDENCE OF THE POSITION. It is valid where a macro call
+            // statement can start, which is namespace scope and no class body. In a class body an
+            // unqualified constructor IS correct, the token is not valid, and `S(int x) { }` keeps
+            // its reading.
+            //
+            // THE ARGUMENTS GIVE NO EVIDENCE HERE, SO THE BRACE MUST. An enumerator list and a
+            // braced initializer hold a list of expressions: no `;`, no statement keyword, and no
+            // two words in sequence at the top level. Such a brace is a declaration when a `;` comes
+            // after it, or when the list has a comma, because no body has a comma at its top level:
+            // `BOOST_SCOPED_ENUM_START(traffic_light) { red=0, yellow, green };` of boost,
+            // `DECLARE(cpu_thread::g_threads_created){0};` of rpcs3, `{ [](){ return 1; } };`, and
+            // `BOOST_SCOPED_ENUM_DECLARE_BEGIN(timezone) { utc, local }` before the END macro.
+            // Each other brace is a body: `{ g(); }`, `{}` before the next item, `{ FOO }`,
+            // `{ { g(); } { h(); } }`, and `{ template <class T> void operator()(T) {} };` of boost
+            // msm, which is a class body with no `;` in it. A body with a statement in it keeps its
+            // reading before a stray `;`.
+            //
+            // THE SCAN READS THE GROUP, AND A STOP UNDOES THE READ. The runtime resets the lexer
+            // when the scan gives no token. At a `{` on the line of the arguments, and at a `{` on
+            // the next line, the paths after this one give no token: the line form gives
+            // `INVOCATION_NONE` on the same line, `NEXT_BLOCKED` on the next line, and the scan of
+            // the caller stops at the `{`. After a directive line, the line form gives a token, and
+            // the stop takes that token away for a declaration only. A group that the scan limit
+            // ends also stops, and the text keeps its reading.
+            Arguments body = {0};
+            if (!skip_group(reader, &body)) {
+                return INVOCATION_STOP;
+            }
+            Gap after = {0};
+            skip_gap(reader, &after);
+            bool expressions = !body.statement_token && !body.word_sequence;
+            if (expressions && (lexer->lookahead == ';' || body.argument_count >= 2)) {
+                return INVOCATION_STOP;
+            }
+            block = true;
         } else if (!call && lexer->lookahead == '{') {
             // A block of statements after a name: `SCOPE_EXIT { f(); };`.
             Arguments body = {0};

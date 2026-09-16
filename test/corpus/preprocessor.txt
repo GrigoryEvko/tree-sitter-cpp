@@ -2065,14 +2065,11 @@ void k(int x) {
   (preproc_call
     directive: (preproc_directive)
     argument: (preproc_arg))
-  (function_definition
-    declarator: (function_declarator
-      declarator: (identifier)
-      parameters: (parameter_list
-        (parameter_declaration
-          type: (type_identifier))
-        (parameter_declaration
-          type: (type_identifier))))
+  (macro_invocation
+    name: (identifier)
+    arguments: (token_tree
+      (identifier)
+      (identifier))
     (preproc_call
       directive: (preproc_directive))
     body: (compound_statement))
@@ -2460,14 +2457,11 @@ TEST(Lookup, Other)
   (preproc_call
     directive: (preproc_directive)
     argument: (preproc_arg))
-  (function_definition
-    declarator: (function_declarator
-      declarator: (identifier)
-      parameters: (parameter_list
-        (parameter_declaration
-          type: (type_identifier))
-        (parameter_declaration
-          type: (type_identifier))))
+  (macro_invocation
+    name: (identifier)
+    arguments: (token_tree
+      (identifier)
+      (identifier))
     (preproc_skipped)
     (preproc_call
       directive: (preproc_directive))
