@@ -422,6 +422,22 @@ pub fn run(args: &[String]) -> Result<(), Box<dyn Error>> {
         records.len() - files,
         started.elapsed().as_secs_f64(),
     );
+    // The file nearest to its ceiling. A file whose peak moves toward its ceiling from one commit
+    // to the next shows here before it stops. Refer to `CEILING_FLOOR`.
+    let nearness = |r: &Record| r.peak_bytes as f64 / r.ceiling as f64;
+    let nearest = paths
+        .iter()
+        .zip(&records)
+        .filter(|(_, r)| r.ceiling > 0)
+        .max_by(|a, b| nearness(a.1).total_cmp(&nearness(b.1)));
+    if let Some((rel, r)) = nearest {
+        println!(
+            "nearest to the ceiling: {rel} at {:.1}% of its ceiling, {} of {} bytes",
+            100.0 * nearness(r),
+            r.peak_bytes,
+            r.ceiling
+        );
+    }
     Ok(())
 }
 
