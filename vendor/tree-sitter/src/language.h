@@ -20,14 +20,30 @@ extern "C" {
 // The second ABI of the tree-sitter-cpp fork: the parse tables in the shape layout. Refer to the nine
 // shape pointers of TSLanguage in parser.h.
 #define LANGUAGE_VERSION_WITH_SHAPE_TABLES 1016
+// The third ABI of the tree-sitter-cpp fork: the shape layout of 1016, and the entry point
+// `external_scanner_set_context` as the last field of TSLanguage.
+#define LANGUAGE_VERSION_WITH_SCANNER_CONTEXT 1017
 
-// True when the runtime reads the ABI version: 13 thru 15, or one of the two versions of the
+// True when the runtime reads the ABI version: 13 thru 15, or one of the three versions of the
 // tree-sitter-cpp fork.
 static inline bool ts_language_version_is_supported(uint32_t version) {
   return
     (version >= TREE_SITTER_MIN_COMPATIBLE_LANGUAGE_VERSION && version <= LANGUAGE_VERSION_UPSTREAM_MAX) ||
     version == LANGUAGE_VERSION_WITH_WIDE_TABLES ||
-    version == LANGUAGE_VERSION_WITH_SHAPE_TABLES;
+    version == LANGUAGE_VERSION_WITH_SHAPE_TABLES ||
+    version == LANGUAGE_VERSION_WITH_SCANNER_CONTEXT;
+}
+
+// The entry point of the external scanner that takes the context of the parser.
+typedef void (*TSScannerSetContext)(void *payload, const void *context);
+
+// The entry point of the external scanner that takes the context of the parser, or NULL
+// (tree-sitter-cpp fork). A language of a lower ABI has no such field in its struct, so the read
+// comes after a test of the ABI version, and a language that defines no such function keeps the
+// field null. A wasm language runs in a store that holds no pointer of the host, so it gets none.
+static inline TSScannerSetContext ts_language_scanner_set_context(const TSLanguage *self) {
+  if (self->abi_version < LANGUAGE_VERSION_WITH_SCANNER_CONTEXT) return NULL;
+  return self->external_scanner_set_context;
 }
 
 // True when the parse tables of the language are in the shape layout (tree-sitter-cpp fork). The

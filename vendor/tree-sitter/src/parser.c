@@ -116,6 +116,9 @@ struct TSParser {
   TokenCache token_cache;
   ReusableNode reusable_node;
   void *external_scanner_payload;
+  // The context that the external scanner gets, an opaque pointer of the caller (tree-sitter-cpp
+  // fork). Refer to `ts_parser_set_scanner_context`.
+  const void *scanner_context;
   FILE *dot_graph_file;
   unsigned accept_count;
   unsigned operation_count;
@@ -372,6 +375,8 @@ static bool ts_parser__call_keyword_lex_fn(TSParser *self) {
   }
 }
 
+static void ts_parser__external_scanner_set_context(TSParser *self);
+
 static void ts_parser__external_scanner_create(
   TSParser *self
 ) {
@@ -385,8 +390,19 @@ static void ts_parser__external_scanner_create(
       }
     } else if (self->language->external_scanner.create) {
       self->external_scanner_payload = self->language->external_scanner.create();
+      ts_parser__external_scanner_set_context(self);
     }
   }
+}
+
+// Give the external scanner the context of the parser (tree-sitter-cpp fork). The call comes right
+// after `create`, and again when the context changes while the scanner exists, so the scanner reads
+// the current context before each scan in both orders. A wasm scanner gets none, because its store
+// holds no pointer of the host. Refer to `ts_parser_set_scanner_context`.
+static void ts_parser__external_scanner_set_context(TSParser *self) {
+  if (!self->language || !self->external_scanner_payload || ts_language_is_wasm(self->language)) return;
+  TSScannerSetContext set_context = ts_language_scanner_set_context(self->language);
+  if (set_context) set_context(self->external_scanner_payload, self->scanner_context);
 }
 
 static void ts_parser__external_scanner_destroy(
@@ -2311,6 +2327,7 @@ TSParser *ts_parser_new(void) {
   self->has_error = false;
   self->canceled_balancing = false;
   self->external_scanner_payload = NULL;
+  self->scanner_context = NULL;
   self->operation_count = 0;
   self->old_tree = NULL_SUBTREE;
   self->included_range_differences = (TSRangeArray) array_new();
@@ -2369,6 +2386,15 @@ bool ts_parser_set_language(TSParser *self, const TSLanguage *language) {
 
   self->language = ts_language_copy(language);
   return true;
+}
+
+void ts_parser_set_scanner_context(TSParser *self, const void *context) {
+  self->scanner_context = context;
+  ts_parser__external_scanner_set_context(self);
+}
+
+const void *ts_parser_scanner_context(const TSParser *self) {
+  return self->scanner_context;
 }
 
 TSLogger ts_parser_logger(const TSParser *self) {

@@ -10,7 +10,7 @@
 #pragma optimize("", off)
 #endif
 
-#define LANGUAGE_VERSION 1016
+#define LANGUAGE_VERSION 1017
 #define STATE_COUNT 131922
 #define LARGE_STATE_COUNT 73521
 #define SYMBOL_COUNT 1000
@@ -170850,6 +170850,7 @@ void tree_sitter_cpp_external_scanner_destroy(void *);
 bool tree_sitter_cpp_external_scanner_scan(void *, TSLexer *, const bool *);
 unsigned tree_sitter_cpp_external_scanner_serialize(void *, char *);
 void tree_sitter_cpp_external_scanner_deserialize(void *, const char *, unsigned);
+void tree_sitter_cpp_external_scanner_set_context(void *, const void *);
 
 #ifdef TREE_SITTER_HIDE_SYMBOLS
 #define TS_PUBLIC
@@ -170915,6 +170916,7 @@ TS_PUBLIC const TSLanguage *tree_sitter_cpp(void) {
     .state_shape = ts_state_shape,
     .state_value_offset = ts_state_value_offset,
     .state_values = ts_state_values,
+    .external_scanner_set_context = tree_sitter_cpp_external_scanner_set_context,
   };
   return &language;
 }

@@ -121,6 +121,35 @@ mod tests {
         }
     }
 
+    /// The context of the parser reaches only a language of ABI 1017. An upstream grammar has no
+    /// such field in its struct, and the runtime must not read past the end of the struct. The
+    /// TypeScript grammar has an external scanner, so the runtime creates a scanner for it and then
+    /// must not look for the entry point.
+    #[test]
+    fn test_a_scanner_context_does_not_reach_an_upstream_grammar() {
+        let marker = 42u32;
+        let context = std::ptr::addr_of!(marker).cast::<std::ffi::c_void>();
+        for (language, source, root) in [
+            (Language::from(tree_sitter_typescript::LANGUAGE_TYPESCRIPT), "let x = `a${1}b`;\n", "program"),
+            (Language::from(tree_sitter_c::LANGUAGE), "int x = 1;\n", "translation_unit"),
+            (Language::from(super::LANGUAGE), "int x = f(1);\n", "translation_unit"),
+        ] {
+            let mut parser = Parser::new();
+            parser.set_language(&language).expect("the grammar loads");
+            // The context comes before the first parse, so the runtime gives it right after `create`.
+            unsafe { parser.set_scanner_context(context) };
+            assert_eq!(parser.scanner_context(), context);
+            let tree = parser.parse(source, None).expect("the parse ends");
+            assert_eq!(tree.root_node().kind(), root);
+            assert!(!tree.root_node().has_error(), "{source}");
+            // The context changes after a parse, and a second parse takes the new one.
+            unsafe { parser.set_scanner_context(std::ptr::null()) };
+            assert!(parser.scanner_context().is_null());
+            let again = parser.parse(source, None).expect("the parse ends");
+            assert_eq!(again.root_node().to_sexp(), tree.root_node().to_sexp());
+        }
+    }
+
     /// The parse tables of this grammar are in the shape layout of ABI 1016, and the shape of a state
     /// keeps its symbols in the order in which the runtime reads them. A large state keeps ascending
     /// symbol order, and a small state keeps group order. The order decides which reduction survives
@@ -128,7 +157,7 @@ mod tests {
     #[test]
     fn test_the_lookahead_order_of_the_shape_parse_tables() {
         let cpp: Language = super::LANGUAGE.into();
-        assert_eq!(cpp.abi_version(), 1016);
+        assert_eq!(cpp.abi_version(), 1017);
         let state_count = u32::try_from(cpp.parse_state_count()).expect("a state id has 32 bits");
         let mut ascending = 0;
         let mut group_order = 0;

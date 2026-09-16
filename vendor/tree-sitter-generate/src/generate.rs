@@ -66,9 +66,10 @@ struct GeneratedParser {
 // NOTE: This constant must be kept in sync with the definition of
 // `TREE_SITTER_LANGUAGE_VERSION` in `vendor/tree-sitter/include/tree_sitter/api.h`.
 //
-// The ABI of the tree-sitter-cpp fork: the layout of ABI 15 with 32-bit state ids and with the parse
-// tables in the shape layout.
-const LANGUAGE_VERSION: usize = 1016;
+// The ABI of the tree-sitter-cpp fork: the layout of ABI 15 with 32-bit state ids, with the parse
+// tables in the shape layout, and with the entry point of the external scanner that takes the context
+// of the parser as the last field of the language struct.
+const LANGUAGE_VERSION: usize = 1017;
 
 pub const ALLOC_HEADER: &str = include_str!("templates/alloc.h");
 pub const ARRAY_HEADER: &str = include_str!("templates/array.h");

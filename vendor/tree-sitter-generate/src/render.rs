@@ -1796,6 +1796,11 @@ impl Generator {
                 self,
                 "void {external_scanner_name}_deserialize(void *, const char *, unsigned);",
             );
+            // The entry point that takes the context of the parser (tree-sitter-cpp fork).
+            add_line!(
+                self,
+                "void {external_scanner_name}_set_context(void *, const void *);",
+            );
             add_line!(self, "");
         }
 
@@ -1926,6 +1931,15 @@ impl Generator {
         add_line!(self, ".state_shape = ts_state_shape,");
         add_line!(self, ".state_value_offset = ts_state_value_offset,");
         add_line!(self, ".state_values = ts_state_values,");
+        // The entry point of the external scanner that takes the context of the parser, the last
+        // field of TSLanguage (tree-sitter-cpp fork, ABI 1017). A grammar with no external scanner
+        // keeps it null.
+        if !self.syntax_grammar.external_tokens.is_empty() {
+            add_line!(
+                self,
+                ".external_scanner_set_context = {external_scanner_name}_set_context,"
+            );
+        }
 
         dedent!(self);
         add_line!(self, "}};");

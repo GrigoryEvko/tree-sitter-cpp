@@ -224,6 +224,10 @@ typedef struct {
     /// MEASUREMENT OF TASK 240. The hashes of the names of the last class heads, with no condition on
     /// the body. Only the functional cast reads this record. The constructor rules read `classes`.
     uint32_t loose[MAX_CLASSES];
+    /// The context of the parser, the seed of #275, or NULL. The runtime gives it through
+    /// `tree_sitter_cpp_external_scanner_set_context`, and `serialize` and `deserialize` do not
+    /// carry it, so `reset` and `deserialize` must not clear it.
+    const void *context;
 } Scanner;
 
 /// The traits of GCC (gcc/cp/cp-trait.def) and Clang (clang/include/clang/Basic/BuiltinTraits.td)
@@ -8201,6 +8205,14 @@ void tree_sitter_cpp_external_scanner_deserialize(void *payload, const char *buf
     assert(names <= MAX_CLASSES && "Can't decode serialized class names!");
     memcpy(scanner->classes, &buffer[size], names * sizeof(uint32_t));
     scanner->class_count = (uint8_t)names;
+}
+
+/// Take the context of the parser, the seed of #275. The runtime calls this function right after
+/// `create`, and again when the context changes while the scanner exists, so the scanner holds
+/// the current context before each scan. The reader of the seed comes with #275.
+void tree_sitter_cpp_external_scanner_set_context(void *payload, const void *context) {
+    Scanner *scanner = (Scanner *)payload;
+    scanner->context = context;
 }
 
 void tree_sitter_cpp_external_scanner_destroy(void *payload) {

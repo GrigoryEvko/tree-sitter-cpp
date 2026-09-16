@@ -26,17 +26,18 @@ extern "C" {
  * The Tree-sitter library is generally backwards-compatible with languages
  * generated using older CLI versions, but is not forwards-compatible.
  *
- * The tree-sitter-cpp fork adds two ABI versions, far from the upstream
+ * The tree-sitter-cpp fork adds three ABI versions, far from the upstream
  * versions, and an upstream library does not read a parser of the fork.
  * ABI 1015 is the layout of ABI 15 with 32-bit values in the parse tables,
  * 32-bit primary state ids, and a 32-bit state in a shift action. ABI 1016 adds
  * the shape layout of the parse tables, which holds each distinct row shape one
- * time. This library reads the ABI versions 13 thru 15, 1015 and 1016 in the
- * same process, and it reads the tables of each language in the layout of its
- * version. The generator in vendor/tree-sitter-generate writes the version
- * 1016.
+ * time. ABI 1017 adds the entry point of the external scanner that takes the
+ * context of the parser, as the last field of the language struct. This library
+ * reads the ABI versions 13 thru 15, 1015, 1016 and 1017 in the same process,
+ * and it reads the tables of each language in the layout of its version. The
+ * generator in vendor/tree-sitter-generate writes the version 1017.
  */
-#define TREE_SITTER_LANGUAGE_VERSION 1016
+#define TREE_SITTER_LANGUAGE_VERSION 1017
 
 /**
  * The earliest ABI version that is supported by the current version of the
@@ -254,6 +255,26 @@ const TSLanguage *ts_parser_language(const TSParser *self);
  * [`TREE_SITTER_MIN_COMPATIBLE_LANGUAGE_VERSION`] constants.
  */
 bool ts_parser_set_language(TSParser *self, const TSLanguage *language);
+
+/**
+ * Set the context that the parser gives to the external scanner (tree-sitter-cpp fork).
+ *
+ * The parser stores the pointer and nothing else. It does not read the target, it
+ * does not copy it, and it does not free it. The caller keeps the target valid for
+ * as long as the parser can parse. The runtime gives the pointer to the
+ * `external_scanner_set_context` entry point of the language right after the scanner
+ * is created for a parse, and again here when the parser already holds a scanner, so
+ * the scanner reads the current context before each scan in both orders. A language
+ * of an ABI version below 1017, or one with no such entry point, ignores the context.
+ * A NULL context gives the behavior of a parser with no context.
+ */
+void ts_parser_set_scanner_context(TSParser *self, const void *context);
+
+/**
+ * Get the context that the parser gives to the external scanner, or NULL
+ * (tree-sitter-cpp fork).
+ */
+const void *ts_parser_scanner_context(const TSParser *self);
 
 /**
  * Set the ranges of text that the parser should include when parsing.

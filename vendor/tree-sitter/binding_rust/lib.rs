@@ -64,15 +64,21 @@ pub const UPSTREAM_LANGUAGE_VERSION: usize = 15;
 /// The first ABI version of the fork: 32-bit parse tables (tree-sitter-cpp fork).
 pub const WIDE_TABLE_LANGUAGE_VERSION: usize = 1015;
 
+/// The second ABI version of the fork: the parse tables in the shape layout (tree-sitter-cpp fork).
+pub const SHAPE_TABLE_LANGUAGE_VERSION: usize = 1016;
+
 /// True when the library reads the ABI version `version` (tree-sitter-cpp fork).
 ///
 /// The library reads [`MIN_COMPATIBLE_LANGUAGE_VERSION`] thru [`UPSTREAM_LANGUAGE_VERSION`], with 16-bit
-/// parse tables, [`WIDE_TABLE_LANGUAGE_VERSION`], with 32-bit parse tables, and [`LANGUAGE_VERSION`],
-/// with the parse tables in the shape layout. It does not read the versions between them.
+/// parse tables, [`WIDE_TABLE_LANGUAGE_VERSION`], with 32-bit parse tables,
+/// [`SHAPE_TABLE_LANGUAGE_VERSION`], with the parse tables in the shape layout, and
+/// [`LANGUAGE_VERSION`], with the shape layout and the entry point of the external scanner that takes
+/// the context of the parser. It does not read the versions between them.
 #[must_use]
 pub const fn is_supported_language_version(version: usize) -> bool {
     (version >= MIN_COMPATIBLE_LANGUAGE_VERSION && version <= UPSTREAM_LANGUAGE_VERSION)
         || version == WIDE_TABLE_LANGUAGE_VERSION
+        || version == SHAPE_TABLE_LANGUAGE_VERSION
         || version == LANGUAGE_VERSION
 }
 
@@ -820,6 +826,30 @@ impl Parser {
     pub fn language(&self) -> Option<LanguageRef<'_>> {
         let ptr = unsafe { ffi::ts_parser_language(self.0.as_ptr()) };
         (!ptr.is_null()).then_some(LanguageRef(ptr, PhantomData))
+    }
+
+    /// Set the context that the parser gives to the external scanner (tree-sitter-cpp fork).
+    ///
+    /// The parser stores the pointer and nothing else. The runtime gives it to the `set_context`
+    /// entry point of the language right after the scanner is created for a parse, and again here
+    /// when the parser already holds a scanner. A language of an ABI version below 1017, or one
+    /// with no such entry point, ignores the context. A null context gives the behavior of a
+    /// parser with no context.
+    ///
+    /// # Safety
+    ///
+    /// The target of `context` must stay valid until the parser gets a null context or is
+    /// dropped, because each parse gives the pointer to the scanner.
+    #[doc(alias = "ts_parser_set_scanner_context")]
+    pub unsafe fn set_scanner_context(&mut self, context: *const c_void) {
+        unsafe { ffi::ts_parser_set_scanner_context(self.0.as_ptr(), context) }
+    }
+
+    /// The context that the parser gives to the external scanner, or null (tree-sitter-cpp fork).
+    #[doc(alias = "ts_parser_scanner_context")]
+    #[must_use]
+    pub fn scanner_context(&self) -> *const c_void {
+        unsafe { ffi::ts_parser_scanner_context(self.0.as_ptr()) }
     }
 
     /// Get the parser's current logger.

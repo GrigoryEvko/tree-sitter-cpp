@@ -204,6 +204,14 @@ struct TSLanguage {
   const uint32_t *state_shape;
   const uint32_t *state_value_offset;
   const uint32_t *state_values;
+  // The entry point of the external scanner that takes the context of the parser, the last field
+  // of the struct (tree-sitter-cpp fork, ABI 1017). `ts_parser_set_scanner_context` stores an
+  // opaque pointer on the parser, and the runtime gives it to this function right after
+  // `external_scanner.create`, and again when the context changes while a scanner exists. A
+  // language with no such function keeps the field null, and a language of a lower ABI has no
+  // such field at all. The runtime must read it only after a test of the ABI version. Refer to
+  // `ts_language_scanner_set_context` in language.h.
+  void (*external_scanner_set_context)(void *payload, const void *context);
 };
 
 static inline bool set_contains(const TSCharacterRange *ranges, uint32_t len, int32_t lookahead) {
