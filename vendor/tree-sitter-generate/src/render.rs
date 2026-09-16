@@ -1051,11 +1051,14 @@ impl Generator {
 
                 let char_set_info = &mut self.large_character_set_info[large_char_set_ix];
                 char_set_info.is_used = true;
+                // The bitmap of the code points 0 to 127 comes with the ranges. Refer to
+                // `set_contains_ascii` in parser.h.inc (tree-sitter-cpp fork).
                 add!(
                     self,
-                    "set_contains({}, {}, lookahead)",
+                    "set_contains_ascii({}, {}, {}_ascii, lookahead)",
                     char_set_info.constant_name,
                     large_set.range_count(),
+                    char_set_info.constant_name,
                 );
                 if check_eof {
                     add!(self, ")");
@@ -1162,16 +1165,12 @@ impl Generator {
 
     fn add_character_set(&mut self, ix: usize) {
         let characters = self.large_character_sets[ix].1.clone();
-        let info = &self.large_character_set_info[ix];
-        if !info.is_used {
+        if !self.large_character_set_info[ix].is_used {
             return;
         }
+        let constant_name = self.large_character_set_info[ix].constant_name.clone();
 
-        add_line!(
-            self,
-            "static const TSCharacterRange {}[] = {{",
-            info.constant_name
-        );
+        add_line!(self, "static const TSCharacterRange {constant_name}[] = {{");
 
         indent!(self);
         for (ix, range) in characters.ranges().enumerate() {
@@ -1191,6 +1190,21 @@ impl Generator {
             add!(self, "}},");
         }
         add!(self, "\n");
+        dedent!(self);
+        add_line!(self, "}};");
+
+        // The bitmap of the code points 0 to 127 of the set (tree-sitter-cpp fork). The lexer reads
+        // one bit of it in the place of a binary search of the ranges. Refer to `set_contains_ascii`
+        // in parser.h.inc.
+        let mut ascii = [0u64; 2];
+        for code_point in 0u32..128 {
+            if characters.contains(char::from_u32(code_point).expect("a code point below 128 is a character")) {
+                ascii[(code_point >> 6) as usize] |= 1u64 << (code_point & 63);
+            }
+        }
+        add_line!(self, "static const uint64_t {constant_name}_ascii[2] = {{");
+        indent!(self);
+        add_line!(self, "0x{:016x}ULL, 0x{:016x}ULL,", ascii[0], ascii[1]);
         dedent!(self);
         add_line!(self, "}};");
         add_line!(self, "");

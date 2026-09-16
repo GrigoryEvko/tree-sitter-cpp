@@ -224,6 +224,27 @@ static inline bool set_contains(const TSCharacterRange *ranges, uint32_t len, in
   return (lookahead >= range->start && lookahead <= range->end);
 }
 
+// True when a character set holds the character (tree-sitter-cpp fork).
+//
+// `ascii` holds one bit for each of the code points 0 to 127, and the generator writes it beside the
+// ranges of the set. Nearly each character of a source is in that range, and the lexer then reads
+// one bit in the place of a binary search of the ranges. A set of the identifier characters of
+// Unicode has 687 ranges, so the search takes ten steps for each letter of each name.
+//
+// A lookahead that is not in the range 0 to 127, and a lookahead that is negative, take the search.
+static inline bool set_contains_ascii(
+  const TSCharacterRange *ranges,
+  uint32_t len,
+  const uint64_t *ascii,
+  int32_t lookahead
+) {
+  uint32_t code_point = (uint32_t)lookahead;
+  if (code_point < 128) {
+    return (ascii[code_point >> 6] >> (code_point & 63)) & 1;
+  }
+  return set_contains(ranges, len, lookahead);
+}
+
 /*
  *  Lexer Macros
  */
