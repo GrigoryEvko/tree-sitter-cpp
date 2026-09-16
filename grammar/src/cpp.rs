@@ -156,6 +156,11 @@ pub fn grammar() -> Grammar {
         // of a macro opens a parameter list, and it is no text of the line.
         s!(_preproc_params_mark),
         s!(_functional_cast_name),
+        // An empty token before the name of a macro invocation line that a storage class specifier comes
+        // before: `static Q_LOGGING_CATEGORY(log, "qtc", QtWarningMsg)`. The scanner gives it only for a
+        // name with arguments, because a bare name there continues the declaration on the next line.
+        // `_macro_line_start` keeps its meaning of a line with no specifier before it.
+        s!(_macro_line_after_specifiers),
     ];
     // The conflict sets of the grammar. Each set names the rules of one ambiguity, and it tells the
     // generator to keep each reading in a GLR split.
@@ -402,6 +407,10 @@ pub fn grammar() -> Grammar {
             "_constructor_specifiers",
             "_structured_binding_specifiers",
         ],
+        // A storage class specifier and a cv-qualifier also come before a macro invocation line:
+        // `static Q_LOGGING_CATEGORY(log, "qtc", QtWarningMsg)`. The empty token of the external
+        // scanner after them decides between the two readings.
+        &["_declaration_modifiers", "macro_invocation"],
         &[
             "declaration",
             "_declaration_specifiers",
@@ -816,6 +825,25 @@ fn macros(g: &mut Grammar) {
     );
     let arguments = || field("arguments", alias(s!(_macro_arguments), s!(token_tree)));
     // Right associativity gives a `(` after the name to the arguments.
+    //
+    // The storage class specifiers of a declaration can come before a macro invocation line, because
+    // the macro gives the rest of the declaration: `static Q_LOGGING_CATEGORY(log, "qtc", QtWarningMsg)`
+    // in the Qt sources expands to `static const QLoggingCategory &log() { ... }`
+    // (qtbase/src/corelib/io/qloggingcategory.h:147). Clang gives one static FunctionDecl there, and
+    // the next line is a second item. Without the prefix the line took the next declaration as its
+    // declarator. The external scanner decides where such a line starts, and it gives no token where
+    // the next line continues the declarator.
+    //
+    // After a specifier the macro takes its arguments, because a bare name there continues the
+    // declaration on the next line: `inline CATCH_DESTRUCTOR_CONSTEXPR` before
+    // `AllTrueMatcher AllTrue() { ... }`, and `extern BOOST_ASIO_DECL` before
+    // `const error_category& get_netdb_category();`. Such a macro gives a keyword or a linkage
+    // attribute, and the line is one declaration with the line after it.
+    //
+    // The prefix holds no cv-qualifier and no attribute. `alignas` is a `type_qualifier`, and a
+    // qualifier in the prefix gives an ERROR node for
+    // `alignas(N)` before `PA_COMPONENT_EXPORT(X) T::U v = {};` in the chromium allocator. An
+    // attribute before the name has its own rules (`macro_call_attribute`, `attribute_macro`).
     g.define(
         "macro_invocation",
         prec_right(
@@ -825,6 +853,12 @@ fn macros(g: &mut Grammar) {
                     s!(_macro_line_start),
                     field("name", s!(identifier)),
                     optional(arguments())
+                ],
+                seq![
+                    repeat1(s!(storage_class_specifier)),
+                    s!(_macro_line_after_specifiers),
+                    field("name", s!(identifier)),
+                    arguments()
                 ],
                 seq![
                     s!(_macro_block_start),

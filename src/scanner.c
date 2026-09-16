@@ -133,6 +133,10 @@ enum TokenType {
     /// The name of a class head that the scanner recorded, before the `(` of a functional cast: `A(x)`.
     /// The token holds the name.
     FUNCTIONAL_CAST_NAME,
+    /// An empty token before the name of a macro invocation line that a storage class specifier comes
+    /// before: `static Q_LOGGING_CATEGORY(log, "qtc", QtWarningMsg)`. The scan gives it only for a name
+    /// with arguments.
+    MACRO_LINE_AFTER_SPECIFIERS,
 };
 
 /// The maximum number of characters that the scanner reads in the arguments of a macro.
@@ -2728,6 +2732,17 @@ static Invocation scan_macro_invocation(Reader *reader, const char *name, size_t
     TSLexer *lexer = reader->lexer;
     // After a directive that ends a branch of a structured group, the lookahead is not a token of the line.
     int32_t c = gap->directive ? 0 : lexer->lookahead;
+    // A storage class specifier can come before a macro invocation line, and that line has its own
+    // token. After a specifier the macro takes two arguments or more, because the other shapes there
+    // give a keyword or an attribute of the declaration on the next line. A bare name does this:
+    // `extern BOOST_ASIO_DECL` before `const error_category& get_netdb_category();`. One argument does
+    // it too: `static QT_FUNCTION_TARGET(ARCH_SKYLAKE_AVX512)` before
+    // `void qFloatToFloat16_tail_avx256(...)`, and `static SWIFT_CC(swift)` before
+    // `void destroyTestActor(...)`. A macro that gives a full declaration needs the name of the
+    // declaration and its value: `static Q_LOGGING_CATEGORY(log, "qtc", QtWarningMsg)`.
+    bool after_specifiers_line = valid_symbols[MACRO_LINE_AFTER_SPECIFIERS] && call && args->argument_count >= 2;
+    bool line_start = valid_symbols[MACRO_LINE_START] || after_specifiers_line;
+    TSSymbol line_symbol = valid_symbols[MACRO_LINE_START] ? MACRO_LINE_START : MACRO_LINE_AFTER_SPECIFIERS;
     if (valid_symbols[MACRO_ENUMERATOR_START]) {
         // In an enumerator list, a call before `,`, `}`, or a line break is a macro invocation. An
         // enumerator never has arguments. A name with no arguments is an enumerator.
@@ -2750,8 +2765,8 @@ static Invocation scan_macro_invocation(Reader *reader, const char *name, size_t
             lexer->result_symbol = MACRO_CALL_START;
             return INVOCATION_TOKEN;
         }
-        if (valid_symbols[MACRO_LINE_START] && args->not_parameters) {
-            lexer->result_symbol = MACRO_LINE_START;
+        if (line_start && args->not_parameters) {
+            lexer->result_symbol = line_symbol;
             return INVOCATION_TOKEN;
         }
         return INVOCATION_STOP;
@@ -2807,17 +2822,17 @@ static Invocation scan_macro_invocation(Reader *reader, const char *name, size_t
         }
     }
 
-    if (valid_symbols[MACRO_LINE_START] && c == '}') {
+    if (line_start && c == '}') {
         // The `{` of a GNU statement expression can also start a braced list. The list then takes the name.
         if (valid_symbols[INITIALIZER_LIST_MARKER]) {
             return INVOCATION_STOP;
         }
         if (gap->newlines == 0) {
-            lexer->result_symbol = MACRO_LINE_START;
+            lexer->result_symbol = line_symbol;
             return INVOCATION_TOKEN;
         }
     }
-    if (!valid_symbols[MACRO_LINE_START] || (!call && length < MACRO_MIN_BARE_LENGTH)) {
+    if (!line_start || (!call && length < MACRO_MIN_BARE_LENGTH)) {
         return INVOCATION_NONE;
     }
     if (!lexer->eof(lexer)) {
@@ -2853,7 +2868,7 @@ static Invocation scan_macro_invocation(Reader *reader, const char *name, size_t
             return INVOCATION_CONSTRUCTOR;
         }
     }
-    lexer->result_symbol = MACRO_LINE_START;
+    lexer->result_symbol = line_symbol;
     return INVOCATION_TOKEN;
 }
 
@@ -2886,7 +2901,8 @@ static bool scan_macro_start(Reader reader, const char *name, bool has_lower, co
     // A SAL annotation with arguments, `_Out_writes_(n)`, is an attribute macro, and never a statement macro.
     bool sal = !macro_name && is_sal_name(name);
     bool invocation = macro_name && (valid_symbols[MACRO_LINE_START] || valid_symbols[MACRO_BLOCK_START] ||
-                                     valid_symbols[MACRO_CALL_START] || valid_symbols[MACRO_ENUMERATOR_START]);
+                                     valid_symbols[MACRO_CALL_START] || valid_symbols[MACRO_ENUMERATOR_START] ||
+                                     valid_symbols[MACRO_LINE_AFTER_SPECIFIERS]);
     bool member_start = valid_symbols[MACRO_LINE_START] && !valid_symbols[MACRO_CALL_START];
     bool after_specifiers = !valid_symbols[MACRO_LINE_START] && !valid_symbols[MACRO_CALL_START];
     const Scanner *classes = member_start || (after_specifiers && macro_name && length >= 2) ? scanner : NULL;
@@ -7396,6 +7412,7 @@ void *tree_sitter_cpp_external_scanner_create() {
 static bool can_be_empty(TSSymbol symbol) {
     switch (symbol) {
         case MACRO_LINE_START:
+        case MACRO_LINE_AFTER_SPECIFIERS:
         case MACRO_BLOCK_START:
         case MACRO_CALL_START:
         case MACRO_ENUMERATOR_START:

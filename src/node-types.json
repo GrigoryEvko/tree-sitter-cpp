@@ -6433,6 +6433,16 @@
           }
         ]
       }
+    },
+    "children": {
+      "multiple": true,
+      "required": false,
+      "types": [
+        {
+          "type": "storage_class_specifier",
+          "named": true
+        }
+      ]
     }
   },
   {

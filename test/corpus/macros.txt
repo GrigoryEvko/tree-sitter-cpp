@@ -1461,3 +1461,48 @@ void f(int v) {
           declarator: (identifier)
           value: (argument_list
             (identifier)))))))
+
+================================================================================
+Modifiers before a macro invocation line
+================================================================================
+
+static Q_LOGGING_CATEGORY(log, "qtc.cpptools", QtWarningMsg)
+int after;
+extern Q_LOGGING_CATEGORY(other, "qtc.other", QtWarningMsg)
+extern LZMA_API(lzma_ret) lzma_code(lzma_stream *strm);
+
+--------------------------------------------------------------------------------
+
+(translation_unit
+  (macro_invocation
+    (storage_class_specifier)
+    name: (identifier)
+    arguments: (token_tree
+      (identifier)
+      (string_literal
+        (string_content))
+      (identifier)))
+  (declaration
+    type: (primitive_type)
+    declarator: (identifier))
+  (macro_invocation
+    (storage_class_specifier)
+    name: (identifier)
+    arguments: (token_tree
+      (identifier)
+      (string_literal
+        (string_content))
+      (identifier)))
+  (declaration
+    (storage_class_specifier)
+    type: (macro_type_specifier
+      name: (identifier)
+      type: (type_descriptor
+        type: (type_identifier)))
+    declarator: (function_declarator
+      declarator: (identifier)
+      parameters: (parameter_list
+        (parameter_declaration
+          type: (type_identifier)
+          declarator: (pointer_declarator
+            declarator: (identifier)))))))

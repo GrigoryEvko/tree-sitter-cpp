@@ -41434,6 +41434,43 @@
             "type": "SEQ",
             "members": [
               {
+                "type": "REPEAT1",
+                "content": {
+                  "type": "SYMBOL",
+                  "name": "storage_class_specifier"
+                }
+              },
+              {
+                "type": "SYMBOL",
+                "name": "_macro_line_after_specifiers"
+              },
+              {
+                "type": "FIELD",
+                "name": "name",
+                "content": {
+                  "type": "SYMBOL",
+                  "name": "identifier"
+                }
+              },
+              {
+                "type": "FIELD",
+                "name": "arguments",
+                "content": {
+                  "type": "ALIAS",
+                  "content": {
+                    "type": "SYMBOL",
+                    "name": "_macro_arguments"
+                  },
+                  "named": true,
+                  "value": "token_tree"
+                }
+              }
+            ]
+          },
+          {
+            "type": "SEQ",
+            "members": [
+              {
                 "type": "SYMBOL",
                 "name": "_macro_block_start"
               },
@@ -42718,6 +42755,10 @@
       "_structured_binding_specifiers"
     ],
     [
+      "_declaration_modifiers",
+      "macro_invocation"
+    ],
+    [
       "declaration",
       "_declaration_specifiers",
       "_void_declaration_specifiers",
@@ -43133,6 +43174,10 @@
     {
       "type": "SYMBOL",
       "name": "_functional_cast_name"
+    },
+    {
+      "type": "SYMBOL",
+      "name": "_macro_line_after_specifiers"
     }
   ],
   "inline": [

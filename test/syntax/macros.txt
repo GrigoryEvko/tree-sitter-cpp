@@ -255,3 +255,13 @@ void f(int v) {
 void a() { MYTYPE OBJ(ARG); TYPE VAR = f(x); }
 ### macro_invocation_line_before_a_semicolon
 void f(int i) { if (v) { P_(i) P(testObjects[i]); } }
+### macro_line_after_modifiers
+static Q_LOGGING_CATEGORY(lcDumpers, "qtc.debugger.dumpers", QtDebugMsg)
+int after;
+inline Q_LOGGING_CATEGORY(b, "b", QtWarningMsg)
+extern Q_LOGGING_CATEGORY(d, "d", QtWarningMsg)
+static Q_LOGGING_CATEGORY(e, "e", QtWarningMsg);
+void f() { static RDS_LOCAL(int, x) }
+### macro_that_gives_a_type_keeps_its_declaration
+extern LZMA_API(lzma_ret) lzma_code(lzma_stream *strm);
+static int counter;
