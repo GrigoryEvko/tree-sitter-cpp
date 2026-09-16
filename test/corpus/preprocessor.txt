@@ -286,6 +286,68 @@ int y;
     declarator: (identifier)))
 
 ================================================================================
+A block comment with a line break after the condition of an if
+================================================================================
+
+#if 0 /* first
+  line */
+this is not ( code
+#endif
+#if 0 /* one line */
+this is not ( code either
+#endif
+int x;
+
+--------------------------------------------------------------------------------
+
+(translation_unit
+  (preproc_call
+    directive: (preproc_directive)
+    argument: (preproc_arg)
+    (comment))
+  (preproc_skipped)
+  (preproc_call
+    directive: (preproc_directive))
+  (preproc_call
+    directive: (preproc_directive)
+    argument: (preproc_arg)
+    (comment))
+  (preproc_skipped)
+  (preproc_call
+    directive: (preproc_directive))
+  (declaration
+    type: (primitive_type)
+    declarator: (identifier)))
+
+================================================================================
+A block comment with a line break after the condition of an elif
+================================================================================
+
+#if 1
+int m;
+#elif 0 /* a
+b */
+this is not ( code
+#endif
+int x;
+
+--------------------------------------------------------------------------------
+
+(translation_unit
+  (preproc_call
+    directive: (preproc_directive)
+    argument: (preproc_arg))
+  (declaration
+    type: (primitive_type)
+    declarator: (identifier))
+  (preproc_skipped)
+  (preproc_call
+    directive: (preproc_directive))
+  (declaration
+    type: (primitive_type)
+    declarator: (identifier)))
+
+================================================================================
 Line group between the consequence and the else clause
 ================================================================================
 

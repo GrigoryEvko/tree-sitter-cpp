@@ -37,6 +37,12 @@ int c;
 int a;
 #endif // a comment
 MACRO(x)
+### pp_if_0_with_a_multiline_comment
+#if 0 /* first
+  line */
+this is not ( code
+#endif
+int x;
 ### pp_define_continued_in_initializer_list
 static const int descriptors[] = {
     #define M(NAME) \

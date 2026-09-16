@@ -3773,6 +3773,20 @@ static bool skip_block_comment(TSLexer *lexer) {
     return line_break;
 }
 
+/// Go past a block comment of a directive line. The lookahead is the `*` after the `/`.
+///
+/// A block comment is white space of the line, also when it holds a line break. The directive line
+/// ends after the comment, and not at the line break inside it. libcpp `_cpp_lex_direct` goes past
+/// such a comment with `_cpp_skip_block_comment` (gcc/libcpp/lex.cc:1849, from lex.cc:4081), and it
+/// gives the end of the directive line after it. Clang `Lexer::SkipBlockComment`
+/// (clang/lib/Lex/Lexer.cpp:2974) gives no `eod` token for a line break inside a comment.
+///
+/// A comment with no end reads to the end of the file, and the scan of the caller stops there.
+static void skip_directive_block_comment(TSLexer *lexer) {
+    bool line_break = false;
+    skip_block_comment_text(lexer, &line_break);
+}
+
 /// Skip the rest of a line comment. The lookahead is the character after `//`. A line splice continues
 /// the comment on the next line. The line break is not skipped.
 static void skip_line_comment(TSLexer *lexer) {
@@ -4037,9 +4051,10 @@ static bool condition_is_empty(TSLexer *lexer) {
         if (lexer->lookahead == '/') {
             return true;
         }
-        if (lexer->lookahead != '*' || skip_block_comment(lexer)) {
+        if (lexer->lookahead != '*') {
             return false;
         }
+        skip_directive_block_comment(lexer);
     }
 }
 
@@ -4082,9 +4097,10 @@ static bool condition_is_false(TSLexer *lexer) {
         if (lexer->lookahead == '/') {
             return true;
         }
-        if (lexer->lookahead != '*' || skip_block_comment(lexer)) {
+        if (lexer->lookahead != '*') {
             return false;
         }
+        skip_directive_block_comment(lexer);
     }
 }
 
