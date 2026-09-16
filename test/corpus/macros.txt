@@ -3544,3 +3544,54 @@ struct S {
               declarator: (pointer_declarator
                 declarator: (identifier)))))
         default_value: (number_literal)))))
+
+================================================================================
+A macro with arguments in a class head, before a member that has a scope
+================================================================================
+
+class TSA_CAPABILITY("mutex") Mutex { decltype(impl())::type handle; };
+struct EXPORT_MACRO(1) S { decltype(f())::type d; };
+class GTEST_API_ Test { int x; };
+
+--------------------------------------------------------------------------------
+
+(translation_unit
+  (class_specifier
+    (attribute_macro
+      name: (identifier)
+      arguments: (argument_list
+        (string_literal
+          (string_content))))
+    name: (type_identifier)
+    body: (field_declaration_list
+      (field_declaration
+        type: (qualified_identifier
+          scope: (decltype
+            (call_expression
+              function: (identifier)
+              arguments: (argument_list)))
+          name: (type_identifier))
+        declarator: (field_identifier))))
+  (struct_specifier
+    (attribute_macro
+      name: (identifier)
+      arguments: (argument_list
+        (number_literal)))
+    name: (type_identifier)
+    body: (field_declaration_list
+      (field_declaration
+        type: (qualified_identifier
+          scope: (decltype
+            (call_expression
+              function: (identifier)
+              arguments: (argument_list)))
+          name: (type_identifier))
+        declarator: (field_identifier))))
+  (class_specifier
+    (attribute_macro
+      name: (identifier))
+    name: (type_identifier)
+    body: (field_declaration_list
+      (field_declaration
+        type: (primitive_type)
+        declarator: (field_identifier)))))

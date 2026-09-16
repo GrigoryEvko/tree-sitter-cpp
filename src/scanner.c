@@ -8482,9 +8482,24 @@ static bool scan_word_start(Scanner *scanner, TSLexer *lexer, const bool *valid_
     }
     // A macro in the head of a class that has no member. The parser takes the mark after a class key
     // only, and the validity of the token is the evidence of that position.
-    if (valid_symbols[CLASS_MACRO_MARK] && scan_class_macro_mark(&reader, word, has_lower)) {
-        lexer->result_symbol = CLASS_MACRO_MARK;
-        return true;
+    //
+    // THIS SCAN READS THE CLASS HEAD, AND THE LEXER CANNOT GO BACK. The scan gives no token for a
+    // class that has a member, which is the common form. The reader is then in the body of the
+    // class. Each scan after this one reads the text at the name. For this reason the word scan
+    // stops where this scan moved the reader. Without the stop, the scan of `MACRO_SCOPE_START`
+    // reads the first group of the body as the arguments of the name. The input
+    // `class A("x") B { decltype(c)::type d; };` then gave `A` a `macro_scope_specifier` and a
+    // MISSING `::`. The budget of the reader counts one for each character, so an equal budget is
+    // the evidence that the scan read no character.
+    if (valid_symbols[CLASS_MACRO_MARK]) {
+        uint32_t start_budget = reader.budget;
+        if (scan_class_macro_mark(&reader, word, has_lower)) {
+            lexer->result_symbol = CLASS_MACRO_MARK;
+            return true;
+        }
+        if (reader.budget != start_budget) {
+            return false;
+        }
     }
     // The name of a recorded class head before a `(` is a functional cast: `A(x)`. Only name lookup
     // tells a type name from a function name there (GCC `cp_parser_postfix_expression`, Clang
