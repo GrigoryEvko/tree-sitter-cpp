@@ -3655,3 +3655,90 @@ NAME(int x) { return x; }
     body: (compound_statement
       (return_statement
         (identifier)))))
+
+================================================================================
+Two macro invocations in one item of an enumerator list
+================================================================================
+
+enum Node {
+  AST_NODE_LIST(DECLARE_TYPE_ENUM) FAILURE_NODE_LIST(DECLARE_TYPE_ENUM)
+};
+enum Op { SKCMS_WORK_OPS(M) SKCMS_STORE_OPS(M) };
+enum Count { L1(M) L2(M) NumberOfFeatures };
+enum One { COLOR_LIST(MAKE_ENUM) };
+enum Plain { A, B, C };
+enum Value { A = 1, B = 2 };
+enum Mixed { L1(M), B };
+
+--------------------------------------------------------------------------------
+
+(translation_unit
+  (enum_specifier
+    name: (type_identifier)
+    body: (enumerator_list
+      (macro_invocation
+        name: (identifier)
+        arguments: (token_tree
+          (identifier)))
+      (macro_invocation
+        name: (identifier)
+        arguments: (token_tree
+          (identifier)))))
+  (enum_specifier
+    name: (type_identifier)
+    body: (enumerator_list
+      (macro_invocation
+        name: (identifier)
+        arguments: (token_tree
+          (identifier)))
+      (macro_invocation
+        name: (identifier)
+        arguments: (token_tree
+          (identifier)))))
+  (enum_specifier
+    name: (type_identifier)
+    body: (enumerator_list
+      (macro_invocation
+        name: (identifier)
+        arguments: (token_tree
+          (identifier)))
+      (macro_invocation
+        name: (identifier)
+        arguments: (token_tree
+          (identifier)))
+      (enumerator
+        name: (identifier))))
+  (enum_specifier
+    name: (type_identifier)
+    body: (enumerator_list
+      (macro_invocation
+        name: (identifier)
+        arguments: (token_tree
+          (identifier)))))
+  (enum_specifier
+    name: (type_identifier)
+    body: (enumerator_list
+      (enumerator
+        name: (identifier))
+      (enumerator
+        name: (identifier))
+      (enumerator
+        name: (identifier))))
+  (enum_specifier
+    name: (type_identifier)
+    body: (enumerator_list
+      (enumerator
+        name: (identifier)
+        value: (number_literal))
+      (enumerator
+        name: (identifier)
+        value: (number_literal))))
+  (enum_specifier
+    name: (type_identifier)
+    body: (enumerator_list
+      (macro_invocation
+        name: (identifier)
+        arguments: (token_tree
+          (identifier)))
+      (enumerator
+        name: (identifier)))))

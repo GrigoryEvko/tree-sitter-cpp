@@ -437,3 +437,11 @@ template <int N> using bitint = _BitInt(N);
 void f(_BitInt(7) i);
 ### bit_int_template_argument
 void g() { h<_BitInt(8)>(); }
+### enumerator_two_macro_invocations
+enum Node { AST_NODE_LIST(DECLARE_TYPE_ENUM) FAILURE_NODE_LIST(DECLARE_TYPE_ENUM) };
+### enumerator_macro_invocations_then_a_name
+enum Count { L1(M) L2(M) NumberOfFeatures };
+### enumerator_one_macro_invocation
+enum One { COLOR_LIST(MAKE_ENUM) };
+### enumerator_plain_values
+enum Value { A = 1, B = 2 };

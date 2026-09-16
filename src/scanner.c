@@ -3588,10 +3588,12 @@ static Invocation scan_macro_invocation(Reader *reader, const char *name, size_t
     bool line_start = valid_symbols[MACRO_LINE_START] || after_specifiers_line;
     TSSymbol line_symbol = valid_symbols[MACRO_LINE_START] ? MACRO_LINE_START : MACRO_LINE_AFTER_SPECIFIERS;
     if (valid_symbols[MACRO_ENUMERATOR_START]) {
-        // In an enumerator list, a call before `,`, `}`, or a line break is a macro invocation. An
-        // enumerator never has arguments. A name with no arguments is an enumerator.
-        bool end = c == ',' || c == '}' || lexer->eof(lexer) || gap->directive ||
-                   (gap->newlines > 0 && (is_word_start(c) || c == '#'));
+        // In an enumerator list, a call before `,`, `}`, or a name is a macro invocation. An
+        // enumerator never has arguments. A name with no arguments is an enumerator. A name after
+        // the call is a second macro invocation, because no enumerator follows another one with no
+        // comma: `enum E { AST_NODE_LIST(DECLARE_TYPE_ENUM) FAILURE_NODE_LIST(DECLARE_TYPE_ENUM) };`.
+        bool end = c == ',' || c == '}' || lexer->eof(lexer) || gap->directive || is_word_start(c) ||
+                   (gap->newlines > 0 && c == '#');
         if (!call || !end) {
             return INVOCATION_STOP;
         }
