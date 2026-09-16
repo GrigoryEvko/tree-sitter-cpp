@@ -25338,6 +25338,122 @@
                     }
                   ]
                 }
+              },
+              {
+                "type": "PREC_DYNAMIC",
+                "value": -1,
+                "content": {
+                  "type": "SEQ",
+                  "members": [
+                    {
+                      "type": "FIELD",
+                      "name": "name",
+                      "content": {
+                        "type": "SYMBOL",
+                        "name": "_class_name_before_macro"
+                      }
+                    },
+                    {
+                      "type": "REPEAT",
+                      "content": {
+                        "type": "CHOICE",
+                        "members": [
+                          {
+                            "type": "SYMBOL",
+                            "name": "virtual_specifier"
+                          },
+                          {
+                            "type": "SYMBOL",
+                            "name": "class_property_specifier"
+                          }
+                        ]
+                      }
+                    },
+                    {
+                      "type": "REPEAT1",
+                      "content": {
+                        "type": "SYMBOL",
+                        "name": "attribute_macro"
+                      }
+                    },
+                    {
+                      "type": "CHOICE",
+                      "members": [
+                        {
+                          "type": "SEQ",
+                          "members": [
+                            {
+                              "type": "REPEAT1",
+                              "content": {
+                                "type": "CHOICE",
+                                "members": [
+                                  {
+                                    "type": "SYMBOL",
+                                    "name": "virtual_specifier"
+                                  },
+                                  {
+                                    "type": "SYMBOL",
+                                    "name": "class_property_specifier"
+                                  }
+                                ]
+                              }
+                            },
+                            {
+                              "type": "CHOICE",
+                              "members": [
+                                {
+                                  "type": "SYMBOL",
+                                  "name": "base_class_clause"
+                                },
+                                {
+                                  "type": "BLANK"
+                                }
+                              ]
+                            },
+                            {
+                              "type": "FIELD",
+                              "name": "body",
+                              "content": {
+                                "type": "SYMBOL",
+                                "name": "field_declaration_list"
+                              }
+                            }
+                          ]
+                        },
+                        {
+                          "type": "SEQ",
+                          "members": [
+                            {
+                              "type": "SYMBOL",
+                              "name": "base_class_clause"
+                            },
+                            {
+                              "type": "FIELD",
+                              "name": "body",
+                              "content": {
+                                "type": "SYMBOL",
+                                "name": "field_declaration_list"
+                              }
+                            }
+                          ]
+                        },
+                        {
+                          "type": "FIELD",
+                          "name": "body",
+                          "content": {
+                            "type": "ALIAS",
+                            "content": {
+                              "type": "SYMBOL",
+                              "name": "_nonempty_field_declaration_list"
+                            },
+                            "named": true,
+                            "value": "field_declaration_list"
+                          }
+                        }
+                      ]
+                    }
+                  ]
+                }
               }
             ]
           },
@@ -25350,6 +25466,10 @@
           }
         ]
       }
+    },
+    "_class_name_before_macro": {
+      "type": "SYMBOL",
+      "name": "_class_name"
     },
     "_nonempty_field_declaration_list": {
       "type": "SEQ",
@@ -46161,6 +46281,10 @@
     [
       "_class_name",
       "attribute_macro"
+    ],
+    [
+      "_class_declaration_item",
+      "_class_name_before_macro"
     ],
     [
       "expression",

@@ -815,6 +815,172 @@ void f(struct STAT x);
           declarator: (identifier))))))
 
 ================================================================================
+An attribute macro after the name of a class head
+================================================================================
+
+// A macro in the position of `final`, after a name that no macro reading takes: a template-id, a
+// qualified name, or a name that a virt-specifier follows. Both front ends accept the text with
+// the macro defined as `final` or as nothing. Refer to `CLASS_MACRO_AFTER_NAME` in
+// grammar/src/cpp.rs.
+template <> class Foo<int> CV_FINAL : public Bar { int x; };
+template <class T> class Foo<T*> CV_FINAL { int x; };
+class ns::Q CV_FINAL : public Bar { int y; };
+class R final CV_EMPTY { int z; };
+
+--------------------------------------------------------------------------------
+
+(translation_unit
+  (comment)
+  (comment)
+  (comment)
+  (comment)
+  (template_declaration
+    parameters: (template_parameter_list)
+    (class_specifier
+      name: (template_type
+        name: (type_identifier)
+        arguments: (template_argument_list
+          (type_descriptor
+            type: (primitive_type))))
+      (attribute_macro
+        name: (identifier))
+      (base_class_clause
+        (access_specifier)
+        (type_identifier))
+      body: (field_declaration_list
+        (field_declaration
+          type: (primitive_type)
+          declarator: (field_identifier)))))
+  (template_declaration
+    parameters: (template_parameter_list
+      (type_parameter_declaration
+        (type_identifier)))
+    (class_specifier
+      name: (template_type
+        name: (type_identifier)
+        arguments: (template_argument_list
+          (type_descriptor
+            type: (type_identifier)
+            declarator: (abstract_pointer_declarator))))
+      (attribute_macro
+        name: (identifier))
+      body: (field_declaration_list
+        (field_declaration
+          type: (primitive_type)
+          declarator: (field_identifier)))))
+  (class_specifier
+    name: (qualified_identifier
+      scope: (namespace_identifier)
+      name: (type_identifier))
+    (attribute_macro
+      name: (identifier))
+    (base_class_clause
+      (access_specifier)
+      (type_identifier))
+    body: (field_declaration_list
+      (field_declaration
+        type: (primitive_type)
+        declarator: (field_identifier))))
+  (class_specifier
+    name: (type_identifier)
+    (virtual_specifier)
+    (attribute_macro
+      name: (identifier))
+    body: (field_declaration_list
+      (field_declaration
+        type: (primitive_type)
+        declarator: (field_identifier)))))
+
+================================================================================
+A macro after the name of a class head that a plain name starts, an accepted incorrect reading
+================================================================================
+
+// Each head names the class FIRST and a macro that gives `final` second, and the tree gives the
+// macro as the name. `class A B {` with a member or a base clause also names the class second
+// after an export macro, `class Foundation_API UUID {`, and no token tells the two apart. The
+// corpus holds 542 heads of the first kind against 16,696 of the second at fd02a7f, so the
+// reading with the macro first keeps the text. A record of the names that a project defines can
+// select the other reading. The last line declares a variable of an elaborated type with a braced
+// initializer, and it keeps that reading. Refer to `CLASS_MACRO_AFTER_NAME` in grammar/src/cpp.rs.
+class CaseMap U_FINAL : public UObject { CaseMap(); };
+struct KeyValue FLATBUFFERS_FINAL_CLASS : private flatbuffers::Table { int x; };
+class U_COMMON_API CanonicalIterator U_FINAL : public UObject { int y; };
+class S CV_EMPTY final : public Bar { int w; };
+class Foo<int> x { Y };
+
+--------------------------------------------------------------------------------
+
+(translation_unit
+  (comment)
+  (comment)
+  (comment)
+  (comment)
+  (comment)
+  (comment)
+  (comment)
+  (class_specifier
+    (attribute_macro
+      name: (identifier))
+    name: (type_identifier)
+    (base_class_clause
+      (access_specifier)
+      (type_identifier))
+    body: (field_declaration_list
+      (declaration
+        declarator: (function_declarator
+          declarator: (identifier)
+          parameters: (parameter_list)))))
+  (struct_specifier
+    (attribute_macro
+      name: (identifier))
+    name: (type_identifier)
+    (base_class_clause
+      (access_specifier)
+      (qualified_identifier
+        scope: (namespace_identifier)
+        name: (type_identifier)))
+    body: (field_declaration_list
+      (field_declaration
+        type: (primitive_type)
+        declarator: (field_identifier))))
+  (class_specifier
+    (attribute_macro
+      name: (identifier))
+    (attribute_macro
+      name: (identifier))
+    name: (type_identifier)
+    (base_class_clause
+      (access_specifier)
+      (type_identifier))
+    body: (field_declaration_list
+      (field_declaration
+        type: (primitive_type)
+        declarator: (field_identifier))))
+  (class_specifier
+    (attribute_macro
+      name: (identifier))
+    name: (type_identifier)
+    (virtual_specifier)
+    (base_class_clause
+      (access_specifier)
+      (type_identifier))
+    body: (field_declaration_list
+      (field_declaration
+        type: (primitive_type)
+        declarator: (field_identifier))))
+  (declaration
+    type: (class_specifier
+      name: (template_type
+        name: (type_identifier)
+        arguments: (template_argument_list
+          (type_descriptor
+            type: (primitive_type)))))
+    declarator: (init_declarator
+      declarator: (identifier)
+      value: (initializer_list
+        (identifier)))))
+
+================================================================================
 A macro-shaped tag in a typedef
 ================================================================================
 

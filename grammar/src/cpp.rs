@@ -410,6 +410,10 @@ pub fn grammar() -> Grammar {
         // `struct A b` is the class `A` and a declarator, or a macro and the class `b`. Only the
         // token after `b` tells them apart, as in `struct stat st;` and `class LLVM_ABI A {`.
         &["_class_name", "attribute_macro"],
+        // `class A b` is also the class `A` and a macro after its name. The tokens after `b` tell
+        // the readings apart, as in `struct stat st;` and `class A<T> MACRO {`. Refer to
+        // `_class_name_before_macro`.
+        &["_class_declaration_item", "_class_name_before_macro"],
         // A name before a brace is the type of a functional cast, or an expression that the brace
         // does not continue: in `int i : N {1};` the width is `N` and `{1}` is the initializer of
         // the data member. Only name lookup tells a type name from a value name. Refer to
@@ -1828,6 +1832,37 @@ const FRIEND_CLASS_MACRO: i32 = 3;
 /// a member, because the two rules read the same head and no text takes them both.
 const CLASS_MACRO_WITHOUT_MEMBER: i32 = 3;
 
+/// The dynamic precedence of a class head that holds a macro after the name of the class, in the
+/// position of `final`: `class Foo<T> CV_FINAL : public Bar {`, `class ns::Foo CV_FINAL {`.
+///
+/// Both front ends accept a name after the name of a class only as a virt-specifier
+/// ([class.pre]), and GCC 16.2 and Clang 22.1 reject an attribute there. So the macro after the
+/// name gives `final`, or nothing, and the reading puts it where `virtual_specifier` goes.
+///
+/// THE TEXT `class A B` WITH A MEMBER OR A BASE CLAUSE HAS TWO READINGS, AND NO TOKEN TELLS THEM
+/// APART. `class Foundation_API UUID {` names the class `UUID` after an export macro, and
+/// `class CaseMap U_FINAL : public UObject {` names the class `CaseMap` before a macro that gives
+/// `final`. Only the definition of the macro decides, and the grammar holds no definition. A count
+/// of 329,387 files at fd02a7f, by text: the project defines the first name and not the second in
+/// 16,696 sites of 8,269 files, and it defines the second name and not the first in 542 sites of
+/// 254 files, of which 532 are `CV_FINAL`, `FLATBUFFERS_FINAL_CLASS`, `BOOST_FINAL`,
+/// `BSLS_KEYWORD_FINAL`, `BSLS_CPP11_FINAL` and `BOOST_ASIO_INHERIT_TRACKED_HANDLER`. So the
+/// reading with the macro before the name keeps the text that both readings take, and this value
+/// is less than the value of that reading. The value is also less than the value of a declaration
+/// of a variable of an elaborated type with a braced initializer, so that declaration wins by
+/// precedence and no comparison of the symbol ids selects it: `class Foo<T> x { Y };`.
+///
+/// The reading with the macro after the name wins only where the other two end in an error: a
+/// template-id or a qualified name before the macro, `class Foo<T> CV_FINAL {`, or a
+/// virt-specifier before it, `class Foo final CV_FINAL {`. A macro before the name in these forms
+/// is not read, because a head that can split its names at more than one point gives one version
+/// for each split, and a comparison of the symbol ids then selects between them.
+///
+/// The record of class names in the external scanner reads the head by its own rule, the last
+/// name before the body, the base clause, or a virt-specifier, so this reading does not change
+/// the record. Refer to `scan_class_head` in src/scanner.c.
+const CLASS_MACRO_AFTER_NAME: i32 = -1;
+
 fn types(g: &mut Grammar) {
     g.define(
         "placeholder_type_specifier",
@@ -2396,12 +2431,45 @@ fn types(g: &mut Grammar) {
                             ],
                         ]
                     ),
+                    // A macro after the name, in the position of `final`: `class Foo<T> CV_FINAL {`,
+                    // `class ns::Foo CV_FINAL : public Bar {`. The tail is the tail of the reading
+                    // above, so a head with no member keeps the reading of a variable:
+                    // `class Foo CV_FINAL;`, `class Foo CV_FINAL {};`. Refer to
+                    // `CLASS_MACRO_AFTER_NAME` for the two readings of `class A B {` and for the
+                    // population that decides between them.
+                    prec_dynamic(
+                        CLASS_MACRO_AFTER_NAME,
+                        seq![
+                            field("name", s!(_class_name_before_macro)),
+                            repeat(virt_specifiers()),
+                            repeat1(s!(attribute_macro)),
+                            choice![
+                                seq![
+                                    repeat1(virt_specifiers()),
+                                    optional(s!(base_class_clause)),
+                                    field("body", s!(field_declaration_list)),
+                                ],
+                                seq![s!(base_class_clause), field("body", s!(field_declaration_list))],
+                                field(
+                                    "body",
+                                    alias(s!(_nonempty_field_declaration_list), s!(field_declaration_list))
+                                ),
+                            ],
+                        ]
+                    ),
                 ],
                 // GCC reads more than one attribute after the body (parser.cc, cp_parser_class_specifier).
                 repeat(s!(attribute_specifier)),
             ],
         ),
     );
+    // The name of a class head that a macro follows. The rule is `_class_name` under a second
+    // name, so that the parser forks at the end of the name, between the reduction of the head
+    // that a declarator follows, `struct stat st;`, and the reduction of this name. A fork on a
+    // shift of the macro is not possible there: the head is right-associative, and the generator
+    // resolves a shift against a right-associative reduction by the shift, which removes the
+    // reading of the variable from the table. Refer to `CLASS_MACRO_AFTER_NAME`.
+    g.define("_class_name_before_macro", s!(_class_name));
     g.define(
         "_nonempty_field_declaration_list",
         seq![open_brace(), repeat1(s!(_field_declaration_list_item)), close_brace()],
