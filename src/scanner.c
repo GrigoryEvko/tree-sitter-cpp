@@ -6266,6 +6266,16 @@ static bool scan_comparison_name(Reader *reader, const char *name, bool comparis
             // The count of the brackets is exact, so a nested list gives the same answer with one `>>`
             // token and with two `>` tokens: `B<C<int>>(x)` and `B<C<int> >(x)` are both casts.
             //
+            // DO NOT RELAX THE CONDITION OF THE BLANK. It carries two jobs, and only the first one
+            // gives a correct tree:
+            // - It keeps the comparison of `a<b> >(c)`, where the blank divides the two `>` operators.
+            //   Without the condition, that text becomes a cast and the parse gives an ERROR node.
+            //   The corpus has such a form, and a gate with NEW ERROR 0 does not show the loss.
+            // - It also declines `B<int> (x)`, which is a correct functional cast, because white space
+            //   has no meaning between the two tokens. This is a KNOWN loss and not a defect. In the
+            //   329,387 corpus files 3503 sites of a template-id of a recorded class have no blank and
+            //   1035 sites have one. The 1035 keep the tree of a call.
+            //
             // THE RULE IS INCORRECT FOR ONE FORM, and it is the form of `is_class_name` in
             // `scan_word_start`. A name that hides a class gives the record a class that the name does
             // not denote. `struct A { int m; }; int A = 3; return A < b > (c);` is two comparisons,
