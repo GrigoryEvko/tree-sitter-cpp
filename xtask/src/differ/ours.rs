@@ -1259,7 +1259,11 @@ impl Facts<'_> {
                 | "decltype"
                 | "placeholder_type_specifier"
                 | "type_identifier"
-                | "template_type",
+                | "template_type"
+                // A functional cast to a dependent type: `typename A::X()`, `typename T::type()`.
+                // The grammar gives the callee this kind. Refer to `call_expression` in
+                // grammar/src/cpp.rs.
+                | "dependent_type",
             ) => self.push(start, end, Category::FunctionalCast, index),
             Some("template_function") => {
                 let name = function
