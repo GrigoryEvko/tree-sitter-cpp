@@ -149,7 +149,7 @@ template <template <class> concept... Cs, class T> requires Cs...[0]<T> void g()
 ### cxx2d_defaulted_postfix_increment
 struct S { S operator++(int) = default; S operator--(int) = default; };
 ### cxx2d_noexcept_compound_requirement
-template <class T> concept C = requires(T t) { { t.f() } noexcept(true) -> same_as<int>; };
+template <class T> concept C = requires(T t) { { t.f() } noexcept -> same_as<int>; };
 ### cxx2d_contracts_virtual
 struct S { virtual void f() pre(x) post(y); };
 ### cxx26_reflect_typename_splice_template_arguments

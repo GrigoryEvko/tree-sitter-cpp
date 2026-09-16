@@ -1530,8 +1530,8 @@ template <class... Ts> struct S { friend Ts...; };
 template <class... Ts> struct S { friend C<Ts>...; };
 ### s26_variadic_friend_typename
 template <class... Ts> struct S { friend typename Ts::type...; };
-### s2d_conditional_noexcept_compound_req
-template <class T> concept C = requires(T t) { { t.f() } noexcept(true) -> std::same_as<int>; };
+### s2d_noexcept_compound_req
+template <class T> concept C = requires(T t) { { t.f() } noexcept -> std::same_as<int>; };
 ### s2d_contract_virtual
 struct B { virtual int f(int n) pre(n > 0) post(r: r > 0) = 0; };
 struct D : B { int f(int n) pre(n > 0) post(r: r > 0) override { return n; } };

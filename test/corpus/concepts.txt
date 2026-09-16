@@ -1212,3 +1212,26 @@ template<class T> requires std::C<T> void f4();
       declarator: (function_declarator
         declarator: (identifier)
         parameters: (parameter_list)))))
+
+================================================================================
+A compound requirement takes the bare noexcept and no parenthesized operand
+:error
+================================================================================
+
+template <class T> concept C = requires(T t) { { t.f() } noexcept(true) -> S<int>; };
+
+--------------------------------------------------------------------------------
+
+; [expr.prim.req.compound] gives `{ expression } noexcept_opt return-type-requirement_opt ;`,
+; and the `noexcept` there is the TOKEN and takes no operand. GCC
+; `cp_parser_compound_requirement` (gcc/cp/parser.cc:35134) reads the keyword with
+; `cp_lexer_next_token_is_keyword (parser->lexer, RID_NOEXCEPT)` and one `cp_lexer_consume_token`,
+; and it then wants `->` or `;`. Clang `ParseRequiresExpression`
+; (clang/lib/Parse/ParseExprCXX.cpp:3278) reads it with `TryConsumeToken(tok::kw_noexcept,
+; NoexceptLoc)` and then wants `;` or `->`. Neither reads a `(`.
+; GCC gives "expected ';' before '(' token" and Clang gives
+; "expected '->' before expression type requirement".
+;
+; The tree is not compared for an `:error` example. The recovery puts a MISSING `;` after the
+; keyword, and the rest of the line becomes a simple requirement.
+(ERROR)

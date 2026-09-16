@@ -7134,13 +7134,33 @@ fn expressions(g: &mut Grammar) {
     // of it ([expr.prim.req.compound]): `requires (T t) { { t, t }; }`. GCC
     // cp_parser_compound_requirement (parser.cc:35113) calls cp_parser_expression, and Clang
     // (ParseExprCXX.cpp:3264) calls ParseExpression.
+    //
+    // THE `noexcept` OF A COMPOUND REQUIREMENT IS THE BARE KEYWORD AND TAKES NO OPERAND.
+    // [expr.prim.req.compound] gives `{ expression } noexcept_opt return-type-requirement_opt ;`,
+    // and the keyword there is the token. GCC `cp_parser_compound_requirement` (parser.cc:35134)
+    // reads it with `cp_lexer_next_token_is_keyword (parser->lexer, RID_NOEXCEPT)` and then a
+    // single `cp_lexer_consume_token`. Clang `ParseRequiresExpression` (ParseExprCXX.cpp:3278)
+    // reads it with `TryConsumeToken(tok::kw_noexcept, NoexceptLoc)`. Neither reads a `(` after
+    // it. `{ t } noexcept(true);` gives GCC "expected ';' before '(' token" and Clang
+    // "expected '->' before expression type requirement".
+    // The alias keeps the node `noexcept` of the exception specification, so a reader of the tree
+    // finds the same kind in the two places. The rule `noexcept` carries an optional parenthesized
+    // operand, and a compound requirement must offer none.
+    //
+    // THE ALIAS TAKES A HIDDEN RULE AND NOT THE BARE TOKEN, so the node keeps the anonymous
+    // keyword as its child, which is the shape that the rule `noexcept` gives. An alias of the
+    // token alone renames the token, the node then has no child, and the FULL tree hash of every
+    // bare `{ E } noexcept` changes. The named tree reads `(noexcept)` for both shapes and hides
+    // the difference, and `xtask trees` measured 86 corpus files with no error that changed their
+    // hash. A one-token `seq!` collapses to the token in the generator, so the rule is defined.
+    g.define("_compound_requirement_noexcept", Rule::from("noexcept"));
     g.define(
         "compound_requirement",
         seq![
             open_brace(),
             choice![s!(expression), s!(comma_expression)],
             close_brace(),
-            optional(s!(noexcept)),
+            optional(alias(s!(_compound_requirement_noexcept), s!(noexcept))),
             optional(s!(trailing_return_type)),
             ";",
         ],

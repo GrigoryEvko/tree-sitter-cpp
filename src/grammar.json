@@ -39091,6 +39091,10 @@
         }
       ]
     },
+    "_compound_requirement_noexcept": {
+      "type": "STRING",
+      "value": "noexcept"
+    },
     "compound_requirement": {
       "type": "SEQ",
       "members": [
@@ -39153,8 +39157,13 @@
           "type": "CHOICE",
           "members": [
             {
-              "type": "SYMBOL",
-              "name": "noexcept"
+              "type": "ALIAS",
+              "content": {
+                "type": "SYMBOL",
+                "name": "_compound_requirement_noexcept"
+              },
+              "named": true,
+              "value": "noexcept"
             },
             {
               "type": "BLANK"
