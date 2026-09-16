@@ -477,6 +477,30 @@ pub fn grammar() -> Grammar {
             "constructor_or_destructor_definition",
             "_structured_binding_specifiers",
         ],
+        // A declaration list holds a declaration and a linkage specification, and no constructor and
+        // no conversion function: `namespace N { MACRO extern "C" void f(); }`.
+        &[
+            "declaration",
+            "type_definition",
+            "_declaration_specifiers",
+            "_void_declaration_specifiers",
+            "_structured_binding_specifiers",
+            "_linkage_attribute",
+        ],
+        // The set above with `_linkage_attribute`, because an attribute macro can come before the
+        // keyword `extern` of a linkage specification: `V8_SYMBOL_USED extern "C" int f() {`. The
+        // macro has the shape of a specifier of the declaration, and the keyword decides.
+        &[
+            "declaration",
+            "type_definition",
+            "_declaration_specifiers",
+            "_void_declaration_specifiers",
+            "operator_cast_definition",
+            "operator_cast_declaration",
+            "constructor_or_destructor_definition",
+            "_structured_binding_specifiers",
+            "_linkage_attribute",
+        ],
         // A block holds no declaration and no definition of a conversion function. Refer to `items`.
         // A block holds a typedef, and the set carries `type_definition` for that reason.
         &[
@@ -487,6 +511,17 @@ pub fn grammar() -> Grammar {
             "_extern_declaration_specifiers",
             "constructor_or_destructor_definition",
             "_structured_binding_specifiers",
+        ],
+        // The set above with `_linkage_attribute`, for the same macro before `extern` in a block.
+        &[
+            "_block_declaration",
+            "type_definition",
+            "_declaration_specifiers",
+            "_void_declaration_specifiers",
+            "_extern_declaration_specifiers",
+            "constructor_or_destructor_definition",
+            "_structured_binding_specifiers",
+            "_linkage_attribute",
         ],
         // `P...[0](x)` calls an element of a value pack or casts to an element of a type pack.
         // Only name lookup tells them apart, as for `T(x)` and `f(x)`.
@@ -4519,7 +4554,16 @@ fn declarations(g: &mut Grammar) {
     );
     // A GNU attribute before `extern` takes its own rule. The repeat of this rule is then not the
     // repeat of the attributes of a typedef and of a statement, and the conflict sets name it.
-    g.define("_linkage_attribute", s!(attribute_specifier));
+    // A macro in the place of that attribute: `SYCL_EXTERNAL extern "C" unsigned int f(bool);` of
+    // embree and `V8_SYMBOL_USED extern "C" int LLVMFuzzerInitialize(int*, char***) {` of v8. The
+    // keyword `extern` and the string after it end the other reading, because a declaration takes no
+    // keyword after its type, so the POSITION decides and the name of the macro needs no test. The
+    // measurement of 2026-09-16 gives 31 corpus files with the form in 68 lines, and 30 files whose
+    // first error is at it.
+    g.define(
+        "_linkage_attribute",
+        choice![s!(attribute_specifier), s!(attribute_macro), macro_call_attribute()],
+    );
     g.define(
         "namespace_alias_definition",
         seq![

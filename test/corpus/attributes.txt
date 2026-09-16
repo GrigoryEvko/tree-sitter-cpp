@@ -849,6 +849,78 @@ typedef struct _CRITICAL_SECTION GTEST_CRITICAL_SECTION;
     (type_identifier)))
 
 ================================================================================
+A macro before the keyword of a linkage specification
+================================================================================
+
+SYCL_EXTERNAL extern "C" unsigned int f(bool valid);
+V8_SYMBOL_USED extern "C" int g(int* argc) { return 0; }
+__attribute__((weak)) extern "C" void h() {}
+void k() { MACRO extern "C" int l(); }
+
+--------------------------------------------------------------------------------
+
+(translation_unit
+  (linkage_specification
+    (attribute_macro
+      (identifier))
+    (string_literal
+      (string_content))
+    (declaration
+      (sized_type_specifier
+        (primitive_type))
+      (function_declarator
+        (identifier)
+        (parameter_list
+          (parameter_declaration
+            (primitive_type)
+            (identifier))))))
+  (linkage_specification
+    (attribute_macro
+      (identifier))
+    (string_literal
+      (string_content))
+    (function_definition
+      (primitive_type)
+      (function_declarator
+        (identifier)
+        (parameter_list
+          (parameter_declaration
+            (primitive_type)
+            (pointer_declarator
+              (identifier)))))
+      (compound_statement
+        (return_statement
+          (number_literal)))))
+  (linkage_specification
+    (attribute_specifier
+      (argument_list
+        (identifier)))
+    (string_literal
+      (string_content))
+    (function_definition
+      (primitive_type)
+      (function_declarator
+        (identifier)
+        (parameter_list))
+      (compound_statement)))
+  (function_definition
+    (primitive_type)
+    (function_declarator
+      (identifier)
+      (parameter_list))
+    (compound_statement
+      (linkage_specification
+        (attribute_macro
+          (identifier))
+        (string_literal
+          (string_content))
+        (declaration
+          (primitive_type)
+          (function_declarator
+            (identifier)
+            (parameter_list)))))))
+
+================================================================================
 A macro in the head of a friend class
 ================================================================================
 

@@ -6433,6 +6433,10 @@
       "required": false,
       "types": [
         {
+          "type": "attribute_macro",
+          "named": true
+        },
+        {
           "type": "attribute_specifier",
           "named": true
         }

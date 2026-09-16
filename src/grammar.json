@@ -34358,8 +34358,40 @@
       ]
     },
     "_linkage_attribute": {
-      "type": "SYMBOL",
-      "name": "attribute_specifier"
+      "type": "CHOICE",
+      "members": [
+        {
+          "type": "SYMBOL",
+          "name": "attribute_specifier"
+        },
+        {
+          "type": "SYMBOL",
+          "name": "attribute_macro"
+        },
+        {
+          "type": "CHOICE",
+          "members": [
+            {
+              "type": "ALIAS",
+              "content": {
+                "type": "SYMBOL",
+                "name": "_macro_call_attribute"
+              },
+              "named": true,
+              "value": "attribute_macro"
+            },
+            {
+              "type": "ALIAS",
+              "content": {
+                "type": "SYMBOL",
+                "name": "_macro_call_attribute_tokens"
+              },
+              "named": true,
+              "value": "attribute_macro"
+            }
+          ]
+        }
+      ]
     },
     "namespace_alias_definition": {
       "type": "SEQ",
@@ -45048,6 +45080,25 @@
       "_structured_binding_specifiers"
     ],
     [
+      "declaration",
+      "type_definition",
+      "_declaration_specifiers",
+      "_void_declaration_specifiers",
+      "_structured_binding_specifiers",
+      "_linkage_attribute"
+    ],
+    [
+      "declaration",
+      "type_definition",
+      "_declaration_specifiers",
+      "_void_declaration_specifiers",
+      "operator_cast_definition",
+      "operator_cast_declaration",
+      "constructor_or_destructor_definition",
+      "_structured_binding_specifiers",
+      "_linkage_attribute"
+    ],
+    [
       "_block_declaration",
       "type_definition",
       "_declaration_specifiers",
@@ -45055,6 +45106,16 @@
       "_extern_declaration_specifiers",
       "constructor_or_destructor_definition",
       "_structured_binding_specifiers"
+    ],
+    [
+      "_block_declaration",
+      "type_definition",
+      "_declaration_specifiers",
+      "_void_declaration_specifiers",
+      "_extern_declaration_specifiers",
+      "constructor_or_destructor_definition",
+      "_structured_binding_specifiers",
+      "_linkage_attribute"
     ],
     [
       "pack_index_specifier",
