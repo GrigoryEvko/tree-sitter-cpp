@@ -24,7 +24,7 @@ use std::time::{Duration, Instant};
 use rayon::prelude::*;
 use tree_sitter::{Language as Grammar, Parser};
 
-use compare::{Fact, Outcome, Verdict};
+use compare::{Fact, Outcome, Unmatched, Verdict};
 use label::{Category, Label};
 use options::Language;
 use oracle::{Check, ClangRun, Compiler, Oracle, Status};
@@ -172,7 +172,7 @@ pub struct Analysis {
     pub our_facts: Vec<Fact>,
     pub outcomes: Vec<Outcome>,
     /// Our facts that no Clang fact stands at. Refer to [`compare::unmatched`].
-    pub unmatched: Vec<Fact>,
+    pub unmatched: Vec<Unmatched>,
     /// True when Clang accepts the file and its JSON AST is read.
     pub compared: bool,
 }
@@ -272,9 +272,10 @@ pub struct FileResult {
     pub compared: bool,
     /// The number of Clang facts of each category with each verdict.
     pub counts: BTreeMap<Category, [u32; 5]>,
-    /// The number of OUR facts of each category that no Clang fact stands at, and the number of
-    /// those that stand inside a macro definition. Refer to [`compare::unmatched`].
-    pub added: BTreeMap<Category, [u32; 2]>,
+    /// The number of OUR facts of each category that no Clang fact stands at, the number of those
+    /// that stand inside a macro definition, and the number that share an end with a Clang fact of
+    /// the same category. Refer to [`compare::unmatched`] and to [`compare::Unmatched::edge`].
+    pub added: BTreeMap<Category, [u32; 3]>,
     pub rows: Vec<Row>,
 }
 
@@ -320,7 +321,7 @@ fn summarize(label: String, analysis: Analysis) -> FileResult {
     let source = &analysis.source;
     let starts = line_starts(source);
     let mut counts: BTreeMap<Category, [u32; 5]> = BTreeMap::new();
-    let mut added: BTreeMap<Category, [u32; 2]> = BTreeMap::new();
+    let mut added: BTreeMap<Category, [u32; 3]> = BTreeMap::new();
     let mut rows = Vec::new();
     let (our_errors, our_first) = match &analysis.tree {
         Some(tree) if tree.errors > 0 => {
@@ -361,7 +362,8 @@ fn summarize(label: String, analysis: Analysis) -> FileResult {
         // Clang expands a macro before it builds an AST, so the body of a `#define` reaches no
         // Clang fact whatever it holds. The count separates that group at the point of measurement,
         // because a number and its caution must travel in one report.
-        for fact in &analysis.unmatched {
+        for found in &analysis.unmatched {
+            let fact = found.fact;
             let mut current = Some(fact.node);
             let mut in_macro = false;
             while let Some(index) = current {
@@ -374,6 +376,7 @@ fn summarize(label: String, analysis: Analysis) -> FileResult {
             let entry = added.entry(fact.label.category).or_default();
             entry[0] += 1;
             entry[1] += u32::from(in_macro);
+            entry[2] += u32::from(found.edge);
         }
     }
     FileResult {

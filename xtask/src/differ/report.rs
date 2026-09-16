@@ -284,7 +284,7 @@ pub fn write(
     // Every row above counts CLANG facts, so a node of ours that Clang states no fact for cannot
     // appear in it. The caution travels with the numbers, in the same output, because a count read
     // without it becomes a defect count in the next message that quotes it.
-    let mut ours: BTreeMap<Category, [u64; 2]> = BTreeMap::new();
+    let mut ours: BTreeMap<Category, [u64; 3]> = BTreeMap::new();
     for r in &readable {
         for (category, counts) in &r.added {
             let total = ours.entry(*category).or_default();
@@ -295,9 +295,10 @@ pub fn write(
     }
     let facts: u64 = ours.values().map(|counts| counts[0]).sum();
     let in_macro: u64 = ours.values().map(|counts| counts[1]).sum();
+    let edge: u64 = ours.values().map(|counts| counts[2]).sum();
     writeln!(
         w,
-        "our facts that no clang fact stands at: {facts}, of which {in_macro} stand in a macro definition\n\
+        "our facts that no clang fact stands at: {facts}, in a macro definition {in_macro}, at the edge of a clang fact of the same category {edge}\n\
          \x20 THE TABLE ABOVE MEASURES RECALL AND THIS ONE DOES NOT MEASURE PRECISION YET. A row above\n\
          \x20 counts the CLANG facts of a category, so `agree%` says how many of the nodes CLANG states\n\
          \x20 we carry. It says NOTHING about how many of the nodes WE state are correct. This count is\n\
@@ -306,18 +307,29 @@ pub fn write(
          \x20 it builds an AST and which the second column counts; a node of ours that Clang's AST\n\
          \x20 states nothing about; and OUR CORRECT NODE AT A DIFFERENT BYTE RANGE, because Clang\n\
          \x20 ends a declaration at a token that is not always the last token of the construct.\n\
+         \x20 THE THIRD COLUMN BOUNDS THAT THIRD GROUP AND DOES NOT PROVE IT, IN BOTH DIRECTIONS. It\n\
+         \x20 counts a fact of ours where a Clang fact of the SAME category begins or ends at the same\n\
+         \x20 byte. Two facts of one category that share a byte by chance make a false yes. A form\n\
+         \x20 whose two ranges share NEITHER end makes a false no, and `__extension__` before a\n\
+         \x20 declaration is that form. The rule is the one a reader can check by hand, over a tighter\n\
+         \x20 one that hides a heuristic.\n\
          \x20 READ IT AS A CLASSIFICATION. A rate over it has no meaning until each group has a name."
     )?;
-    writeln!(w, "  {:<24} {:<12} {:>8} {:>10}", "category", "group", "ours", "in a macro")?;
+    writeln!(
+        w,
+        "  {:<24} {:<12} {:>8} {:>10} {:>8}",
+        "category", "group", "ours", "in a macro", "an edge"
+    )?;
     for category in Category::ALL {
         let Some(counts) = ours.get(category) else { continue };
         writeln!(
             w,
-            "  {:<24} {:<12} {:>8} {:>10}",
+            "  {:<24} {:<12} {:>8} {:>10} {:>8}",
             category.name(),
             category.group().name(),
             counts[0],
-            counts[1]
+            counts[1],
+            counts[2]
         )?;
     }
     writeln!(w)?;

@@ -133,8 +133,14 @@ pub fn compare(clang: &[Fact], ours: &[Fact]) -> Vec<Outcome> {
 ///
 /// The rule is the rule of [`compare`] turned around: a fact matches when a fact of the other side
 /// holds the same byte range. O(n) in the number of facts.
-pub fn unmatched(clang: &[Fact], ours: &[Fact]) -> Vec<Fact> {
+pub fn unmatched(clang: &[Fact], ours: &[Fact]) -> Vec<Unmatched> {
     let at: HashSet<(u32, u32)> = clang.iter().map(|fact| (fact.begin, fact.end)).collect();
+    let mut begins = HashSet::with_capacity(clang.len());
+    let mut ends = HashSet::with_capacity(clang.len());
+    for fact in clang {
+        begins.insert((fact.begin, fact.label.category));
+        ends.insert((fact.end, fact.label.category));
+    }
     let mut seen = HashSet::with_capacity(ours.len());
     let mut out = Vec::new();
     for fact in ours {
@@ -145,9 +151,28 @@ pub fn unmatched(clang: &[Fact], ours: &[Fact]) -> Vec<Fact> {
         if !seen.insert((fact.begin, fact.end, fact.label)) {
             continue;
         }
-        out.push(*fact);
+        let edge = begins.contains(&(fact.begin, fact.label.category)) || ends.contains(&(fact.end, fact.label.category));
+        out.push(Unmatched { fact: *fact, edge });
     }
     out
+}
+
+/// One of our facts that no Clang fact stands at.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub struct Unmatched {
+    pub fact: Fact,
+    /// A Clang fact of the SAME category begins at the same byte, or ends at the same byte.
+    ///
+    /// THIS IS THE COUNT OF THE THIRD GROUP OF THE CAUTION: our node is the right node and the two
+    /// sides end the range differently. Clang ends a declaration at a token that is not always the
+    /// last token of the construct, so `Args &&... args [[maybe_unused]]` gives Clang the parameter
+    /// [34..49], the end of the NAME, against our [34..66]. The two ranges share their first byte.
+    ///
+    /// IT IS A BOUND AND NOT A PROOF, IN BOTH DIRECTIONS. Two facts of one category that happen to
+    /// share a byte make a false yes, and a form whose two ranges share NEITHER end makes a false
+    /// no. `__extension__ template <...> struct llt { ... };` is the second kind: Clang [14..103]
+    /// against our [0..104], and this column does not count it.
+    pub edge: bool,
 }
 
 #[cfg(test)]
@@ -210,7 +235,10 @@ mod tests {
             fact(12, 16, Category::FunctionDefinition),
             fact(20, 21, Category::Name),
         ];
-        let ranges: Vec<(u32, u32)> = unmatched(&clang, &ours).iter().map(|f| (f.begin, f.end)).collect();
+        let found = unmatched(&clang, &ours);
+        let ranges: Vec<(u32, u32)> = found.iter().map(|u| (u.fact.begin, u.fact.end)).collect();
         assert_eq!(ranges, [(12, 16), (20, 21)]);
+        // No Clang fact of those categories begins or ends at those bytes.
+        assert_eq!(found.iter().filter(|u| u.edge).count(), 0);
     }
 }
