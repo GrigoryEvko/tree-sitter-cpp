@@ -289,6 +289,7 @@ pub fn run(args: &[String]) -> Result<(), Box<dyn Error>> {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use std::time::Duration;
 
     /// A source with a parse of more than one progress callback.
     fn source_of_many_callbacks() -> String {
@@ -331,10 +332,19 @@ mod tests {
     /// declarations then took a time that grows with the square of the length of the line. Refer to
     /// `ColumnAnchor` in vendor/tree-sitter/src/lexer.h.
     ///
-    /// The test compares two lines, and the second is four times the first. With the anchor the time
-    /// of the second is approximately four times the time of the first. Without it the time was
-    /// fourteen times. The limit of eight separates the two, and it holds under the load of a
-    /// parallel gate, because the load moves the two times together.
+    /// The test compares two lines, and the second is four times the first. Under the load of four
+    /// parallel gates the ratio reads 3.7 to 4.0 with the anchor, and 14.2 with the anchor off. The
+    /// limit of eight separates the two, and it has a margin of two on each side.
+    ///
+    /// The test measures each line three times and keeps the smallest time of each. A parallel gate
+    /// adds time and never removes it, so the smallest measurement is the one with the least
+    /// contention. One measurement of each line is not sufficient. The longer parse continues for a
+    /// longer period, and a load that comes in that period increases the ratio alone. A gate of
+    /// 2026-09-16 gave 8.2 with one measurement of each line and no defect in the parser.
+    ///
+    /// The progress callback count of `parse_with_budget` does not replace the clock here. That
+    /// count does not move for this defect, because the cost is in the lexer and not in the parse
+    /// operations.
     #[test]
     fn the_parse_of_one_long_line_grows_with_the_length_of_the_line() {
         let line = |count: usize| format!("void f() {{ {} }}\n", "a b; ".repeat(count));
@@ -349,10 +359,15 @@ mod tests {
             elapsed
         };
         // The first parse of the process reads the tables into the cache, so it comes first and it
-        // is not one of the two measurements.
+        // is not one of the measurements.
         time_of(&mut parser, 400);
-        let short = time_of(&mut parser, 3_000);
-        let long = time_of(&mut parser, 12_000);
+        // The two lines alternate, so one period of load reaches the measurements of both.
+        let mut short = Duration::MAX;
+        let mut long = Duration::MAX;
+        for _ in 0..3 {
+            short = short.min(time_of(&mut parser, 3_000));
+            long = long.min(time_of(&mut parser, 12_000));
+        }
         let ratio = long.as_secs_f64() / short.as_secs_f64().max(1e-9);
         assert!(
             ratio < 8.0,
