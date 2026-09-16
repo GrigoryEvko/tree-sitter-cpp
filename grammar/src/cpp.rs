@@ -644,6 +644,17 @@ const MACRO_SCOPE_NAME: i32 = -200;
 /// the second name goes to `abstract_member_pointer_declarator`.
 const MACRO_SCOPE_NAME_SHIFT: i32 = -1;
 
+/// The static precedence of a type that a macro takes as an argument: `Q_ARG(int, x)`. It decides a
+/// conflict against the type of a new expression, and the new-type-id wins: `new (int)` keeps its
+/// type. Refer to `_macro_type_argument`.
+const MACRO_TYPE_ARGUMENT_SHIFT: i32 = -1;
+
+/// The dynamic precedence of the same rule. Each other reading of the same text wins a tie.
+/// `T z(int(int));` keeps the declaration of a function with a parameter of a function type, and
+/// `T &f(int);` in a block keeps its declaration ([dcl.ambig.res] p1).
+const MACRO_TYPE_ARGUMENT: i32 = -200;
+
+
 /// The keywords that cannot start a type name, and that the lexer gives as keywords where a type
 /// name can start.
 ///
@@ -6415,7 +6426,7 @@ fn expressions(g: &mut Grammar) {
             seq![
                 optional("::"),
                 "new",
-                field("placement", optional(s!(argument_list))),
+                field("placement", optional(alias(s!(_new_placement_list), s!(argument_list)))),
                 s!(_new_type_id),
                 field("arguments", optional(choice![s!(argument_list), s!(initializer_list)])),
             ],
@@ -7042,13 +7053,59 @@ fn expressions(g: &mut Grammar) {
                 .chain(alternative_binary_operations("expression")),
         )
     });
+    // A macro takes a type as an argument: `Q_ARG(int, x)`, `HEDLEY_STATIC_CAST(int64_t, b)`,
+    // `BROTLI_MIN(size_t, a, b)`, `memnew_arr(uint8_t, n)`. The preprocessor pastes the tokens, and
+    // the macro puts the type where a type belongs, in a cast or in a template argument list.
+    //
+    // THE ALTERNATIVE TAKES ONLY A TYPE THAT NO EXPRESSION CAN BE. The type starts with a type
+    // keyword, so a bare name gets no type reading and `f(T)` keeps its one derivation. A
+    // cv-qualifier before the type is not part of the rule: `f(const T)` shares its first token with
+    // the specifiers of a parameter, and the two readings then divide each repetition of the
+    // qualifier. In the 329,387 corpus files of 2026-09-16 a qualifier leads 37 of the 8,508 type
+    // arguments, and a type keyword leads 8,471. Both front ends reject `f(int)` where `f` is a function, and accept it where a
+    // macro takes the tokens, so the position gives the evidence and the name of the macro proves
+    // nothing. Refer to `is_macro_name` in `src/scanner.c`, which this rule deliberately does not read.
+    //
+    // The declarator is a pointer or a reference only. A function declarator would give `f(int(x))` a
+    // second reading as the type "function that takes x and returns int", and that text is a
+    // functional cast in real code.
+    // THE PRECEDENCE PUTS THIS READING LAST. Where the same text has a reading that the grammar already
+    // gives, that reading wins: a parameter list of a declaration, and the new-type-id of `new (int)`.
+    g.define(
+        "_macro_type_argument",
+        prec(MACRO_TYPE_ARGUMENT_SHIFT, prec_dynamic(MACRO_TYPE_ARGUMENT, seq![
+            field("type", choice![s!(primitive_type), s!(sized_type_specifier)]),
+            repeat(s!(type_qualifier)),
+            field(
+                "declarator",
+                optional(choice![s!(abstract_pointer_declarator), s!(abstract_reference_declarator)])
+            ),
+        ])),
+    );
+    // The placement of a new expression holds no type. `new (int)` gives the type of the object in its
+    // parentheses, and the parentheses of `new (p) int` hold a placement argument ([expr.new] p1). The
+    // two readings meet at that `(`, so the placement takes a list with no type alternative and
+    // `new (const void *)` keeps its new-type-id.
+    g.define(
+        "_new_placement_list",
+        seq![
+            "(",
+            comma_sep(choice![s!(expression), s!(initializer_list), s!(compound_statement)]),
+            ")",
+        ],
+    );
     // The compound statement is for macros that take statements as arguments, for
     // example `MYFORLOOP(1, 10, i, { foo(i); bar(i); })`.
     g.define(
         "argument_list",
         seq![
             "(",
-            comma_sep(choice![s!(expression), s!(initializer_list), s!(compound_statement)]),
+            comma_sep(choice![
+                s!(expression),
+                s!(initializer_list),
+                s!(compound_statement),
+                alias(s!(_macro_type_argument), s!(type_descriptor)),
+            ]),
             ")",
         ],
     );

@@ -28,30 +28,33 @@ int y;
 A function type as a macro argument before a statement
 ================================================================================
 
+// INCORRECT below. `int (int)` is the type of a function, and the reading is the cast shape that
+// the grammar gives to `int(x)`. Refer to `_macro_type_argument`, which takes no function
+// declarator, because that reading ties with the cast and the corpus holds 20 sites of the shape.
 void f() { M(int (int), false); x = 1; }
 
 --------------------------------------------------------------------------------
 
 (translation_unit
+  (comment)
+  (comment)
+  (comment)
   (function_definition
     type: (primitive_type)
     declarator: (function_declarator
       declarator: (identifier)
       parameters: (parameter_list))
     body: (compound_statement
-      (ERROR
-        (function_declarator
-          declarator: (identifier)
-          parameters: (parameter_list
-            (parameter_declaration
-              type: (primitive_type)
-              declarator: (abstract_function_declarator
-                parameters: (parameter_list
-                  (parameter_declaration
-                    type: (primitive_type)))))
-            (ERROR
-              (false)))))
-      (expression_statement)
+      (expression_statement
+        (call_expression
+          function: (identifier)
+          arguments: (argument_list
+            (call_expression
+              function: (primitive_type)
+              arguments: (argument_list
+                (type_descriptor
+                  type: (primitive_type))))
+            (false))))
       (expression_statement
         (assignment_expression
           left: (identifier)

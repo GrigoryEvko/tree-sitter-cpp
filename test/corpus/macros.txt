@@ -2322,3 +2322,249 @@ void b(int x) { MACRO while (x) { g(); } }
               (call_expression
                 function: (identifier)
                 arguments: (argument_list)))))))))
+
+================================================================================
+A type as the argument of a macro
+================================================================================
+
+void f(int a, int b, int *p) {
+  QMetaObject::invokeMethod(o, "m", Q_ARG(int, a), Q_ARG(bool, false));
+  g(BROTLI_MIN(unsigned long, a, b));
+  g(HEDLEY_STATIC_CAST(int64_t, a));
+  g(memnew_arr(uint8_t, a));
+  g(TYPE_ASSERT(bsl::is_arithmetic, int *, false));
+  g(TYPE_ASSERT(bsl::is_arithmetic, int const &, false));
+}
+BENCHMARK_TEMPLATE(BM_bit_width, uint8_t)->Range(1, 1 << 20);
+
+--------------------------------------------------------------------------------
+
+(translation_unit
+  (function_definition
+    (primitive_type)
+    (function_declarator
+      (identifier)
+      (parameter_list
+        (parameter_declaration
+          (primitive_type)
+          (identifier))
+        (parameter_declaration
+          (primitive_type)
+          (identifier))
+        (parameter_declaration
+          (primitive_type)
+          (pointer_declarator
+            (identifier)))))
+    (compound_statement
+      (expression_statement
+        (call_expression
+          (qualified_identifier
+            (namespace_identifier)
+            (identifier))
+          (argument_list
+            (identifier)
+            (string_literal
+              (string_content))
+            (call_expression
+              (identifier)
+              (argument_list
+                (type_descriptor
+                  (primitive_type))
+                (identifier)))
+            (call_expression
+              (identifier)
+              (argument_list
+                (type_descriptor
+                  (primitive_type))
+                (false))))))
+      (expression_statement
+        (call_expression
+          (identifier)
+          (argument_list
+            (call_expression
+              (identifier)
+              (argument_list
+                (type_descriptor
+                  (sized_type_specifier))
+                (identifier)
+                (identifier))))))
+      (expression_statement
+        (call_expression
+          (identifier)
+          (argument_list
+            (call_expression
+              (identifier)
+              (argument_list
+                (type_descriptor
+                  (primitive_type))
+                (identifier))))))
+      (expression_statement
+        (call_expression
+          (identifier)
+          (argument_list
+            (call_expression
+              (identifier)
+              (argument_list
+                (type_descriptor
+                  (primitive_type))
+                (identifier))))))
+      (expression_statement
+        (call_expression
+          (identifier)
+          (argument_list
+            (call_expression
+              (identifier)
+              (argument_list
+                (qualified_identifier
+                  (namespace_identifier)
+                  (identifier))
+                (type_descriptor
+                  (primitive_type)
+                  (abstract_pointer_declarator))
+                (false))))))
+      (expression_statement
+        (call_expression
+          (identifier)
+          (argument_list
+            (call_expression
+              (identifier)
+              (argument_list
+                (qualified_identifier
+                  (namespace_identifier)
+                  (identifier))
+                (type_descriptor
+                  (primitive_type)
+                  (type_qualifier)
+                  (abstract_reference_declarator))
+                (false))))))))
+  (expression_statement
+    (call_expression
+      (field_expression
+        (call_expression
+          (identifier)
+          (argument_list
+            (identifier)
+            (type_descriptor
+              (primitive_type))))
+        (field_identifier))
+      (argument_list
+        (number_literal)
+        (binary_expression
+          (number_literal)
+          (number_literal))))))
+
+================================================================================
+A type as an argument takes no text that has a different reading
+================================================================================
+
+// A bare name is no type argument, so `g(T)` keeps its one reading and `aa bb` keeps the
+// macro that gives a nested-name-specifier. Refer to `_macro_type_argument`.
+void f(int a, int b, void *p) {
+  g(int(a));
+  g(a * b);
+  g(a & b);
+  g(aa bb);
+  T z(int(int));
+  T &r(int);
+  int *q = new (p) int;
+  int *s = new (int);
+  const void *t = new (const void *);
+}
+
+--------------------------------------------------------------------------------
+
+(translation_unit
+  (comment)
+  (comment)
+  (function_definition
+    (primitive_type)
+    (function_declarator
+      (identifier)
+      (parameter_list
+        (parameter_declaration
+          (primitive_type)
+          (identifier))
+        (parameter_declaration
+          (primitive_type)
+          (identifier))
+        (parameter_declaration
+          (primitive_type)
+          (pointer_declarator
+            (identifier)))))
+    (compound_statement
+      (expression_statement
+        (call_expression
+          (identifier)
+          (argument_list
+            (call_expression
+              (primitive_type)
+              (argument_list
+                (identifier))))))
+      (expression_statement
+        (call_expression
+          (identifier)
+          (argument_list
+            (binary_expression
+              (identifier)
+              (identifier)))))
+      (expression_statement
+        (call_expression
+          (identifier)
+          (argument_list
+            (binary_expression
+              (identifier)
+              (identifier)))))
+      (expression_statement
+        (call_expression
+          (identifier)
+          (argument_list
+            (qualified_identifier
+              (namespace_identifier)
+              (identifier)))))
+      (declaration
+        (type_identifier)
+        (function_declarator
+          (identifier)
+          (parameter_list
+            (parameter_declaration
+              (primitive_type)
+              (abstract_function_declarator
+                (parameter_list
+                  (parameter_declaration
+                    (primitive_type))))))))
+      (declaration
+        (type_identifier)
+        (reference_declarator
+          (function_declarator
+            (identifier)
+            (parameter_list
+              (parameter_declaration
+                (primitive_type))))))
+      (declaration
+        (primitive_type)
+        (init_declarator
+          (pointer_declarator
+            (identifier))
+          (new_expression
+            (argument_list
+              (identifier))
+            (primitive_type))))
+      (declaration
+        (primitive_type)
+        (init_declarator
+          (pointer_declarator
+            (identifier))
+          (new_expression
+            (type_descriptor
+              (primitive_type)))))
+      (declaration
+        (type_qualifier)
+        (primitive_type)
+        (init_declarator
+          (pointer_declarator
+            (identifier))
+          (new_expression
+            (type_descriptor
+              (type_qualifier)
+              (primitive_type)
+              (abstract_pointer_declarator))))))))

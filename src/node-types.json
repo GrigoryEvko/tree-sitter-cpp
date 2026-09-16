@@ -1013,6 +1013,10 @@
         {
           "type": "system_lib_string",
           "named": true
+        },
+        {
+          "type": "type_descriptor",
+          "named": true
         }
       ]
     }
