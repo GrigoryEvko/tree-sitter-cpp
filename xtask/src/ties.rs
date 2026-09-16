@@ -947,6 +947,9 @@ fn baseline_text(found: &[Group]) -> String {
     out.push_str("# one file, with no change of the count, fails no check. The per-site\n");
     out.push_str("# baseline test/ties/baseline.txt covers that case for the 3,000 files of\n");
     out.push_str("# test/ties/sample.txt.\n");
+    out.push_str("# A COUNT THAT MOVES AT ALL, UP OR DOWN, IS A REASON TO RUN `cargo xtask ties\n");
+    out.push_str("# flip`. The flip reads whether the tree of a file DEPENDS on the order of the\n");
+    out.push_str("# symbol ids, which is the question that no count in this file can answer.\n");
     out.push_str("#\n");
     out.push_str("# THE FILE HOLDS THE MEASUREMENT OF THE FORK MASTER. integrate.sh writes it\n");
     out.push_str("# again at each landing whose gate found fallen counts, with the rows of that\n");
@@ -1015,6 +1018,23 @@ fn run_population(repository: &Path, args: &[String]) -> Result<(), Box<dyn Erro
     let comparison = compare_groups(&baseline, &found, &read);
     for (row, after) in &comparison.fallen {
         println!("fell    {} {} -> {}  {}", row.path, row.count, after, row.what);
+    }
+    // A COUNT THAT FALLS CAN BE A REPAIR OR A MOVE, and this check cannot tell them apart. A row
+    // holds the file, the message of the runtime, and a COUNT, and it holds no position. A commit
+    // that repairs one site of a file and makes a new site of the same message in the same file
+    // keeps the count, and nothing here fires. The per-site baseline test/ties/baseline.txt holds
+    // the row and the column of each site, and it covers the 3,000 files of test/ties/sample.txt
+    // only. THE FLIP READS WHETHER THE TREE DEPENDS ON THE ORDER, which is the question that a
+    // count cannot answer, so the instruction comes with every move of a count and not with a rise.
+    if !comparison.fallen.is_empty() {
+        println!(
+            "{} counts fell. A COUNT THAT MOVES AT ALL IS A REASON TO RUN THE FLIP: `cargo xtask \
+             ties flip ROOT LIST --reference CACHE/<base>/target/release/xtask` says whether the \
+             tree of each file DEPENDS on the order of the symbol ids, and whether these commits \
+             changed it. A fall with no flip is a repair that nobody read, or a site that moved to \
+             a different row of the same file with the same count.",
+            comparison.fallen.len()
+        );
     }
     for (row, before) in &comparison.risen {
         println!("ROSE    {} {} -> {}  {}", row.path, before, row.count, row.what);

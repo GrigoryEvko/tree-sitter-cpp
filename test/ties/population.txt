@@ -9,6 +9,9 @@
 # one file, with no change of the count, fails no check. The per-site
 # baseline test/ties/baseline.txt covers that case for the 3,000 files of
 # test/ties/sample.txt.
+# A COUNT THAT MOVES AT ALL, UP OR DOWN, IS A REASON TO RUN `cargo xtask ties
+# flip`. The flip reads whether the tree of a file DEPENDS on the order of the
+# symbol ids, which is the question that no count in this file can answer.
 #
 # THE FILE HOLDS THE MEASUREMENT OF THE FORK MASTER. integrate.sh writes it
 # again at each landing whose gate found fallen counts, with the rows of that

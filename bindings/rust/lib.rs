@@ -554,6 +554,16 @@ mod tests {
     /// `Lexer::getEscapedNewLineSize`). A text with CR LF line ends gives the tree of the same text with LF line ends.
     /// A text with white space between each backslash and its line break, with LF or CR LF line ends, also gives that
     /// tree. The trees have no ERROR node and no MISSING node.
+    ///
+    /// THE TEXTS OF THIS TEST REACH AN EXTERNAL TOKEN OF THE SCANNER, and that is an accident of the
+    /// texts and not the subject of this test. A failure here WITH NO CHANGE OF THE LINE SPLICES
+    /// means that the external lists moved: the externals of grammar/src/cpp.rs and the enumerators
+    /// of `TokenType` in src/scanner.c give one slot to each token, and a slot that holds two
+    /// different tokens makes the scanner answer for a token that the parser did not ask for. Read
+    /// the failure of `the_external_tokens_of_the_scanner_agree_with_the_grammar` in
+    /// xtask/src/generate.rs first, because it names the slot and both names. DO NOT REPAIR THIS
+    /// TEST BY A CHANGE OF ITS TEXTS: that hides the defect and removes the reach of these texts in
+    /// one edit.
     #[test]
     fn test_line_splices_with_crlf_and_white_space_give_the_trees_of_lf_line_splices() {
         let mut parser = Parser::new();
