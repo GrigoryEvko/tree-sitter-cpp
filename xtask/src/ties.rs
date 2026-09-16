@@ -58,11 +58,25 @@
 //! reads the 3,697 files with ties, and 2,829 of them give the same visible tree. The class of a tie
 //! then tells whether the reading of the tree depends on it:
 //!
-//! - INVISIBLE, and a grammar defect of the class of `sized_type_specifier`:
-//!   `template_argument_list_repeat1` with 64,400 sites and 0 of 446 files that differ,
+//! - INVISIBLE: `template_argument_list_repeat1` with 64,400 sites and 0 of 446 files that differ,
 //!   `comma_expression` with 4,558 and 0 of 273, `expression_statement` with 522 and 0 of 199,
-//!   `_conditional_expression` with 527 and 0 of 37, and six smaller ones. The smallest text of the
-//!   first is `A<F<G,H<G>,I> > x;`, and the two readings of it give one tree.
+//!   `_conditional_expression` with 527 and 0 of 37, and six smaller ones.
+//!
+//! AN INVISIBLE TIE IS NOT ALWAYS ONE TREE, AND THE LARGEST ONE IS NOT. The smallest text of
+//! `template_argument_list_repeat1` is `A<F<G,H<G>,I> > x;`. A runtime that prints both raw
+//! subtrees at the tie, with the hidden nodes, shows two DIFFERENT readings of one span: two
+//! arguments `F<G,(H<G)>` and `I`, or three arguments `(F<G)`, `H<G>` and `I`. Each holds two
+//! `type_descriptor` and one `expression`, so `_template_argument` gives each of them 3+3+1 and the
+//! dynamic precedence separates nothing. The finished tree is the same either way, because the
+//! merge is on a stack version that the continuation kills. The tie is wasted work of the GLR
+//! parser, and the ambiguity under it is the template-versus-comparison one of #138, which the
+//! grammar declares as the conflict of `template_function` and `template_type`. It is NOT the
+//! redundancy of `sized_type_specifier`, where the two readings were one tree.
+//!
+//! The parse time of that class is no reason to repair it. 45,826 of the 64,400 sites are in
+//! boost/libs/qvm/include/boost/qvm/gen/swizzle4.hpp, which is 1,249,713 bytes and parses in
+//! 845,285 microseconds, or 693 microseconds for each KB. The corpus files larger than 20 KB
+//! average 768 microseconds for each KB.
 //! - VISIBLE, and the name lookup of #138: `alignas_qualifier` with 1,522 sites and 794 of 794 files
 //!   that differ, which is `alignas(name)` as an expression or as a type-id ([dcl.align]),
 //!   `parameter_list` with 87 and 20 of 20, `type_definition` with 33 and 4 of 4, and
