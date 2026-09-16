@@ -919,6 +919,119 @@ mod order {
         out
     }
 
+    /// True where the text gives a token, or calls a function that gives one.
+    fn gives_token(stripped: &[String], text: &str, all: &[Function], givers: &BTreeSet<String>) -> bool {
+        let _ = (stripped, all);
+        text.contains("result_symbol") || givers.iter().any(|name| calls(text, name.as_str()))
+    }
+
+    /// The names of the functions that set a `result_symbol`.
+    pub fn token_givers(stripped: &[String], all: &[Function]) -> BTreeSet<String> {
+        let mut set: BTreeSet<String> = BTreeSet::new();
+        loop {
+            let mut grew = false;
+            for function in all {
+                if set.contains(&function.name) {
+                    continue;
+                }
+                let body = stripped[function.start..=function.end].join("\n");
+                if body.contains("result_symbol") || set.iter().any(|name| calls(&body, name.as_str())) {
+                    set.insert(function.name.clone());
+                    grew = true;
+                }
+            }
+            if !grew {
+                return set;
+            }
+        }
+    }
+
+    /// The branches that read a character and can then give no token, where a scan after them could
+    /// have given one.
+    ///
+    /// THIS IS THE SECOND HALF OF THE LAW AND ITS DAMAGE IS DIFFERENT. A branch that is NOT ENTERED
+    /// leaves the reader moved for the scans after it, which is rule one. A branch that IS ENTERED,
+    /// reads characters and then gives no token STOPS THE WHOLE FUNCTION. The scans after it never
+    /// run at all, so the cost is not a stale read. It is an absence.
+    ///
+    /// r47 found `P(CONFIG)` this way on 2026-09-16. A branch for a template parameter name read a
+    /// word, found a `(` where it wanted a name, and gave no token. `scan_macro_start`, which is the
+    /// last statement of `scan_word_start`, never ran, and the macro invocation got no token.
+    ///
+    /// THE REPAIR IS TO DECIDE BEFORE READING A CHARACTER. A test of `next`, the character that the
+    /// function took before any scan, costs nothing and cannot consume.
+    ///
+    /// THIS IS AN INVENTORY AND NOT A GATE, AND THE MEASUREMENT IS WHY. The scan of the file gives
+    /// 10 sites. Several of them are CORRECT BY DESIGN, among them the `CLASS_MACRO_MARK` guard,
+    /// which stops the function on purpose after `scan_class_macro_mark` moved the reader, because
+    /// no later scan is safe once the reader moved. A check that fails on correct sites is a check
+    /// that somebody turns off.
+    ///
+    /// THE DISCRIMINATOR THAT r47 PROPOSED DOES NOT SEPARATE THEM, AND I MEASURED IT. "The condition
+    /// reads the lookahead of the start of the call" holds for 1 of the 10 sites, and 9 that do not
+    /// read it include both the correct and the defective. The row says which, so a reader can use
+    /// it, and the test does not decide with it.
+    ///
+    /// THE QUESTION THAT WOULD DECIDE IS NOT STATIC. For each decline, "can a later branch of this
+    /// function give a token AT THIS POSITION" is a question about `valid_symbols`, which is a fact
+    /// about the parse state and not about the source. A reader of the source cannot answer it.
+    /// A branch that cannot decide from `next` has no repair here except a rewind of the lexer,
+    /// which this fork refused on price. Refer to "THE SCANNER CAN REWIND THE LEXER, AT A PRICE"
+    /// of PROTOCOL.txt.
+    pub fn stop_sites(
+        stripped: &[String],
+        function: &Function,
+        advances: &BTreeSet<String>,
+        blanks: &BTreeSet<String>,
+        givers: &BTreeSet<String>,
+    ) -> Vec<String> {
+        let mut out = Vec::new();
+        let list = branches(stripped, function);
+        let captured: Vec<String> = captured_lookahead(stripped, function).into_iter().map(|(name, _)| name).collect();
+        for branch in &list {
+            let start = branch.line - 1;
+            let close = block_end(stripped, start, function.end);
+            // A scan after this branch must be able to give a token, or nothing is lost.
+            let after = stripped[close + 1..function.end].join("\n");
+            if !gives_token(stripped, &after, &[], givers) {
+                continue;
+            }
+            // The first line of the branch that reads a character.
+            let mut read_at = None;
+            for (index, line) in stripped.iter().enumerate().take(close + 1).skip(start) {
+                if advances.iter().any(|name| !blanks.contains(name) && calls(line, name.as_str())) {
+                    read_at = Some(index);
+                    break;
+                }
+            }
+            let Some(read_at) = read_at else {
+                continue;
+            };
+            // A `return false` after that line stops the function with the reader moved.
+            let stops = (read_at..=close).any(|index| stripped[index].contains("return false"));
+            if !stops {
+                continue;
+            }
+            // A branch that reads the lookahead of the start of the call in its CONDITION has
+            // already refused the shapes that one character can refuse. r47 repaired its branch
+            // that way: a test of `next` costs nothing and cannot consume.
+            let text = condition(stripped, start, function.end);
+            let decided = captured
+                .iter()
+                .any(|name| Regex::new(&format!(r"(^|[^A-Za-z0-9_]){name}([^A-Za-z0-9_]|$)")).expect("the pattern builds").is_match(&text));
+            out.push(format!(
+                "{}:{} reads a character at line {} and can then give no token, so the scans after \
+                 it never run. The condition {} the lookahead of the start of the call: {}",
+                function.name,
+                branch.line,
+                read_at + 1,
+                if decided { "READS" } else { "DOES NOT READ" },
+                branch.text
+            ));
+        }
+        out
+    }
+
     /// The faults of one function.
     ///
     /// THE READER ENFORCES THE TWO SHAPES THAT GAVE REAL DEFECTS, AND NOT A GENERAL RULE.
@@ -1164,6 +1277,35 @@ mod order_tests {
         for name in ["skip_group", "read_word", "skip_gap", "read_token"] {
             assert!(!body.contains(&format!("{name}(")), "skip_blanks must not call {name}: {body}");
         }
+    }
+
+    /// Print the branches that stop the function after they read a character.
+    ///
+    /// AN INVENTORY, NOT A GATE. `order::stop_sites` says why. The test asserts only that the scan
+    /// still finds sites, because a zero here would mean the reader broke and not that the file is
+    /// clean. I made exactly that mistake once today with a different rule of this module.
+    #[test]
+    fn report_the_stop_sites() {
+        let path = crate::repository().join("src").join("scanner.c");
+        let text = fs::read_to_string(&path).expect("src/scanner.c reads");
+        let stripped = order::strip(&text);
+        let all = order::functions(&stripped);
+        let advances = order::advancing(&stripped, &all);
+        let blanks = order::blank_only(&stripped, &all, &advances);
+        let givers = order::token_givers(&stripped, &all);
+        let mut found = Vec::new();
+        for index in order::multiplexers(&stripped, &all) {
+            found.extend(order::stop_sites(&stripped, &all[index], &advances, &blanks, &givers));
+        }
+        println!("STOP SITES: {}", found.len());
+        for row in &found {
+            println!("  {row}");
+        }
+        assert!(
+            !found.is_empty(),
+            "the scan of the stop sites found none. The file holds them, so a zero here means that \
+             the reader broke. Run this test with --nocapture and read the rows."
+        );
     }
 
     /// NO SCAN OF THE FILE READS A CHARACTER AND THEN LETS ANOTHER SCAN READ FROM THERE.
