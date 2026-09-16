@@ -607,6 +607,13 @@ fn top_level_expression_statement(g: &mut Grammar) {
 /// text has the precedence `NAME_GROUPING_OUTSIDE_BLOCK`.
 const NAMESPACE_EXPRESSION: i32 = -100;
 
+/// The dynamic precedence of a macro in the place of a calling convention in a type-id, before an
+/// abstract declarator: `using F = HRESULT WINAPI(IMLOperatorRegistry **registry);`. The reading with
+/// no macro wins each tie, because the last word of a sized type specifier is its base type name:
+/// `sizeof(unsigned _BitInt(N))` keeps `_BitInt` as that name. Without the precedence the two
+/// readings have the same cost, and `ts_subtree_compare` selects one by the order of the symbol ids.
+const TYPE_DESCRIPTOR_CALL_MACRO: i32 = -1;
+
 /// The dynamic precedence of a macro that gives a nested-name-specifier, before the name that it
 /// qualifies: `CGAL_NTS abs(a)`. Two adjacent names are no expression of C++, and each other reading
 /// of the two names wins. `void f(T &g(U x));` keeps the parameter `U x` of its function declarator,
@@ -1779,10 +1786,16 @@ fn types(g: &mut Grammar) {
                         // A macro takes the place of the keyword, and an abstract declarator follows
                         // it: `using F = HRESULT WINAPI(IMLOperatorRegistry **registry);`. The macro
                         // comes only with that declarator, so a name and a `<` after a type stay the
-                        // template-id of `template_type`.
+                        // template-id of `template_type`. The dynamic precedence
+                        // `TYPE_DESCRIPTOR_CALL_MACRO` keeps the base type name of a sized type
+                        // specifier: `sizeof(unsigned _BitInt(N))` reads `_BitInt` as that name and
+                        // not as a macro with the parameter list `(N)`.
                         choice![
                             member.clone(),
-                            seq![s!(attribute_macro), field("declarator", s!(_abstract_declarator))],
+                            prec_dynamic(
+                                TYPE_DESCRIPTOR_CALL_MACRO,
+                                seq![s!(attribute_macro), field("declarator", s!(_abstract_declarator))]
+                            ),
                         ],
                     ]
                 }

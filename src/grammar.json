@@ -18828,21 +18828,25 @@
                 }
               },
               {
-                "type": "SEQ",
-                "members": [
-                  {
-                    "type": "SYMBOL",
-                    "name": "attribute_macro"
-                  },
-                  {
-                    "type": "FIELD",
-                    "name": "declarator",
-                    "content": {
+                "type": "PREC_DYNAMIC",
+                "value": -1,
+                "content": {
+                  "type": "SEQ",
+                  "members": [
+                    {
                       "type": "SYMBOL",
-                      "name": "_abstract_declarator"
+                      "name": "attribute_macro"
+                    },
+                    {
+                      "type": "FIELD",
+                      "name": "declarator",
+                      "content": {
+                        "type": "SYMBOL",
+                        "name": "_abstract_declarator"
+                      }
                     }
-                  }
-                ]
+                  ]
+                }
               }
             ]
           }
@@ -24400,21 +24404,25 @@
                 }
               },
               {
-                "type": "SEQ",
-                "members": [
-                  {
-                    "type": "SYMBOL",
-                    "name": "attribute_macro"
-                  },
-                  {
-                    "type": "FIELD",
-                    "name": "declarator",
-                    "content": {
+                "type": "PREC_DYNAMIC",
+                "value": -1,
+                "content": {
+                  "type": "SEQ",
+                  "members": [
+                    {
                       "type": "SYMBOL",
-                      "name": "_abstract_declarator"
+                      "name": "attribute_macro"
+                    },
+                    {
+                      "type": "FIELD",
+                      "name": "declarator",
+                      "content": {
+                        "type": "SYMBOL",
+                        "name": "_abstract_declarator"
+                      }
                     }
-                  }
-                ]
+                  ]
+                }
               }
             ]
           }

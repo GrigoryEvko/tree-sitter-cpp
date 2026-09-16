@@ -318,3 +318,8 @@ void g(int x, int n) { if (MASK(x) & FLAG) f(); if (OK(x) && a[0]) f(); }
 void h(int x) { int y = SIZE(x) * 2; }
 ### macro_type_keeps_a_call_in_its_argument
 void test_nans() { BOOST_TEST(isnanq(detail::nans())) && BOOST_TEST(issignaling(detail::nans())); }
+### type_descriptor_macro_keeps_the_base_type_of_a_sized_type
+template <unsigned N> constexpr bool check() {
+  static_assert(__has_unique_object_representations(unsigned _BitInt(N)) == (sizeof(unsigned _BitInt(N)) * 8u == N));
+  return true;
+}
