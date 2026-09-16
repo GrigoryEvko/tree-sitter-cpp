@@ -935,6 +935,9 @@ typedef enum {
     NEXT_DECLARATOR,
     /// The line starts with the declarator of a constructor or a destructor, which has no type.
     NEXT_CONSTRUCTOR,
+    /// The line starts with `try` and a `{` after it, after arguments that can be a parameter list.
+    /// The block is a function try block, and the reader stands at its `{`.
+    NEXT_TRY_BODY,
     /// The line starts with a different token that can start a line.
     NEXT_OTHER,
 } NextLine;
@@ -1800,7 +1803,9 @@ static bool is_class_name(const Scanner *scanner, uint32_t name);
 /// directives). A declarator is a name before `(`, or one name before `;` or `,`. The name can be qualified.
 /// One uppercase name before `(` is a macro call. A constructor or a destructor has no type: `A::A(`,
 /// `A::~A(`, `~A(`, and the name of a recorded class head before `(` and parameters. After arguments
-/// that can be a parameter list, `try` continues a function definition. Where no statement can start,
+/// that can be a parameter list, `try` continues a function definition, and `try` before a `{` is
+/// the function try block of that definition, which the caller reads as the body of a macro where a
+/// call statement can start. Where no statement can start,
 /// `throw (` also continues the declarator. `classes` holds the recorded class names, or it is NULL
 /// where a member cannot start. With `after_directive`, a directive line comes between the macro and the line,
 /// and `__asm__` starts a basic asm declaration, as in `__asm__(".cfi_startproc");` after `#if CPU(ARM64)`.
@@ -1848,8 +1853,22 @@ static NextLine classify_next_line(Reader *reader, bool after_parameters, bool s
         if (after_directive && (strcmp(word, "__asm__") == 0 || strcmp(word, "__asm") == 0)) {
             return NEXT_OTHER;
         }
-        if (word_in(word, CONTINUATION_KEYWORDS) || (after_parameters && strcmp(word, "try") == 0)) {
+        if (word_in(word, CONTINUATION_KEYWORDS)) {
             return NEXT_BLOCKED;
+        }
+        if (after_parameters && strcmp(word, "try") == 0) {
+            // A FUNCTION TRY BLOCK CONTINUES THE DEFINITION, AND ITS `{` TELLS THE CALLER SO. `try`
+            // after a group that can be a parameter list is the function try block of a definition
+            // with that group as its parameters: `TEST(A, B)`, a line break, `try`, `{`, of
+            // ClickHouse, and `S(int x)`, a line break, `try : m(x) {` in a class body. The caller
+            // reads the first as the body of a macro where a call statement can start, so the `{`
+            // after `try` is the fact it needs, and `try :` is not that fact. The scan of the gap
+            // after `try` reads no character that the caller reads again, because each caller of
+            // NEXT_BLOCKED and of NEXT_TRY_BODY returns with no token or with the token before the
+            // name.
+            Gap body = {0};
+            skip_gap(reader, &body);
+            return !body.blocked && lexer->lookahead == '{' ? NEXT_TRY_BODY : NEXT_BLOCKED;
         }
         if (after_parameters && !statement && strcmp(word, "throw") == 0) {
             // A dynamic exception specification continues a member declarator: `S(...)\nthrow (int);`.
@@ -3644,7 +3663,9 @@ typedef enum {
 /// optional template parameter list and parameter list can come before the body. The argument
 /// list can start on the line after a name of MACRO_MIN_BARE_LENGTH or more characters:
 /// `BOOST_AUTO_TEST_CASE`, a line break, `(name)`, and `{ g(); }` of boost icl. The `{` can come
-/// after line breaks.
+/// after line breaks. Where a call statement can start and no statement macro can, a function try
+/// block on the line after the argument list is the body: `TEST(A, B)`, a line break, `try`, `{`,
+/// of ClickHouse. `classify_next_line` reads that `try`.
 ///
 /// The statement form is an uppercase name with an argument list and a body, where a statement can start and a
 /// function definition cannot: in a block, a case body, a label, or a substatement. The arguments can be a parameter
@@ -3847,6 +3868,38 @@ static Invocation scan_macro_invocation(Reader *reader, const char *name, size_t
         }
         if (next == NEXT_BLOCKED && new_item && item_start) {
             next = NEXT_OTHER;
+        }
+        if (next == NEXT_TRY_BODY) {
+            // A NAME WITH A GROUP AND A FUNCTION TRY BLOCK IS A MACRO WITH A BODY WHERE A CALL
+            // STATEMENT CAN START. The other reading of `TEST(A, B)`, a line break, `try`, `{`, of
+            // ClickHouse is a constructor definition with a function try block, and at namespace
+            // scope C++ takes that definition only with a QUALIFIED name, as for `TEST(A, B) {`
+            // above. GCC gives "expected constructor, destructor, or type conversion" for the text
+            // with no macro, and both front ends accept it with the macro. `try` and `{` decide the
+            // body where `{` alone decided it above, and the brace needs no test of its content,
+            // because no enumerator list and no braced initializer comes after `try`.
+            //
+            // THE POSITION IS THE EVIDENCE, AND TWO TOKENS GIVE IT. `MACRO_CALL_START` is valid
+            // where a macro call statement can start, and not in a class body, where `S(int x)`, a
+            // line break, and `try { g(x); } catch (...) { }` is a constructor with a function try
+            // block: without this token the branch reads a macro there, with a name of one
+            // character too. `MACRO_STATEMENT_START` is valid where a statement macro can start
+            // and no function definition can: in a block, `CAPTURE(byte)`, a line break, and
+            // `try {` of nlohmann-json is a macro line and a try statement, and no body. This
+            // branch gives no token there, and that text keeps the reading of the base, a nested
+            // function definition, for a separate repair of the line form. `try :` never comes
+            // here, so `S(int x)`, a line break, and `try : m(x) { }` keeps its reading in each
+            // position.
+            //
+            // The group on the line of the name and the group on the next line take the same path,
+            // as for `{`. `try` on the line of the group does not come here: the line form gives
+            // no token on one line, and the corpus of 2026-09-16 holds no such site.
+            if (valid_symbols[MACRO_BLOCK_START] && valid_symbols[MACRO_CALL_START] &&
+                !valid_symbols[MACRO_STATEMENT_START] && reader->budget > 0) {
+                lexer->result_symbol = MACRO_BLOCK_START;
+                return INVOCATION_TOKEN;
+            }
+            return INVOCATION_STOP;
         }
         if (next == NEXT_BLOCKED || (reader->budget == 0 && !gap->directive)) {
             return INVOCATION_STOP;

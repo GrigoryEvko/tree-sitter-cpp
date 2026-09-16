@@ -1031,6 +1031,9 @@ fn macros(g: &mut Grammar) {
                     field("name", s!(identifier)),
                     arguments()
                 ],
+                // The body can be a function try block, as the body of `function_definition` can:
+                // `TEST(A, B)`, a line break, `try { ... } catch (...) { }` of ClickHouse. The
+                // external scanner gives the block token there only with an argument list.
                 seq![
                     s!(_macro_block_start),
                     field("name", s!(identifier)),
@@ -1039,7 +1042,7 @@ fn macros(g: &mut Grammar) {
                         optional(field("template_parameters", s!(template_parameter_list))),
                         optional(field("parameters", s!(parameter_list))),
                     ]),
-                    field("body", s!(compound_statement)),
+                    field("body", choice![s!(compound_statement), s!(try_statement)]),
                 ],
             ],
         ),

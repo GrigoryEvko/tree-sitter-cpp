@@ -3891,6 +3891,133 @@ struct S {
                 (identifier)))))))))
 
 ================================================================================
+A macro name, its arguments, and a function try block as the body
+================================================================================
+
+TEST(CascadeWriteBuffer, RereadWithTwoMemoryBuffers)
+try
+{
+    g();
+}
+catch (...) { }
+BOOST_AUTO_TEST_CASE
+(name)
+try { g(); } catch (...) { }
+namespace N {
+TEST(A, B)
+try { g(); } catch (const E &e) { h(e); } catch (...) { }
+}
+struct S {
+  S(int x)
+  try { g(x); } catch (...) { }
+  int m;
+};
+int
+MACRO_NAME(int x)
+try { return x; } catch (...) { return 0; }
+
+--------------------------------------------------------------------------------
+
+(translation_unit
+  (macro_invocation
+    name: (identifier)
+    arguments: (token_tree
+      (identifier)
+      (identifier))
+    body: (try_statement
+      body: (compound_statement
+        (expression_statement
+          (call_expression
+            function: (identifier)
+            arguments: (argument_list))))
+      (catch_clause
+        parameters: (parameter_list)
+        body: (compound_statement))))
+  (macro_invocation
+    name: (identifier)
+    arguments: (token_tree
+      (identifier))
+    body: (try_statement
+      body: (compound_statement
+        (expression_statement
+          (call_expression
+            function: (identifier)
+            arguments: (argument_list))))
+      (catch_clause
+        parameters: (parameter_list)
+        body: (compound_statement))))
+  (namespace_definition
+    name: (namespace_identifier)
+    body: (declaration_list
+      (macro_invocation
+        name: (identifier)
+        arguments: (token_tree
+          (identifier)
+          (identifier))
+        body: (try_statement
+          body: (compound_statement
+            (expression_statement
+              (call_expression
+                function: (identifier)
+                arguments: (argument_list))))
+          (catch_clause
+            parameters: (parameter_list
+              (parameter_declaration
+                (type_qualifier)
+                type: (type_identifier)
+                declarator: (reference_declarator
+                  (identifier))))
+            body: (compound_statement
+              (expression_statement
+                (call_expression
+                  function: (identifier)
+                  arguments: (argument_list
+                    (identifier))))))
+          (catch_clause
+            parameters: (parameter_list)
+            body: (compound_statement))))))
+  (struct_specifier
+    name: (type_identifier)
+    body: (field_declaration_list
+      (function_definition
+        declarator: (function_declarator
+          declarator: (identifier)
+          parameters: (parameter_list
+            (parameter_declaration
+              type: (primitive_type)
+              declarator: (identifier))))
+        (try_statement
+          body: (compound_statement
+            (expression_statement
+              (call_expression
+                function: (identifier)
+                arguments: (argument_list
+                  (identifier)))))
+          (catch_clause
+            parameters: (parameter_list)
+            body: (compound_statement))))
+      (field_declaration
+        type: (primitive_type)
+        declarator: (field_identifier))))
+  (function_definition
+    type: (primitive_type)
+    declarator: (function_declarator
+      declarator: (identifier)
+      parameters: (parameter_list
+        (parameter_declaration
+          type: (primitive_type)
+          declarator: (identifier))))
+    body: (try_statement
+      body: (compound_statement
+        (return_statement
+          (identifier)))
+      (catch_clause
+        parameters: (parameter_list)
+        body: (compound_statement
+          (return_statement
+            (number_literal)))))))
+
+================================================================================
 Two macro invocations in one item of an enumerator list
 ================================================================================
 
