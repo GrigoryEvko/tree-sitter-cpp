@@ -163,6 +163,13 @@ enum TokenType {
     /// The name of a macro between the TYPE of a declaration and its declarator:
     /// `typedef unsigned int CV_DECL_ALIGNED(1) unaligned_uint;`. The token holds the name.
     TYPE_ATTRIBUTE_MACRO_NAME,
+    /// An empty token before the word `template`. The scan reads the template head and records the
+    /// names that it declares as TYPE parameters. Refer to `scan_template_head`.
+    TEMPLATE_HEAD_MARK,
+    /// The operand of `alignas`, where a source of the parse declares the name as a type:
+    /// `template <typename T> struct S { alignas(T) char storage[sizeof(T)]; };`. The token covers
+    /// the name and the grammar reads it as a `type_descriptor`. Refer to `is_alignas_type_name`.
+    ALIGNAS_TYPE_NAME,
     /// The count of the external tokens, and not a token. `tree_sitter_cpp_external_scanner_create`
     /// compares it with the count of the parser.
     TOKEN_TYPE_COUNT,
@@ -236,6 +243,23 @@ typedef struct {
     /// MEASUREMENT OF TASK 240. The hashes of the names of the last class heads, with no condition on
     /// the body. Only the functional cast reads this record. The constructor rules read `classes`.
     uint32_t loose[MAX_CLASSES];
+    /// The number of recorded template type parameter names.
+    uint8_t template_count;
+    /// The hashes of the names that the last template heads declare as TYPE parameters, the most
+    /// recent last. `alignas(T)` reads them, and nothing else does.
+    ///
+    /// THE RECORD IS NOT SCOPED. A template parameter leaves scope at the end of its declaration and
+    /// this record keeps it. The measurement of task 291 over the 1,173 `alignas` sites of the
+    /// corpus with a bare name: 200 sites name a parameter of their OWN declaration, and a record
+    /// filled as the scan goes forward reaches all 200 and evicts none. That is the shape of the
+    /// construct and not luck: the template head of an in-scope site is immediately before it, so
+    /// its parameter is the most recent entry, and an eviction would need more than MAX_CLASSES
+    /// distinct parameter names between the head and the operand of its own `alignas`.
+    ///
+    /// 6 sites name a parameter of the file that is NOT of their own declaration, 4 of those have it
+    /// declared earlier and a forward record can hold it, AND ALL 4 WOULD BE RIGHT ANYWAY, because
+    /// the file or the project declares the name as a type as well. Exposure 4, wrong 0.
+    uint32_t templates[MAX_CLASSES];
     /// The context of the parser, the seed of #275, or NULL. The runtime gives it through
     /// `tree_sitter_cpp_external_scanner_set_context`, and `serialize` and `deserialize` do not
     /// carry it, so `reset` and `deserialize` must not clear it.
@@ -1977,25 +2001,53 @@ static bool is_class_name(const Scanner *scanner, uint32_t name) {
     return false;
 }
 
-/// Record the name of a class head as the most recent name. Return false if it already is the most
-/// recent name. O(n) in MAX_CLASSES.
-static bool record_class_name(Scanner *scanner, uint32_t name) {
-    if (scanner->class_count > 0 && scanner->classes[scanner->class_count - 1] == name) {
+/// Record a name in a record of MAX_CLASSES names as the most recent name. Return false if it
+/// already is the most recent name. O(n) in MAX_CLASSES.
+///
+/// The record keeps the last MAX_CLASSES distinct names and gives up the oldest. A name that it
+/// holds already moves to the most recent end rather than taking a second place.
+static bool record_name(uint32_t *names, uint8_t *count, uint32_t name) {
+    if (*count > 0 && names[*count - 1] == name) {
         return false;
     }
     unsigned kept = 0;
-    for (unsigned i = 0; i < scanner->class_count; i++) {
-        if (scanner->classes[i] != name) {
-            scanner->classes[kept++] = scanner->classes[i];
+    for (unsigned i = 0; i < *count; i++) {
+        if (names[i] != name) {
+            names[kept++] = names[i];
         }
     }
     if (kept == MAX_CLASSES) {
-        memmove(scanner->classes, &scanner->classes[1], (MAX_CLASSES - 1) * sizeof(uint32_t));
+        memmove(names, &names[1], (MAX_CLASSES - 1) * sizeof(uint32_t));
         kept--;
     }
-    scanner->classes[kept++] = name;
-    scanner->class_count = (uint8_t)kept;
+    names[kept++] = name;
+    *count = (uint8_t)kept;
     return true;
+}
+
+/// Record the name of a class head as the most recent name. Return false if it already is the most
+/// recent name. O(n) in MAX_CLASSES.
+static bool record_class_name(Scanner *scanner, uint32_t name) {
+    return record_name(scanner->classes, &scanner->class_count, name);
+}
+
+/// Record the name of a template type parameter as the most recent name. Return false if it already
+/// is the most recent name.
+static bool record_template_name(Scanner *scanner, uint32_t name) {
+    return record_name(scanner->templates, &scanner->template_count, name);
+}
+
+/// True when a template head recorded the name as a TYPE parameter. O(n) in MAX_CLASSES.
+static bool is_template_parameter(const Scanner *scanner, uint32_t name) {
+    if (scanner == NULL) {
+        return false;
+    }
+    for (unsigned i = 0; i < scanner->template_count; i++) {
+        if (scanner->templates[i] == name) {
+            return true;
+        }
+    }
+    return false;
 }
 
 /// MEASUREMENT OF TASK 240. True if the second record holds the name. O(n) in MAX_CLASSES.
@@ -2048,6 +2100,33 @@ static uint16_t seed_kinds(const TSCppSeed *seed, const char *name, uint32_t len
         }
     }
     return 0;
+}
+
+/// True when a source of the parse declares the operand of an `alignas` as a type.
+///
+/// ONE LOOKUP WITH SEVERAL SOURCES AND A STATED ORDER OF AUTHORITY, and not several call sites that
+/// can disagree. The construct, the file and the project are three sources of ONE fact, and a
+/// disagreement between them is where a silent wrong tree would live.
+///
+///   1. THE CONSTRUCT. A name that a template head of the same declaration declares as a type
+///      parameter IS a type, by the grammar. No record and no artifact can go stale under it.
+///   2. THE FILE. The class heads, the aliases and the typedefs that the scanner recorded.
+///   3. THE PROJECT. The seed of the parse.
+///
+/// THE ORDER IS MEASURED AND NOT ASSUMED, over the 1,173 sites of the corpus whose operand is a bare
+/// name. The construct disagrees with the file at 10 sites and with the project at 3, and THE
+/// CONSTRUCT IS RIGHT AT EVERY ONE: in llvm-project PointerIntPair.h the name `Ptr` is the type
+/// parameter of the enclosing template and also a function parameter of a different class in the
+/// same file. THE FILE AND THE PROJECT NEVER DISAGREE, 0 sites of 1,173 in either direction, so the
+/// second half of the order is stated here and no site of the corpus exercises it.
+///
+/// Task 291 adds the sources one step at a time, and each step states its own count of tree changes.
+static bool is_alignas_type_name(const Scanner *scanner, const Reader *reader) {
+    if (scanner == NULL) {
+        return false;
+    }
+    // 1. THE CONSTRUCT, task 291 step 2a. 200 sites in 150 files.
+    return is_template_parameter(scanner, reader->word_hash);
 }
 
 /// True when the seed of the parse names `name` as a type or as a template.
@@ -2978,6 +3057,104 @@ static bool scan_class_head(Scanner *scanner, Reader *reader) {
         return false;
     }
     lexer->result_symbol = CLASS_HEAD_MARK;
+    return true;
+}
+
+/// Scan a template head after the word `template`, and record the names that it declares as TYPE
+/// parameters. Return true if the recorded names change. The token is the empty extra
+/// TEMPLATE_HEAD_MARK before the word.
+///
+/// THE TOKEN IS GIVEN ONLY WHEN THE RECORD CHANGES, as `scan_class_head` does. An empty token that a
+/// scan gives again at the same position is a token with no width that the parser reads forever: one
+/// such loop of 2026-09-16 took 152 GB for a file of 20 KB.
+///
+/// ONLY `typename` AND `class` GIVE A NAME. A constrained parameter, `template <std::integral T>`,
+/// and a non-type parameter, `template <int N>`, have the SAME SHAPE, a name and then a name, and
+/// only the declaration of the first name tells a concept from a type. This scan holds no
+/// declaration. A parameter that it does not read gives no entry, which is a miss and never a wrong
+/// tree. A template template parameter, `template <template <class> class C>`, is not a type
+/// ([temp.param]), so it gives no entry either.
+///
+/// O(n) in the length of the head.
+static bool scan_template_head(Scanner *scanner, Reader *reader) {
+    TSLexer *lexer = reader->lexer;
+    Gap gap = {0};
+    skip_gap(reader, &gap);
+    if (gap.blocked || !readable(reader) || lexer->lookahead != '<') {
+        return false;
+    }
+    step(reader);
+    char word[MACRO_WORD_SIZE];
+    unsigned depth = 1;
+    bool changed = false;
+    // True at the first character of a parameter, which is where a `typename` or a `class` can be.
+    bool parameter_start = true;
+    while (depth > 0) {
+        LOOP_STEP();
+        Gap inner = {0};
+        skip_gap(reader, &inner);
+        if (inner.blocked || !readable(reader)) {
+            return false;
+        }
+        int32_t c = lexer->lookahead;
+        if (c == '<') {
+            depth++;
+            step(reader);
+            parameter_start = false;
+            continue;
+        }
+        if (c == '>') {
+            depth--;
+            step(reader);
+            parameter_start = depth == 1;
+            continue;
+        }
+        if (c == ',') {
+            step(reader);
+            parameter_start = depth == 1;
+            continue;
+        }
+        // A default argument holds a group of its own, and a `>` inside it closes nothing.
+        if (c == '(' || c == '[') {
+            Arguments group = {0};
+            if (!skip_group(reader, &group) || reader->budget == 0) {
+                return false;
+            }
+            parameter_start = false;
+            continue;
+        }
+        if (parameter_start && depth == 1 && is_word_start(c)) {
+            bool has_lower = false;
+            read_word(reader, word, &has_lower);
+            parameter_start = false;
+            if (strcmp(word, "typename") != 0 && strcmp(word, "class") != 0) {
+                continue;
+            }
+            // A pack comes before the name, `typename... Ts`, or after the keyword with a blank.
+            skip_blanks(reader);
+            while (readable(reader) && lexer->lookahead == '.') {
+                LOOP_STEP();
+                step(reader);
+            }
+            Gap after = {0};
+            skip_gap(reader, &after);
+            if (after.blocked || !readable(reader) || !is_word_start(lexer->lookahead)) {
+                continue;
+            }
+            bool lower = false;
+            read_word(reader, word, &lower);
+            if (word[0] != '\0') {
+                changed = record_template_name(scanner, reader->word_hash) || changed;
+            }
+            continue;
+        }
+        step(reader);
+        parameter_start = false;
+    }
+    if (!changed) {
+        return false;
+    }
+    lexer->result_symbol = TEMPLATE_HEAD_MARK;
     return true;
 }
 
@@ -8036,6 +8213,9 @@ static bool scan_word_start(Scanner *scanner, TSLexer *lexer, const bool *valid_
     if (is_class_key(word)) {
         return valid_symbols[CLASS_HEAD_MARK] && scan_class_head(scanner, &reader);
     }
+    if (valid_symbols[TEMPLATE_HEAD_MARK] && strcmp(word, "template") == 0) {
+        return scan_template_head(scanner, &reader);
+    }
     // A macro in the head of a class that has no member. The parser takes the mark after a class key
     // only, and the validity of the token is the evidence of that position.
     if (valid_symbols[CLASS_MACRO_MARK] && scan_class_macro_mark(&reader, word, has_lower)) {
@@ -8072,6 +8252,31 @@ static bool scan_word_start(Scanner *scanner, TSLexer *lexer, const bool *valid_
     // scopes. The measurement gave 4 incorrect rows of 224 in the 7646 compiler test files, against
     // approximately 1500 correct casts that a record like that removes in the corpus. Because of this
     // measurement, the fork keeps the incorrect form.
+    // The operand of `alignas` is a type or a constant expression, and the grammar reads a bare name
+    // as an expression. The token gives the type reading for a name that a source declares as a
+    // type. The parser makes the token valid in that one position, so the validity is the evidence
+    // of the position.
+    if (valid_symbols[ALIGNAS_TYPE_NAME] && is_alignas_type_name(scanner, &reader)) {
+        // The end of the token is the end of the name. The scan reads past it to look at the next
+        // character, and the mark holds.
+        mark_end(lexer);
+        // THE NAME IS THE WHOLE OPERAND OR THERE IS NO TOKEN. The token stands for the operand, and
+        // a name that something follows is only its first part:
+        //   `alignas(T...)`                  a pack expansion of the alignment-specifier
+        //   `alignas(Config::inline_align)`  a qualified name
+        //   `alignas(std::atomic<uint64_t>)` a qualified template-id
+        // The first build of this rule gave the token for the first name of each of those and left
+        // the rest of the operand with nothing to read, which gave 4 NEW ERRORS in the corpus and an
+        // ERROR for the syntax snippet `s11_alignas_pack`. A `)` after the name is the evidence that
+        // the name is the whole operand. Every other operand keeps the reading of c4e81d4.
+        Gap after = {0};
+        skip_gap(&reader, &after);
+        if (after.blocked || !readable(&reader) || lexer->lookahead != ')') {
+            return false;
+        }
+        lexer->result_symbol = ALIGNAS_TYPE_NAME;
+        return true;
+    }
     bool cast_name = valid_symbols[FUNCTIONAL_CAST_NAME] && !valid_symbols[TYPE_TRAIT_TYPE_MARKER] &&
                      !valid_symbols[MACRO_TYPE_START] && !valid_symbols[PARAMETER_MACRO_TYPE_START] &&
                      !is_grammar_keyword(word) &&
@@ -8274,6 +8479,7 @@ static bool can_be_empty(TSSymbol symbol) {
         case MACRO_CALL_START:
         case MACRO_ENUMERATOR_START:
         case MACRO_STATEMENT_START:
+        case TEMPLATE_HEAD_MARK:
         case MACRO_CALL_ATTRIBUTE_START:
         case MACRO_CALL_ATTRIBUTE_TOKENS_START:
         case ATTRIBUTE_TOKENS_MARKER:
@@ -8464,13 +8670,13 @@ static bool scan_token(Scanner *scanner, TSLexer *lexer, const bool *valid_symbo
 /// so an empty state has no such group.
 unsigned tree_sitter_cpp_external_scanner_serialize(void *payload, char *buffer) {
     static_assert(1 + MAX_DELIMITER_LENGTH * sizeof(wchar_t) + 1 + MAX_GROUPS + 2 + 1 + 1 +
-                          2 * MAX_CLASSES * sizeof(uint32_t) <
+                          1 + 3 * MAX_CLASSES * sizeof(uint32_t) <
                       TREE_SITTER_SERIALIZATION_BUFFER_SIZE,
                   "Serialized state is too long!");
 
     Scanner *scanner = (Scanner *)payload;
     if (scanner->delimiter_length == 0 && scanner->group_count == 0 && scanner->class_count == 0 &&
-        scanner->loose_count == 0 && !scanner->preproc_extra_tokens) {
+        scanner->loose_count == 0 && scanner->template_count == 0 && !scanner->preproc_extra_tokens) {
         return 0;
     }
     unsigned size = 0;
@@ -8488,6 +8694,12 @@ unsigned tree_sitter_cpp_external_scanner_serialize(void *payload, char *buffer)
     buffer[size++] = (char)scanner->loose_count;
     memcpy(&buffer[size], scanner->loose, scanner->loose_count * sizeof(uint32_t));
     size += scanner->loose_count * sizeof(uint32_t);
+    // TASK 291. The third record carries its own count for the same reason the second one does: the
+    // names of the first record stay the last part of the state, and its reader takes them from the
+    // remaining length.
+    buffer[size++] = (char)scanner->template_count;
+    memcpy(&buffer[size], scanner->templates, scanner->template_count * sizeof(uint32_t));
+    size += scanner->template_count * sizeof(uint32_t);
     memcpy(&buffer[size], scanner->classes, scanner->class_count * sizeof(uint32_t));
     size += scanner->class_count * sizeof(uint32_t);
     return size;
@@ -8500,6 +8712,7 @@ void tree_sitter_cpp_external_scanner_deserialize(void *payload, const char *buf
     scanner->deep_groups = 0;
     scanner->class_count = 0;
     scanner->loose_count = 0;
+    scanner->template_count = 0;
     scanner->preproc_extra_tokens = false;
     if (length == 0) {
         return;
@@ -8523,6 +8736,11 @@ void tree_sitter_cpp_external_scanner_deserialize(void *payload, const char *buf
         assert(scanner->loose_count <= MAX_CLASSES && "Can't decode the names of the second record!");
         memcpy(scanner->loose, &buffer[size], scanner->loose_count * sizeof(uint32_t));
         size += scanner->loose_count * sizeof(uint32_t);
+        assert(size < length && "Can't decode the count of the third record!");
+        scanner->template_count = (uint8_t)buffer[size++];
+        assert(scanner->template_count <= MAX_CLASSES && "Can't decode the names of the third record!");
+        memcpy(scanner->templates, &buffer[size], scanner->template_count * sizeof(uint32_t));
+        size += scanner->template_count * sizeof(uint32_t);
     }
     unsigned names = size < length ? (length - size) / sizeof(uint32_t) : 0;
     assert(names <= MAX_CLASSES && "Can't decode serialized class names!");

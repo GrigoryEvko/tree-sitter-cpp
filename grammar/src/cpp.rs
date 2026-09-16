@@ -191,6 +191,12 @@ pub fn grammar() -> Grammar {
         // `std::unique_ptr<T> TSA_GUARDED_BY(mutex) info;`. The scanner gives the token only where the
         // macro cannot be the type itself. Refer to `_type_attribute_macro`.
         s!(_type_attribute_macro_name),
+        // An empty token before the word `template`. The scanner reads the head and records the
+        // names that it declares as TYPE parameters. Refer to `scan_template_head`.
+        s!(_template_head_mark),
+        // The operand of `alignas`, where a source of the parse declares the name as a type and the
+        // name is the whole operand. Refer to `is_alignas_type_name`.
+        s!(_alignas_type_name),
     ];
     // The conflict sets of the grammar. Each set names the rules of one ambiguity, and it tells the
     // generator to keep each reading in a GLR split.
@@ -2123,6 +2129,33 @@ fn types(g: &mut Grammar) {
     // and a name that it did not record as the last name. The token is an empty extra. The parser
     // shifts it in each state, and the parse states and the trees do not change.
     g.extras.push(s!(_class_head_mark));
+    // The scanner records the names that a template head declares as type parameters, and it gives
+    // `_template_head_mark` before the word `template` to do it. The token is an empty extra, as the
+    // class head mark is: the parser shifts it in each state, and the parse states and the trees do
+    // not change. Refer to `scan_template_head` in src/scanner.c and to task 291.
+    g.extras.push(s!(_template_head_mark));
+    // THE OPERAND OF `alignas` IS A TYPE OR A CONSTANT EXPRESSION, AND A BARE NAME IS BOTH. c4e81d4
+    // states the expression reading as a rule, because only the declaration of the name tells the
+    // two apart and the grammar holds no declaration. The scanner gives `_alignas_type_name` for a
+    // name that a source of the parse declares as a type, and the type reading takes that token. The
+    // reading of every other name does not move, because the scanner gives the token for no other
+    // name and the internal lexer then gives the identifier.
+    //
+    // The alias gives the tree that `alignas(int)` gives, a `type_descriptor` with a `type` field,
+    // so the two readings of a type have one shape. Refer to `is_alignas_type_name` in
+    // src/scanner.c and to task 291.
+    g.define("_alignas_type", field("type", alias(s!(_alignas_type_name), s!(type_identifier))));
+    g.redefine("alignas_qualifier", |original| {
+        let operand = choice![s!(expression), prec_dynamic(-1, s!(type_descriptor))];
+        let widened = choice![
+            s!(expression),
+            prec_dynamic(-1, s!(type_descriptor)),
+            alias(s!(_alignas_type), s!(type_descriptor)),
+        ];
+        let replaced = replace_rule(original.clone(), &operand, &widened);
+        assert!(replaced != original, "the operand of `alignas_qualifier` moved");
+        replaced
+    });
     g.define(
         "_class_declaration_item",
         prec_right(

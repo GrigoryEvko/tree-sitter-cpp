@@ -2670,3 +2670,143 @@ int h(int x) { return g(t(x)); }
               (type_identifier)
               (argument_list
                 (identifier)))))))))
+
+================================================================================
+A template parameter as the operand of alignas
+================================================================================
+
+template <typename T, typename D = int, typename... P> struct S {
+  alignas(T) char a;
+  alignas(D) char b;
+  alignas(P) char c;
+};
+template <int N> struct Q { alignas(N) char d; };
+struct R { alignas(A) char e; };
+
+--------------------------------------------------------------------------------
+
+(translation_unit
+  (template_declaration
+    parameters: (template_parameter_list
+      (type_parameter_declaration
+        (type_identifier))
+      (optional_type_parameter_declaration
+        name: (type_identifier)
+        default_type: (primitive_type))
+      (variadic_type_parameter_declaration
+        (type_identifier)))
+    (struct_specifier
+      name: (type_identifier)
+      body: (field_declaration_list
+        (field_declaration
+          (type_qualifier
+            (alignas_qualifier
+              (type_descriptor
+                type: (type_identifier))))
+          type: (primitive_type)
+          declarator: (field_identifier))
+        (field_declaration
+          (type_qualifier
+            (alignas_qualifier
+              (type_descriptor
+                type: (type_identifier))))
+          type: (primitive_type)
+          declarator: (field_identifier))
+        (field_declaration
+          (type_qualifier
+            (alignas_qualifier
+              (type_descriptor
+                type: (type_identifier))))
+          type: (primitive_type)
+          declarator: (field_identifier)))))
+  (template_declaration
+    parameters: (template_parameter_list
+      (parameter_declaration
+        type: (primitive_type)
+        declarator: (identifier)))
+    (struct_specifier
+      name: (type_identifier)
+      body: (field_declaration_list
+        (field_declaration
+          (type_qualifier
+            (alignas_qualifier
+              (identifier)))
+          type: (primitive_type)
+          declarator: (field_identifier)))))
+  (struct_specifier
+    name: (type_identifier)
+    body: (field_declaration_list
+      (field_declaration
+        (type_qualifier
+          (alignas_qualifier
+            (identifier)))
+        type: (primitive_type)
+        declarator: (field_identifier)))))
+
+================================================================================
+A pack expansion as the operand of alignas
+================================================================================
+
+// `alignas(T...)` expands the alignment-specifier, and the type reading takes no `...`.
+// The operand keeps the expression reading, which is what the site had before the rule
+// that reads a template parameter as a type.
+template <class... T> struct S { alignas(T...) char a; };
+
+--------------------------------------------------------------------------------
+
+(translation_unit
+  (comment)
+  (comment)
+  (comment)
+  (template_declaration
+    parameters: (template_parameter_list
+      (variadic_type_parameter_declaration
+        (type_identifier)))
+    (struct_specifier
+      name: (type_identifier)
+      body: (field_declaration_list
+        (field_declaration
+          (type_qualifier
+            (alignas_qualifier
+              (parameter_pack_expansion
+                pattern: (identifier))))
+          type: (primitive_type)
+          declarator: (field_identifier))))))
+
+================================================================================
+A qualified name as the operand of alignas
+================================================================================
+
+// The token of the scanner stands for the WHOLE operand. A name that a `::` follows is only
+// its first part, and the operand keeps its reading. `alignas(Config::inline_align)` of
+// boost msm gave a NEW ERROR when the rule took the first name alone.
+template <class C> struct S { alignas(C::x) char a; alignas(C) char b; };
+
+--------------------------------------------------------------------------------
+
+(translation_unit
+  (comment)
+  (comment)
+  (comment)
+  (template_declaration
+    parameters: (template_parameter_list
+      (type_parameter_declaration
+        (type_identifier)))
+    (struct_specifier
+      name: (type_identifier)
+      body: (field_declaration_list
+        (field_declaration
+          (type_qualifier
+            (alignas_qualifier
+              (qualified_identifier
+                scope: (namespace_identifier)
+                name: (identifier))))
+          type: (primitive_type)
+          declarator: (field_identifier))
+        (field_declaration
+          (type_qualifier
+            (alignas_qualifier
+              (type_descriptor
+                type: (type_identifier))))
+          type: (primitive_type)
+          declarator: (field_identifier))))))

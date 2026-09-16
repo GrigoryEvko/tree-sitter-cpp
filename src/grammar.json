@@ -13418,6 +13418,15 @@
                 "type": "SYMBOL",
                 "name": "type_descriptor"
               }
+            },
+            {
+              "type": "ALIAS",
+              "content": {
+                "type": "SYMBOL",
+                "name": "_alignas_type"
+              },
+              "named": true,
+              "value": "type_descriptor"
             }
           ]
         },
@@ -24762,6 +24771,19 @@
           "name": "_class_declaration_item"
         }
       ]
+    },
+    "_alignas_type": {
+      "type": "FIELD",
+      "name": "type",
+      "content": {
+        "type": "ALIAS",
+        "content": {
+          "type": "SYMBOL",
+          "name": "_alignas_type_name"
+        },
+        "named": true,
+        "value": "type_identifier"
+      }
     },
     "_class_declaration_item": {
       "type": "PREC_RIGHT",
@@ -44611,6 +44633,10 @@
     },
     {
       "type": "SYMBOL",
+      "name": "_template_head_mark"
+    },
+    {
+      "type": "SYMBOL",
       "name": "preproc_call"
     },
     {
@@ -45533,6 +45559,14 @@
     {
       "type": "SYMBOL",
       "name": "_type_attribute_macro_name"
+    },
+    {
+      "type": "SYMBOL",
+      "name": "_template_head_mark"
+    },
+    {
+      "type": "SYMBOL",
+      "name": "_alignas_type_name"
     }
   ],
   "inline": [
