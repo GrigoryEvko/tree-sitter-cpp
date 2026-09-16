@@ -428,6 +428,10 @@
         "named": true
       },
       {
+        "type": "pragma_operator",
+        "named": true
+      },
+      {
         "type": "qt_emit_statement",
         "named": true
       },
@@ -1942,6 +1946,10 @@
         },
         {
           "type": "namespace_definition",
+          "named": true
+        },
+        {
+          "type": "pragma_operator",
           "named": true
         },
         {
@@ -4234,6 +4242,10 @@
         },
         {
           "type": "ms_if_exists",
+          "named": true
+        },
+        {
+          "type": "pragma_operator",
           "named": true
         },
         {
@@ -8047,6 +8059,22 @@
     }
   },
   {
+    "type": "pragma_operator",
+    "named": true,
+    "fields": {
+      "directive": {
+        "multiple": false,
+        "required": true,
+        "types": [
+          {
+            "type": "token_tree",
+            "named": true
+          }
+        ]
+      }
+    }
+  },
+  {
     "type": "preproc_call",
     "named": true,
     "extra": true,
@@ -10975,6 +11003,10 @@
           "named": true
         },
         {
+          "type": "pragma_operator",
+          "named": true
+        },
+        {
           "type": "primitive_type",
           "named": true
         },
@@ -11155,6 +11187,10 @@
         },
         {
           "type": "namespace_definition",
+          "named": true
+        },
+        {
+          "type": "pragma_operator",
           "named": true
         },
         {
@@ -12411,6 +12447,10 @@
     "named": false
   },
   {
+    "type": "_Pragma",
+    "named": false
+  },
+  {
     "type": "_Static_assert",
     "named": false
   },
@@ -12556,6 +12596,10 @@
   },
   {
     "type": "__nullable",
+    "named": false
+  },
+  {
+    "type": "__pragma",
     "named": false
   },
   {

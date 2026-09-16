@@ -37,3 +37,56 @@ int __cdecl f2();
     declarator: (function_declarator
       declarator: (identifier)
       parameters: (parameter_list))))
+
+================================================================================
+The MS spelling of the pragma operator
+================================================================================
+
+__pragma(pack(push, 1))
+struct P { char c; };
+void f() {
+  __pragma(warning(push)) int x = 0;
+  __pragma(warning(disable : 4996)) x = 1;
+}
+
+--------------------------------------------------------------------------------
+
+(translation_unit
+  (pragma_operator
+    directive: (token_tree
+      (identifier)
+      (token_tree
+        (identifier)
+        (number_literal))))
+  (struct_specifier
+    name: (type_identifier)
+    body: (field_declaration_list
+      (field_declaration
+        type: (primitive_type)
+        declarator: (field_identifier))))
+  (function_definition
+    type: (primitive_type)
+    declarator: (function_declarator
+      declarator: (identifier)
+      parameters: (parameter_list))
+    body: (compound_statement
+      (pragma_operator
+        directive: (token_tree
+          (identifier)
+          (token_tree
+            (identifier))))
+      (declaration
+        type: (primitive_type)
+        declarator: (init_declarator
+          declarator: (identifier)
+          value: (number_literal)))
+      (pragma_operator
+        directive: (token_tree
+          (identifier)
+          (token_tree
+            (identifier)
+            (number_literal))))
+      (expression_statement
+        (assignment_expression
+          left: (identifier)
+          right: (number_literal))))))

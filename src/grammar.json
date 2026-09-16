@@ -14212,6 +14212,10 @@
         {
           "type": "SYMBOL",
           "name": "macro_invocation"
+        },
+        {
+          "type": "SYMBOL",
+          "name": "pragma_operator"
         }
       ]
     },
@@ -15691,6 +15695,10 @@
           },
           "named": true,
           "value": "expression_statement"
+        },
+        {
+          "type": "SYMBOL",
+          "name": "pragma_operator"
         }
       ]
     },
@@ -15832,6 +15840,10 @@
           },
           "named": true,
           "value": "expression_statement"
+        },
+        {
+          "type": "SYMBOL",
+          "name": "pragma_operator"
         }
       ]
     },
@@ -41302,6 +41314,10 @@
         },
         {
           "type": "SYMBOL",
+          "name": "pragma_operator"
+        },
+        {
+          "type": "SYMBOL",
           "name": "identifier"
         },
         {
@@ -41989,6 +42005,37 @@
         {
           "type": "STRING",
           "value": ")"
+        }
+      ]
+    },
+    "pragma_operator": {
+      "type": "SEQ",
+      "members": [
+        {
+          "type": "CHOICE",
+          "members": [
+            {
+              "type": "STRING",
+              "value": "_Pragma"
+            },
+            {
+              "type": "STRING",
+              "value": "__pragma"
+            }
+          ]
+        },
+        {
+          "type": "FIELD",
+          "name": "directive",
+          "content": {
+            "type": "ALIAS",
+            "content": {
+              "type": "SYMBOL",
+              "name": "_macro_arguments"
+            },
+            "named": true,
+            "value": "token_tree"
+          }
         }
       ]
     },

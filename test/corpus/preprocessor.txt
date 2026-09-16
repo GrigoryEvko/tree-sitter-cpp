@@ -3010,3 +3010,64 @@ DEFINE_THING(
       (identifier)
       (preproc_call
         directive: (preproc_directive)))))
+
+================================================================================
+The pragma operator at each position that takes a declaration or a statement
+================================================================================
+
+_Pragma("GCC diagnostic push")
+struct S {
+  _Pragma("pack(1)")
+  int m;
+};
+namespace N {
+  _Pragma("GCC diagnostic push")
+  int a;
+}
+void f() {
+  _Pragma("GCC diagnostic push")
+  int x = 0;
+}
+
+--------------------------------------------------------------------------------
+
+(translation_unit
+  (pragma_operator
+    directive: (token_tree
+      (string_literal
+        (string_content))))
+  (struct_specifier
+    name: (type_identifier)
+    body: (field_declaration_list
+      (pragma_operator
+        directive: (token_tree
+          (string_literal
+            (string_content))))
+      (field_declaration
+        type: (primitive_type)
+        declarator: (field_identifier))))
+  (namespace_definition
+    name: (namespace_identifier)
+    body: (declaration_list
+      (pragma_operator
+        directive: (token_tree
+          (string_literal
+            (string_content))))
+      (declaration
+        type: (primitive_type)
+        declarator: (identifier))))
+  (function_definition
+    type: (primitive_type)
+    declarator: (function_declarator
+      declarator: (identifier)
+      parameters: (parameter_list))
+    body: (compound_statement
+      (pragma_operator
+        directive: (token_tree
+          (string_literal
+            (string_content))))
+      (declaration
+        type: (primitive_type)
+        declarator: (init_declarator
+          declarator: (identifier)
+          value: (number_literal))))))

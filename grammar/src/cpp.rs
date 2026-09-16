@@ -803,6 +803,7 @@ fn macros(g: &mut Grammar) {
     ];
     let mut items = vec![
         s!(token_tree),
+        s!(pragma_operator),
         s!(identifier),
         s!(number_literal),
         s!(string_literal),
@@ -830,6 +831,31 @@ fn macros(g: &mut Grammar) {
     );
     // The arguments of a macro invocation are a token tree in parentheses.
     g.define("_macro_arguments", seq!["(", content(), ")"]);
+    // [cpp.pragma.op]: `_Pragma ( string-literal )` is a preprocessing operator, and phase 4 makes it
+    // a pragma. MSVC spells the same operator `__pragma ( token-sequence )`, which takes the tokens
+    // with no quotation marks. Clang reads that spelling with `-fms-extensions`
+    // (`Parser::HandlePragmaMSPragma`, clang/lib/Parse/ParsePragma.cpp).
+    //
+    // One rule holds the two spellings, because both front ends take them in the same places: at file
+    // scope, in a block, in a class body, and in a namespace body. Only the argument differs, and a
+    // token tree holds each form that the corpus writes.
+    //
+    // The argument is a token tree and not a string literal. Of the `_Pragma` arguments in the corpus,
+    // 1654 are a string literal, but 67 are a macro call
+    // (`_Pragma(VULKAN_HPP_STRINGIFY(GCC warning text))`) and 10 are empty. Of the `__pragma`
+    // arguments, 664 are tokens (`__pragma(warning(disable : 4996))`) and 3 are a string literal. A
+    // string literal is a token tree item, so `_Pragma("GCC diagnostic push")` keeps a `string_literal`
+    // node in the tree.
+    //
+    // Without this rule the name read as a call expression, and the statement then wanted a `;`:
+    // `(expression_statement (call_expression ...) (MISSING ";"))`.
+    g.define(
+        "pragma_operator",
+        seq![
+            choice!["_Pragma", "__pragma"],
+            field("directive", alias(s!(_macro_arguments), s!(token_tree)))
+        ],
+    );
     // The arguments of an attribute that the grammar does not read as expressions.
     // [dcl.attr.grammar]: an attribute-argument-clause is a balanced token sequence. For an attribute
     // that it does not know, GCC reads balanced tokens (cp_parser_std_attribute, gcc/cp/parser.cc) and
@@ -905,17 +931,21 @@ fn macros(g: &mut Grammar) {
             ";"
         ],
     );
+    // A pragma operator stands where a declaration or a statement starts. `_top_level_statement` gives
+    // it file scope, `_non_case_statement` gives it a block, and a namespace body takes it because
+    // `_declaration_list_item` holds a statement. Refer to `pragma_operator`.
     for name in ["_top_level_statement", "_non_case_statement"] {
         g.redefine(name, |original| {
             choice![
                 original,
                 s!(macro_invocation),
                 alias(s!(_macro_call_statement), s!(expression_statement)),
+                s!(pragma_operator),
             ]
         });
     }
     g.redefine("_field_declaration_list_item", |original| {
-        choice![original, s!(macro_invocation)]
+        choice![original, s!(macro_invocation), s!(pragma_operator)]
     });
     // A statement macro with arguments and a body: `FOREACH(item, items) { g(item); }`. A block, a case body, a
     // label, and a substatement hold a statement, and no function definition (GCC `cp_parser_init_declarator`
