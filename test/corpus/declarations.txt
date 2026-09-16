@@ -3083,3 +3083,90 @@ unsigned int e;
     type: (sized_type_specifier
       type: (primitive_type))
     declarator: (identifier)))
+
+================================================================================
+A conversion function of another class as a friend
+================================================================================
+
+// [class.friend] lets a friend declaration name a member of another class, and a
+// conversion-function-id is such a name. The type of the conversion can be an elaborated type
+// specifier ([class.conv.fct], [dcl.type.elab]). The first line comes from
+// gcc/testsuite/g++.dg/template/friend73.C:5, and both front ends build a FriendDecl with a
+// CXXConversionDecl for each of the two lines. Before this test the fork read `A::operator` as
+// the type of a declaration and `X` as the name of a function, with no error node.
+//
+// The name of a friend conversion function carries a nested-name-specifier. GCC rejects
+// `friend operator int();` with "must be a non-static member function" and Clang with
+// `err_conv_function_not_member`, so the third line keeps its error.
+struct X { };
+struct A { template<typename T> operator T(); operator struct X(); };
+struct B {
+    friend A::operator X();
+    friend A::operator struct X();
+};
+struct C { friend operator int(); };
+
+--------------------------------------------------------------------------------
+
+(translation_unit
+  (comment)
+  (comment)
+  (comment)
+  (comment)
+  (comment)
+  (comment)
+  (comment)
+  (comment)
+  (comment)
+  (comment)
+  (struct_specifier
+    name: (type_identifier)
+    body: (field_declaration_list))
+  (struct_specifier
+    name: (type_identifier)
+    body: (field_declaration_list
+      (template_declaration
+        parameters: (template_parameter_list
+          (type_parameter_declaration
+            (type_identifier)))
+        (declaration
+          declarator: (operator_cast
+            type: (type_identifier)
+            declarator: (abstract_function_declarator
+              parameters: (parameter_list)))))
+      (declaration
+        declarator: (operator_cast
+          type: (struct_specifier
+            name: (type_identifier))
+          declarator: (abstract_function_declarator
+            parameters: (parameter_list))))))
+  (struct_specifier
+    name: (type_identifier)
+    body: (field_declaration_list
+      (friend_declaration
+        (declaration
+          declarator: (qualified_identifier
+            scope: (namespace_identifier)
+            name: (operator_cast
+              type: (type_identifier)
+              declarator: (abstract_function_declarator
+                parameters: (parameter_list))))))
+      (friend_declaration
+        (declaration
+          declarator: (qualified_identifier
+            scope: (namespace_identifier)
+            name: (operator_cast
+              type: (struct_specifier
+                name: (type_identifier))
+              declarator: (abstract_function_declarator
+                parameters: (parameter_list))))))))
+  (struct_specifier
+    name: (type_identifier)
+    body: (field_declaration_list
+      (friend_declaration
+        (declaration
+          (attribute_macro
+            name: (identifier))
+          type: (primitive_type)
+          declarator: (parenthesized_declarator
+            (MISSING identifier)))))))

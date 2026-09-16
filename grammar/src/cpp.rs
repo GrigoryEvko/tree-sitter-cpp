@@ -3551,6 +3551,44 @@ fn declarations(g: &mut Grammar) {
             ),
         ],
     );
+    // The two forms above with no specifier and with a qualified name only, for a friend
+    // declaration. The name of a friend conversion function carries a nested-name-specifier, and
+    // the two front ends reject the unqualified form. Refer to `friend_declaration`.
+    let friend_cast_declarator = || {
+        field(
+            "declarator",
+            alias(s!(qualified_operator_cast_identifier), s!(qualified_identifier)),
+        )
+    };
+    define_after(
+        g,
+        "operator_cast_declaration",
+        "_friend_operator_cast_definition",
+        seq![
+            c::extension_prefix(),
+            friend_cast_declarator(),
+            field("body", choice![s!(compound_statement), s!(try_statement)]),
+        ],
+    );
+    define_after(
+        g,
+        "_friend_operator_cast_definition",
+        "_friend_operator_cast_declaration",
+        seq![
+            c::extension_prefix(),
+            prec(
+                1,
+                seq![
+                    friend_cast_declarator(),
+                    choice![
+                        seq![optional(seq!["=", field("default_value", s!(expression))]), ";"],
+                        s!(default_method_clause),
+                        s!(delete_method_clause),
+                    ],
+                ],
+            ),
+        ],
+    );
     g.define(
         "constructor_try_statement",
         seq![
@@ -3757,6 +3795,23 @@ fn declarations(g: &mut Grammar) {
                 choice![
                     s!(declaration),
                     s!(function_definition),
+                    // A conversion function of a class, as a friend of a second class:
+                    // `struct B { friend A::operator X(); };` (gcc/testsuite/g++.dg/template/
+                    // friend73.C:5). The name of the function is a conversion-function-id with a
+                    // nested-name-specifier ([class.friend] p6, [class.conv.fct]). The two front
+                    // ends take a qualified name only, and they reject `friend operator int();`
+                    // with "must be a non-static member function" (GCC) and "must use a qualified
+                    // name when declaring a conversion operator as a friend" (Clang
+                    // `err_conv_function_not_member`). `qualified_operator_cast_identifier` gives
+                    // the qualified form, so the rule takes no unqualified name.
+                    //
+                    // The rule holds no specifier of its own. A specifier after `friend` belongs to
+                    // the declaration reading, and a copy of the repeat here makes the generator ask
+                    // for two more conflict sets that name `_declaration_specifiers`, the commonest
+                    // position in the language. A friend conversion function with a specifier has no
+                    // site in the corpus of 329,387 files and none in the 7,646 compiler test files.
+                    alias(s!(_friend_operator_cast_declaration), s!(declaration)),
+                    alias(s!(_friend_operator_cast_definition), s!(function_definition)),
                     // C++26 permits a list with packs: `friend A, Ts...;`. A friend type specifier
                     // can also be a fundamental type: `friend int, long;` (the variadic friend
                     // declarations of ParseCXXClassMemberDeclaration in Clang).
