@@ -324,6 +324,43 @@ mod tests {
         low
     }
 
+    /// The parse of one long line takes a time that grows with the length of the line.
+    ///
+    /// `ts_lexer__get_column` read the line again from its start at each call, and the scanner calls
+    /// it one time for each `%` and for each name after a declarator. The parse of a line of
+    /// declarations then took a time that grows with the square of the length of the line. Refer to
+    /// `ColumnAnchor` in vendor/tree-sitter/src/lexer.h.
+    ///
+    /// The test compares two lines, and the second is four times the first. With the anchor the time
+    /// of the second is approximately four times the time of the first. Without it the time was
+    /// fourteen times. The limit of eight separates the two, and it holds under the load of a
+    /// parallel gate, because the load moves the two times together.
+    #[test]
+    fn the_parse_of_one_long_line_grows_with_the_length_of_the_line() {
+        let line = |count: usize| format!("void f() {{ {} }}\n", "a b; ".repeat(count));
+        let language = Language::new(tree_sitter_cpp::LANGUAGE);
+        let mut parser = new_parser(&language);
+        let time_of = |parser: &mut Parser, count: usize| {
+            let source = line(count);
+            let started = Instant::now();
+            let tree = parse_with_limit(parser, source.as_bytes()).expect("the parse of the line ends");
+            let elapsed = started.elapsed();
+            assert!(!tree.root_node().has_error(), "the line of {count} declarations has an error");
+            elapsed
+        };
+        // The first parse of the process reads the tables into the cache, so it comes first and it
+        // is not one of the two measurements.
+        time_of(&mut parser, 400);
+        let short = time_of(&mut parser, 3_000);
+        let long = time_of(&mut parser, 12_000);
+        let ratio = long.as_secs_f64() / short.as_secs_f64().max(1e-9);
+        assert!(
+            ratio < 8.0,
+            "a line of 12,000 declarations takes {ratio:.1} times the time of a line of 3,000 \
+             declarations, and four times is the time of a linear parse. {short:?} and {long:?}"
+        );
+    }
+
     /// The budget of a parse counts the progress callbacks of the runtime, and it reads no clock.
     ///
     /// The test fails for a wall-clock limit. The parse of the source takes milliseconds, so each

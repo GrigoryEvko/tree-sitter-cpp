@@ -15,6 +15,23 @@ typedef struct {
   bool valid;
 } ColumnData;
 
+// The character column of one byte position of one row (tree-sitter-cpp fork).
+//
+// `ts_lexer__get_column` reads the line again from its start, and a lexer that moves invalidates
+// `column_data` at each step. A scanner that reads the column one time for each token of a long line
+// then takes a time that grows with the square of the length of the line. The anchor holds the
+// result of the last computation, and the next computation reads the line from the anchor. A parse
+// that moves forward then reads each line one time.
+//
+// The anchor is a fact about the text and the included ranges, and not about the position of the
+// lexer. `ts_lexer_goto` keeps it, and only a new input or a new list of included ranges clears it.
+typedef struct {
+  uint32_t row;
+  uint32_t byte;
+  uint32_t column;
+  bool valid;
+} ColumnAnchor;
+
 typedef struct {
   TSLexer data;
   Length current_position;
@@ -33,6 +50,7 @@ typedef struct {
   uint32_t lookahead_size;
   bool did_get_column;
   ColumnData column_data;
+  ColumnAnchor column_anchor;
 
   char debug_buffer[TREE_SITTER_SERIALIZATION_BUFFER_SIZE];
 } Lexer;

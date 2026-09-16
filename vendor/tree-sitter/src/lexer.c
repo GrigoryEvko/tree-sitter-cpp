@@ -326,14 +326,26 @@ static uint32_t ts_lexer__get_column(TSLexer *_self) {
   if (!self->column_data.valid) {
     // Record current position
     uint32_t goal_byte = self->current_position.bytes;
+    uint32_t row = self->current_position.extent.row;
+    uint32_t line_start_byte = goal_byte - self->current_position.extent.column;
 
-    // Back up to the beginning of the line
-    Length start_of_col = {
-      self->current_position.bytes - self->current_position.extent.column,
-      {self->current_position.extent.row, 0},
-    };
+    // Back up to the anchor of the last computation, or to the beginning of the line
+    // (tree-sitter-cpp fork). The anchor holds the column of one byte of one row, so the walk
+    // reads each byte of a line one time for a lexer that moves forward. Refer to `ColumnAnchor`.
+    uint32_t from_byte = line_start_byte;
+    uint32_t from_column = 0;
+    if (
+      self->column_anchor.valid &&
+      self->column_anchor.row == row &&
+      self->column_anchor.byte >= line_start_byte &&
+      self->column_anchor.byte <= goal_byte
+    ) {
+      from_byte = self->column_anchor.byte;
+      from_column = self->column_anchor.column;
+    }
+    Length start_of_col = {from_byte, {row, from_byte - line_start_byte}};
     ts_lexer_goto(self, start_of_col);
-    ts_lexer__set_column_data(self, 0);
+    ts_lexer__set_column_data(self, from_column);
     ts_lexer__get_chunk(self);
 
     if (!ts_lexer__eof(_self)) {
@@ -346,6 +358,14 @@ static uint32_t ts_lexer__get_column(TSLexer *_self) {
       }
     }
   }
+
+  // Keep the result for the next computation on the same row (tree-sitter-cpp fork).
+  self->column_anchor = (ColumnAnchor) {
+    .row = self->current_position.extent.row,
+    .byte = self->current_position.bytes,
+    .column = self->column_data.value,
+    .valid = self->column_data.valid,
+  };
 
   return self->column_data.value;
 }
@@ -404,6 +424,12 @@ void ts_lexer_init(Lexer *self) {
     .column_data = {
       .valid = false,
       .value = 0
+    },
+    .column_anchor = {
+      .row = 0,
+      .byte = 0,
+      .column = 0,
+      .valid = false
     }
   };
   ts_lexer_set_included_ranges(self, NULL, 0);
@@ -415,6 +441,8 @@ void ts_lexer_delete(Lexer *self) {
 
 void ts_lexer_set_input(Lexer *self, TSInput input) {
   self->input = input;
+  // A new input gives each byte a new column (tree-sitter-cpp fork).
+  self->column_anchor.valid = false;
   ts_lexer__clear_chunk(self);
   ts_lexer_goto(self, self->current_position);
 }
@@ -499,6 +527,8 @@ bool ts_lexer_set_included_ranges(
   self->included_ranges = ts_realloc(self->included_ranges, size);
   memcpy(self->included_ranges, ranges, size);
   self->included_range_count = count;
+  // New ranges give each byte a new column (tree-sitter-cpp fork).
+  self->column_anchor.valid = false;
   ts_lexer_goto(self, self->current_position);
   return true;
 }

@@ -1,4 +1,43 @@
 ================================================================================
+A directive and a macro name after a comment that holds characters of two bytes
+================================================================================
+
+/*ééé*/ #include "a.h"
+/*é*/ %:include "b.h"
+/*éé*/ enum E { A, B MACRO_X };
+/*éééé*/ int f() LIFETIME_BOUND;
+
+--------------------------------------------------------------------------------
+
+(translation_unit
+  (comment)
+  (preproc_include
+    (string_literal
+      (string_content)))
+  (comment)
+  (preproc_include
+    (string_literal
+      (string_content)))
+  (comment)
+  (enum_specifier
+    (type_identifier)
+    (enumerator_list
+      (enumerator
+        (identifier))
+      (enumerator
+        (identifier)
+        (attribute_macro
+          (identifier)))))
+  (comment)
+  (declaration
+    (primitive_type)
+    (function_declarator
+      (identifier)
+      (parameter_list)
+      (attribute_macro
+        (identifier)))))
+
+================================================================================
 Function-like macro definition in an initializer list
 ================================================================================
 
