@@ -1625,6 +1625,27 @@ const VOID_FUNCTION: i32 = 100;
 /// this precedence and the tree of the function reading.
 const EXTERN_FUNCTION_IN_BLOCK: i32 = 100;
 
+/// The dynamic precedence of a splice type specifier that no `typename` comes before.
+///
+/// [dcl.type.splice] p1 makes such a splice a type only in a type-only context, and
+/// [temp.res.general] p4.4.1 gives that context to a simple-declaration in namespace scope. In a
+/// block the expression reading is the correct one, and this precedence selects it. The value is
+/// small, because a top-level expression statement has `NAMESPACE_EXPRESSION`, which is -100, and
+/// the declaration must keep the merge at namespace scope. Refer to `splice_type_specifier`.
+const SPLICE_TYPE_OUTSIDE_A_TYPE_ONLY_CONTEXT: i32 = -1;
+
+/// The dynamic precedence of a splice type specifier that is the scope of a qualified name:
+/// `[:^^TCls<1>:]::s`.
+///
+/// [dcl.type.splice] p1 says that a splice immediately before `::` is never part of a
+/// splice-type-specifier, and GCC reads a splice-scope-specifier there
+/// (`cp_parser_splice_scope_specifier`). This grammar has no node of that kind, and the scope holds
+/// either a type or an expression. The type gives the tree that the scope of a class has, and this
+/// precedence states the reading. The value is one more than the opposite of
+/// `SPLICE_TYPE_OUTSIDE_A_TYPE_ONLY_CONTEXT`, so that the sum of the two is one and no tie of the
+/// symbol ids decides the tree.
+const SPLICE_TYPE_AS_A_SCOPE: i32 = 1 - SPLICE_TYPE_OUTSIDE_A_TYPE_ONLY_CONTEXT;
+
 /// The dynamic precedence of a class head that holds a macro and no member: `struct LLVM_ABI A;`,
 /// `class BASE_EXPORT C {};`.
 ///
@@ -7275,7 +7296,13 @@ fn expressions(g: &mut Grammar) {
                         s!(decltype),
                         s!(pack_index_specifier),
                         s!(splice_expression),
-                        s!(splice_type_specifier),
+                        // The scope of a qualified name keeps the reading of a type, and a rule
+                        // states it here. Before this precedence the two readings had the same sum
+                        // and the numeric symbol ids decided the tree, which is the defect class of
+                        // task 226. `SPLICE_TYPE_OUTSIDE_A_TYPE_ONLY_CONTEXT` lowers a bare splice
+                        // where a block gives it an expression reading, and this position is not
+                        // such a place, so the value here is one more than the opposite value.
+                        prec_dynamic(SPLICE_TYPE_AS_A_SCOPE, s!(splice_type_specifier)),
                         alias(s!(dependent_type_identifier), s!(dependent_name)),
                     ])
                 ),
@@ -7456,12 +7483,41 @@ fn expressions(g: &mut Grammar) {
     // and `^^typename [:r:]<int>` has template arguments, and the parser keeps the two readings
     // (the splice conflicts in `grammar`). Where only a type can come, the parser reads the
     // template arguments.
+    // A BARE SPLICE IS A TYPE ONLY IN A TYPE-ONLY CONTEXT. [dcl.type.splice] p1: a splice-specifier
+    // that no `typename` comes before "is only interpreted as a splice-type-specifier within a
+    // type-only context ([temp.res.general])". [temp.res.general] p4.4.1 gives that context to a
+    // decl-specifier of a simple-declaration in NAMESPACE scope, and a block holds no such context.
+    // The standard shows the rule in its own example: `void fn() { [:^^S::type:] *var; }` is an
+    // error and `typename [:^^S::type:] *var;` declares a pointer.
+    //
+    // So `void f() { [:rv:] * p; }` is a multiplication where `rv` reflects a value, and GCC 16.2
+    // compiles it with the warning "statement has no effect". GCC reads the same rule in
+    // `cp_parser_simple_declaration` (gcc/cp/parser.cc:17983), which takes
+    // CP_PARSER_FLAGS_TYPENAME_OPTIONAL only `if (at_namespace_scope_p ())`. Clang 22.1 has no
+    // P2996 and gives no evidence. The g++.dg/reflect tests pin the rule with a dg-error on each
+    // bare splice declaration in a block, and with none at namespace scope.
+    //
+    // The negative dynamic precedence gives the expression the merge in a block, where the two
+    // readings both continue. At namespace scope the declaration keeps the merge, because a
+    // top-level expression statement has the precedence `NAMESPACE_EXPRESSION`, which is -100.
+    //
+    // A DECLARATION WITH NO SECOND READING KEEPS ITS TREE, AND THE FORK ACCEPTS THAT.
+    // `void f() { [:r:] p; }` has no expression reading, and the fork reads a declaration where GCC
+    // gives the error "expected a reflection of an expression". No mainstream compiler accepts the
+    // text, so no consumer loses a region of correct code. The exact rule gives a block declaration
+    // its own specifier chain with no bare splice. That chain needs a copy of 30 of the 109 conflict
+    // sets of this grammar, two more symbols, and a GLR split in each block declaration, and a
+    // measurement of 2026-09-16 found ONE corpus file of 329,387 that writes a splice, with
+    // `typename` before it.
     g.define(
         "splice_type_specifier",
-        choice![
-            s!(splice_specifier),
-            prec_right(0, s!(_splice_specialization_specifier)),
-        ],
+        prec_dynamic(
+            SPLICE_TYPE_OUTSIDE_A_TYPE_ONLY_CONTEXT,
+            choice![
+                s!(splice_specifier),
+                prec_right(0, s!(_splice_specialization_specifier)),
+            ],
+        ),
     );
     // `template [:r:](1)` names a function template for overload resolution, and needs no
     // template arguments (cp_parser_splice_expression in GCC). A `<` after a splice starts

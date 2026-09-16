@@ -1126,3 +1126,170 @@ static_assert(^^v == ^^w);
       (reflect_expression
         (type_descriptor
           (type_identifier))))))
+
+================================================================================
+A splice type specifier and the type-only contexts
+================================================================================
+
+// [dcl.type.splice] p1: a splice-specifier that no `typename` comes before is a type only in a
+// type-only context ([temp.res.general] p4). Paragraph 4.4.1 gives that context to a
+// simple-declaration in NAMESPACE scope, and a block holds none. GCC 16.2 compiles line 1 of the
+// block below as a multiplication, with the warning "statement has no effect".
+[:r:] g1;
+struct C { [:r:] m; void n([:r:] x); };
+using A = [:r:];
+auto f() -> [:r:];
+void b1() { [:rv:] * p; }
+void b2() { typename [:r:] * p; }
+void b3() { auto x = static_cast<[:r:]>(1); }
+
+--------------------------------------------------------------------------------
+
+(translation_unit
+  (comment)
+  (comment)
+  (comment)
+  (comment)
+  (declaration
+    (splice_type_specifier
+      (splice_specifier
+        (identifier)))
+    (identifier))
+  (struct_specifier
+    (type_identifier)
+    (field_declaration_list
+      (field_declaration
+        (splice_type_specifier
+          (splice_specifier
+            (identifier)))
+        (field_identifier))
+      (field_declaration
+        (primitive_type)
+        (function_declarator
+          (field_identifier)
+          (parameter_list
+            (parameter_declaration
+              (splice_type_specifier
+                (splice_specifier
+                  (identifier)))
+              (identifier)))))))
+  (alias_declaration
+    (type_identifier)
+    (type_descriptor
+      (splice_type_specifier
+        (splice_specifier
+          (identifier)))))
+  (declaration
+    (placeholder_type_specifier
+      (auto))
+    (function_declarator
+      (identifier)
+      (parameter_list)
+      (trailing_return_type
+        (type_descriptor
+          (splice_type_specifier
+            (splice_specifier
+              (identifier)))))))
+  (function_definition
+    (primitive_type)
+    (function_declarator
+      (identifier)
+      (parameter_list))
+    (compound_statement
+      (expression_statement
+        (binary_expression
+          (splice_expression
+            (splice_specifier
+              (identifier)))
+          (identifier)))))
+  (function_definition
+    (primitive_type)
+    (function_declarator
+      (identifier)
+      (parameter_list))
+    (compound_statement
+      (declaration
+        (dependent_type
+          (splice_type_specifier
+            (splice_specifier
+              (identifier))))
+        (pointer_declarator
+          (identifier)))))
+  (function_definition
+    (primitive_type)
+    (function_declarator
+      (identifier)
+      (parameter_list))
+    (compound_statement
+      (declaration
+        (placeholder_type_specifier
+          (auto))
+        (init_declarator
+          (identifier)
+          (call_expression
+            (template_function
+              (identifier)
+              (template_argument_list
+                (type_descriptor
+                  (splice_type_specifier
+                    (splice_specifier
+                      (identifier))))))
+            (argument_list
+              (number_literal))))))))
+
+================================================================================
+A splice type specifier that no type-only context holds, an accepted reading
+================================================================================
+
+// GCC 16.2 rejects each line here with "expected a reflection of an expression", and the fork
+// reads a type. The text has one reading only, so no precedence can select a second one, and no
+// mainstream compiler accepts the text. [temp.res.general] p4.4.4 needs a QUALIFIED declarator-id
+// for a parameter at namespace scope, and the type-id of `sizeof` is in no part of p4.3.
+void f6([:r:] x);
+void b4() { [:r:] p; }
+void b5() { auto x = sizeof([:r:]); }
+
+--------------------------------------------------------------------------------
+
+(translation_unit
+  (comment)
+  (comment)
+  (comment)
+  (comment)
+  (declaration
+    (primitive_type)
+    (function_declarator
+      (identifier)
+      (parameter_list
+        (parameter_declaration
+          (splice_type_specifier
+            (splice_specifier
+              (identifier)))
+          (identifier)))))
+  (function_definition
+    (primitive_type)
+    (function_declarator
+      (identifier)
+      (parameter_list))
+    (compound_statement
+      (declaration
+        (splice_type_specifier
+          (splice_specifier
+            (identifier)))
+        (identifier))))
+  (function_definition
+    (primitive_type)
+    (function_declarator
+      (identifier)
+      (parameter_list))
+    (compound_statement
+      (declaration
+        (placeholder_type_specifier
+          (auto))
+        (init_declarator
+          (identifier)
+          (sizeof_expression
+            (parenthesized_expression
+              (splice_expression
+                (splice_specifier
+                  (identifier))))))))))

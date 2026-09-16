@@ -40919,8 +40919,12 @@
                       "name": "splice_expression"
                     },
                     {
-                      "type": "SYMBOL",
-                      "name": "splice_type_specifier"
+                      "type": "PREC_DYNAMIC",
+                      "value": 2,
+                      "content": {
+                        "type": "SYMBOL",
+                        "name": "splice_type_specifier"
+                      }
                     },
                     {
                       "type": "ALIAS",
@@ -41319,21 +41323,25 @@
       ]
     },
     "splice_type_specifier": {
-      "type": "CHOICE",
-      "members": [
-        {
-          "type": "SYMBOL",
-          "name": "splice_specifier"
-        },
-        {
-          "type": "PREC_RIGHT",
-          "value": 0,
-          "content": {
+      "type": "PREC_DYNAMIC",
+      "value": -1,
+      "content": {
+        "type": "CHOICE",
+        "members": [
+          {
             "type": "SYMBOL",
-            "name": "_splice_specialization_specifier"
+            "name": "splice_specifier"
+          },
+          {
+            "type": "PREC_RIGHT",
+            "value": 0,
+            "content": {
+              "type": "SYMBOL",
+              "name": "_splice_specialization_specifier"
+            }
           }
-        }
-      ]
+        ]
+      }
     },
     "splice_expression": {
       "type": "CHOICE",
