@@ -2810,3 +2810,50 @@ template <class C> struct S { alignas(C::x) char a; alignas(C) char b; };
                 type: (type_identifier))))
           type: (primitive_type)
           declarator: (field_identifier))))))
+
+================================================================================
+A class head of the file as the operand of alignas
+================================================================================
+
+// The scanner records the names of the class heads of the file, and the operand of `alignas`
+// reads that record. AN ALIAS IS NOT IN IT. `scan_class_head` records a class head and
+// nothing else, so `alignas(B)` for a `using` alias keeps the expression reading. 98 sites of
+// the corpus wait on a record of the alias and the typedef, which is a step of its own.
+struct A {};
+struct S { alignas(A) char a; };
+using B = int;
+struct T { alignas(B) char b; };
+
+--------------------------------------------------------------------------------
+
+(translation_unit
+  (comment)
+  (comment)
+  (comment)
+  (comment)
+  (struct_specifier
+    name: (type_identifier)
+    body: (field_declaration_list))
+  (struct_specifier
+    name: (type_identifier)
+    body: (field_declaration_list
+      (field_declaration
+        (type_qualifier
+          (alignas_qualifier
+            (type_descriptor
+              type: (type_identifier))))
+        type: (primitive_type)
+        declarator: (field_identifier))))
+  (alias_declaration
+    name: (type_identifier)
+    type: (type_descriptor
+      type: (primitive_type)))
+  (struct_specifier
+    name: (type_identifier)
+    body: (field_declaration_list
+      (field_declaration
+        (type_qualifier
+          (alignas_qualifier
+            (identifier)))
+        type: (primitive_type)
+        declarator: (field_identifier)))))

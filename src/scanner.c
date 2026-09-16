@@ -2187,7 +2187,17 @@ static bool is_alignas_type_name(const Scanner *scanner, const Reader *reader) {
         return false;
     }
     // 1. THE CONSTRUCT, task 291 step 2a. 200 sites in 150 files.
-    return is_template_parameter(scanner, reader->word_hash);
+    if (is_template_parameter(scanner, reader->word_hash)) {
+        return true;
+    }
+    // 2. THE FILE, task 291 step 2b. The class heads that `scan_class_head` recorded, which is what
+    //    the functional cast reads at its own position.
+    //
+    //    THIS READS CLASS HEADS AND NOTHING ELSE, which is what the record holds. Of the 217 sites
+    //    that the file decides and the construct does not, a class head declares 119 and the ring
+    //    reaches 111 of those. The other 98 rest on a `using` alias or a typedef, and the scanner
+    //    records neither. A record of those names is a separate step with a count of its own.
+    return is_class_name(scanner, reader->word_hash) || is_loose_name(scanner, reader->word_hash);
 }
 
 /// True when the seed of the parse names `name` as a type or as a template.
