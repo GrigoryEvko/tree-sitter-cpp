@@ -3796,8 +3796,18 @@ fn declarations(g: &mut Grammar) {
         ],
     );
     // A template name can be a pack index: `TT...[0]<int>`. The precedence gives the `<` after a
-    // pack index to the template arguments. A conflict in its place would also fork each
-    // `name <` of a nested template list, and the parser would drop parses at its version limit.
+    // pack index to the template arguments, and [temp.names] p7 asks for that reading: a `<` is the
+    // delimiter of a template-argument-list when it follows a pack-index-template-name. Clang
+    // `AnnotatePackIndexingTemplateName` (ParseDeclCXX.cpp:1237) cites the same paragraph. The
+    // installed Clang 22.1.8 and GCC 16.2 read no such name, and the LLVM 24 source has it.
+    //
+    // Only name lookup tells a template pack from a value pack, and a conflict in the place of the
+    // precedence gives `N...[0] < 3` the two readings. The value pack is the more frequent one, and
+    // `pack_index_expression` gives it a reading of its own: `N...[0] < 3` is a comparison in an
+    // expression, in an argument list, and in a template argument. An older comment named the
+    // version limit of the parser as the reason for the precedence. The runtime repairs that limit,
+    // and the paragraph of the standard is the reason. Refer to
+    // upstream-patches/11-merge-finished-version.patch.
     g.define(
         "template_type",
         choice![

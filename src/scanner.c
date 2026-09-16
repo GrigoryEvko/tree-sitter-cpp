@@ -194,9 +194,11 @@ typedef struct {
 /// The traits of GCC (gcc/cp/cp-trait.def) and Clang (clang/include/clang/Basic/BuiltinTraits.td)
 /// that give a value, in the order of `strcmp`.
 ///
-/// The table does not include the traits that give a type, for example `__underlying_type`. A
-/// marker at each start of a type splits many parser states, and nested template argument lists
-/// then need more parser versions than the parser keeps.
+/// The table holds no trait that gives a type, for example `__underlying_type`. Those traits are in
+/// `TYPE_TRAIT_TYPES`, with the token `TYPE_TRAIT_TYPE_MARKER` of their own. An older comment said
+/// that the fork reads no such trait, because a marker at each start of a type splits many parser
+/// states, and nested template argument lists then take more parser versions than the parser keeps.
+/// The runtime merges those versions. Refer to upstream-patches/11-merge-finished-version.patch.
 static const char *const TYPE_TRAITS[] = {
     "__array_extent",
     "__array_rank",
