@@ -3409,9 +3409,15 @@ fn declarations(g: &mut Grammar) {
     // abstract declarator can start after each type argument of a template.
     //
     // The steps are inline, and they are not `_scope_resolution`, the steps of a qualified name.
-    // `_scope_resolution` takes an empty scope. A `repeat1` of it reads `A:: ::` in two ways, and a
-    // conflict set of `_scope_resolution` alone is then necessary. Such a set stops the report of a
-    // conflict in each qualified name.
+    // DO NOT WRITE `repeat1(s!(_scope_resolution))` HERE. The generator then stops with three
+    // unresolved conflicts, and the last one needs a conflict set of `_scope_resolution` alone.
+    // `_scope_resolution` takes an empty scope, and a `repeat1` of it reads `A:: ::` in two ways.
+    // Such a set stops the report of a conflict in each qualified name, which is the defect that
+    // the check of `cargo xtask generate` removes.
+    //
+    // A wider scope choice gains no measured file. `::template V<int>::*` is in 4 corpus files, and
+    // each use is a member pointer with a name, which `_member_pointer_scope` reads.
+    // `P...[0]::*` is in 0 corpus files, and only GCC accepts it.
     //
     // The older reason for the inline steps was the version limit of the parser. With
     // `_scope_resolution`, the parse states of `a<b::c<d::e<f>>>` change. The parser then removed
@@ -3688,6 +3694,16 @@ fn declarations(g: &mut Grammar) {
     // macro name then does not split the parse states of the types and the constraints.
     // A GNU attribute can come after the first of these items, as in `_function_postfix`:
     // `void f() override __attribute__((format(printf, 2, 0))) {}`.
+    //
+    // The cost of that rule is 1 file. `auto f() -> const int * LIFETIME_BOUND;` gets an ERROR node.
+    // A measurement of the corpus found the form `-> TYPE MACRO;` in 4 lines of 2 files, and each of
+    // the 2 is a compiler test file: `use-trailing-return-type.cpp` and
+    // `cxx0x-keyword-attributes.cpp` of llvm-project. Only the first is one of the 329,387 measured
+    // files. The form is in 0 of the 7,646 compiler test files, and a requires clause with a macro
+    // is in 0 C++ files.
+    //
+    // `operator->() ABSL_ATTRIBUTE_LIFETIME_BOUND {` of abseil is a macro after a PARAMETER LIST,
+    // and not after a trailing return type. The rule reads it.
     let postfix_with_macro = || {
         choice![
             s!(virtual_specifier),
