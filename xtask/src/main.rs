@@ -83,10 +83,13 @@ tasks:
                            A recorded tree is the memory of a decision, and `--update` rewrites it.
   syntax [NAME]            Parse each snippet in test/syntax, and report each parse error.
                            With a NAME, also print the tree of each snippet that it selects.
-  parse FILE [--seed SEED] Print the syntax tree of FILE. With -, read the standard input. Fail
+  parse FILE [--seed SEED] [--text]
+                           Print the syntax tree of FILE. With -, read the standard input. Fail
                            when the parse passes the budget or the memory ceiling of `corpus`.
                            With --seed, give the scanner the names of the seed file SEED, and
-                           print the id of that seed in the first line.
+                           print the id of that seed in the first line. With --text, print one
+                           named node for each line, with its field, the text of each leaf, and
+                           the line and the column of each node.
   corpus ROOT LIST OUT [--seed FILE | --seeds DIRECTORY]
                            Parse each file of LIST, a list of paths relative to ROOT. Write the
                            parse errors of each file to OUT, one TSV line for each file, with a
