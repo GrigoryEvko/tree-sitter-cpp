@@ -214,11 +214,13 @@ pub fn grammar() -> Grammar {
         // name the type, so the bare macro after it can be the attribute macro. Refer to
         // `is_template_parameter_type_name`.
         s!(_template_parameter_type_name),
-        // The type of a parameter, where the template head of the same declaration declares the name
-        // as a TYPE PARAMETER, a plain name follows it, and a macro-shaped name follows THAT name, on
-        // the same line or after a line break. The token makes the first name the type. The second
-        // name is then the declarator, and the third name is the attribute macro of that declarator.
-        // Refer to `_template_parameter_declarator_type` and to task 276.
+        // The type of a declaration, a field, or a parameter, where a source of the parse declares
+        // the name as a type, a plain name follows it, and a macro-shaped name follows THAT name, on
+        // the same line or after a line break. The sources are the template head of the same
+        // declaration, the class heads of the file, and the seed of the project. The token makes the
+        // first name the type. The second name is then the declarator, and the third name is the
+        // attribute macro of that declarator. Refer to `_template_parameter_declarator_type` and to
+        // task 276.
         s!(_template_parameter_declarator_type),
     ];
     // The conflict sets of the grammar. Each set names the rules of one ambiguity, and it tells the
@@ -2680,8 +2682,32 @@ fn types(g: &mut Grammar) {
     //
     // THE TOKEN TAKES NO ATTRIBUTE MACRO AFTER THE TYPE, and `template_parameter_type` takes one.
     // Two tokens keep the two shapes apart, so no text has both readings and the parse does not fork.
-    let template_parameter_declarator_type =
-        || field("type", alias(s!(_template_parameter_declarator_type), s!(type_identifier)));
+    //
+    // THE SOURCES OF THE TYPE ARE THREE, AND THE TOKEN IS IN THE SPECIFIERS OF A DECLARATION TOO.
+    // The template head of the same declaration declares `T`. A class head of the file declares
+    // `Mutex` in `Mutex mu MOZ_UNANNOTATED;` of firefox, and the seed of a project declares
+    // `hb_codepoint_t` in `hb_codepoint_t glyph HB_UNUSED` of harfbuzz. The measurement of
+    // 2026-09-16 at 3977e59 gives 772 such sites in 340 files: 272 parameters, 133 declarations,
+    // 66 fields and 301 function definitions, and the first version of this token reached
+    // parameters only. Refer to `is_declared_type_name` in src/scanner.c.
+    //
+    // THE TOKEN IS THE DECISION, AND THE DYNAMIC PRECEDENCE SAYS SO TO THE DEDUPE OF THE PARSE
+    // STACK. In a class body, `static Rep max BOOST_PREVENT_MACRO_SUBSTITUTION () { ... }` has a
+    // second reading with no type: the attribute macros `Rep` and `max` before a constructor named
+    // `BOOST_PREVENT_MACRO_SUBSTITUTION`. The two readings reduce to one `function_definition` of
+    // the same size and child count, and with an equal precedence the dedupe keeps the link that
+    // came first, which is no rule. The gate of 2026-09-17 found 14 files of boost/chrono,
+    // boost/date_time, boost/math and boost/numeric, with their mongo copies, whose tree then
+    // depended on that order. One point of dynamic precedence on the reading that holds the token
+    // decides it: the scanner gave the token because a source declares the first name as a type,
+    // and a reading that takes that name as a macro loses. With the point the dedupe population is
+    // the baseline again, 2,830 files, and the 34 files that the token changes are the same 34.
+    let template_parameter_declarator_type = || {
+        prec_dynamic(
+            1,
+            field("type", alias(s!(_template_parameter_declarator_type), s!(type_identifier))),
+        )
+    };
     let specifiers = |types: Rule| {
         prec_right(
             0,
@@ -2718,7 +2744,11 @@ fn types(g: &mut Grammar) {
             seq![
                 c::extension_prefix(),
                 specifier_prefix(),
-                choice![seq![field("type", types), type_attribute_macro()], template_parameter_type()],
+                choice![
+                    seq![field("type", types), type_attribute_macro()],
+                    template_parameter_type(),
+                    template_parameter_declarator_type()
+                ],
                 repeat(s!(_declaration_modifiers)),
             ],
         )

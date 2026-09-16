@@ -3173,3 +3173,301 @@ double ALIGN16 t[2];
 ; compared for an `:error` example, and the pin is that the text has an error, until a rule
 ; reads a macro after a complete type and rewrites this example.
 (ERROR)
+
+================================================================================
+A macro after the declarator of a declaration, a field, or a parameter whose type a class head of the file declares
+================================================================================
+
+// `Mutex` is a class head of this file with a member, so the record of the scanner holds it. Before
+// this rule the fork read `Mutex mu MOZ_UNANNOTATED;` as the attribute macro `Mutex`, the type `mu`
+// and the declarator `MOZ_UNANNOTATED`, in a declaration, in a field and in a parameter alike. The
+// template head of the same declaration was the only source of the type. The class heads of the
+// file and the seed of the project are two more sources of the same fact, and this example holds
+// the first of the two. The lines come from firefox, from boost/chrono and from abseil-cpp.
+class Mutex { int m; };
+Mutex mu MOZ_UNANNOTATED;
+static Mutex mu2 MOZ_UNANNOTATED("test lock");
+struct S {
+  Mutex mu3 MOZ_UNANNOTATED;
+  Mutex mu4 GUARDED_BY(mu3) {};
+  void f(Mutex m MOZ_UNANNOTATED, Mutex n MOZ_UNANNOTATED);
+  // AN EMPTY GROUP AFTER THE MACRO IS THE PARAMETER LIST OF A FUNCTION, and the macro sits between
+  // the name of the function and that list. The scan of the macro after a declarator reads the
+  // group the same way. 301 function definitions of the corpus at 3977e59 have this shape.
+  static Mutex max BOOST_PREVENT_MACRO_SUBSTITUTION () { return mu; }
+  static Mutex min BOOST_PREVENT_MACRO_SUBSTITUTION ();
+};
+void g() { Mutex l1 MOZ_UNANNOTATED("autolock"); Mutex l2 MOZ_UNANNOTATED; }
+// A GROUP OF EXPRESSIONS AFTER THE MACRO IS THE ARGUMENT LIST OF THE MACRO, by the rule of
+// `_declarator_attribute_macro`. In abseil-cpp attributes_test.cc the group of the line below is
+// the initializer of `good2`, and the fork reads it as the arguments of the macro, as it reads
+// `Foo bar GUARDED_BY(mu);`. Two of the three fields of the line are right, and the third is the
+// price of that rule.
+Mutex good2 ABSL_ATTRIBUTE_UNUSED(1, 2);
+// A NAME THAT NO SOURCE DECLARES KEEPS THE READING OF TODAY. This file declares no class
+// `StringRef`, and a typedef is not a class head. The seed of a project holds a typedef, and the
+// test `a_seed_reaches_the_type_before_a_declarator_and_a_macro` of xtask/src/scanner.rs reads
+// the second line with a seed.
+StringRef trim(StringRef ref CATCH_ATTR_LIFETIMEBOUND);
+typedef unsigned int hb_codepoint_t;
+void h(hb_codepoint_t glyph HB_UNUSED);
+// THE BLANKS AFTER THE NAME BELONG TO THE SCAN OF A COMPARISON. `bound` is a class head of this
+// file and an object, and the scan of a declared type reads the blanks after it through the scan
+// of a comparison, so the `<` keeps the token of a comparison. A draft that read the blanks itself
+// changed 59 clean files of the corpus, each one a comparison read as a template-id.
+struct bound { int n; };
+int bound;
+bool cmp(int n) { return bound < 0 || bound > (n - 1); }
+// A MACRO-SHAPED CLASS NAME DOES NOT ENTER THE SCAN. `FOO (y)` on a line of its own is a macro
+// invocation with the name of the class, and the scan of a declared type would read the blank and
+// the `(` and give the line an ERROR node. The price of that test is the second line, which keeps
+// the reading of today for a class name in capitals.
+class FOO { int x; };
+void k() {
+  FOO (y)
+  FOO bar BAZ;
+}
+// THE SWAPPED SHAPE KEEPS ITS READING FOR A CLASS HEAD. `Mutex MOZ_UNANNOTATED mu5;` reads as the
+// attribute macro `Mutex`, the type `MOZ_UNANNOTATED` and the declarator `mu5`. The token of
+// `_template_parameter_type_name` repairs that shape when a template head declares the first name,
+// and a commit of its own measures the 6,518 sites of the corpus with a plain first name and a
+// macro-shaped second name, most of them SAL annotations where the first name IS the macro.
+Mutex MOZ_UNANNOTATED mu5;
+// A QUALIFIER AFTER THE PARAMETER LIST KEEPS THE READING OF TODAY, because the scan of the macro
+// after a declarator gives no token before a `const` there. 168 sites of the corpus at 3977e59
+// have this shape, and a commit that teaches that scan the qualifier takes them.
+struct T2 { Mutex z BOOST_PREVENT_MACRO_SUBSTITUTION () const; };
+
+--------------------------------------------------------------------------------
+
+(translation_unit
+  (comment)
+  (comment)
+  (comment)
+  (comment)
+  (comment)
+  (comment)
+  (class_specifier
+    (type_identifier)
+    (field_declaration_list
+      (field_declaration
+        (primitive_type)
+        (field_identifier))))
+  (declaration
+    (type_identifier)
+    (attributed_declarator
+      (identifier)
+      (attribute_macro
+        (identifier))))
+  (declaration
+    (storage_class_specifier)
+    (type_identifier)
+    (attributed_declarator
+      (identifier)
+      (attribute_macro
+        (identifier)
+        (argument_list
+          (string_literal
+            (string_content))))))
+  (struct_specifier
+    (type_identifier)
+    (field_declaration_list
+      (field_declaration
+        (type_identifier)
+        (attributed_declarator
+          (field_identifier)
+          (attribute_macro
+            (identifier))))
+      (field_declaration
+        (type_identifier)
+        (attributed_declarator
+          (field_identifier)
+          (attribute_macro
+            (identifier)
+            (argument_list
+              (identifier))))
+        (initializer_list))
+      (field_declaration
+        (primitive_type)
+        (function_declarator
+          (field_identifier)
+          (parameter_list
+            (parameter_declaration
+              (type_identifier)
+              (attributed_declarator
+                (identifier)
+                (attribute_macro
+                  (identifier))))
+            (parameter_declaration
+              (type_identifier)
+              (attributed_declarator
+                (identifier)
+                (attribute_macro
+                  (identifier)))))))
+      (comment)
+      (comment)
+      (comment)
+      (function_definition
+        (storage_class_specifier)
+        (type_identifier)
+        (function_declarator
+          (field_identifier)
+          (attribute_macro
+            (identifier))
+          (parameter_list))
+        (compound_statement
+          (return_statement
+            (identifier))))
+      (field_declaration
+        (storage_class_specifier)
+        (type_identifier)
+        (function_declarator
+          (field_identifier)
+          (attribute_macro
+            (identifier))
+          (parameter_list)))))
+  (function_definition
+    (primitive_type)
+    (function_declarator
+      (identifier)
+      (parameter_list))
+    (compound_statement
+      (declaration
+        (type_identifier)
+        (attributed_declarator
+          (identifier)
+          (attribute_macro
+            (identifier)
+            (argument_list
+              (string_literal
+                (string_content))))))
+      (declaration
+        (type_identifier)
+        (attributed_declarator
+          (identifier)
+          (attribute_macro
+            (identifier))))))
+  (comment)
+  (comment)
+  (comment)
+  (comment)
+  (comment)
+  (declaration
+    (type_identifier)
+    (attributed_declarator
+      (identifier)
+      (attribute_macro
+        (identifier)
+        (argument_list
+          (number_literal)
+          (number_literal)))))
+  (comment)
+  (comment)
+  (comment)
+  (comment)
+  (declaration
+    (type_identifier)
+    (function_declarator
+      (identifier)
+      (parameter_list
+        (parameter_declaration
+          (attribute_macro
+            (identifier))
+          (type_identifier)
+          (identifier)))))
+  (type_definition
+    (sized_type_specifier
+      (primitive_type))
+    (type_identifier))
+  (declaration
+    (primitive_type)
+    (function_declarator
+      (identifier)
+      (parameter_list
+        (parameter_declaration
+          (attribute_macro
+            (identifier))
+          (type_identifier)
+          (identifier)))))
+  (comment)
+  (comment)
+  (comment)
+  (comment)
+  (struct_specifier
+    (type_identifier)
+    (field_declaration_list
+      (field_declaration
+        (primitive_type)
+        (field_identifier))))
+  (declaration
+    (primitive_type)
+    (identifier))
+  (function_definition
+    (primitive_type)
+    (function_declarator
+      (identifier)
+      (parameter_list
+        (parameter_declaration
+          (primitive_type)
+          (identifier))))
+    (compound_statement
+      (return_statement
+        (binary_expression
+          (binary_expression
+            (identifier)
+            (number_literal))
+          (binary_expression
+            (identifier)
+            (parenthesized_expression
+              (binary_expression
+                (identifier)
+                (number_literal))))))))
+  (comment)
+  (comment)
+  (comment)
+  (comment)
+  (class_specifier
+    (type_identifier)
+    (field_declaration_list
+      (field_declaration
+        (primitive_type)
+        (field_identifier))))
+  (function_definition
+    (primitive_type)
+    (function_declarator
+      (identifier)
+      (parameter_list))
+    (compound_statement
+      (macro_invocation
+        (identifier)
+        (token_tree
+          (identifier)))
+      (declaration
+        (attribute_macro
+          (identifier))
+        (type_identifier)
+        (identifier))))
+  (comment)
+  (comment)
+  (comment)
+  (comment)
+  (comment)
+  (declaration
+    (attribute_macro
+      (identifier))
+    (type_identifier)
+    (identifier))
+  (comment)
+  (comment)
+  (comment)
+  (struct_specifier
+    (type_identifier)
+    (field_declaration_list
+      (field_declaration
+        (attribute_macro
+          (identifier))
+        (type_identifier)
+        (function_declarator
+          (field_identifier)
+          (parameter_list)
+          (type_qualifier))))))

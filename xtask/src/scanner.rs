@@ -411,6 +411,53 @@ mod seeded {
         assert!(sexp.contains("(alignas_qualifier (identifier))"), "{sexp}");
     }
 
+    /// THE SEED REACHES THE TYPE BEFORE A DECLARATOR AND A MACRO, THE THIRD SOURCE OF THAT LOOKUP.
+    ///
+    /// `hb_codepoint_t glyph HB_UNUSED` reads as the attribute macro `hb_codepoint_t`, the type
+    /// `glyph` and the declarator `HB_UNUSED` when no source declares the first name. The template
+    /// head of the same declaration is the first source, the class heads of the file are the
+    /// second, and a typedef is in neither. The seed of harfbuzz holds `hb_codepoint_t` as a type,
+    /// and 159 sites of the corpus at 3977e59 have this name in this shape. Refer to
+    /// `is_declared_type_name` in src/scanner.c.
+    ///
+    /// THE GATE RUNS NO SEED, so this source measures zero in every gate. This test is the only
+    /// evidence in the test suite that it does anything at all.
+    #[test]
+    fn a_seed_reaches_the_type_before_a_declarator_and_a_macro() {
+        const SOURCE: &str = "void f(hb_codepoint_t glyph HB_UNUSED, hb_other_t other HB_UNUSED);\n";
+        let file = SeedFile::new("hb_codepoint_t\ttype\n");
+        let seed = Seed::read(file.path()).expect("the seed reads");
+
+        let unseeded = bare(SOURCE);
+        assert_eq!(
+            unseeded.root_node().to_sexp().matches("(attributed_declarator").count(),
+            0,
+            "with no seed the file declares neither name and each parameter reads the first name as a macro"
+        );
+
+        let mut parser = parser();
+        // SAFETY: `seed` lives to the end of this test.
+        unsafe { parser.set_scanner_context(seed.as_context()) };
+        let seeded = parser.parse(SOURCE, None).expect("the parse ends");
+        let sexp = seeded.root_node().to_sexp();
+        assert_ne!(sexp, unseeded.root_node().to_sexp(), "the seed did not reach the type");
+        // THE SEED NAMES ONE OF THE TWO. `hb_codepoint_t` becomes the type, with `glyph` as the
+        // declarator and `HB_UNUSED` as its attribute macro, and the second parameter keeps the
+        // reading with the macro first, so the rule reads the seed and does not take every name.
+        assert_eq!(sexp.matches("(attributed_declarator").count(), 1, "{sexp}");
+        assert!(
+            sexp.contains(
+                "(parameter_declaration type: (type_identifier) declarator: (attributed_declarator (identifier) \
+                 (attribute_macro name: (identifier))))"
+            ),
+            "{sexp}"
+        );
+        assert!(
+            sexp.contains("(parameter_declaration (attribute_macro name: (identifier)) type: (type_identifier) declarator: (identifier))"),
+            "{sexp}"
+        );
+    }
+
     /// THE CONTEXT SURVIVES A PARSE THAT REUSES A TREE.
     ///
     /// `serialize` and `deserialize` do not carry the context, and they must not. The buffer is 1 KB

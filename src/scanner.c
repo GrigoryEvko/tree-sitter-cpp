@@ -186,13 +186,14 @@ enum TokenType {
     /// as a TYPE PARAMETER and a macro-shaped name follows it: `T HPX_RESTRICT dest`. The token
     /// makes the first name the type, and the bare name after it is then the attribute macro.
     TEMPLATE_PARAMETER_TYPE_NAME,
-    /// The type of a parameter, where the template head of the same declaration declares the name as
-    /// a TYPE PARAMETER, a plain name follows it, and a macro-shaped name follows THAT name, on the
-    /// same line or after a line break: `T value ABSL_ATTRIBUTE_LIFETIME_BOUND`. The token makes the
-    /// first name the type.
-    /// The second name is then the declarator, and the third name is the attribute macro of that
-    /// declarator. The token of `TEMPLATE_PARAMETER_TYPE_NAME` covers the shape where the SECOND
-    /// name is the macro.
+    /// The type of a declaration, a field, or a parameter, where a source of the parse declares the
+    /// name as a type, a plain name follows it, and a macro-shaped name follows THAT name, on the same
+    /// line or after a line break: `T value ABSL_ATTRIBUTE_LIFETIME_BOUND`, `Mutex mu MOZ_UNANNOTATED;`.
+    /// The token makes the first name the type. The second name is then the declarator, and the third
+    /// name is the attribute macro of that declarator. The sources are the template head of the same
+    /// declaration, the class heads of the file, and the seed of the project. Refer to
+    /// `is_declared_type_name`. The token of `TEMPLATE_PARAMETER_TYPE_NAME` covers the shape where
+    /// the SECOND name is the macro, and the template head is its only source.
     TEMPLATE_PARAMETER_DECLARATOR_TYPE,
     /// The count of the external tokens, and not a token. `tree_sitter_cpp_external_scanner_create`
     /// compares it with the count of the parser.
@@ -2357,6 +2358,23 @@ static bool is_seed_type_name(const Scanner *scanner, const char *name, const Re
     }
     uint16_t kinds = seed_kinds((const TSCppSeed *)scanner->context, name, (uint32_t)strlen(name));
     return (kinds & (TS_CPP_SEED_TYPE | TS_CPP_SEED_TEMPLATE)) != 0;
+}
+
+/// True when a class head of the file or the seed of the project declares the name as a type.
+///
+/// ONE LOOKUP WITH TWO SOURCES, AND EACH SOURCE READS NO CHARACTER. `is_class_name` compares the
+/// hash of the name with the record of the class heads that have a member, and `is_seed_type_name`
+/// compares the bytes of the name with the entries of the seed. The template head of the same
+/// declaration is the third source of the same fact, and `scan_word_start` reads it on a path of
+/// its own, because that path was there first and its declines are measured. Refer to
+/// `is_alignas_type_name`, which reads the same sources for the operand of `alignas`.
+///
+/// THE RECORD OF THE CLASS HEADS HOLDS THE LAST MAX_CLASSES NAMES OF THE FILE, so a class that the
+/// file declares far above the site is not in it. THE GATE RUNS NO SEED, so the seed source measures
+/// zero in every gate, and the test `a_seed_reaches_the_type_before_a_declarator_and_a_macro` in
+/// xtask/src/scanner.rs is the evidence that it does anything.
+static bool is_declared_type_name(const Scanner *scanner, const char *full, const Reader *reader) {
+    return is_class_name(scanner, reader->word_hash) || is_seed_type_name(scanner, full, reader);
 }
 
 /// MEASUREMENT OF TASK 240. Record a name in the second record. Return false if it already is the most
@@ -7580,7 +7598,16 @@ static FeedResult feed_close(Close *close, const TextToken *token, int32_t next)
 /// The scan starts after the name, which `read_word` read. It stops at the end of the expression or
 /// at an assignment operator, and it reads a maximum of `MAX_COMPARISON_LOOKAHEAD` characters. O(n)
 /// in the characters that it reads.
-static bool scan_comparison_name(Reader *reader, const char *name, bool comparison_valid, bool cast_name) {
+///
+/// WITH `after_blanks`, THE SCAN TELLS ITS CALLER WHEN IT STOPPED RIGHT AFTER THE BLANKS. The scan of
+/// a declared type in `scan_word_start` runs at the positions of this scan, and it must read the
+/// blanks after the name before it can know whether a name follows. The lexer cannot go back, so the
+/// two scans read those blanks one time: this scan reads them, and when the character after them is
+/// not a `<` and not the `(` of a cast, it gives no token, sets `*after_blanks`, and reads no more.
+/// The reader is then after the blanks, the mark is at the end of the name, and the caller reads the
+/// character there. With NULL, the scan is as before.
+static bool scan_comparison_name(Reader *reader, const char *name, bool comparison_valid, bool cast_name,
+                                 bool *after_blanks) {
     TSLexer *lexer = reader->lexer;
     lexer->result_symbol = COMPARISON_NAME;
     mark_end(lexer);
@@ -7613,6 +7640,9 @@ static bool scan_comparison_name(Reader *reader, const char *name, bool comparis
         return true;
     }
     if (lexer->lookahead != '<') {
+        if (after_blanks != NULL) {
+            *after_blanks = true;
+        }
         return false;
     }
     step(reader);
@@ -8607,9 +8637,16 @@ static bool starts_initializer_element(Reader *reader) {
 /// difference between the two tests makes a declaration that has the type token and no macro token,
 /// and such a declaration gets an ERROR node. For this reason the tests here are the stricter ones.
 ///
-/// THE CHARACTER AFTER THE MACRO MUST END A PARAMETER. Each of the 81 sites is a parameter, and each
-/// one has a `,` or a `)` after the macro. `void b(T value MACRO x)` and `void c(T value MACRO = 1)`
-/// have a different character there, and without this test each of the two gets an ERROR node.
+/// THE CHARACTER AFTER THE MACRO MUST END THE DECLARATOR. A `,` or a `)` ends a parameter, and each
+/// of the 81 sites of the template head is a parameter. A `;` ends a declaration or a field:
+/// `Mutex mu MOZ_UNANNOTATED;` in firefox and `hb_locale_t oldlocale HB_UNUSED;` in harfbuzz. A `{`
+/// starts the braced initializer of a declaration or of a field: `atomic_uintptr_t XRayArgLogger
+/// SANITIZER_INTERFACE_ATTRIBUTE{0};` in compiler-rt. `void b(T value MACRO x)` and `void c(T value
+/// MACRO = 1)` have a different character there, and without this test each of the two gets an
+/// ERROR node. A `=` is not in the test, because `optional_parameter_declaration` takes no attributed
+/// declarator, and `void c(T value MACRO = 1)` shows the ERROR node that the token gives there. The
+/// population of 3977e59 holds 5 declarations with a `=` after the macro, all in mongo, and they keep
+/// the reading of today.
 static bool scan_template_parameter_declarator(Reader *reader, const char *declarator,
                                                const bool *valid_symbols) {
     TSLexer *lexer = reader->lexer;
@@ -8641,17 +8678,111 @@ static bool scan_template_parameter_declarator(Reader *reader, const char *decla
         if (!skip_group(reader, &arguments) || reader->budget == 0) {
             return false;
         }
+        // THE GROUP IS THE ARGUMENTS OF THE MACRO OR THE PARAMETER LIST OF THE DECLARATOR, AND THIS
+        // TEST IS THE TEST OF `scan_trailing_macro_name`, WHICH READS THE GROUP LATER. A group of
+        // expressions is the arguments of the macro. An empty group, or a group with a token that no
+        // expression holds, is the parameter list of a function, and the macro sits between the name
+        // of the function and that list: `Rep max BOOST_PREVENT_MACRO_SUBSTITUTION () {` in
+        // boost/chrono. A group that is neither gets no macro token from that scan, and the type
+        // token alone then gives an ERROR node in the place of the wrong tree of today:
+        // `AnyGlobalsTypeInternal Any_globals_ PROTOBUF_MESSAGE_GLOBALS_SECTION(.data.rel.ro)` in
+        // 37 sites of protobuf, 14 files that hold an error with this test and without it. A draft
+        // without this test gave those 14 files a different wrong tree, and this test keeps the
+        // tree that they have today.
+        if ((arguments.empty || arguments.not_expressions || arguments.statements) && arguments.not_parameters) {
+            return false;
+        }
         Gap after_arguments = {0};
         skip_gap(reader, &after_arguments);
         if (after_arguments.blocked || !readable(reader)) {
             return false;
         }
     }
-    if (lexer->lookahead != ',' && lexer->lookahead != ')') {
+    if (lexer->lookahead != ',' && lexer->lookahead != ')' && lexer->lookahead != ';' && lexer->lookahead != '{') {
         return false;
     }
     lexer->result_symbol = TEMPLATE_PARAMETER_DECLARATOR_TYPE;
     return true;
+}
+
+/// Select `TEMPLATE_PARAMETER_DECLARATOR_TYPE` for a type that a class head of the file or the seed
+/// of the project declares, where a declarator follows the type and a macro follows the declarator:
+/// `Mutex mu MOZ_UNANNOTATED;` in firefox, `hb_codepoint_t glyph HB_UNUSED` in harfbuzz, `StringRef
+/// ref CATCH_ATTR_LIFETIMEBOUND` in Catch2.
+///
+/// The caller read the first name, and the character after the name is a blank or a line break. The
+/// reader is at the end of the name. The scan reads the blanks, an optional gap, and the second
+/// name, and it gives the rest of the text to `scan_template_parameter_declarator`.
+///
+/// THE BLANKS AFTER THE NAME BELONG TO THE SCAN OF A COMPARISON, AND THIS SCAN READS THEM THROUGH
+/// THAT SCAN. The positions of this scan are the positions where a type can start. The measurement
+/// of 2026-09-16 over the 43,269,941 such positions of the corpus with a blank after the name says
+/// which other scans of `scan_word_start` run there: `COMPARISON_NAME` is valid at 23,001,326 of
+/// them, `TYPE_TRAIT_TYPE_MARKER` at all of them, so the functional cast never is, and
+/// `ALIGNAS_TYPE_NAME` and `POINTER_CALL_MACRO_NAME` at none. So the one scan after this one that
+/// can give a token for a name with a blank after it is the scan of a comparison, for `x < 0 || x >
+/// (n - 1)`. The lexer cannot go back, so this scan cannot read the blanks and then let that scan
+/// read them again. It calls that scan first. A `<` or a `(` after the blanks keeps the token that
+/// it has today. A name after the blanks is the declarator, and the scan continues from there with
+/// the mark at the end of the type. A draft with no hand-off, and with every plain name admitted,
+/// changed 542 files of the corpus, and 163 of them lost a comparison to a template-id:
+/// `zfac < 1.e-6f && zfac > -1.e-6f` in blender.
+///
+/// THE SCANS OF A MACRO INVOCATION GIVE NO TOKEN FOR A NAME OF THESE TWO SOURCES, so no hand-off to
+/// `scan_macro_start` is necessary. The caller admits no macro-shaped name, and `scan_macro_start`
+/// gives its tokens to a macro-shaped name, to a SAL name, to a name where a member starts that is
+/// not a recorded class name, or to a name before a constructor that is not a recorded class name.
+/// A recorded class name reaches none of those. A seed name that is not a recorded class name can
+/// reach the last two, and the text that takes them is a type before a macro invocation or before a
+/// constructor, which is no C++ declaration.
+///
+/// A KEYWORD IS A SPECIFIER AND NEVER A DECLARATOR, AND A MACRO-SHAPED SECOND NAME IS THE OTHER
+/// CONSTRUCT. `Mutex MOZ_UNANNOTATED mu;` reads today as the attribute macro `Mutex`, the type
+/// `MOZ_UNANNOTATED` and the declarator `mu`, which is the swapped reading that the token of
+/// `TEMPLATE_PARAMETER_TYPE_NAME` repairs when a template head declares the first name. This scan
+/// keeps that reading for a class head and for a seed name, because the population of that construct
+/// is a different table: 6,518 sites at 3977e59 whose first name is plain and whose second name is
+/// macro-shaped, most of them SAL annotations where the first name IS the macro. A commit that takes
+/// the ones with a declared first name measures that table.
+static bool scan_declared_type_declarator(Reader *reader, const char *word, bool comparison, bool cast_name,
+                                          const bool *valid_symbols) {
+    TSLexer *lexer = reader->lexer;
+    uint32_t before = reader->budget;
+    bool after_blanks = false;
+    if (scan_comparison_name(reader, word, comparison, cast_name, &after_blanks)) {
+        return true;
+    }
+    // A `<` after the blanks took the scan of a comparison past them, and that scan gave no token.
+    // The reader is then somewhere in the comparison, and this scan reads nothing there.
+    if (!after_blanks || !readable(reader)) {
+        return false;
+    }
+    // The scan of a comparison keeps a budget of MAX_COMPARISON_LOOKAHEAD, and this scan reads a gap
+    // that can hold a long comment before the macro. The budget of this scan is the budget before
+    // that scan, less the blanks that it read. `clamped` is the budget that it started with.
+    uint32_t clamped = before < MAX_COMPARISON_LOOKAHEAD ? before : MAX_COMPARISON_LOOKAHEAD;
+    reader->budget = before - (clamped - reader->budget);
+    if (!is_word_start(lexer->lookahead)) {
+        // A LINE BREAK OR A COMMENT AFTER THE BLANKS IS A GAP BEFORE THE DECLARATOR, AND NOT THE END
+        // OF THE CONSTRUCT. The scan of a comparison gives no token there today, so the path through
+        // the gap changes no tree of a comparison.
+        int32_t c = lexer->lookahead;
+        if (!is_line_break(c) && c != '/' && c != '\\' && c != '\f' && c != '\v') {
+            return false;
+        }
+        Gap after_type = {0};
+        skip_gap(reader, &after_type);
+        if (after_type.blocked || !readable(reader) || !is_word_start(lexer->lookahead)) {
+            return false;
+        }
+    }
+    char second[MACRO_WORD_SIZE];
+    bool second_has_lower = false;
+    read_word(reader, second, &second_has_lower);
+    if (strlen(second) >= 2 && is_macro_name(second, second_has_lower) && !is_grammar_keyword(second)) {
+        return false;
+    }
+    return scan_template_parameter_declarator(reader, second, valid_symbols);
 }
 
 static bool scan_word_start(Scanner *scanner, TSLexer *lexer, const bool *valid_symbols) {
@@ -8810,7 +8941,34 @@ static bool scan_word_start(Scanner *scanner, TSLexer *lexer, const bool *valid_
     // scopes. The measurement gave 4 incorrect rows of 224 in the 7646 compiler test files, against
     // approximately 1500 correct casts that a record like that removes in the corpus. Because of this
     // measurement, the fork keeps the incorrect form.
-    // THE TYPE OF A DECLARATION THAT THE TEMPLATE HEAD OF THE SAME DECLARATION DECLARES.
+    // THE FLAGS OF THE SCANS AFTER THE SCAN OF A DECLARED TYPE, COMPUTED BEFORE IT. Each one reads
+    // the word, the character after it, and the records, and none reads a character. The scan of a
+    // declared type hands the reader to the scan of a comparison, so it must know the flags first.
+    bool cast_name = valid_symbols[FUNCTIONAL_CAST_NAME] && !valid_symbols[TYPE_TRAIT_TYPE_MARKER] &&
+                     !valid_symbols[MACRO_TYPE_START] && !valid_symbols[PARAMETER_MACRO_TYPE_START] &&
+                     !is_grammar_keyword(word) &&
+                     (is_class_name(scanner, reader.word_hash) || is_loose_name(scanner, reader.word_hash) ||
+                      is_seed_type_name(scanner, full, &reader));
+    bool invocation = valid_symbols[MACRO_LINE_START] || valid_symbols[MACRO_BLOCK_START] ||
+                      valid_symbols[MACRO_CALL_START] || valid_symbols[MACRO_ENUMERATOR_START];
+    bool macro = invocation || valid_symbols[CONSTRUCTOR_MACRO_START] || valid_symbols[MACRO_CALL_ATTRIBUTE_START] ||
+                 valid_symbols[MACRO_CALL_ATTRIBUTE_TOKENS_START] || valid_symbols[MACRO_TYPE_START] ||
+                 valid_symbols[PARAMETER_MACRO_TYPE_START] || valid_symbols[STATEMENT_ATTRIBUTE_MACRO_START];
+    // A comparison name has a `<` or a blank after it. A macro name keeps the scan of a macro invocation.
+    // A macro before an attribute has a group after it, and the condition `if (N < 0 || N > M)` has a
+    // comparison. A name with a blank after it keeps the scan of a macro start where a constructor can
+    // start, because the scan of a comparison cannot go back: `simdjson_inline parser::parser()`. The
+    // check of the next character comes before the long lists of keywords.
+    bool blank = (next == ' ' || next == '\t') && !valid_symbols[CONSTRUCTOR_MACRO_START];
+    // After the first macro of an attributed statement, a second macro name keeps the scan of a macro
+    // start: `SUPPRESS_A SUPPRESS_B return f();`.
+    bool macro_word = (invocation || valid_symbols[STATEMENT_ATTRIBUTE_MACRO_START]) &&
+                      is_macro_name(word, has_lower);
+    bool comparison = valid_symbols[COMPARISON_NAME] && (next == '<' || blank) && !macro_word &&
+                      !word_in(word, LINE_KEYWORDS) && !word_in(word, PREFIX_WORDS) &&
+                      !word_in(word, TYPE_WORDS) && !word_in(word, NOT_PARAMETER_WORDS) &&
+                      !word_in(word, NOT_COMPARISON_NAMES);
+    // THE TYPE OF A DECLARATION THAT A SOURCE OF THE PARSE DECLARES.
     //
     // `T HPX_RESTRICT dest` reads today as the attribute macro `T` with the type `HPX_RESTRICT`. The
     // two names are swapped: a name after `typename` or `class` in the head of the same declaration
@@ -8831,8 +8989,34 @@ static bool scan_word_start(Scanner *scanner, TSLexer *lexer, const bool *valid_
     // token and the statement became an ERROR. Two names with a macro between them always have a
     // blank there, so the test costs nothing and it keeps the branch out of every shape that another
     // branch answers.
+    //
+    // THREE SOURCES SAY THAT THE FIRST NAME IS A TYPE, AND TWO OF THEM ENTER ON A DIFFERENT PATH.
+    // The template head of the same declaration is the first source, and the branch after this one
+    // is its path. The class heads of the file and the seed of the project are the two other
+    // sources, and `is_declared_type_name` reads them. A name of those two sources takes the path of
+    // `scan_declared_type_declarator`, which reads the blanks after the name with the scan of a
+    // comparison, so that a `<` after the blanks keeps the token that it has today.
+    //
+    // EACH TEST OF THIS CONDITION NAMES AN INPUT THAT IT DECIDES.
+    // A MACRO-SHAPED NAME DOES NOT ENTER. `class FOO { int x; };` and then `FOO (y)` on a line of
+    // its own is a macro invocation with the name of the class, and the scan would read the blank
+    // and the `(` and give the line an ERROR node. The price is `FOO bar BAZ;`, which keeps the
+    // reading with the macro first for a class name in capitals.
+    // A KEYWORD OF THE GRAMMAR DOES NOT ENTER. The seed of ClickHouse declares `size_t` as a type,
+    // and `size_t max_speed TSA_GUARDED_BY(mutex){0};` already reads correctly with the type
+    // `primitive_type`. The token would make that node a `type_identifier`, in 18 files of the
+    // corpus under the seeds of 2026-09-16.
+    // A TEMPLATE PARAMETER LIST DOES NOT ENTER. `hb_enable_if (P == 1)` in a template head of
+    // harfbuzz is a macro call that gives a whole template parameter, and the scan of that call
+    // runs after this branch. No site of the population is in a template parameter list.
+    bool type_parameter = is_template_parameter(scanner, reader.word_hash);
     if (valid_symbols[TEMPLATE_PARAMETER_TYPE_NAME] && (next == ' ' || next == '\t' || next == '\n')
-        && is_template_parameter(scanner, reader.word_hash)) {
+        && !type_parameter && !macro_shaped && !is_grammar_keyword(word) &&
+        !valid_symbols[TEMPLATE_PARAMETER_MACRO_START] && is_declared_type_name(scanner, full, &reader)) {
+        return scan_declared_type_declarator(&reader, word, comparison, cast_name, valid_symbols);
+    }
+    if (valid_symbols[TEMPLATE_PARAMETER_TYPE_NAME] && (next == ' ' || next == '\t' || next == '\n')
+        && type_parameter) {
         // The end of the token is the end of the first name. The scan reads past it and the mark
         // holds.
         mark_end(lexer);
@@ -8944,39 +9128,15 @@ static bool scan_word_start(Scanner *scanner, TSLexer *lexer, const bool *valid_
         lexer->result_symbol = ALIGNAS_TYPE_NAME;
         return true;
     }
-    bool cast_name = valid_symbols[FUNCTIONAL_CAST_NAME] && !valid_symbols[TYPE_TRAIT_TYPE_MARKER] &&
-                     !valid_symbols[MACRO_TYPE_START] && !valid_symbols[PARAMETER_MACRO_TYPE_START] &&
-                     !is_grammar_keyword(word) &&
-                     (is_class_name(scanner, reader.word_hash) || is_loose_name(scanner, reader.word_hash) ||
-                      is_seed_type_name(scanner, full, &reader));
     if (cast_name && next == '(') {
         mark_end(lexer);
         lexer->result_symbol = FUNCTIONAL_CAST_NAME;
         return true;
     }
-    bool invocation = valid_symbols[MACRO_LINE_START] || valid_symbols[MACRO_BLOCK_START] ||
-                      valid_symbols[MACRO_CALL_START] || valid_symbols[MACRO_ENUMERATOR_START];
-    bool macro = invocation || valid_symbols[CONSTRUCTOR_MACRO_START] || valid_symbols[MACRO_CALL_ATTRIBUTE_START] ||
-                 valid_symbols[MACRO_CALL_ATTRIBUTE_TOKENS_START] || valid_symbols[MACRO_TYPE_START] ||
-                 valid_symbols[PARAMETER_MACRO_TYPE_START] || valid_symbols[STATEMENT_ATTRIBUTE_MACRO_START];
-    // A comparison name has a `<` or a blank after it. A macro name keeps the scan of a macro invocation.
-    // A macro before an attribute has a group after it, and the condition `if (N < 0 || N > M)` has a
-    // comparison. A name with a blank after it keeps the scan of a macro start where a constructor can
-    // start, because the scan of a comparison cannot go back: `simdjson_inline parser::parser()`. The
-    // check of the next character comes before the long lists of keywords.
-    bool blank = (next == ' ' || next == '\t') && !valid_symbols[CONSTRUCTOR_MACRO_START];
-    // After the first macro of an attributed statement, a second macro name keeps the scan of a macro
-    // start: `SUPPRESS_A SUPPRESS_B return f();`.
-    bool macro_word = (invocation || valid_symbols[STATEMENT_ATTRIBUTE_MACRO_START]) &&
-                      is_macro_name(word, has_lower);
-    bool comparison = valid_symbols[COMPARISON_NAME] && (next == '<' || blank) && !macro_word &&
-                      !word_in(word, LINE_KEYWORDS) && !word_in(word, PREFIX_WORDS) &&
-                      !word_in(word, TYPE_WORDS) && !word_in(word, NOT_PARAMETER_WORDS) &&
-                      !word_in(word, NOT_COMPARISON_NAMES);
     // A template-id of a recorded class before a `(` is a functional cast: `B<int>(x)`. One scan gives
     // the two answers, because a scan that declines cannot go back to the start of the brackets.
     if (comparison || (cast_name && (next == '<' || blank))) {
-        return scan_comparison_name(&reader, word, comparison, cast_name);
+        return scan_comparison_name(&reader, word, comparison, cast_name, NULL);
     }
     // After the `*` or the `&` of a declarator, a name before the name of the declarator is a macro,
     // and the shape of the name has no effect: `char* absl_nonnull error`. A qualifier there is a

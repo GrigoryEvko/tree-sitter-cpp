@@ -7164,6 +7164,23 @@
                     "value": "attribute_macro"
                   }
                 ]
+              },
+              {
+                "type": "PREC_DYNAMIC",
+                "value": 1,
+                "content": {
+                  "type": "FIELD",
+                  "name": "type",
+                  "content": {
+                    "type": "ALIAS",
+                    "content": {
+                      "type": "SYMBOL",
+                      "name": "_template_parameter_declarator_type"
+                    },
+                    "named": true,
+                    "value": "type_identifier"
+                  }
+                }
               }
             ]
           },
@@ -7313,16 +7330,20 @@
                 ]
               },
               {
-                "type": "FIELD",
-                "name": "type",
+                "type": "PREC_DYNAMIC",
+                "value": 1,
                 "content": {
-                  "type": "ALIAS",
+                  "type": "FIELD",
+                  "name": "type",
                   "content": {
-                    "type": "SYMBOL",
-                    "name": "_template_parameter_declarator_type"
-                  },
-                  "named": true,
-                  "value": "type_identifier"
+                    "type": "ALIAS",
+                    "content": {
+                      "type": "SYMBOL",
+                      "name": "_template_parameter_declarator_type"
+                    },
+                    "named": true,
+                    "value": "type_identifier"
+                  }
                 }
               }
             ]
@@ -7435,16 +7456,20 @@
                 ]
               },
               {
-                "type": "FIELD",
-                "name": "type",
+                "type": "PREC_DYNAMIC",
+                "value": 1,
                 "content": {
-                  "type": "ALIAS",
+                  "type": "FIELD",
+                  "name": "type",
                   "content": {
-                    "type": "SYMBOL",
-                    "name": "_template_parameter_declarator_type"
-                  },
-                  "named": true,
-                  "value": "type_identifier"
+                    "type": "ALIAS",
+                    "content": {
+                      "type": "SYMBOL",
+                      "name": "_template_parameter_declarator_type"
+                    },
+                    "named": true,
+                    "value": "type_identifier"
+                  }
                 }
               }
             ]
@@ -7579,6 +7604,23 @@
                     "value": "attribute_macro"
                   }
                 ]
+              },
+              {
+                "type": "PREC_DYNAMIC",
+                "value": 1,
+                "content": {
+                  "type": "FIELD",
+                  "name": "type",
+                  "content": {
+                    "type": "ALIAS",
+                    "content": {
+                      "type": "SYMBOL",
+                      "name": "_template_parameter_declarator_type"
+                    },
+                    "named": true,
+                    "value": "type_identifier"
+                  }
+                }
               }
             ]
           },
