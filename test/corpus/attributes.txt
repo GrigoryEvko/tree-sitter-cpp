@@ -2738,3 +2738,105 @@ Balanced token arguments of an attribute that the grammar does not read
           (type_qualifier)
           type: (primitive_type)
           declarator: (abstract_pointer_declarator))))))
+
+================================================================================
+A macro after a type that the template head declares
+================================================================================
+
+// `T` is a type parameter of the head of the SAME declaration, so it is the type and the
+// name after it is the macro. The third line keeps the ordinary order, where the macro comes
+// first and the fork already read it correctly at 4,968 sites of the corpus.
+template <typename T> void g(T HPX_RESTRICT dest);
+template <typename T> void h(T TSA_GUARDED_BY(m) dest);
+template <typename T> void k(MACRO T dest);
+// A `(` AFTER THE DECLARATOR IS [dcl.ambig.res], AND THE SCAN GIVES NO TOKEN THERE.
+// `T Q_DECL_UNINITIALIZED handler(data, op);` of qtbase declares a VARIABLE. GCC gives
+// `var_decl` and Clang gives `VarDecl ... callinit` with a `CXXConstructExpr`. The reading
+// below is the one this fork gave before the token existed, and it is the correct one. The
+// token repairs 203 sites of the corpus and none of them has a declarator of this shape.
+template <typename T> void m(const D *data, const O &op) { T Q_DECL_UNINITIALIZED handler(data, op); }
+
+--------------------------------------------------------------------------------
+
+(translation_unit
+  (comment)
+  (comment)
+  (comment)
+  (template_declaration
+    parameters: (template_parameter_list
+      (type_parameter_declaration
+        (type_identifier)))
+    (declaration
+      type: (primitive_type)
+      declarator: (function_declarator
+        declarator: (identifier)
+        parameters: (parameter_list
+          (parameter_declaration
+            type: (type_identifier)
+            (attribute_macro
+              name: (identifier))
+            declarator: (identifier))))))
+  (template_declaration
+    parameters: (template_parameter_list
+      (type_parameter_declaration
+        (type_identifier)))
+    (declaration
+      type: (primitive_type)
+      declarator: (function_declarator
+        declarator: (identifier)
+        parameters: (parameter_list
+          (parameter_declaration
+            type: (type_identifier)
+            (attribute_macro
+              name: (identifier)
+              arguments: (argument_list
+                (identifier)))
+            declarator: (identifier))))))
+  (template_declaration
+    parameters: (template_parameter_list
+      (type_parameter_declaration
+        (type_identifier)))
+    (declaration
+      type: (primitive_type)
+      declarator: (function_declarator
+        declarator: (identifier)
+        parameters: (parameter_list
+          (parameter_declaration
+            (attribute_macro
+              name: (identifier))
+            type: (type_identifier)
+            declarator: (identifier))))))
+  (comment)
+  (comment)
+  (comment)
+  (comment)
+  (comment)
+  (template_declaration
+    parameters: (template_parameter_list
+      (type_parameter_declaration
+        (type_identifier)))
+    (function_definition
+      type: (primitive_type)
+      declarator: (function_declarator
+        declarator: (identifier)
+        parameters: (parameter_list
+          (parameter_declaration
+            (type_qualifier)
+            type: (type_identifier)
+            declarator: (pointer_declarator
+              declarator: (identifier)))
+          (parameter_declaration
+            (type_qualifier)
+            type: (type_identifier)
+            declarator: (reference_declarator
+              (identifier)))))
+      body: (compound_statement
+        (declaration
+          type: (type_identifier)
+          (attribute_macro
+            name: (identifier))
+          declarator: (init_declarator
+            declarator: (identifier)
+            value: (argument_list
+              (identifier)
+              (identifier))))))))

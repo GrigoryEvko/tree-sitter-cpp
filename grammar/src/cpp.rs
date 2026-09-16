@@ -209,6 +209,11 @@ pub fn grammar() -> Grammar {
         // An empty token before the word `using`. The scanner reads an alias declaration and records
         // the name that it declares. Refer to `scan_using_alias`.
         s!(_using_alias_mark),
+        // The type of a declaration, where the template head of the same declaration declares the
+        // name as a TYPE PARAMETER and a macro-shaped name follows it. The token makes the first
+        // name the type, so the bare macro after it can be the attribute macro. Refer to
+        // `is_template_parameter_type_name`.
+        s!(_template_parameter_type_name),
     ];
     // The conflict sets of the grammar. Each set names the rules of one ambiguity, and it tells the
     // generator to keep each reading in a GLR split.
@@ -2517,6 +2522,18 @@ fn types(g: &mut Grammar) {
     // An identifier in the position of an attribute: `LLVM_ABI void f();`. The negative dynamic
     // precedence gives an ambiguous input to the parse with no macro, for example `f(A b)`.
     g.define("attribute_macro", prec_dynamic(-1, field("name", s!(identifier))));
+    // The macro after a type that a template head declares. It takes an OPTIONAL argument list, so
+    // `T HPX_RESTRICT dest` and `T TSA_GUARDED_BY(m) dest` have one rule. Refer to
+    // `template_parameter_type` and to task 276.
+    // Right associativity gives a `(` after the name to the arguments of the macro and not to a
+    // declarator, which is the same choice `_type_attribute_macro` makes for the same reason.
+    g.define(
+        "_template_parameter_attribute_macro",
+        prec_right(
+            0,
+            seq![field("name", s!(identifier)), optional(field("arguments", s!(argument_list)))],
+        ),
+    );
     // A function-like macro in the place of an attribute, before the specifiers of a declaration:
     // `DEPRECATED("x") void f();`. GCC and Clang read GNU attributes between the decl-specifiers
     // (`cp_parser_decl_specifier_seq`, `ParseDeclarationSpecifiers`). The external scanner gives the
@@ -2567,12 +2584,36 @@ fn types(g: &mut Grammar) {
     // After the type an identifier is the declarator, as in `A b;`. A parameter takes the same
     // specifiers. In a declaration, a type that is a keyword has a second reading with a precedence.
     // Refer to `KEYWORD_TYPE`.
+    // A BARE MACRO NAME AFTER A TYPE THAT THE TEMPLATE HEAD OF THE SAME DECLARATION DECLARES.
+    //
+    // `template <typename T> void g(T HPX_RESTRICT dest);` reads today as the attribute macro `T`
+    // with the type `HPX_RESTRICT`. THE TWO NAMES ARE SWAPPED. `T` is a type parameter of the head,
+    // so it is the type, and `HPX_RESTRICT` is the macro. The measurement of 2026-09-16 gives 333
+    // such sites in 64 files and 12 projects, against 4,968 sites of the ordinary order that the
+    // fork reads correctly and 0 where each of the two names is a parameter.
+    //
+    // THE BARE FORM IS CLOSED IN GENERAL AND THIS OPENS IT FOR ONE CASE ONLY. Two plain names before
+    // a declarator are a macro and a type in either order, and two recorded trees of this fork
+    // demand opposite readings: `EXPORT Foo BAR;` of test/corpus/attributes.txt needs the FIRST name
+    // as the macro and `unsigned int ALIGN16 t[2];` needs the SECOND. Refer to `_type_attribute_macro`.
+    // Neither of those has a template head, and the token below is given only where one declares the
+    // first name, so the collision they measure cannot arise here.
+    // THE MACRO TAKES AN OPTIONAL ARGUMENT LIST HERE. `T HPX_RESTRICT dest` has none and
+    // `T TSA_GUARDED_BY(m) dest` has one, and both put a type parameter first. Without the option
+    // the second form loses its arguments and gives an ERROR where it gave a wrong tree, which is a
+    // worse result than the one being repaired.
+    let template_parameter_type = || {
+        seq![
+            field("type", alias(s!(_template_parameter_type_name), s!(type_identifier))),
+            alias(s!(_template_parameter_attribute_macro), s!(attribute_macro)),
+        ]
+    };
     let specifiers = |types: Rule| {
         prec_right(
             0,
             seq![
                 specifier_prefix(),
-                field("type", types),
+                choice![field("type", types), template_parameter_type()],
                 repeat(s!(_declaration_modifiers)),
             ],
         )
@@ -2599,8 +2640,7 @@ fn types(g: &mut Grammar) {
             seq![
                 c::extension_prefix(),
                 specifier_prefix(),
-                field("type", types),
-                type_attribute_macro(),
+                choice![seq![field("type", types), type_attribute_macro()], template_parameter_type()],
                 repeat(s!(_declaration_modifiers)),
             ],
         )

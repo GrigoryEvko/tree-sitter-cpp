@@ -182,6 +182,10 @@ enum TokenType {
     /// An empty token before the word `using`. The scan reads an alias declaration and records the
     /// name that it declares. Refer to `scan_using_alias`.
     USING_ALIAS_MARK,
+    /// The type of a declaration, where the template head of the same declaration declares the name
+    /// as a TYPE PARAMETER and a macro-shaped name follows it: `T HPX_RESTRICT dest`. The token
+    /// makes the first name the type, and the bare name after it is then the attribute macro.
+    TEMPLATE_PARAMETER_TYPE_NAME,
     /// The count of the external tokens, and not a token. `tree_sitter_cpp_external_scanner_create`
     /// compares it with the count of the parser.
     TOKEN_TYPE_COUNT,
@@ -2180,6 +2184,17 @@ static bool is_alias_name(const Scanner *scanner, uint32_t name) {
 /// is the most recent name.
 static bool record_template_name(Scanner *scanner, uint32_t name) {
     return record_name(scanner->templates, &scanner->template_count, name);
+}
+
+/// Take a name out of the record of template type parameters. O(n) in MAX_CLASSES.
+static void forget_template_name(Scanner *scanner, uint32_t name) {
+    unsigned kept = 0;
+    for (unsigned i = 0; i < scanner->template_count; i++) {
+        if (scanner->templates[i] != name) {
+            scanner->templates[kept++] = scanner->templates[i];
+        }
+    }
+    scanner->template_count = (uint8_t)kept;
 }
 
 /// True when a template head recorded the name as a TYPE parameter. O(n) in MAX_CLASSES.
@@ -4927,6 +4942,34 @@ static bool scan_preproc_extra_mark(Scanner *scanner, TSLexer *lexer) {
     return true;
 }
 
+/// Read the name of a `#define` and take it out of the record of template type parameters.
+///
+/// A NAME THAT THE FILE DEFINES AS A MACRO IS NOT A TEMPLATE PARAMETER. The record is not scoped, so
+/// a name stays in it after its template ends, and the exposure of that leak is a property of the
+/// POSITION that reads the record and not of the record. At the operand of `alignas` it costs
+/// nothing, 4 sites and 0 errors over the corpus. Where the record decides whether a name is a type
+/// or a macro it costs a wrong tree: v8 src/compiler/heap-refs.h declares `template <class K, class
+/// V>` at line 506 and writes `#define V(Name)` at 1411, and the record still held `V` at 1421.
+///
+/// THE DEFINE PRECEDES THE USE, so a record filled as the scan goes forward can act on it. This is a
+/// fact of the file and not a heuristic, and it repairs the record rather than the rule that reads
+/// it. The lookahead is the character after the directive name and the scan reads no character of
+/// the token of the directive, because `scan_directive` ended that token before it.
+static void forget_defined_name(Scanner *scanner, TSLexer *lexer) {
+    while (lexer->lookahead == ' ' || lexer->lookahead == '\t') {
+        advance(lexer);
+    }
+    if (!is_word_start(lexer->lookahead)) {
+        return;
+    }
+    uint32_t hash = HASH_START;
+    while (is_word_char(lexer->lookahead)) {
+        hash = hash_character(hash, lexer->lookahead);
+        advance(lexer);
+    }
+    forget_template_name(scanner, finish_hash(hash));
+}
+
 /// True when the rest of a directive line holds a token. The lookahead is the character after the
 /// directive name. The scan reads no character of the token of the directive, because `scan_directive`
 /// ended that token before it.
@@ -6647,6 +6690,9 @@ static bool scan_directive(Scanner *scanner, TSLexer *lexer, const bool *valid_s
         // the directive token, so it reads no character of that token.
         if (type == PREPROC_ENDIF || type == PREPROC_ELSE) {
             scanner->preproc_extra_tokens = line_has_extra_tokens(lexer);
+        }
+        if (type == PREPROC_DEFINE || type == PREPROC_FINAL_DEFINE) {
+            forget_defined_name(scanner, lexer);
         }
         lexer->result_symbol = type;
         return true;
@@ -8574,6 +8620,103 @@ static bool scan_word_start(Scanner *scanner, TSLexer *lexer, const bool *valid_
     // scopes. The measurement gave 4 incorrect rows of 224 in the 7646 compiler test files, against
     // approximately 1500 correct casts that a record like that removes in the corpus. Because of this
     // measurement, the fork keeps the incorrect form.
+    // THE TYPE OF A DECLARATION THAT THE TEMPLATE HEAD OF THE SAME DECLARATION DECLARES.
+    //
+    // `T HPX_RESTRICT dest` reads today as the attribute macro `T` with the type `HPX_RESTRICT`. The
+    // two names are swapped: a name after `typename` or `class` in the head of the same declaration
+    // IS a type, by the grammar, so it is the type and the bare name after it is the macro. The
+    // token makes the first name the type and the grammar then reads the second as the attribute
+    // macro. Refer to task 276.
+    //
+    // A MACRO-SHAPED SECOND NAME IS REQUIRED. Without it the token would fire at every use of a type
+    // parameter as a type, which is most of the text of a template, and the rule it licenses needs a
+    // second name to exist at all. The shape of the second name is the same test that every other
+    // macro rule of this file uses, so a name that no rule would call a macro does not become one
+    // here either.
+    // A BLANK MUST FOLLOW THE NAME, AND THAT TEST COMES BEFORE THE SCAN READS A CHARACTER.
+    //
+    // A BRANCH THAT ADVANCES THE LEXER AND THEN DECLINES STOPS EVERY LATER BRANCH OF THIS FUNCTION.
+    // `P(CONFIG)` with `P` in the record entered this branch, found a `(` where it wanted a name,
+    // and returned false, and `scan_macro_start` below never ran. The macro invocation then had no
+    // token and the statement became an ERROR. Two names with a macro between them always have a
+    // blank there, so the test costs nothing and it keeps the branch out of every shape that another
+    // branch answers.
+    if (valid_symbols[TEMPLATE_PARAMETER_TYPE_NAME] && (next == ' ' || next == '\t' || next == '\n')
+        && is_template_parameter(scanner, reader.word_hash)) {
+        // The end of the token is the end of the first name. The scan reads past it and the mark
+        // holds.
+        mark_end(lexer);
+        Gap after_type = {0};
+        skip_gap(&reader, &after_type);
+        if (after_type.blocked || !readable(&reader) || !is_word_start(lexer->lookahead)) {
+            return false;
+        }
+        char second[MACRO_WORD_SIZE];
+        bool second_has_lower = false;
+        read_word(&reader, second, &second_has_lower);
+        if (strlen(second) < 2 || !is_macro_name(second, second_has_lower) || is_grammar_keyword(second)) {
+            return false;
+        }
+        // A DECLARATOR MUST FOLLOW THE MACRO, AND THAT IS WHAT SEPARATES A MACRO FROM A NAME. An
+        // ALL-CAPS name is macro-shaped whether it is a macro or an object, and `const TYPE TYPE_MAX
+        // = Limits::max();` names an object. Without this test the scan took the object name as the
+        // macro and the declaration lost its declarator: 330 NEW ERRORS in the corpus, all of the
+        // shape `T NAME = ...` or `T NAME[n];`. A macro before a declarator has a third name after
+        // it, or a `*` or a `&` that starts one.
+        Gap after_macro = {0};
+        skip_gap(&reader, &after_macro);
+        if (after_macro.blocked || !readable(&reader)) {
+            return false;
+        }
+        // An argument list of the macro comes between it and the declarator, so the scan goes past
+        // a balanced group before it looks for the declarator. `T TSA_GUARDED_BY(m) dest` has one
+        // and `T MIN(a);` does not, because a `;` follows the group there and no declarator does.
+        if (lexer->lookahead == '(') {
+            Arguments arguments = {0};
+            if (!skip_group(&reader, &arguments) || reader.budget == 0) {
+                return false;
+            }
+            Gap after_arguments = {0};
+            skip_gap(&reader, &after_arguments);
+            if (after_arguments.blocked || !readable(&reader)) {
+                return false;
+            }
+        }
+        int32_t after = lexer->lookahead;
+        if (!is_word_start(after) && after != '*' && after != '&') {
+            return false;
+        }
+        // THE NAME AFTER THE MACRO MUST BE A DECLARATOR AND NOT A SPECIFIER. `template <typename
+        // INT> constexpr INT EXPONENT() const {` is a member FUNCTION whose name is all capitals,
+        // and a `const` follows its parameter list. Taking `EXPONENT` as a macro there loses the
+        // function: one of the 4 NEW ERRORS of the first gate of this rule.
+        if (is_word_start(after)) {
+            char third[MACRO_WORD_SIZE];
+            bool third_has_lower = false;
+            read_word(&reader, third, &third_has_lower);
+            if (third[0] == '\0' || is_grammar_keyword(third)) {
+                return false;
+            }
+            // A `(` AFTER THE DECLARATOR IS [dcl.ambig.res], AND THIS TOKEN DECIDES IT WRONGLY.
+            // `T Q_DECL_UNINITIALIZED handler(data, op);` of qtbase declares a VARIABLE. GCC gives
+            // `var_decl` and Clang gives `VarDecl ... callinit` with a `CXXConstructExpr`. The
+            // declaration that this token opens reads the group as a parameter list, and the
+            // reading without the token, an `init_declarator` with an `argument_list`, is the
+            // correct one. The token repairs 203 sites and NONE of them has a declarator of this
+            // shape, so the test costs no repair.
+            //
+            // THE TEST DECLINES ONLY WHERE IT SEES THE `(`. A gap that a directive blocks hides the
+            // character, and a reader with no budget cannot look. The reading of those is the
+            // reading of the token, which is what this scan gave before the test.
+            Gap after_declarator = {0};
+            skip_gap(&reader, &after_declarator);
+            if (!after_declarator.blocked && readable(&reader) && lexer->lookahead == '(') {
+                return false;
+            }
+        }
+        lexer->result_symbol = TEMPLATE_PARAMETER_TYPE_NAME;
+        return true;
+    }
     // The operand of `alignas` is a type or a constant expression, and the grammar reads a bare name
     // as an expression. The token gives the type reading for a name that a source declares as a
     // type. The parser makes the token valid in that one position, so the validity is the evidence
