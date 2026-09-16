@@ -2166,8 +2166,13 @@ static const char *const DECLARATION_START_WORDS[] = {
 
 /// The keywords that start a statement and can come after the attributes of that statement. A
 /// declaration never starts with one of them.
+///
+/// [stmt.pre] puts an attribute-specifier-seq before each statement, and a selection statement and an
+/// iteration statement take one: `[[likely]] if (x) {}`. GCC `cp_parser_statement` and Clang
+/// `ParseStatementOrDeclarationAfterAttributes` read the attributes before the keyword.
 static const char *const STATEMENT_ATTRIBUTE_WORDS[] = {
-    "return", "co_return", "co_yield", "break", "continue", "goto", "throw", "delete", NULL,
+    "return", "co_return", "co_yield", "break", "continue", "goto",  "throw",
+    "delete", "if",        "for",      "while", "switch",   "do",    "try",    NULL,
 };
 
 /// Go past the qualifiers, the groups, and the macros after the parameter list of a function

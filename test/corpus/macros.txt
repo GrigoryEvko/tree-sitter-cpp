@@ -2269,3 +2269,56 @@ void g(bool v) { if (v) { T_ P_(LINE) } }
             name: (identifier)
             arguments: (token_tree
               (identifier))))))))
+
+================================================================================
+A macro attribute before a statement that takes a parenthesis
+================================================================================
+
+void a(int x) { MACRO(1) if (x) { f(); } }
+void b(int x) { MACRO while (x) { g(); } }
+
+--------------------------------------------------------------------------------
+
+(translation_unit
+  (function_definition
+    type: (primitive_type)
+    declarator: (function_declarator
+      declarator: (identifier)
+      parameters: (parameter_list
+        (parameter_declaration
+          type: (primitive_type)
+          declarator: (identifier))))
+    body: (compound_statement
+      (attributed_statement
+        (attribute_macro
+          name: (identifier)
+          arguments: (argument_list
+            (number_literal)))
+        (if_statement
+          condition: (condition_clause
+            value: (identifier))
+          consequence: (compound_statement
+            (expression_statement
+              (call_expression
+                function: (identifier)
+                arguments: (argument_list))))))))
+  (function_definition
+    type: (primitive_type)
+    declarator: (function_declarator
+      declarator: (identifier)
+      parameters: (parameter_list
+        (parameter_declaration
+          type: (primitive_type)
+          declarator: (identifier))))
+    body: (compound_statement
+      (attributed_statement
+        (attribute_macro
+          name: (identifier))
+        (while_statement
+          condition: (condition_clause
+            value: (identifier))
+          body: (compound_statement
+            (expression_statement
+              (call_expression
+                function: (identifier)
+                arguments: (argument_list)))))))))

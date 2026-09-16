@@ -364,3 +364,13 @@ template<class T> bool signbit NO_MACRO_EXPAND(T)
 template(template<typename...> class ContT, typename Rng, typename C = meta::invoke<detail::from_range<ContT>, Rng>)(
     requires range<Rng>)
 auto operator()(Rng && rng) const -> C;
+### macro_attribute_before_a_statement_that_takes_a_parenthesis
+void a(int x) { EIGEN_IF_CONSTEXPR(1) if (x) { f(); } }
+void b() { KOKKOS_IF_ON_HOST(1) for (;;) { g(); } }
+void c(int x) { MACRO(1) while (x) { h(); } }
+void d(int x) { MACRO(1) switch (x) { default: break; } }
+void e(int x) { MACRO(1) do { f(); } while (x); }
+void f() { MACRO(1) try { g(); } catch (...) { } }
+### macro_attribute_with_no_arguments_before_a_statement
+void g(int x) { MUST_TAIL_CALL if (x) { f(); } }
+void h(int x) { MACRO while (x) { f(); } }
