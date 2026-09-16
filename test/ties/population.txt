@@ -358,6 +358,7 @@ boost/libs/container/include/boost/container/map.hpp	4	select_earlier symbol:tem
 boost/libs/container/test/explicit_inst_flat_map_test.cpp	1	select_earlier symbol:template_argument_list_repeat1, over_symbol:template_argument_list_repeat1
 boost/libs/container/test/explicit_inst_flat_set_test.cpp	1	select_earlier symbol:template_argument_list_repeat1, over_symbol:template_argument_list_repeat1
 boost/libs/container/test/string_test.cpp	2	select_earlier symbol:template_argument_list, over_symbol:template_argument_list
+boost/libs/container_hash/test/hash_float_test.hpp	1	select_earlier symbol:binary_expression, over_symbol:binary_expression
 boost/libs/contract/include/boost/contract/detail/condition/cond_subcontracting.hpp	1	select_earlier symbol:template_argument_list_repeat1, over_symbol:template_argument_list_repeat1
 boost/libs/contract/include/boost/contract/detail/type_traits/member_function_types.hpp	1	select_earlier symbol:template_argument_list_repeat1, over_symbol:template_argument_list_repeat1
 boost/libs/core/include/boost/core/detail/string_view.hpp	1	select_earlier symbol:template_argument_list, over_symbol:template_argument_list

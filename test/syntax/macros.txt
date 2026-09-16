@@ -413,3 +413,11 @@ BOOST_DATA_TEST_CASE_F(F, name, data::make({ 100, 8000 }), delay) { int y; }
 INTERCEPTOR(void, dispatch_async, dispatch_queue_t dq, void (^work)(void)) { int z; }
 ### macro_body_default_argument
 struct S { S(int a = f(1)) { } };
+### macro_concatenation_middle
+void a() { g("arena." STRINGIFY(MALLCTL_ARENAS_ALL) ".purge"); }
+### macro_concatenation_head
+void b() { g(S(a) ". baz"); }
+### macro_concatenation_declaration
+const char* p = "a" S(x) "b";
+### macro_concatenation_stream
+void c() { s << "#line " STRINGIFY(__LINE__) "\n"; }

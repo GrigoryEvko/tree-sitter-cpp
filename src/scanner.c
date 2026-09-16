@@ -170,6 +170,10 @@ enum TokenType {
     /// `template <typename T> struct S { alignas(T) char storage[sizeof(T)]; };`. The token covers
     /// the name and the grammar reads it as a `type_descriptor`. Refer to `is_alignas_type_name`.
     ALIGNAS_TYPE_NAME,
+    /// An empty token before the name of a macro call that is a part of a concatenation:
+    /// `"arena." STRINGIFY(MALLCTL_ARENAS_ALL) ".purge"`. The scan gives it when a balanced group
+    /// and a string literal come after the name.
+    CONCATENATED_MACRO_START,
     /// The count of the external tokens, and not a token. `tree_sitter_cpp_external_scanner_create`
     /// compares it with the count of the parser.
     TOKEN_TYPE_COUNT,
@@ -3309,6 +3313,34 @@ static bool scan_class_macro_mark(Reader *reader, const char *word, bool has_low
         names++;
         after_name = true;
     }
+}
+
+/// True when a string literal starts at the lookahead of the scan. The scan reads no character.
+///
+/// A concatenation holds a string literal beside each part, and an encoding prefix can come before
+/// the quote: `L"x"`, `u8"x"`, `R"(x)"` ([lex.string] p1). The scan reads the prefix with
+/// `read_identifier` into a buffer that it drops, so the lexer moves only where the answer is true.
+static bool starts_string_literal(Reader *reader) {
+    TSLexer *lexer = reader->lexer;
+    int32_t c = lexer->lookahead;
+    if (c == '"') {
+        return true;
+    }
+    if (c != 'L' && c != 'u' && c != 'U' && c != 'R') {
+        return false;
+    }
+    // A prefix has at most three characters, `u8R`. The scan reads them and stops at the quote.
+    char prefix[4] = {0};
+    unsigned length = 0;
+    while (length < 3 && is_word_char(lexer->lookahead)) {
+        prefix[length++] = (char)lexer->lookahead;
+        step(reader);
+    }
+    if (lexer->lookahead != '"') {
+        return false;
+    }
+    static const char *const PREFIXES[] = {"L", "u", "U", "R", "u8", "LR", "uR", "UR", "u8R", NULL};
+    return word_in(prefix, PREFIXES);
 }
 
 /// True when a `::` comes at the lookahead of the scan. The scan reads the two characters.
@@ -8409,8 +8441,17 @@ static bool scan_word_start(Scanner *scanner, TSLexer *lexer, const bool *valid_
     // The scan of the scope runs only where the scans of a macro invocation do not, because those
     // read the same name for their own forms and they keep it. `scan_macro_start` gives the scope
     // token for the names that reach it.
+    // A macro call that is a part of a concatenation has a STRING after its arguments:
+    // `"arena." STRINGIFY(ALL) ".purge"`. The check comes after the check of the braced list,
+    // because a string also starts an element there and `_initializer_macro_start` keeps that
+    // position. Refer to `_concatenated_macro_call` in the grammar.
     bool scope_start = valid_symbols[MACRO_SCOPE_START] && !macro;
-    if ((valid_symbols[INITIALIZER_MACRO_START] || scope_start) && next == '(' && !is_grammar_keyword(word)) {
+    // The token is valid wherever a concatenation can start, which is most expression positions, so
+    // the scan runs only where the scans of a macro invocation do not. Those read the same name for
+    // their own forms and they keep it, and a scan that declines here gives no token at all.
+    bool concatenated = valid_symbols[CONCATENATED_MACRO_START] && !macro;
+    if ((valid_symbols[INITIALIZER_MACRO_START] || scope_start || concatenated) && next == '(' &&
+        !is_grammar_keyword(word)) {
         Arguments arguments = {0};
         if (!skip_group(&reader, &arguments) || reader.budget == 0) {
             return false;
@@ -8422,6 +8463,16 @@ static bool scan_word_start(Scanner *scanner, TSLexer *lexer, const bool *valid_
         }
         if (valid_symbols[INITIALIZER_MACRO_START] && starts_initializer_element(&reader)) {
             lexer->result_symbol = INITIALIZER_MACRO_START;
+            return true;
+        }
+        // THE CHECK OF THE STRING COMES BEFORE THE CHECK OF THE `::`, BECAUSE `scope_follows` READS
+        // THE FIRST `:` AND THE LEXER CANNOT GO BACK. With the other order, `cond ? f(x) : "s"`
+        // lost its `:` to that scan and this check then saw the string and gave the token. The two
+        // are disjoint at one position: where the lookahead is a `:`, `starts_string_literal` reads
+        // no character and gives false, and where it is a quote or an encoding prefix,
+        // `scope_follows` gives false at its first character.
+        if (concatenated && starts_string_literal(&reader)) {
+            lexer->result_symbol = CONCATENATED_MACRO_START;
             return true;
         }
         if (scope_start && scope_follows(&reader)) {
@@ -8558,6 +8609,7 @@ static bool can_be_empty(TSSymbol symbol) {
         case PREPROC_LINE_END:
         case PREPROC_EXTRA_MARK:
         case MACRO_SCOPE_START:
+        case CONCATENATED_MACRO_START:
         case INITIALIZER_MACRO_START:
         case RAW_STRING_CONTENT:
             return true;

@@ -3180,3 +3180,184 @@ struct S {
                 arguments: (argument_list
                   (number_literal))))))
         body: (compound_statement)))))
+
+================================================================================
+A macro call that is a part of a concatenation
+================================================================================
+
+void a() { g("arena." STRINGIFY(MALLCTL_ARENAS_ALL) ".purge"); }
+const char* p = "a" S(x) "b";
+void b() { g(S(a) ". baz"); }
+void c() { s << "#line " STRINGIFY(__LINE__) "\n"; }
+void d() { f(M(a) + 1 ? "x" : "y"); }
+void e() { f(M(a)[i]); }
+void h() { f(M(a), "x"); }
+void i() { s << (notice ? sealNotice() : "<no user notice>") << e; }
+void j() { f(a, b ? g(c, &d) : "", e); }
+
+--------------------------------------------------------------------------------
+
+(translation_unit
+  (function_definition
+    type: (primitive_type)
+    declarator: (function_declarator
+      declarator: (identifier)
+      parameters: (parameter_list))
+    body: (compound_statement
+      (expression_statement
+        (call_expression
+          function: (identifier)
+          arguments: (argument_list
+            (concatenated_string
+              (string_literal
+                (string_content))
+              (call_expression
+                function: (identifier)
+                arguments: (argument_list
+                  (identifier)))
+              (string_literal
+                (string_content))))))))
+  (declaration
+    (type_qualifier)
+    type: (primitive_type)
+    declarator: (init_declarator
+      declarator: (pointer_declarator
+        declarator: (identifier))
+      value: (concatenated_string
+        (string_literal
+          (string_content))
+        (call_expression
+          function: (identifier)
+          arguments: (argument_list
+            (identifier)))
+        (string_literal
+          (string_content)))))
+  (function_definition
+    type: (primitive_type)
+    declarator: (function_declarator
+      declarator: (identifier)
+      parameters: (parameter_list))
+    body: (compound_statement
+      (expression_statement
+        (call_expression
+          function: (identifier)
+          arguments: (argument_list
+            (concatenated_string
+              (call_expression
+                function: (identifier)
+                arguments: (argument_list
+                  (identifier)))
+              (string_literal
+                (string_content))))))))
+  (function_definition
+    type: (primitive_type)
+    declarator: (function_declarator
+      declarator: (identifier)
+      parameters: (parameter_list))
+    body: (compound_statement
+      (expression_statement
+        (binary_expression
+          left: (identifier)
+          right: (concatenated_string
+            (string_literal
+              (string_content))
+            (call_expression
+              function: (identifier)
+              arguments: (argument_list
+                (identifier)))
+            (string_literal
+              (escape_sequence)))))))
+  (function_definition
+    type: (primitive_type)
+    declarator: (function_declarator
+      declarator: (identifier)
+      parameters: (parameter_list))
+    body: (compound_statement
+      (expression_statement
+        (call_expression
+          function: (identifier)
+          arguments: (argument_list
+            (conditional_expression
+              condition: (binary_expression
+                left: (call_expression
+                  function: (identifier)
+                  arguments: (argument_list
+                    (identifier)))
+                right: (number_literal))
+              consequence: (string_literal
+                (string_content))
+              alternative: (string_literal
+                (string_content))))))))
+  (function_definition
+    type: (primitive_type)
+    declarator: (function_declarator
+      declarator: (identifier)
+      parameters: (parameter_list))
+    body: (compound_statement
+      (expression_statement
+        (call_expression
+          function: (identifier)
+          arguments: (argument_list
+            (subscript_expression
+              argument: (call_expression
+                function: (identifier)
+                arguments: (argument_list
+                  (identifier)))
+              indices: (subscript_argument_list
+                (identifier))))))))
+  (function_definition
+    type: (primitive_type)
+    declarator: (function_declarator
+      declarator: (identifier)
+      parameters: (parameter_list))
+    body: (compound_statement
+      (expression_statement
+        (call_expression
+          function: (identifier)
+          arguments: (argument_list
+            (call_expression
+              function: (identifier)
+              arguments: (argument_list
+                (identifier)))
+            (string_literal
+              (string_content)))))))
+  (function_definition
+    type: (primitive_type)
+    declarator: (function_declarator
+      declarator: (identifier)
+      parameters: (parameter_list))
+    body: (compound_statement
+      (expression_statement
+        (binary_expression
+          left: (binary_expression
+            left: (identifier)
+            right: (parenthesized_expression
+              (conditional_expression
+                condition: (identifier)
+                consequence: (call_expression
+                  function: (identifier)
+                  arguments: (argument_list))
+                alternative: (string_literal
+                  (string_content)))))
+          right: (identifier)))))
+  (function_definition
+    type: (primitive_type)
+    declarator: (function_declarator
+      declarator: (identifier)
+      parameters: (parameter_list))
+    body: (compound_statement
+      (expression_statement
+        (call_expression
+          function: (identifier)
+          arguments: (argument_list
+            (identifier)
+            (conditional_expression
+              condition: (identifier)
+              consequence: (call_expression
+                function: (identifier)
+                arguments: (argument_list
+                  (identifier)
+                  (pointer_expression
+                    argument: (identifier))))
+              alternative: (string_literal))
+            (identifier)))))))

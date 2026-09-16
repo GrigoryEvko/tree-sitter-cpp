@@ -197,6 +197,10 @@ pub fn grammar() -> Grammar {
         // The operand of `alignas`, where a source of the parse declares the name as a type and the
         // name is the whole operand. Refer to `is_alignas_type_name`.
         s!(_alignas_type_name),
+        // An empty token before the name of a macro call that is a part of a concatenation:
+        // `"arena." STRINGIFY(ALL) ".purge"`. The scanner gives it when a balanced group and a
+        // string literal come after the name. Refer to `_concatenated_macro_call`.
+        s!(_concatenated_macro_start),
     ];
     // The conflict sets of the grammar. Each set names the rules of one ambiguity, and it tells the
     // generator to keep each reading in a GLR split.
@@ -7749,6 +7753,30 @@ fn expressions(g: &mut Grammar) {
             alias(s!(_string_user_defined_literal), s!(user_defined_literal)),
         ]
     };
+    // A macro CALL is a part of a concatenation when the macro gives a string literal:
+    // `"arena." STRINGIFY(MALLCTL_ARENAS_ALL) ".purge"` of ClickHouse, and
+    // `"#line " STRINGIFY(__LINE__) "\n"` of blender. A bare name is already a part, for a macro
+    // such as `PRIu64`, and a call is the same part with arguments.
+    //
+    // THE POSITION IS THE EVIDENCE AND THE SPELLING OF THE NAME PROVES NOTHING. Two adjacent
+    // primary expressions are no expression of C++. GCC and Clang each reject
+    // `g("arena." STRINGIFY(ALL) ".purge");` with no definition of the name, and each accepts it
+    // with `#define STRINGIFY(x) "all"`. A call gives no string, so only a macro makes the text
+    // valid.
+    // The grammar cannot select this rule on its own. At `identifier` and `(` the parser must choose
+    // between a declarator, an expression, a type specifier, and this rule, and the token that
+    // decides is the string literal after a balanced group of any length. The external scanner reads
+    // that group and gives an empty token before the name. Refer to `scan_concatenated_macro` in
+    // src/scanner.c.
+    g.define(
+        "_concatenated_macro_call",
+        seq![
+            s!(_concatenated_macro_start),
+            field("function", s!(identifier)),
+            field("arguments", s!(argument_list))
+        ],
+    );
+    let macro_call = || alias(s!(_concatenated_macro_call), s!(call_expression));
     g.define(
         "concatenated_string",
         prec_right(
@@ -7756,9 +7784,10 @@ fn expressions(g: &mut Grammar) {
             seq![
                 choice![
                     seq![s!(identifier), string()],
-                    seq![string(), choice![string(), s!(identifier)]]
+                    seq![macro_call(), string()],
+                    seq![string(), choice![string(), s!(identifier), macro_call()]]
                 ],
-                repeat(prec(1, choice![s!(identifier), string()])),
+                repeat(prec(1, choice![s!(identifier), macro_call(), string()])),
             ],
         ),
     );
