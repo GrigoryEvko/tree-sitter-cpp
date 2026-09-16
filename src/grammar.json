@@ -40887,6 +40887,31 @@
         }
       ]
     },
+    "macro_scope_specifier": {
+      "type": "SEQ",
+      "members": [
+        {
+          "type": "SYMBOL",
+          "name": "_macro_scope_start"
+        },
+        {
+          "type": "FIELD",
+          "name": "name",
+          "content": {
+            "type": "SYMBOL",
+            "name": "identifier"
+          }
+        },
+        {
+          "type": "FIELD",
+          "name": "arguments",
+          "content": {
+            "type": "SYMBOL",
+            "name": "argument_list"
+          }
+        }
+      ]
+    },
     "_scope_resolution": {
       "type": "PREC",
       "value": 1,
@@ -40929,6 +40954,10 @@
                         "type": "SYMBOL",
                         "name": "splice_type_specifier"
                       }
+                    },
+                    {
+                      "type": "SYMBOL",
+                      "name": "macro_scope_specifier"
                     },
                     {
                       "type": "ALIAS",
@@ -45231,6 +45260,10 @@
     {
       "type": "SYMBOL",
       "name": "_statement_attribute_macro_tokens_start"
+    },
+    {
+      "type": "SYMBOL",
+      "name": "_macro_scope_start"
     }
   ],
   "inline": [

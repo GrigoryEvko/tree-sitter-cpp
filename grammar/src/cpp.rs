@@ -182,6 +182,10 @@ pub fn grammar() -> Grammar {
         // whose arguments are not an expression list: `SkDEBUGCODE(bool found =) find(1);`. Refer to
         // `_statement_attribute_macro_tokens`.
         s!(_statement_attribute_macro_tokens_start),
+        // An empty token before the name of a macro call that gives a scope:
+        // `BOOST_MPL_AUX_VALUE_WKND(N)::value`. The scanner gives it when a balanced group and a
+        // `::` come after the name. Refer to `macro_scope_specifier`.
+        s!(_macro_scope_start),
     ];
     // The conflict sets of the grammar. Each set names the rules of one ambiguity, and it tells the
     // generator to keep each reading in a GLR split.
@@ -7283,6 +7287,31 @@ fn expressions(g: &mut Grammar) {
     g.define("dependent_identifier", seq!["template", s!(template_function)]);
     g.define("dependent_field_identifier", seq!["template", s!(template_method)]);
     g.define("dependent_type_identifier", seq!["template", s!(template_type)]);
+    // A macro call that gives a scope: `BOOST_MPL_AUX_VALUE_WKND(N)::value` of boost/libs/mpl,
+    // `BOOST_ASIO_VERSIONED_NAME(handler_cont_helpers)::is_continuation(h)` of boost/libs/asio. The
+    // macro expands to the name of a class or of a namespace, and the `::` after it needs that name.
+    //
+    // The POSITION is the evidence and the spelling of the name proves nothing. `A(b)::c::v` with no
+    // definition of `A` gives 4 errors in GCC and 4 in Clang, and 0 errors in each with
+    // `#define NS(x) A`. No other reading of the text exists, because a `::` cannot come after an
+    // expression (GCC `cp_parser_nested_name_specifier_opt`, Clang `ParseOptionalCXXScopeSpecifier`).
+    //
+    // The arguments are an argument list and not one type-id. The measurement of 2026-09-16 over the
+    // corpus gives 1558 sites with one argument, 297 with two, 71 with three, 22 with none, and 3
+    // with more, so `macro_type_specifier` and its single `type_descriptor` cannot hold them.
+    // The grammar cannot select this rule on its own. At `identifier • (` the parser must choose
+    // between a declarator, an expression, a type specifier, and this rule, and the token that
+    // decides is the `::` after a balanced group of any length. The external scanner reads that
+    // group and gives the token only before a `::`. Refer to `scan_macro_scope_name` in
+    // src/scanner.c.
+    g.define(
+        "macro_scope_specifier",
+        seq![
+            s!(_macro_scope_start),
+            field("name", s!(identifier)),
+            field("arguments", s!(argument_list))
+        ],
+    );
     g.define(
         "_scope_resolution",
         prec(
@@ -7303,6 +7332,7 @@ fn expressions(g: &mut Grammar) {
                         // where a block gives it an expression reading, and this position is not
                         // such a place, so the value here is one more than the opposite value.
                         prec_dynamic(SPLICE_TYPE_AS_A_SCOPE, s!(splice_type_specifier)),
+                        s!(macro_scope_specifier),
                         alias(s!(dependent_type_identifier), s!(dependent_name)),
                     ])
                 ),

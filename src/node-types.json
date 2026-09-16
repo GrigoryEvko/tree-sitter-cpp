@@ -6520,6 +6520,32 @@
     }
   },
   {
+    "type": "macro_scope_specifier",
+    "named": true,
+    "fields": {
+      "arguments": {
+        "multiple": false,
+        "required": true,
+        "types": [
+          {
+            "type": "argument_list",
+            "named": true
+          }
+        ]
+      },
+      "name": {
+        "multiple": false,
+        "required": true,
+        "types": [
+          {
+            "type": "identifier",
+            "named": true
+          }
+        ]
+      }
+    }
+  },
+  {
     "type": "macro_type_specifier",
     "named": true,
     "fields": {
@@ -6605,6 +6631,10 @@
           },
           {
             "type": "dependent_name",
+            "named": true
+          },
+          {
+            "type": "macro_scope_specifier",
             "named": true
           },
           {
@@ -9559,6 +9589,10 @@
           },
           {
             "type": "dependent_name",
+            "named": true
+          },
+          {
+            "type": "macro_scope_specifier",
             "named": true
           },
           {

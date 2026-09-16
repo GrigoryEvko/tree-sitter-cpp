@@ -2878,3 +2878,127 @@ bool g(int a, int b);
         (parameter_declaration
           type: (primitive_type)
           declarator: (identifier))))))
+
+================================================================================
+A macro call that gives a scope
+================================================================================
+
+int a = BOOST_MPL_AUX_VALUE_WKND(N)::value;
+typedef BOOST_MPL_AUX_NESTED_TYPE_WKND(T)::type type;
+int b = EIGEN_MATHFUNC_IMPL(exp, Scalar)::run(x);
+struct S : QT_PREPEND_NAMESPACE(QObject)::Base { S(int x) : m(x) {} int m; };
+void f(int i) { switch (i) { case F(1): break; } }
+void g(int x) { int c = h(x) ? a : b; }
+void k() { A(b); }
+
+--------------------------------------------------------------------------------
+
+(translation_unit
+  (declaration
+    type: (primitive_type)
+    declarator: (init_declarator
+      declarator: (identifier)
+      value: (qualified_identifier
+        scope: (macro_scope_specifier
+          name: (identifier)
+          arguments: (argument_list
+            (identifier)))
+        name: (identifier))))
+  (type_definition
+    type: (qualified_identifier
+      scope: (macro_scope_specifier
+        name: (identifier)
+        arguments: (argument_list
+          (identifier)))
+      name: (type_identifier))
+    declarator: (type_identifier))
+  (declaration
+    type: (primitive_type)
+    declarator: (init_declarator
+      declarator: (identifier)
+      value: (call_expression
+        function: (qualified_identifier
+          scope: (macro_scope_specifier
+            name: (identifier)
+            arguments: (argument_list
+              (identifier)
+              (identifier)))
+          name: (identifier))
+        arguments: (argument_list
+          (identifier)))))
+  (struct_specifier
+    name: (type_identifier)
+    (base_class_clause
+      (qualified_identifier
+        scope: (macro_scope_specifier
+          name: (identifier)
+          arguments: (argument_list
+            (identifier)))
+        name: (type_identifier)))
+    body: (field_declaration_list
+      (function_definition
+        declarator: (function_declarator
+          declarator: (identifier)
+          parameters: (parameter_list
+            (parameter_declaration
+              type: (primitive_type)
+              declarator: (identifier))))
+        (field_initializer_list
+          (field_initializer
+            (field_identifier)
+            (argument_list
+              (identifier))))
+        body: (compound_statement))
+      (field_declaration
+        type: (primitive_type)
+        declarator: (field_identifier))))
+  (function_definition
+    type: (primitive_type)
+    declarator: (function_declarator
+      declarator: (identifier)
+      parameters: (parameter_list
+        (parameter_declaration
+          type: (primitive_type)
+          declarator: (identifier))))
+    body: (compound_statement
+      (switch_statement
+        condition: (condition_clause
+          value: (identifier))
+        body: (compound_statement
+          (case_statement
+            value: (call_expression
+              function: (identifier)
+              arguments: (argument_list
+                (number_literal)))
+            (break_statement))))))
+  (function_definition
+    type: (primitive_type)
+    declarator: (function_declarator
+      declarator: (identifier)
+      parameters: (parameter_list
+        (parameter_declaration
+          type: (primitive_type)
+          declarator: (identifier))))
+    body: (compound_statement
+      (declaration
+        type: (primitive_type)
+        declarator: (init_declarator
+          declarator: (identifier)
+          value: (conditional_expression
+            condition: (call_expression
+              function: (identifier)
+              arguments: (argument_list
+                (identifier)))
+            consequence: (identifier)
+            alternative: (identifier))))))
+  (function_definition
+    type: (primitive_type)
+    declarator: (function_declarator
+      declarator: (identifier)
+      parameters: (parameter_list))
+    body: (compound_statement
+      (expression_statement
+        (call_expression
+          function: (identifier)
+          arguments: (argument_list
+            (identifier)))))))

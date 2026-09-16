@@ -156,6 +156,10 @@ enum TokenType {
     /// An empty token before the name of a macro that is an attribute of the statement after it, and
     /// whose arguments are not an expression list: `SkDEBUGCODE(bool found =) find(1);`.
     STATEMENT_ATTRIBUTE_MACRO_TOKENS_START,
+    /// An empty token before the name of a macro call that gives a scope:
+    /// `BOOST_MPL_AUX_VALUE_WKND(N)::value`. The scan gives it when a balanced group and a `::` come
+    /// after the name.
+    MACRO_SCOPE_START,
     /// The count of the external tokens, and not a token. `tree_sitter_cpp_external_scanner_create`
     /// compares it with the count of the parser.
     TOKEN_TYPE_COUNT,
@@ -3070,6 +3074,23 @@ static bool scan_class_macro_mark(Reader *reader, const char *word, bool has_low
     }
 }
 
+/// True when a `::` comes at the lookahead of the scan. The scan reads the two characters.
+///
+/// A macro call that gives a scope has a `::` after its argument list:
+/// `BOOST_MPL_AUX_VALUE_WKND(N)::value` of boost/libs/mpl. THE POSITION IS THE EVIDENCE AND THE
+/// SPELLING OF THE NAME PROVES NOTHING. `A(b)::c::v` with no definition of `A` gives 4 errors in GCC
+/// and 4 in Clang, and 0 errors in each with `#define NS(x) A`. A `::` cannot come after an
+/// expression (GCC `cp_parser_nested_name_specifier_opt`, Clang `ParseOptionalCXXScopeSpecifier`),
+/// so the text has one reading.
+static bool scope_follows(Reader *reader) {
+    TSLexer *lexer = reader->lexer;
+    if (lexer->lookahead != ':') {
+        return false;
+    }
+    step(reader);
+    return readable(reader) && lexer->lookahead == ':';
+}
+
 /// The result of `scan_macro_invocation`.
 typedef enum {
     /// The scan selected a token.
@@ -3352,6 +3373,22 @@ static bool scan_macro_start(Reader reader, const char *name, bool has_lower, co
         if (gap.directive ? false : reader.budget == 0 || gap.blocked) {
             return false;
         }
+    }
+    // A macro call that gives a scope: `typedef BOOST_MPL_AUX_NESTED_TYPE_WKND(T)::type type;`. The
+    // scan already read the group, and a `::` after it gives the scope token.
+    //
+    // `scope_follows` READS THE FIRST `:` AND THE LEXER CANNOT GO BACK, so a scan that reads it and
+    // then declines gives no token at all. A second reading of the same text would use a reader that
+    // moved. The scan takes that step only where a constructor cannot start, because the initializer
+    // list of a constructor is the other construct with a `:` after a parameter list:
+    // `MD5 () : OpenSSLDigest(EVP_md5()) { }` of ceph. Refer to `macro_scope_specifier`.
+    if (call && valid_symbols[MACRO_SCOPE_START] && !valid_symbols[CONSTRUCTOR_MACRO_START] &&
+        !gap.directive && lexer->lookahead == ':') {
+        if (!scope_follows(&reader)) {
+            return false;
+        }
+        lexer->result_symbol = MACRO_SCOPE_START;
+        return true;
     }
     // A name that is a macro only by its place must have the argument list that makes it one. A group
     // with the shape of a parenthesized declarator declares a member: `Foo (*p);`, `Foo (&r);`.
@@ -8023,18 +8060,32 @@ static bool scan_word_start(Scanner *scanner, TSLexer *lexer, const bool *valid_
     //
     // The scan reads the arguments of the name, and the lexer cannot go back, so it comes after each
     // scan that reads the next character only.
-    if (valid_symbols[INITIALIZER_MACRO_START] && next == '(' && !is_grammar_keyword(word)) {
+    // TWO SCANS READ THE ARGUMENTS OF THE NAME, AND ONE SCAN ANSWERS THE TWO. The head of an element
+    // of a braced list has an element after its arguments, and a macro call that gives a scope has a
+    // `::` after them. The lexer cannot go back, so a second scan of the same group is not possible.
+    // The scan of the scope runs only where the scans of a macro invocation do not, because those
+    // read the same name for their own forms and they keep it. `scan_macro_start` gives the scope
+    // token for the names that reach it.
+    bool scope_start = valid_symbols[MACRO_SCOPE_START] && !macro;
+    if ((valid_symbols[INITIALIZER_MACRO_START] || scope_start) && next == '(' && !is_grammar_keyword(word)) {
         Arguments arguments = {0};
         if (!skip_group(&reader, &arguments) || reader.budget == 0) {
             return false;
         }
         Gap gap = {0};
         skip_gap(&reader, &gap);
-        if (gap.blocked || reader.budget == 0 || !starts_initializer_element(&reader)) {
+        if (gap.blocked || reader.budget == 0) {
             return false;
         }
-        lexer->result_symbol = INITIALIZER_MACRO_START;
-        return true;
+        if (valid_symbols[INITIALIZER_MACRO_START] && starts_initializer_element(&reader)) {
+            lexer->result_symbol = INITIALIZER_MACRO_START;
+            return true;
+        }
+        if (scope_start && scope_follows(&reader)) {
+            lexer->result_symbol = MACRO_SCOPE_START;
+            return true;
+        }
+        return false;
     }
     return macro && scan_macro_start(reader, word, has_lower, valid_symbols, scanner);
 }
@@ -8162,6 +8213,7 @@ static bool can_be_empty(TSSymbol symbol) {
         case MEMBER_POINTER_START:
         case PREPROC_LINE_END:
         case PREPROC_EXTRA_MARK:
+        case MACRO_SCOPE_START:
         case INITIALIZER_MACRO_START:
         case RAW_STRING_CONTENT:
             return true;

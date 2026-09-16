@@ -393,3 +393,13 @@ void g(int a, int b, int c) { MAX(a, b) * c; }
 void h() { STACK_OF(X509) **sk; }
 void i() { NS_IMETHOD_(void) Unlink(void *p); }
 void j(int n) { QPoint Point(1, 2); }
+### macro_scope_value
+int a = BOOST_MPL_AUX_VALUE_WKND(N)::value;
+### macro_scope_nested_type
+typedef BOOST_MPL_AUX_NESTED_TYPE_WKND(T)::type type;
+### macro_scope_two_arguments
+int b = EIGEN_MATHFUNC_IMPL(exp, Scalar)::run(x);
+### macro_scope_base_class
+struct S : QT_PREPEND_NAMESPACE(QObject)::Base { int m; };
+### macro_scope_qualified_call
+void f(Handler& h) { bool c = BOOST_ASIO_VERSIONED_NAME(hch)::is_continuation(h); }
