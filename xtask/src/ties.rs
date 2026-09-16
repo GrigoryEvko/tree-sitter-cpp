@@ -31,6 +31,36 @@
 //! again, as it was before fork commit 1edab87, the command names 493 sites with the file, the row,
 //! the column, and the two symbols, and it fails.
 //!
+//! THE SAMPLE IS NOT THE POPULATION. The full corpus of 329,387 files gives 101,100 sites in 3,697
+//! files, and the 3,000-file sample gives 103. The sample holds 1/110 of the files and 1/981 of the
+//! sites, because the distribution is extreme: the median file of the 3,697 has 2 sites, the p90
+//! file has 14, and one generated file of boost/libs/qvm holds 45,826.
+//!
+//! `cargo xtask ties population ROOT LIST` covers the full corpus. A per-site baseline of it is
+//! 11 MB and no person reads it, so the baseline holds one row for each file and each message with
+//! a count: 4,117 rows and 562 KB. The run takes 27 seconds, which fits a full gate and not a test.
+//!
+//! - WHAT THE POPULATION BASELINE PROMISES: a count that rises fails the check, and a count that
+//!   falls does not. A message that moves to a different class in one file gives one fall and one
+//!   rise, and the rise fails the check.
+//! - WHAT IT DOES NOT PROMISE: a site that moves to a different row or column of one file, with no
+//!   change of the count, fails no check. `test/ties/baseline.txt` covers that case for the 3,000
+//!   files of `test/ties/sample.txt`, and `cargo test --workspace` runs that comparison.
+//!
+//! WHICH TIES A CONSUMER SEES. A parser with the two branches of `ts_subtree_compare` turned around
+//! reads the 3,697 files with ties, and 2,829 of them give the same visible tree. The class of a tie
+//! then tells whether the reading of the tree depends on it:
+//!
+//! - INVISIBLE, and a grammar defect of the class of `sized_type_specifier`:
+//!   `template_argument_list_repeat1` with 64,400 sites and 0 of 446 files that differ,
+//!   `comma_expression` with 4,558 and 0 of 273, `expression_statement` with 522 and 0 of 199,
+//!   `_conditional_expression` with 527 and 0 of 37, and six smaller ones. The smallest text of the
+//!   first is `A<F<G,H<G>,I> > x;`, and the two readings of it give one tree.
+//! - VISIBLE, and the name lookup of #138: `alignas_qualifier` with 1,522 sites and 794 of 794 files
+//!   that differ, which is `alignas(name)` as an expression or as a type-id ([dcl.align]),
+//!   `parameter_list` with 87 and 20 of 20, `type_definition` with 33 and 4 of 4, and
+//!   `binary_expression` with 19,799 and 1 of 1,235.
+//!
 //! `cargo xtask ties table` reads `src/parser.c` and reports each action list of the parse table
 //! that holds more than one action, by the rules that the actions reduce. That report gives the
 //! shape of the ambiguity, and the corpus report gives the texts that reach it.
@@ -70,6 +100,9 @@ const TIE_MESSAGES: [&str; 2] = ["select_earlier", "select_existing"];
 
 /// The path of the baseline in the repository.
 const BASELINE: &str = "test/ties/baseline.txt";
+
+/// The baseline of the sites of the full corpus in the repository.
+const POPULATION: &str = "test/ties/population.txt";
 
 /// The baseline of the version counts in the repository.
 const VERSIONS: &str = "test/ties/versions.txt";
@@ -116,6 +149,54 @@ impl Site {
         let what = parts.next().unwrap_or_default().to_owned();
         Some(Self { path, row: line, column, what })
     }
+}
+
+/// The count of the sites of one message in one file.
+///
+/// The baseline of the full corpus holds one row for each file and message, and not one row for
+/// each site. A per-site baseline of 329,387 files is 11 MB and 100,997 rows, and one generated file
+/// of boost/libs/qvm writes 45 percent of each diff of it. The count gives the same failure rule
+/// with 4,082 rows: a count that rises fails, and a count that falls does not.
+#[derive(Clone, Debug, PartialEq, Eq, PartialOrd, Ord)]
+pub struct Group {
+    /// The path of the file, relative to the root of the corpus.
+    pub path: String,
+    /// The log message of the runtime, with the two symbols.
+    pub what: String,
+    /// The count of the sites of that message in that file.
+    pub count: usize,
+}
+
+impl Group {
+    /// One row of the baseline file.
+    fn row_text(&self) -> String {
+        format!("{}\t{}\t{}", self.path, self.count, self.what)
+    }
+
+    /// Read one row of the baseline file.
+    fn from_row(row: &str) -> Option<Self> {
+        let mut parts = row.split('\t');
+        let path = parts.next()?.to_owned();
+        let count = parts.next()?.parse().ok()?;
+        let what = parts.next()?.to_owned();
+        Some(Self { path, what, count })
+    }
+}
+
+/// Put the sites of a run together by the file and the message.
+pub fn group(sites: &[Site]) -> Vec<Group> {
+    let mut counts: BTreeMap<(&str, &str), usize> = BTreeMap::new();
+    for site in sites {
+        *counts.entry((site.path.as_str(), site.what.as_str())).or_default() += 1;
+    }
+    counts
+        .into_iter()
+        .map(|((path, what), count)| Group {
+            path: path.to_owned(),
+            what: what.to_owned(),
+            count,
+        })
+        .collect()
 }
 
 /// The largest version count of the GLR parser in one file.
@@ -336,6 +417,50 @@ pub fn compare(baseline: &[Site], found: &[Site]) -> Comparison {
                 comparison.removed.extend(sites[after.len()..].iter().map(|&site| site.clone()));
             }
             Some(_) => {}
+        }
+    }
+    comparison
+}
+
+/// The comparison of the groups of a run with the groups of the baseline.
+#[derive(Debug, Default, PartialEq, Eq)]
+pub struct GroupComparison {
+    /// The groups whose count is larger than the count of the baseline, with the two counts. The
+    /// command fails for each of them.
+    pub risen: Vec<(Group, usize)>,
+    /// The groups whose count is smaller than the count of the baseline, with the two counts.
+    pub fallen: Vec<(Group, usize)>,
+}
+
+/// Compare the groups of a run with the groups of the baseline.
+///
+/// The key of a group is the file and the message. A group that the baseline does not hold has the
+/// baseline count 0, and it goes into `risen`. A group of the baseline that the run does not hold
+/// has the run count 0, and it goes into `fallen`. A run that reads only a part of the files of the
+/// baseline reports no fall for the files that it did not read.
+pub fn compare_groups(baseline: &[Group], found: &[Group], read: &BTreeSet<&str>) -> GroupComparison {
+    let old: BTreeMap<(&str, &str), usize> = baseline
+        .iter()
+        .map(|group| ((group.path.as_str(), group.what.as_str()), group.count))
+        .collect();
+    let new: BTreeMap<(&str, &str), usize> = found
+        .iter()
+        .map(|group| ((group.path.as_str(), group.what.as_str()), group.count))
+        .collect();
+    let mut comparison = GroupComparison::default();
+    for group in found {
+        let before = *old.get(&(group.path.as_str(), group.what.as_str())).unwrap_or(&0);
+        if group.count > before {
+            comparison.risen.push((group.clone(), before));
+        }
+    }
+    for group in baseline {
+        if !read.contains(group.path.as_str()) {
+            continue;
+        }
+        let after = *new.get(&(group.path.as_str(), group.what.as_str())).unwrap_or(&0);
+        if after < group.count {
+            comparison.fallen.push((group.clone(), after));
         }
     }
     comparison
@@ -765,6 +890,93 @@ fn run_versions(repository: &Path, args: &[String]) -> Result<(), Box<dyn Error>
     .into())
 }
 
+/// Read the baseline of the sites of the full corpus.
+fn read_population_baseline(repository: &Path) -> Result<Vec<Group>, Box<dyn Error>> {
+    let path = repository.join(POPULATION);
+    let text = match fs::read_to_string(&path) {
+        Ok(text) => text,
+        Err(error) if error.kind() == std::io::ErrorKind::NotFound => String::new(),
+        Err(error) => return Err(format!("cannot read {}: {error}", path.display()).into()),
+    };
+    Ok(text
+        .lines()
+        .filter(|line| !line.is_empty() && !line.starts_with('#'))
+        .filter_map(Group::from_row)
+        .collect())
+}
+
+/// Parse the files of a list and compare the count of each file and message with the baseline.
+///
+/// The full corpus of 329,387 files gives 101,100 sites, and one generated file of boost/libs/qvm
+/// gives 45,826 of them. A per-site baseline of that is 11 MB, and no person reads it. This report
+/// holds one row for each file and message with a count, and it recovers the positions of one file
+/// with `cargo xtask ties corpus ROOT LIST` on that file.
+fn run_population(repository: &Path, args: &[String]) -> Result<(), Box<dyn Error>> {
+    let (write, root, list) = match args {
+        [flag, root, list] if flag == "--write-baseline" => (true, root.clone(), list.clone()),
+        [root, list] => (false, root.clone(), list.clone()),
+        _ => return Err("usage: cargo xtask ties population [--write-baseline] ROOT LIST".into()),
+    };
+    let root = Path::new(&root);
+    let text = fs::read_to_string(&list).map_err(|e| format!("cannot read the file list {list}: {e}"))?;
+    let paths: Vec<&str> = text.lines().filter(|line| !line.is_empty()).collect();
+    let sites = measure(root, &paths).sites;
+    let found = group(&sites);
+    println!("files {}, sites {}, rows {}", paths.len(), sites.len(), found.len());
+    if write {
+        let path = repository.join(POPULATION);
+        fs::create_dir_all(path.parent().expect("the baseline is in a directory"))?;
+        let mut out = String::new();
+        out.push_str("# The count of the sites where the symbol order selects the tree, for each\n");
+        out.push_str("# file and each message of the full corpus. Refer to xtask/src/ties.rs.\n");
+        out.push_str("# The columns are the path, the count, and the message of the runtime.\n");
+        out.push_str("#\n");
+        out.push_str("# WHAT THIS FILE PROMISES: a count that rises fails the check, and a count\n");
+        out.push_str("# that falls does not. A message that moves to a different class in one file\n");
+        out.push_str("# gives one fall and one rise, and the rise fails the check.\n");
+        out.push_str("# WHAT IT DOES NOT PROMISE: a site that moves to a different row or column of\n");
+        out.push_str("# one file, with no change of the count, fails no check. The per-site\n");
+        out.push_str("# baseline test/ties/baseline.txt covers that case for the 3,000 files of\n");
+        out.push_str("# test/ties/sample.txt.\n");
+        for row in &found {
+            out.push_str(&row.row_text());
+            out.push('\n');
+        }
+        fs::write(&path, out)?;
+        println!("wrote {}", path.display());
+        return Ok(());
+    }
+    let baseline = read_population_baseline(repository)?;
+    let read: BTreeSet<&str> = paths.iter().copied().collect();
+    let comparison = compare_groups(&baseline, &found, &read);
+    for (row, after) in &comparison.fallen {
+        println!("fell    {} {} -> {}  {}", row.path, row.count, after, row.what);
+    }
+    for (row, before) in &comparison.risen {
+        println!("ROSE    {} {} -> {}  {}", row.path, before, row.count, row.what);
+    }
+    println!(
+        "baseline {}, found {}, risen {}, fallen {}",
+        baseline.len(),
+        found.len(),
+        comparison.risen.len(),
+        comparison.fallen.len()
+    );
+    if comparison.risen.is_empty() {
+        return Ok(());
+    }
+    Err(format!(
+        "{} counts of sites where the symbol order selects the tree that the baseline does not \
+         hold. Each new site is one more tree that a later change of the grammar can flip with no \
+         ERROR node. `cargo xtask ties corpus ROOT LIST` with a list of the file above gives the \
+         row and the column of each site. Repair the tie with a rule, or write the baseline again \
+         with `cargo xtask ties population --write-baseline ROOT LIST` and give the reason in the \
+         commit message.",
+        comparison.risen.len()
+    )
+    .into())
+}
+
 /// Print the parse log of one file.
 fn run_trace(args: &[String]) -> Result<(), Box<dyn Error>> {
     let (file, state) = match args {
@@ -809,9 +1021,11 @@ pub fn run(repository: &Path, args: &[String]) -> Result<(), Box<dyn Error>> {
     match args.first().map(String::as_str) {
         Some("table") => run_table(repository),
         Some("corpus") => run_corpus(repository, &args[1..]),
+        Some("population") => run_population(repository, &args[1..]),
         Some("versions") => run_versions(repository, &args[1..]),
         Some("trace") => run_trace(&args[1..]),
         _ => Err("usage: cargo xtask ties table | corpus [--write-baseline] [ROOT LIST] | \
+                    population [--write-baseline] ROOT LIST | \
                     versions [--write-baseline] [ROOT LIST] | trace FILE [--state N]"
             .into()),
     }
@@ -952,6 +1166,77 @@ E(2,1),R(2,1,0,0),R(2,1,0,0),E(1,1),S(9),
         let ties = lists.iter().filter(|list| list.class == Class::ReduceTie).count();
         assert!(ties > 0, "the parse table holds no reduce and reduce list of equal precedence");
         assert!(lists.iter().any(|list| list.class == Class::ShiftReduce));
+    }
+
+    fn one_group(path: &str, count: usize, what: &str) -> Group {
+        Group { path: path.to_owned(), what: what.to_owned(), count }
+    }
+
+    #[test]
+    fn the_sites_of_one_file_and_one_message_go_into_one_group() {
+        let sites = vec![
+            site("a.cpp", 1, 2, "select_earlier symbol:x, over_symbol:x"),
+            site("a.cpp", 5, 6, "select_earlier symbol:x, over_symbol:x"),
+            site("a.cpp", 7, 8, "select_earlier symbol:y, over_symbol:y"),
+            site("b.cpp", 1, 1, "select_earlier symbol:x, over_symbol:x"),
+        ];
+        assert_eq!(
+            group(&sites),
+            vec![
+                one_group("a.cpp", 2, "select_earlier symbol:x, over_symbol:x"),
+                one_group("a.cpp", 1, "select_earlier symbol:y, over_symbol:y"),
+                one_group("b.cpp", 1, "select_earlier symbol:x, over_symbol:x"),
+            ]
+        );
+    }
+
+    #[test]
+    fn a_count_that_rises_is_risen_and_a_count_that_falls_is_fallen() {
+        let baseline = vec![one_group("a.cpp", 2, "m"), one_group("b.cpp", 3, "m")];
+        let found = vec![one_group("a.cpp", 5, "m"), one_group("b.cpp", 1, "m")];
+        let read: BTreeSet<&str> = ["a.cpp", "b.cpp"].into_iter().collect();
+        let comparison = compare_groups(&baseline, &found, &read);
+        assert_eq!(comparison.risen, vec![(one_group("a.cpp", 5, "m"), 2)]);
+        assert_eq!(comparison.fallen, vec![(one_group("b.cpp", 3, "m"), 1)]);
+    }
+
+    #[test]
+    fn a_group_that_the_baseline_does_not_hold_has_the_count_zero_before_it() {
+        let baseline = vec![one_group("a.cpp", 2, "m")];
+        let found = vec![one_group("a.cpp", 2, "m"), one_group("a.cpp", 1, "n")];
+        let read: BTreeSet<&str> = ["a.cpp"].into_iter().collect();
+        let comparison = compare_groups(&baseline, &found, &read);
+        assert_eq!(comparison.risen, vec![(one_group("a.cpp", 1, "n"), 0)]);
+        assert!(comparison.fallen.is_empty());
+    }
+
+    /// A run that reads a part of the files reports no fall for the files that it did not read.
+    #[test]
+    fn a_file_that_the_run_does_not_read_gives_no_fall() {
+        let baseline = vec![one_group("a.cpp", 2, "m"), one_group("b.cpp", 3, "m")];
+        let found = vec![one_group("a.cpp", 2, "m")];
+        let read: BTreeSet<&str> = ["a.cpp"].into_iter().collect();
+        let comparison = compare_groups(&baseline, &found, &read);
+        assert!(comparison.risen.is_empty());
+        assert!(comparison.fallen.is_empty());
+    }
+
+    #[test]
+    fn a_row_of_the_population_baseline_reads_again_as_the_same_group() {
+        let one = one_group("a/b.cpp", 12, "select_earlier symbol:x, over_symbol:y");
+        assert_eq!(Group::from_row(&one.row_text()), Some(one));
+    }
+
+    /// The population baseline reads again, and each row has a path, a count, and a message.
+    #[test]
+    fn the_population_baseline_of_the_repository_reads_again() {
+        let baseline = read_population_baseline(&repository()).expect("the baseline reads");
+        assert!(!baseline.is_empty(), "test/ties/population.txt holds no row");
+        for row in &baseline {
+            assert!(!row.path.is_empty());
+            assert!(row.count > 0);
+            assert!(TIE_MESSAGES.iter().any(|name| row.what.starts_with(name)));
+        }
     }
 
     /// The value of `MAX_VERSION_COUNT` comes from the source of the runtime.
