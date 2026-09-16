@@ -3069,6 +3069,14 @@ static bool scan_constructor_after_macro(Reader *reader, const Scanner *classes,
         if (c == ':') {
             return !arguments_in_chain && scan_qualified_constructor_name(reader, name);
         }
+        // A member access after the name is no part of a declarator, so the text is an expression
+        // statement and the macro is an attribute of that statement: `SUPPRESS_UNCOUNTED_ARG
+        // baseValue.m_structure.forEach(f);` of WebKit. [dcl.decl] gives a declarator no `.`. One
+        // character decides it, and the scan reads no more.
+        if (c == '.') {
+            *statement = true;
+            return false;
+        }
         // A name of one character with arguments can be an element of a line of macro invocations.
         if (!is_macro_name(word, has_lower) || (strlen(word) < 2 && c != '(')) {
             return false;

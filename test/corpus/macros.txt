@@ -3742,3 +3742,68 @@ enum Mixed { L1(M), B };
           (identifier)))
       (enumerator
         name: (identifier)))))
+
+================================================================================
+A bare macro before a statement that starts with a member access
+================================================================================
+
+void h() {
+  SUPPRESS_UNCOUNTED_ARG baseValue.m_structure.forEach(visitor);
+  SUPPRESS_UNCOUNTED_ARG s.m = 1;
+  Q_EMIT p->startedHandshake(socket);
+  SUPPRESS_UNCOUNTED_ARG g(a);
+  ATTR S s2;
+  S s3;
+}
+
+--------------------------------------------------------------------------------
+
+(translation_unit
+  (function_definition
+    type: (primitive_type)
+    declarator: (function_declarator
+      declarator: (identifier)
+      parameters: (parameter_list))
+    body: (compound_statement
+      (attributed_statement
+        (attribute_macro
+          name: (identifier))
+        (expression_statement
+          (call_expression
+            function: (field_expression
+              argument: (field_expression
+                argument: (identifier)
+                field: (field_identifier))
+              field: (field_identifier))
+            arguments: (argument_list
+              (identifier)))))
+      (attributed_statement
+        (attribute_macro
+          name: (identifier))
+        (expression_statement
+          (assignment_expression
+            left: (field_expression
+              argument: (identifier)
+              field: (field_identifier))
+            right: (number_literal))))
+      (qt_emit_statement
+        (call_expression
+          function: (field_expression
+            argument: (identifier)
+            field: (field_identifier))
+          arguments: (argument_list
+            (identifier))))
+      (declaration
+        type: (type_identifier)
+        declarator: (init_declarator
+          declarator: (identifier)
+          value: (argument_list
+            (identifier))))
+      (declaration
+        (attribute_macro
+          name: (identifier))
+        type: (type_identifier)
+        declarator: (identifier))
+      (declaration
+        type: (type_identifier)
+        declarator: (identifier)))))

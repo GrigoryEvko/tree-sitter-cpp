@@ -445,3 +445,9 @@ enum Count { L1(M) L2(M) NumberOfFeatures };
 enum One { COLOR_LIST(MAKE_ENUM) };
 ### enumerator_plain_values
 enum Value { A = 1, B = 2 };
+### bare_macro_before_a_member_access
+void h() { SUPPRESS_UNCOUNTED_ARG baseValue.m_structure.forEach(visitor); }
+### bare_macro_before_a_member_assignment
+void h() { SUPPRESS_UNCOUNTED_ARG s.m = 1; }
+### bare_macro_before_a_declaration
+void h() { ATTR S s2; }
