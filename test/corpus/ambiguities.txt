@@ -2369,3 +2369,155 @@ template <class T, class U> void e(int id) { Holder<T>::template apply<U>(id, "V
               (identifier)
               (string_literal
                 (string_content)))))))))
+
+================================================================================
+A functional cast with a blank before the argument list
+================================================================================
+
+struct A { int m; A(); A(int); };
+template<class T> struct B { int m; B(int); };
+int take(A);
+int h(int t) { return take(A (t)) + take(A(t)); }
+int i(int t) { return take(B<int> (t).m) + take(B<int>(t).m); }
+int j(int t) { return take(A
+(t)); }
+A (gx);
+void p(A (px));
+
+--------------------------------------------------------------------------------
+
+(translation_unit
+  (struct_specifier
+    (type_identifier)
+    (field_declaration_list
+      (field_declaration
+        (primitive_type)
+        (field_identifier))
+      (declaration
+        (function_declarator
+          (identifier)
+          (parameter_list)))
+      (declaration
+        (function_declarator
+          (identifier)
+          (parameter_list
+            (parameter_declaration
+              (primitive_type)))))))
+  (template_declaration
+    (template_parameter_list
+      (type_parameter_declaration
+        (type_identifier)))
+    (struct_specifier
+      (type_identifier)
+      (field_declaration_list
+        (field_declaration
+          (primitive_type)
+          (field_identifier))
+        (declaration
+          (function_declarator
+            (identifier)
+            (parameter_list
+              (parameter_declaration
+                (primitive_type))))))))
+  (declaration
+    (primitive_type)
+    (function_declarator
+      (identifier)
+      (parameter_list
+        (parameter_declaration
+          (type_identifier)))))
+  (function_definition
+    (primitive_type)
+    (function_declarator
+      (identifier)
+      (parameter_list
+        (parameter_declaration
+          (primitive_type)
+          (identifier))))
+    (compound_statement
+      (return_statement
+        (binary_expression
+          (call_expression
+            (identifier)
+            (argument_list
+              (call_expression
+                (type_identifier)
+                (argument_list
+                  (identifier)))))
+          (call_expression
+            (identifier)
+            (argument_list
+              (call_expression
+                (type_identifier)
+                (argument_list
+                  (identifier)))))))))
+  (function_definition
+    (primitive_type)
+    (function_declarator
+      (identifier)
+      (parameter_list
+        (parameter_declaration
+          (primitive_type)
+          (identifier))))
+    (compound_statement
+      (return_statement
+        (binary_expression
+          (call_expression
+            (identifier)
+            (argument_list
+              (field_expression
+                (call_expression
+                  (template_function
+                    (identifier)
+                    (template_argument_list
+                      (type_descriptor
+                        (primitive_type))))
+                  (argument_list
+                    (identifier)))
+                (field_identifier))))
+          (call_expression
+            (identifier)
+            (argument_list
+              (field_expression
+                (call_expression
+                  (template_type
+                    (type_identifier)
+                    (template_argument_list
+                      (type_descriptor
+                        (primitive_type))))
+                  (argument_list
+                    (identifier)))
+                (field_identifier))))))))
+  (function_definition
+    (primitive_type)
+    (function_declarator
+      (identifier)
+      (parameter_list
+        (parameter_declaration
+          (primitive_type)
+          (identifier))))
+    (compound_statement
+      (return_statement
+        (call_expression
+          (identifier)
+          (argument_list
+            (call_expression
+              (identifier)
+              (argument_list
+                (identifier))))))))
+  (expression_statement
+    (call_expression
+      (identifier)
+      (argument_list
+        (identifier))))
+  (declaration
+    (primitive_type)
+    (function_declarator
+      (identifier)
+      (parameter_list
+        (parameter_declaration
+          (type_identifier)
+          (abstract_function_declarator
+            (parameter_list
+              (parameter_declaration
+                (type_identifier)))))))))

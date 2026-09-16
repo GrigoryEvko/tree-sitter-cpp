@@ -6381,7 +6381,31 @@ static bool scan_comparison_name(Reader *reader, const char *name, bool comparis
         reader->budget = MAX_COMPARISON_LOOKAHEAD;
     }
     skip_blanks(reader);
-    if (!readable(reader) || lexer->lookahead != '<') {
+    if (!readable(reader)) {
+        return false;
+    }
+    // A blank between the name of a recorded class and the `(` gives a functional cast: `A (x)`. White
+    // space has no meaning between the two tokens. The GCC dump gives one `aggr_init_expr ctor:1` for
+    // `A (6)` and the same node for `A(6)`.
+    //
+    // `scan_word_start` gives the token for `A(x)`. It sends the form with a blank here, because the
+    // scan of a comparison cannot go back to the name.
+    //
+    // THIS BLANK IS NOT THE BLANK OF THE TEMPLATE-ID BELOW. This one comes after a plain NAME. No `<`
+    // follows it, so no comparison and no shift can start. The other blank comes after the `>` of the
+    // argument list. That one keeps the comparison of `a<b> >(c)`, and the comment there tells you to
+    // keep it. The two conditions look the same and they are for different text. Do not make them one
+    // condition.
+    //
+    // `skip_blanks` reads a space and a tab only. A newline or a comment before the `(` gives no token.
+    // The guard of `cast_name` in `scan_word_start` stops the token at each position where a declaration
+    // or a type-id can start. `A (gx);`, `A (*gp)[3];` and `void p(A (px));` keep the tree that they
+    // have today.
+    if (cast_name && lexer->lookahead == '(') {
+        lexer->result_symbol = FUNCTIONAL_CAST_NAME;
+        return true;
+    }
+    if (lexer->lookahead != '<') {
         return false;
     }
     step(reader);
