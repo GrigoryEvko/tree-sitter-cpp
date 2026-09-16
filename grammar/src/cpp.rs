@@ -7251,8 +7251,20 @@ fn expressions(g: &mut Grammar) {
     // `jalape\u{f1}o`, `jalape\N{LATIN SMALL LETTER N WITH TILDE}o`. libcpp reads them in
     // `forms_identifier_p` with `_cpp_valid_ucn`.
     let ucn = r"\\u[0-9A-Fa-f]{4}|\\U[0-9A-Fa-f]{8}|\\u\{[0-9A-Fa-f]+\}|\\N\{[A-Za-z0-9 _-]+\}";
+    // Phase 2 of [lex.phases] deletes each line splice before tokenization, so a splice inside an
+    // identifier makes one token: `Q\` and `_OBJECT` on two lines are the one word `Q_OBJECT`.
+    // libcpp `_cpp_clean_line` (gcc/libcpp/lex.cc:877) deletes the splice before `lex_identifier`
+    // reads the word. Clang `Lexer::LexIdentifierContinue` (clang/lib/Lex/Lexer.cpp:2039) reads each
+    // character with `getCharAndSize`, which goes past a splice (`getEscapedNewLineSize`, :1336).
+    //
+    // A run of splices comes before each character after the first one, and no splice ends the
+    // token. The lexer gives the longest match, and a splice at the end belongs to the white space
+    // between two tokens.
+    let splice = c::LINE_SPLICE;
     g.redefine("identifier", |_| {
-        re(&format!(r"(\p{{XID_Start}}|\$|_|{ucn})(\p{{XID_Continue}}|\$|{ucn})*"))
+        re(&format!(
+            r"(\p{{XID_Start}}|\$|_|{ucn})(({splice})*(\p{{XID_Continue}}|\$|{ucn}))*"
+        ))
     });
     // A ud-suffix is an identifier, as in `LexUDSuffix` of Clang: `1_km`, `1_π`.
     g.define(

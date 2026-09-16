@@ -21387,7 +21387,7 @@
     },
     "identifier": {
       "type": "PATTERN",
-      "value": "(\\p{XID_Start}|\\$|_|\\\\u[0-9A-Fa-f]{4}|\\\\U[0-9A-Fa-f]{8}|\\\\u\\{[0-9A-Fa-f]+\\}|\\\\N\\{[A-Za-z0-9 _-]+\\})(\\p{XID_Continue}|\\$|\\\\u[0-9A-Fa-f]{4}|\\\\U[0-9A-Fa-f]{8}|\\\\u\\{[0-9A-Fa-f]+\\}|\\\\N\\{[A-Za-z0-9 _-]+\\})*"
+      "value": "(\\p{XID_Start}|\\$|_|\\\\u[0-9A-Fa-f]{4}|\\\\U[0-9A-Fa-f]{8}|\\\\u\\{[0-9A-Fa-f]+\\}|\\\\N\\{[A-Za-z0-9 _-]+\\})((\\\\[ \\t\\f\\v]*(\\r\\n?|\\n))*(\\p{XID_Continue}|\\$|\\\\u[0-9A-Fa-f]{4}|\\\\U[0-9A-Fa-f]{8}|\\\\u\\{[0-9A-Fa-f]+\\}|\\\\N\\{[A-Za-z0-9 _-]+\\}))*"
     },
     "_type_identifier": {
       "type": "ALIAS",

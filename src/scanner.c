@@ -888,23 +888,49 @@ static inline uint32_t hash_character(uint32_t hash, int32_t c) {
 /// The hash of a name as the scanner records it. The value 0 means no name, so a hash of 0 becomes 1.
 static inline uint32_t finish_hash(uint32_t hash) { return hash == 0 ? 1 : hash; }
 
+static Backslash step_backslash(Reader *reader);
+
 /// Read a word. Keep its start in `word`, with a NUL at the end, and a `?` for each character
 /// that is not ASCII. Set `has_lower` if the word has a lowercase ASCII letter. Keep the hash of the
 /// full word in `reader->word_hash`.
+///
+/// A line splice inside the word is not part of the word. Phase 2 of [lex.phases] deletes each
+/// splice before tokenization, so `Q\` and `_OBJECT` on two lines are the one word `Q_OBJECT`
+/// (libcpp `_cpp_clean_line`, gcc/libcpp/lex.cc:877, and Clang `Lexer::LexIdentifierContinue`,
+/// clang/lib/Lex/Lexer.cpp:2039). The word, its hash, and its shape then hold the spliced text, and
+/// the tables of macro names read the same word as the lexer of the parser.
 static void read_word(Reader *reader, char word[MACRO_WORD_SIZE], bool *has_lower) {
     unsigned length = 0;
     uint32_t hash = HASH_START;
-    while (readable(reader) && is_word_char(reader->lexer->lookahead)) {
+    for (;;) {
+        while (readable(reader) && is_word_char(reader->lexer->lookahead)) {
+            LOOP_STEP();
+            int32_t c = reader->lexer->lookahead;
+            if (c >= 'a' && c <= 'z') {
+                *has_lower = true;
+            }
+            if (length < MACRO_WORD_SIZE - 1) {
+                word[length++] = c < 0x80 ? (char)c : '?';
+            }
+            hash = hash_character(hash, c);
+            step(reader);
+        }
+        // Only a backslash inside a word can continue the word. A word starts at a character of
+        // `is_word_start`, so the scan reads no backslash before the first character.
+        if (length == 0 || !readable(reader) || reader->lexer->lookahead != '\\') {
+            break;
+        }
         LOOP_STEP();
-        int32_t c = reader->lexer->lookahead;
-        if (c >= 'a' && c <= 'z') {
-            *has_lower = true;
+        if (step_backslash(reader) == BACKSLASH_SPLICE) {
+            continue;
         }
+        // The backslash starts a universal character name of the identifier, and not a splice:
+        // `jalapeño` is one word. The word holds the backslash, so that the scan reads the one
+        // identifier that the lexer of the parser reads.
         if (length < MACRO_WORD_SIZE - 1) {
-            word[length++] = c < 0x80 ? (char)c : '?';
+            word[length++] = '\\';
         }
-        hash = hash_character(hash, c);
-        step(reader);
+        hash = hash_character(hash, '\\');
     }
     word[length] = '\0';
     reader->word_hash = finish_hash(hash);

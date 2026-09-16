@@ -1,3 +1,13 @@
+### lex_line_splice_in_an_identifier
+int ab\
+cd = 1;
+int use() { return ab\
+cd; }
+### lex_line_splice_in_a_macro_name
+class C {
+Q\
+_OBJECT
+};
 ### lex_less_scope_template
 std::vector<::std::string> v;
 ### lex_less_scope_compare
