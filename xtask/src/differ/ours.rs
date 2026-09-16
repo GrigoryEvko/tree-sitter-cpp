@@ -120,11 +120,15 @@ fn is_statement_parent(kind: &str) -> bool {
     )
 }
 
-/// Parse `source` with a time limit. `None` when the limit stops the parse.
-pub fn parse(parser: &mut Parser, source: &[u8], limit: Duration) -> Option<Tree> {
+/// Parse `source` with a time limit and with the memory ceiling of `corpus`. `None` when one of
+/// the two stops the parse. `label` names the source in the message of the cap of the runtime.
+pub fn parse(parser: &mut Parser, source: &[u8], label: &str, limit: Duration) -> Option<Tree> {
+    let _label = crate::allocation::Label::new(label);
+    crate::allocation::reset();
+    let ceiling = crate::corpus::ceiling(source.len());
     let started = Instant::now();
     let mut stop = |_: &ParseState| {
-        if started.elapsed() > limit {
+        if started.elapsed() > limit || crate::allocation::peak() > ceiling {
             ControlFlow::Break(())
         } else {
             ControlFlow::Continue(())

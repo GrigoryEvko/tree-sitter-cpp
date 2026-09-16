@@ -205,7 +205,7 @@ fn analyze(parser: &mut Parser, oracle: &Oracle, path: &Path, source: Vec<u8>, e
                 || oracle.clang(path, &clang_flags, &source),
             )
         },
-        || ours::parse(parser, &source, PARSE_LIMIT).map(|tree| OurTree::new(&tree)),
+        || ours::parse(parser, &source, &path.to_string_lossy(), PARSE_LIMIT).map(|tree| OurTree::new(&tree)),
     );
     let our_facts = tree.as_ref().map_or_else(Vec::new, |tree| ours::facts(tree, &source));
     let compared = clang.check.status == Status::Accept && clang.json == oracle::JsonStatus::Read && tree.is_some();
@@ -509,7 +509,7 @@ fn show(oracle: &Oracle, settings: &Settings) -> Result<(), Box<dyn Error>> {
     let analysis = analyze(&mut parser, oracle, &path, source, &settings.flags);
     let _ = fs::remove_file(&path);
     let tree = if settings.tree {
-        ours::parse(&mut parser, &analysis.source, PARSE_LIMIT)
+        ours::parse(&mut parser, &analysis.source, &path.to_string_lossy(), PARSE_LIMIT)
             .map(|tree| crate::sexp::format(&tree.root_node().to_sexp()))
     } else {
         None

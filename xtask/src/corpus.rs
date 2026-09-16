@@ -2,10 +2,14 @@
 //!
 //! The output has one TSV line for each file of the list: the path, the bytes, the ERROR
 //! nodes, the MISSING nodes, the bytes in ERROR nodes, the row, kind, and text of the first
-//! error, the source line of the first error, the parse time in microseconds, and 1 if the
-//! budget stopped the parse.
+//! error, the source line of the first error, the parse time in microseconds, 1 if the
+//! budget stopped the parse, 1 if the memory ceiling stopped the parse, the peak bytes that
+//! the parse allocated, and the ceiling of the parse in bytes. The two last columns show how
+//! near each file comes to its ceiling, so that a change of `CEILING_FLOOR` or of
+//! `CEILING_PER_BYTE` is a query of the rows and not a second run.
 
 use std::error::Error;
+use std::fmt;
 use std::fs;
 use std::io::{BufWriter, Write};
 use std::ops::ControlFlow;
@@ -15,6 +19,8 @@ use std::time::Instant;
 
 use rayon::prelude::*;
 use tree_sitter::{Language, Node, ParseOptions, ParseState, Parser, Tree};
+
+use crate::allocation;
 
 /// The budget of one parse, as a count of the progress callbacks of the runtime.
 ///
@@ -55,6 +61,64 @@ const LARGEST_CORPUS_CHECKS: u64 = 148_044;
 /// stops the parse of a file that has no defect, and the reports of the gate then move with the
 /// load of the machine.
 const _: () = assert!(BUDGET >= 10 * LARGEST_CORPUS_CHECKS);
+/// The ceiling of one parse, as the peak of the net bytes that it allocates, for a source of no
+/// bytes. `ceiling` adds `CEILING_PER_BYTE` for each byte of the source.
+///
+/// THE CEILING GROWS WITH THE SOURCE, BECAUSE MANY THREADS PARSE AT THE SAME TIME. A corpus run
+/// holds one thread for each core, 376 on the machine of 2026-09-16. A fixed ceiling with headroom
+/// over the largest file gives each thread that ceiling, and a defect that makes many files run
+/// away then takes 376 times it before the first stop: 1.5 TB for 4 GiB. The peak of a correct
+/// parse grows with the source, so a ceiling that grows with the source keeps its headroom, and it
+/// bounds 376 threads on files of the median size to 24 GiB.
+///
+/// The measurement, on the full corpus of 329,387 files, on 2026-09-16, with the count of
+/// vendor/tree-sitter/src/alloc.c:
+/// - An empty file peaks at 1,960 bytes.
+/// - The largest peak of a file of 4 KB or less is 1,571,088 bytes
+///   (llvm-project/clang/test/Index/index-many-call-ops.cpp).
+/// - The largest peak of a file with no error is 663,825,512 bytes
+///   (OpenRCT2/src/openrct2/ride/VehicleSubpositionData.cpp, 6,798,922 bytes).
+/// - The largest peak of all is 806,867,464 bytes
+///   (qtbase/src/corelib/time/qtimezonelocale_data_p.h, 13,995,652 bytes, 711 errors).
+/// - The smallest headroom of the ceiling over the corpus is 4.80 times, at
+///   duckdb/third_party/brotli/enc/dictionary_hash.cpp (147,080 bytes, peak 29,644,824 bytes).
+/// - The one parse that took 152 GB on 2026-09-16 read a file of 19,912 bytes, whose ceiling is
+///   77,303,808 bytes.
+///
+/// THE PEAK OF ONE FILE MOVES BY A SMALL FRACTION BETWEEN TWO RUNS, AND THE HEADROOM COVERS IT.
+/// The parser of a corpus thread keeps the capacity of its arrays from one file to the next, so
+/// the peak of a file moves by that capacity, some megabytes at most: three corpus runs gave
+/// 806,867,464, 806,839,672 and 806,845,144 bytes for the largest peak. The count reads the size
+/// of each block from the C library, and the library gives a block of a different size for the
+/// same request when it splits a free block: 32 bytes of 808,704 in the unit test. A count of the
+/// requested sizes would be exact, but it needs a header in each block, which costs 16 bytes for
+/// each block and breaks a block that a plain `free` releases.
+///
+/// THE CEILING COUNTS THE BYTES THAT THE RUNTIME ALLOCATES, AND NOT THE VIRTUAL MEMORY OF THE
+/// PROCESS. `ulimit -v` bounds the virtual size, and a corpus run reserves 64 MB of virtual memory
+/// for the heap of each of its threads, so a `ulimit -v` that fits one parse does not fit the
+/// corpus command. The count of the allocator has no such term.
+///
+/// THE CEILING GUARDS THE COMMANDS OF XTASK, AND NOT A CALLER THAT BYPASSES THEM. A script that
+/// runs a parse with no ceiling gets no protection from this constant, and the parse that took
+/// 152 GB came from such a script, with a parser and a scanner from two generate steps. The count
+/// of the external tokens in `tree_sitter_cpp_external_scanner_create` refuses that pair. A loop
+/// over files must go through `xtask corpus`.
+pub const CEILING_FLOOR: u64 = 64 << 20;
+/// The bytes of ceiling for each byte of the source. Refer to `CEILING_FLOOR`.
+pub const CEILING_PER_BYTE: u64 = 512;
+/// The peak and the size of the corpus file with the smallest headroom under the ceiling, on
+/// 2026-09-16: duckdb/third_party/brotli/enc/dictionary_hash.cpp.
+const SMALLEST_HEADROOM_PEAK: u64 = 29_644_824;
+const SMALLEST_HEADROOM_BYTES: usize = 147_080;
+/// The ceiling of each corpus file holds four times its peak. A build with a smaller ceiling
+/// stops the parse of a file that has no defect.
+const _: () = assert!(ceiling(SMALLEST_HEADROOM_BYTES) >= 4 * SMALLEST_HEADROOM_PEAK);
+
+/// The ceiling of a parse of a source of `bytes` bytes. Refer to `CEILING_FLOOR`.
+pub const fn ceiling(bytes: usize) -> u64 {
+    CEILING_FLOOR + CEILING_PER_BYTE * bytes as u64
+}
 /// The maximum length of the source line of the first error.
 const LINE_BYTES: usize = 120;
 /// The maximum length of the text of the first error.
@@ -79,13 +143,44 @@ struct Record {
     first: Option<FirstError>,
     parse_us: u128,
     stopped: bool,
+    memory: bool,
+    peak_bytes: u64,
+    ceiling: u64,
     unreadable: bool,
 }
 
 impl Record {
     /// True when the parse gave no tree, or a tree with an ERROR or MISSING node.
     fn failed(&self) -> bool {
-        self.stopped || self.errors + self.missing > 0
+        self.stopped || self.memory || self.errors + self.missing > 0
+    }
+}
+
+/// The limit that stopped a parse, with its value.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum Stop {
+    /// The parse passed this count of progress callbacks. Refer to `BUDGET`.
+    Budget(u64),
+    /// The allocations of the parse passed this count of bytes. Refer to `CEILING`.
+    Memory(u64),
+}
+
+impl Stop {
+    /// The word of the stop in a TSV row: `stopped` for the budget, and `memory` for the ceiling.
+    pub fn word(self) -> &'static str {
+        match self {
+            Self::Budget(_) => "stopped",
+            Self::Memory(_) => "memory",
+        }
+    }
+}
+
+impl fmt::Display for Stop {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        match self {
+            Self::Budget(budget) => write!(f, "the budget of {budget} progress callbacks"),
+            Self::Memory(ceiling) => write!(f, "the memory ceiling of {ceiling} bytes"),
+        }
     }
 }
 
@@ -165,24 +260,57 @@ fn scan(root: Node, source: &[u8], record: &mut Record) {
     }
 }
 
-/// Parse a source with no old tree, with the budget `BUDGET`.
+/// Parse a source with no old tree, with the budget `BUDGET` and the ceiling of `ceiling`.
 ///
-/// Return None when the budget stopped the parse. The parser is then reset, and it is ready for the
-/// next source.
-pub fn parse_with_limit(parser: &mut Parser, source: &[u8]) -> Option<Tree> {
-    parse_with_budget(parser, source, BUDGET)
+/// `label` names the source in the message of the cap of the runtime. Return the limit when one
+/// stopped the parse. The parser is then reset, and it is ready for the next source.
+pub fn parse_with_limit(parser: &mut Parser, source: &[u8], label: &str) -> Result<Tree, Stop> {
+    parse_with_limits(parser, source, label, BUDGET, ceiling(source.len()))
 }
 
-/// Parse a source with no old tree. Stop the parse after `budget` progress callbacks.
+/// Parse a source with no old tree. Stop the parse after `budget` progress callbacks. Refer to
+/// `BUDGET`.
+#[cfg(test)]
+fn parse_with_budget(parser: &mut Parser, source: &[u8], budget: u64) -> Result<Tree, Stop> {
+    parse_with_limits(parser, source, "a source with a budget", budget, ceiling(source.len()))
+}
+
+/// Parse a source with no old tree. Stop the parse when its allocations pass `ceiling` bytes.
+/// Refer to `CEILING_FLOOR`.
+#[cfg(test)]
+fn parse_with_ceiling(parser: &mut Parser, source: &[u8], ceiling: u64) -> Result<Tree, Stop> {
+    parse_with_limits(parser, source, "a source with a ceiling", BUDGET, ceiling)
+}
+
+/// Parse a source with no old tree. Stop the parse after `budget` progress callbacks, or when the
+/// peak of its allocations passes `ceiling` bytes.
 ///
-/// Return None when the budget stopped the parse. The parser is then reset, and it is ready for the
-/// next source. The count of the callbacks of one parse is the same in each run, so the result is
-/// the same in each run. Refer to `BUDGET`.
-pub fn parse_with_budget(parser: &mut Parser, source: &[u8], budget: u64) -> Option<Tree> {
+/// The progress callback of the runtime reads the two limits, one time for each 100 parse
+/// operations. The count of the callbacks of one parse is the same in each run. The peak of the
+/// bytes moves by a small fraction, and the headroom of the ceiling covers it. Refer to `BUDGET`
+/// and to `CEILING_FLOOR`.
+///
+/// Return the limit when one stopped the parse. The parser is then reset, and it is ready for the
+/// next source. `allocation::peak` gives the peak of this parse until the next parse.
+pub fn parse_with_limits(
+    parser: &mut Parser,
+    source: &[u8],
+    label: &str,
+    budget: u64,
+    ceiling: u64,
+) -> Result<Tree, Stop> {
+    let _label = allocation::Label::new(label);
+    allocation::reset();
     let mut checks: u64 = 0;
-    let mut stop = |_: &ParseState| {
+    let mut stop = None;
+    let mut watch = |_: &ParseState| {
         checks += 1;
         if checks > budget {
+            stop = Some(Stop::Budget(budget));
+        } else if allocation::peak() > ceiling {
+            stop = Some(Stop::Memory(ceiling));
+        }
+        if stop.is_some() {
             ControlFlow::Break(())
         } else {
             ControlFlow::Continue(())
@@ -191,12 +319,15 @@ pub fn parse_with_budget(parser: &mut Parser, source: &[u8], budget: u64) -> Opt
     let tree = parser.parse_with_options(
         &mut |at, _| source.get(at..).unwrap_or_default(),
         None,
-        Some(ParseOptions::new().progress_callback(&mut stop)),
+        Some(ParseOptions::new().progress_callback(&mut watch)),
     );
-    if tree.is_none() {
-        parser.reset();
+    match tree {
+        Some(tree) => Ok(tree),
+        None => {
+            parser.reset();
+            Err(stop.expect("a parse that gives no tree stopped at a limit"))
+        }
     }
-    tree
 }
 
 /// A parser for the C++ language of the repository.
@@ -216,12 +347,15 @@ fn probe(parser: &mut Parser, root: &Path, rel: &str) -> Record {
         return record;
     };
     record.bytes = source.len();
+    record.ceiling = ceiling(source.len());
     let started = Instant::now();
-    let tree = parse_with_limit(parser, &source);
+    let tree = parse_with_limit(parser, &source, rel);
     record.parse_us = started.elapsed().as_micros();
+    record.peak_bytes = allocation::peak();
     match tree {
-        Some(tree) => scan(tree.root_node(), &source, &mut record),
-        None => record.stopped = true,
+        Ok(tree) => scan(tree.root_node(), &source, &mut record),
+        Err(Stop::Budget(_)) => record.stopped = true,
+        Err(Stop::Memory(_)) => record.memory = true,
     }
     record
 }
@@ -260,13 +394,16 @@ pub fn run(args: &[String]) -> Result<(), Box<dyn Error>> {
         };
         writeln!(
             sink,
-            "{rel}\t{}\t{}\t{}\t{}\t{row}\t{kind}\t{what}\t{line}\t{}\t{}",
+            "{rel}\t{}\t{}\t{}\t{}\t{row}\t{kind}\t{what}\t{line}\t{}\t{}\t{}\t{}\t{}",
             r.bytes,
             r.errors,
             r.missing,
             r.error_bytes,
             r.parse_us,
-            u8::from(r.stopped)
+            u8::from(r.stopped),
+            u8::from(r.memory),
+            r.peak_bytes,
+            r.ceiling
         )?;
     }
     sink.flush()?;
@@ -276,8 +413,10 @@ pub fn run(args: &[String]) -> Result<(), Box<dyn Error>> {
     let bytes: usize = records.iter().map(|r| r.bytes).sum();
     let error_bytes: usize = records.iter().map(|r| r.error_bytes).sum();
     let stopped = records.iter().filter(|r| r.stopped).count();
+    let memory = records.iter().filter(|r| r.memory).count();
+    let peak = records.iter().map(|r| r.peak_bytes).max().unwrap_or(0);
     println!(
-        "files {files}  with an error {failed} ({:.3}%)  error bytes {:.3}%  stopped {stopped}  unreadable {}  wall {:.0} s",
+        "files {files}  with an error {failed} ({:.3}%)  error bytes {:.3}%  stopped {stopped}  memory {memory}  peak bytes {peak}  unreadable {}  wall {:.0} s",
         100.0 * failed as f64 / files.max(1) as f64,
         100.0 * error_bytes as f64 / bytes.max(1) as f64,
         records.len() - files,
@@ -308,7 +447,7 @@ mod tests {
     fn smallest_budget(source: &str, max: u64) -> u64 {
         let language = Language::new(tree_sitter_cpp::LANGUAGE);
         let mut parser = new_parser(&language);
-        let mut gives_tree = |budget: u64| parse_with_budget(&mut parser, source.as_bytes(), budget).is_some();
+        let mut gives_tree = |budget: u64| parse_with_budget(&mut parser, source.as_bytes(), budget).is_ok();
         assert!(
             gives_tree(max),
             "the parse of the source takes more than {max} progress callbacks"
@@ -353,7 +492,7 @@ mod tests {
         let time_of = |parser: &mut Parser, count: usize| {
             let source = line(count);
             let started = Instant::now();
-            let tree = parse_with_limit(parser, source.as_bytes()).expect("the parse of the line ends");
+            let tree = parse_with_limit(parser, source.as_bytes(), "a long line").expect("the parse of the line ends");
             let elapsed = started.elapsed();
             assert!(!tree.root_node().has_error(), "the line of {count} declarations has an error");
             elapsed
@@ -391,16 +530,54 @@ mod tests {
         );
         let language = Language::new(tree_sitter_cpp::LANGUAGE);
         let mut parser = new_parser(&language);
-        assert!(
-            parse_with_budget(&mut parser, source.as_bytes(), smallest - 1).is_none(),
+        assert_eq!(
+            parse_with_budget(&mut parser, source.as_bytes(), smallest - 1).err(),
+            Some(Stop::Budget(smallest - 1)),
             "a budget of {} gives a tree, and the smallest budget is {smallest}",
             smallest - 1
         );
-        assert!(parse_with_budget(&mut parser, source.as_bytes(), smallest).is_some());
+        assert!(parse_with_budget(&mut parser, source.as_bytes(), smallest).is_ok());
         assert_eq!(
             smallest,
             smallest_budget(&source, 10_000),
             "the count of the progress callbacks of one parse is not the same in each run"
         );
+    }
+
+    /// The peak of the allocations of a parse with a new parser. The parser of a corpus thread
+    /// keeps the capacity of its arrays from one file to the next, so the peak of one file moves
+    /// by that capacity between two runs. A new parser for each measurement removes the move.
+    fn peak_of(source: &str, ceiling: u64) -> (Result<(), Stop>, u64) {
+        let language = Language::new(tree_sitter_cpp::LANGUAGE);
+        let mut parser = new_parser(&language);
+        let result = parse_with_ceiling(&mut parser, source.as_bytes(), ceiling).map(|_| ());
+        (result, allocation::peak())
+    }
+
+    /// The memory ceiling of a parse counts the bytes of the runtime, and it reads no clock.
+    ///
+    /// Two parses of the source give the same peak to 0.1%, a ceiling of half the peak stops the
+    /// parse, and a ceiling of two times the peak gives a tree. The test also fails when the count
+    /// of the runtime does not move, which is the condition of a platform with no size of a block.
+    ///
+    /// The two peaks are not equal to the byte. The first parse of the process gave 808,704 bytes
+    /// and the second 808,672, in three runs. The C library gives a block of a different size for
+    /// the same request when it splits a free block, so the count follows the state of the heap by
+    /// some bytes. Refer to `CEILING_FLOOR`.
+    #[test]
+    fn the_memory_ceiling_of_a_parse_counts_the_bytes_of_the_runtime() {
+        let source = source_of_many_callbacks();
+        let (result, peak) = peak_of(&source, u64::MAX);
+        assert_eq!(result, Ok(()));
+        assert!(peak > 100_000, "the parse of the source allocated {peak} bytes, and a tree of it is larger");
+        let again = peak_of(&source, u64::MAX).1;
+        assert!(
+            again.abs_diff(peak) * 1000 <= peak,
+            "the peak of one parse moves between two runs by more than 0.1%: {peak} and {again}"
+        );
+        let (stopped, stopped_peak) = peak_of(&source, peak / 2);
+        assert_eq!(stopped, Err(Stop::Memory(peak / 2)));
+        assert!(stopped_peak > peak / 2, "the stopped parse reads a peak of {stopped_peak}, and the ceiling is {}", peak / 2);
+        assert_eq!(peak_of(&source, 2 * peak).0, Ok(()));
     }
 }

@@ -1527,6 +1527,32 @@ void ts_set_allocator(
 	void (*new_free)(void *)
 );
 
+/**
+ * The count of the allocations of one thread. These four functions are an
+ * addition of the fork, and the default allocator keeps the count.
+ *
+ * `ts_allocation_reset` sets the count of the calling thread to zero.
+ * `ts_allocation_peak` gives the highest net number of bytes that the calling
+ * thread held since its last reset. A parser reads it in a progress callback
+ * and stops a parse that passes its ceiling.
+ *
+ * `ts_allocation_label` names the input that the calling thread parses, for
+ * the message of the cap. The text must stay valid until the next call, and
+ * `NULL` removes the label.
+ *
+ * `ts_set_allocation_cap` sets the number of bytes at which the default
+ * allocator stops the process, for each thread. A value of zero removes the
+ * cap. The cap is the backstop of the ceiling for an allocation that runs
+ * away inside one parse operation, where no progress callback comes. The
+ * count of one thread goes down when it releases a block that a different
+ * thread allocated, so a program that releases on a different thread than it
+ * allocates must raise or remove the cap.
+ */
+void ts_allocation_reset(void);
+uint64_t ts_allocation_peak(void);
+void ts_allocation_label(const char *label);
+void ts_set_allocation_cap(uint64_t bytes);
+
 #ifdef __cplusplus
 }
 #endif

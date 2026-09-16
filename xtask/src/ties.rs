@@ -365,7 +365,7 @@ pub fn measure(root: &Path, paths: &[&str]) -> Run {
                     log.versions_row = 0;
                     log.versions_column = 0;
                 }
-                let tree = crate::corpus::parse_with_limit(parser, &source);
+                let tree = crate::corpus::parse_with_limit(parser, &source, path);
                 let mut log = shared.lock().expect("the reader holds one log");
                 let sites = std::mem::take(&mut log.sites);
                 let file = FileVersions {
@@ -1027,12 +1027,12 @@ fn run_trace(args: &[String]) -> Result<(), Box<dyn Error>> {
             sink.lock().expect("the logger holds the rows").push(message.to_owned());
         }
     })));
-    let tree = crate::corpus::parse_with_limit(&mut parser, &source);
+    let tree = crate::corpus::parse_with_limit(&mut parser, &source, &file);
     for row in rows.lock().expect("the reader holds the rows").iter() {
         println!("{row}");
     }
-    if tree.is_none() {
-        println!("the budget stopped the parse");
+    if let Err(stop) = tree {
+        println!("the parse stopped at {stop}");
     }
     Ok(())
 }

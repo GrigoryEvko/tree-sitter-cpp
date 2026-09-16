@@ -5,7 +5,8 @@
 //! 1. The path, relative to ROOT
 //! 2. 1 if the tree has an ERROR or a MISSING node, or if the parse gave no tree. 0 if not
 //! 3. The hash of the full tree as 16 hexadecimal digits. `stopped` if the budget of the parse
-//!    stopped it, or `unreadable` if the file is not readable
+//!    stopped it, `memory` if the memory ceiling stopped it, or `unreadable` if the file is not
+//!    readable
 //! 4. The number of nodes
 //! 5. The start byte of the first ERROR or MISSING node, or `-`
 //! 6. The kind of that node (`ERROR`, or `MISSING` and the kind of the missing node), or `-`
@@ -222,8 +223,9 @@ fn tree_line(
     let Ok(source) = fs::read(root.join(rel)) else {
         return (format!("{rel}\t1\tunreadable\t0\t-\t-\t-"), no_sites);
     };
-    let Some(tree) = parse_with_limit(parser, &source) else {
-        return (format!("{rel}\t1\tstopped\t0\t-\t-\t-"), no_sites);
+    let tree = match parse_with_limit(parser, &source, rel) {
+        Ok(tree) => tree,
+        Err(stop) => return (format!("{rel}\t1\t{}\t0\t-\t-\t-", stop.word()), no_sites),
     };
     // A file with a parse error is the subject of the corpus report, and not of this check.
     let found = if want_sites && !tree.root_node().has_error() {
@@ -295,9 +297,10 @@ fn write_trees(root: &str, list: &str, out: &str, baseline: Option<&str>) -> Res
     let column = |line: &String, index: usize| line.split('\t').nth(index).map(str::to_owned).unwrap_or_default();
     let failed = lines.iter().filter(|line| column(line, 1) == "1").count();
     let stopped = lines.iter().filter(|line| column(line, 2) == "stopped").count();
+    let memory = lines.iter().filter(|line| column(line, 2) == "memory").count();
     let unreadable = lines.iter().filter(|line| column(line, 2) == "unreadable").count();
     println!(
-        "files {}  with an error {failed}  stopped {stopped}  unreadable {unreadable}  wall {:.0} s",
+        "files {}  with an error {failed}  stopped {stopped}  memory {memory}  unreadable {unreadable}  wall {:.0} s",
         lines.len(),
         started.elapsed().as_secs_f64()
     );
@@ -421,7 +424,7 @@ mod tests {
     fn facts_of(source: &str) -> TreeFacts {
         let language = Language::new(tree_sitter_cpp::LANGUAGE);
         let mut parser = new_parser(&language);
-        let tree = parse_with_limit(&mut parser, source.as_bytes()).expect("the parse of a small source ends");
+        let tree = parse_with_limit(&mut parser, source.as_bytes(), "a small source").expect("the parse of a small source ends");
         tree_facts(&tree, &Names::new(&language), source.len())
     }
 

@@ -2,6 +2,7 @@
 //!
 //! Run a task with `cargo xtask TASK`. The alias is in `.cargo/config.toml`.
 
+mod allocation;
 mod corpus;
 mod differ;
 mod directives;
@@ -57,9 +58,12 @@ tasks:
                            tree of each failed test that has no error into the test file.
   syntax [NAME]            Parse each snippet in test/syntax, and report each parse error.
                            With a NAME, also print the tree of each snippet that it selects.
-  parse FILE               Print the syntax tree of FILE. With -, read the standard input.
+  parse FILE               Print the syntax tree of FILE. With -, read the standard input. Fail
+                           when the parse passes the budget or the memory ceiling of `corpus`.
   corpus ROOT LIST OUT     Parse each file of LIST, a list of paths relative to ROOT. Write the
-                           parse errors of each file to OUT, one TSV line for each file.
+                           parse errors of each file to OUT, one TSV line for each file, with a
+                           flag for a parse that the budget stopped, a flag for a parse that the
+                           memory ceiling stopped, and the peak bytes of the parse.
   directives ROOT LIST BASELINE
                            Check that no node outside a directive begins on a line whose first
                            character that is not a blank is `#`. Such a node holds a token that the

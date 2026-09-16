@@ -217,7 +217,7 @@ pub fn run(args: &[String]) -> Result<(), Box<dyn Error>> {
         .par_iter()
         .map_init(new_parser, |parser, path| {
             let Ok(source) = fs::read(root.join(path)) else { return Vec::new() };
-            let Some(tree) = parser.parse(&source, None) else { return Vec::new() };
+            let Ok(tree) = crate::corpus::parse_with_limit(parser, &source, path) else { return Vec::new() };
             // A file with a parse error is the subject of the corpus report, and not of this check.
             if tree.root_node().has_error() {
                 return Vec::new();
@@ -340,10 +340,11 @@ mod tests {
         let lines = super::directive_lines(source.as_bytes());
         let mut on_a_hash_line = 0;
         while let Some(node) = stack.pop() {
-            if node.child_count() == 0 && node.kind() != "comment" {
-                if super::directive_line_of(&lines, node.start_byte()).is_some() {
-                    on_a_hash_line += 1;
-                }
+            if node.child_count() == 0
+                && node.kind() != "comment"
+                && super::directive_line_of(&lines, node.start_byte()).is_some()
+            {
+                on_a_hash_line += 1;
             }
             for child in node.children(&mut cursor) {
                 stack.push(child);
@@ -376,10 +377,11 @@ mod tests {
         let lines = super::directive_lines(source.as_bytes());
         let mut on_a_directive_line = 0;
         while let Some(node) = stack.pop() {
-            if node.child_count() == 0 && node.kind() != "comment" {
-                if super::directive_line_of(&lines, node.start_byte()).is_some() {
-                    on_a_directive_line += 1;
-                }
+            if node.child_count() == 0
+                && node.kind() != "comment"
+                && super::directive_line_of(&lines, node.start_byte()).is_some()
+            {
+                on_a_directive_line += 1;
             }
             for child in node.children(&mut cursor) {
                 stack.push(child);
