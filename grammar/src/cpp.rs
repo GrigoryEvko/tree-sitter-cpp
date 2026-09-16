@@ -2601,10 +2601,14 @@ fn types(g: &mut Grammar) {
     //
     // THE MACRO TAKES ARGUMENTS, AND A BARE NAME IS NOT ONE OF THESE. Two plain names before a
     // declarator are a macro and a type in either order, and no fact of the construct separates them:
-    // `EXPORT Foo BAR;` reads `EXPORT` as the macro, and `unsigned int ALIGN16 t[2];` needs the
-    // opposite reading. The corpus tests of `attributes.txt` and `vendor.txt` hold the first form. A
-    // table of the macro names of a project decides the second, and 25 corpus files wait for it.
-    // Refer to `declaration_specifiers`.
+    // `EXPORT Foo BAR;` reads `EXPORT` as the macro, and `double ALIGN16 t[2];` of mongo
+    // (boost/math/special_functions/detail/lanczos_sse2.hpp:111) needs the opposite reading. ONE
+    // recorded tree holds the first form, `EXPORT Foo BAR;` at test/corpus/attributes.txt:1449, and
+    // NO test holds the second in any form: `rg ALIGN16 test/` finds nothing, and `git log --all -S
+    // ALIGN16 -- test/` finds nothing. The second form gives an ERROR node today, with `ALIGN16` as
+    // the declarator and `t` as the error, and the test `The three examples of the type attribute
+    // macro` of test/corpus/attributes.txt records that tree. A table of the macro names of a project
+    // decides the second, and 25 corpus files wait for it. Refer to `declaration_specifiers`.
     // Right associativity gives a `(` after the name to the arguments of the macro. The scanner gives
     // the mark only where the declarator of the declaration is an object, so no parameter list can
     // come there.
@@ -2644,9 +2648,11 @@ fn types(g: &mut Grammar) {
     // parameters, which the parser reads as one parameter and which is not this construct.
     //
     // THE BARE FORM IS CLOSED IN GENERAL AND THIS OPENS IT FOR ONE CASE ONLY. Two plain names before
-    // a declarator are a macro and a type in either order, and two recorded trees of this fork
-    // demand opposite readings: `EXPORT Foo BAR;` of test/corpus/attributes.txt needs the FIRST name
-    // as the macro and `unsigned int ALIGN16 t[2];` needs the SECOND. Refer to `_type_attribute_macro`.
+    // a declarator are a macro and a type in either order. One recorded tree of this fork,
+    // `EXPORT Foo BAR;` at test/corpus/attributes.txt:1449, needs the FIRST name as the macro. The
+    // opposite order, `double ALIGN16 t[2];` of mongo, has no recorded tree: no test holds it, and
+    // the parser gives it an ERROR node. An earlier form of this comment called both of them recorded
+    // trees, and the second one never was. Refer to `_type_attribute_macro`.
     // Neither of those has a template head, and the token below is given only where one declares the
     // first name, so the collision they measure cannot arise here.
     // THE MACRO TAKES AN OPTIONAL ARGUMENT LIST HERE. `T HPX_RESTRICT dest` has none and

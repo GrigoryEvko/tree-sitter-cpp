@@ -270,7 +270,10 @@ typedef struct {
     /// The number of recorded template type parameter names.
     uint8_t template_count;
     /// The hashes of the names that the last template heads declare as TYPE parameters, the most
-    /// recent last. `alignas(T)` reads them, and nothing else does.
+    /// recent last. Two readers: `is_alignas_type_name` for `alignas(T)`, and `scan_word_start` for
+    /// the token `TEMPLATE_PARAMETER_TYPE_NAME`, which reads a type parameter before a macro-shaped
+    /// name (`T HPX_RESTRICT dest`). An earlier form of this comment named `alignas` alone, and the
+    /// second reader has read the record since the token was added.
     ///
     /// THE RECORD IS NOT SCOPED. A template parameter leaves scope at the end of its declaration and
     /// this record keeps it. The measurement of task 291 over the 1,173 `alignas` sites of the
@@ -2283,7 +2286,9 @@ static bool is_seed_type_name(const Scanner *scanner, const char *name, const Re
 ///
 ///   1. THE CONSTRUCT. A name that a template head of the same declaration declares as a type
 ///      parameter IS a type, by the grammar. No record and no artifact can go stale under it.
-///   2. THE FILE. The class heads, the aliases and the typedefs that the scanner recorded.
+///   2. THE FILE. The class heads and the `using` aliases that the scanner recorded. NO TYPEDEF IS
+///      RECORDED: the name of a typedef is its declarator and comes last, and `scan_using_alias`
+///      says so below. An earlier form of this line named the typedefs as recorded.
 ///   3. THE PROJECT. The seed of the parse.
 ///
 /// THE ORDER IS MEASURED AND NOT ASSUMED, over the 1,173 sites of the corpus whose operand is a bare
@@ -2305,10 +2310,11 @@ static bool is_alignas_type_name(const Scanner *scanner, const char *full, const
     // 2. THE FILE, task 291 step 2b. The class heads that `scan_class_head` recorded, which is what
     //    the functional cast reads at its own position.
     //
-    //    THIS READS CLASS HEADS AND NOTHING ELSE, which is what the record holds. Of the 217 sites
-    //    that the file decides and the construct does not, a class head declares 119 and the ring
-    //    reaches 111 of those. The other 98 rest on a `using` alias or a typedef, and the scanner
-    //    records neither. A record of those names is a separate step with a count of its own.
+    //    THIS READS CLASS HEADS AND `using` ALIASES, which is what the two records hold. Of the 217
+    //    sites that the file decides and the construct does not, a class head declares 119 and the
+    //    ring reaches 111 of those. The other 98 rest on a `using` alias or a typedef: 90 are an
+    //    alias, which `scan_using_alias` records, and 8 are a typedef, which nothing records. An
+    //    earlier form of this comment said the scanner records neither, from before the alias record.
     if (is_class_name(scanner, reader->word_hash) || is_loose_name(scanner, reader->word_hash)
         || is_alias_name(scanner, reader->word_hash)) {
         return true;
@@ -2786,13 +2792,11 @@ static AfterCall scan_after_macro_call(Reader *reader, const Scanner *classes, b
         read_word(reader, word, &has_lower);
         uint32_t name = reader->word_hash;
         size_t length = strlen(word);
-        // Only the name of a macro continues a chain that went past a line break. Each other word
-        // there starts a declaration, and the names before it are its attribute macros:
-        // `ATTR_WARN_UNUSED_RESULT ATTR_NONNULL(1, 2)` and `bool g(int a, int b);` on the next line.
-        //
         // A chain of macros can cross a line break, and the word after the break tells the scan what
         // follows. A keyword of the grammar stops the chain, and the test below reads it:
         // `ATTR_WARN_UNUSED_RESULT ATTR_NONNULL(1, 2)` and `bool g(int a, int b);` on the next line.
+        // A paragraph that stood above this one described a guard that f27dcd0 removed, "only the
+        // name of a macro continues a chain", with the same example. The guard is gone and so is it.
         //
         // A NAME THAT IS NO KEYWORD MUST NOT STOP THE CHAIN, because the type of a declaration is
         // such a name: `SWIFT_EXPORT_FROM(swift_Concurrency) SWIFT_CC(swift)` and

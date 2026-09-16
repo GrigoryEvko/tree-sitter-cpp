@@ -3127,3 +3127,49 @@ typedef long double NT;
     type: (sized_type_specifier
       type: (primitive_type))
     declarator: (type_identifier)))
+
+================================================================================
+The three examples of the type attribute macro, with the two that parse
+================================================================================
+
+T MACRO x;
+T MACRO(mu) x;
+
+--------------------------------------------------------------------------------
+
+; The comment of `scan_word_start` in src/scanner.c names three texts and says that the first
+; two keep their readings. This example pins those two, so the comment asserts something that a
+; test reads. The first name is the macro in both, and the second is the type.
+(translation_unit
+  (declaration
+    (attribute_macro
+      name: (identifier))
+    type: (type_identifier)
+    declarator: (identifier))
+  (declaration
+    (attribute_macro
+      name: (identifier))
+    type: (macro_type_specifier
+      name: (identifier)
+      type: (type_descriptor
+        type: (type_identifier)))
+    declarator: (identifier)))
+
+================================================================================
+The third example of the type attribute macro, a macro after a complete type, is an ERROR today
+:error
+================================================================================
+
+unsigned int ALIGN16 t[2];
+double ALIGN16 t[2];
+
+--------------------------------------------------------------------------------
+
+; The same comment says that `unsigned int ALIGN16 t[2];` "has a complete type before the macro".
+; The parser reads `ALIGN16` as the declarator and gives `t` an ERROR node, for the sized type and
+; for the plain type alike. The second line is the real text of mongo,
+; boost/math/special_functions/detail/lanczos_sse2.hpp:111. No earlier test held either line,
+; and two comments of grammar/src/cpp.rs called the first one a recorded tree. The tree is not
+; compared for an `:error` example, and the pin is that the text has an error, until a rule
+; reads a macro after a complete type and rewrites this example.
+(ERROR)
