@@ -2955,36 +2955,19 @@ static bool scan_macro_start(Reader reader, const char *name, bool has_lower, co
     return true;
 }
 
-/// Read a balanced sequence in parentheses, with the string and character literals in it.
-/// Return false at the end of the file or after MAX_MACRO_ARGUMENTS_LENGTH characters.
-/// O(n) in the length of the sequence.
-static bool skip_parentheses(TSLexer *lexer) {
-    unsigned depth = 0;
-    for (unsigned length = 0; length < MAX_MACRO_ARGUMENTS_LENGTH; ++length) {
-        if (lexer->eof(lexer)) {
-            return false;
-        }
-        int32_t c = lexer->lookahead;
-        advance(lexer);
-        if (c == '(') {
-            ++depth;
-        } else if (c == ')') {
-            if (--depth == 0) {
-                return true;
-            }
-        } else if (c == '"' || c == '\'') {
-            while (!lexer->eof(lexer) && lexer->lookahead != c && lexer->lookahead != '\n') {
-                LOOP_STEP();
-                if (lexer->lookahead == '\\') {
-                    skip_literal_backslash(lexer);
-                } else {
-                    advance(lexer);
-                }
-            }
-            advance(lexer);
-        }
-    }
-    return false;
+/// Go past a balanced group in parentheses, from its `(` to the character after its `)`.
+///
+/// White space, comments, line splices, and the directive lines of a line group are the gap between two
+/// tokens of the group (`skip_gap`), and each literal is one token (`read_token`). [lex.phases] p1.3
+/// replaces each comment with one space before the parser gets the tokens, so a `(` or a `)` in a comment
+/// is no bracket of the group. A `/*` or a `//` in the content of a literal starts no comment, and a `'`
+/// between two digits is a digit separator ([lex.icon]) that starts no character literal.
+///
+/// Return false where the brackets do not balance in the budget of the scan, and where a directive of a
+/// structured group stops the scan. O(n) in the length of the group.
+static bool skip_parentheses(Reader *reader) {
+    Arguments arguments = {0};
+    return skip_group(reader, &arguments);
 }
 
 /// Read the name of a macro: two or more characters, an uppercase letter, and no lowercase letter,
@@ -3138,7 +3121,7 @@ static bool scan_call_macro_name(TSLexer *lexer, const Scanner *scanner, bool po
                 }
             }
         }
-        if (lexer->lookahead != '(' || !skip_parentheses(lexer)) {
+        if (lexer->lookahead != '(' || !skip_parentheses(&reader)) {
             return false;
         }
         // Skip the qualifiers and the specifiers after the parameters: `const`, `&`,
@@ -3155,7 +3138,7 @@ static bool scan_call_macro_name(TSLexer *lexer, const Scanner *scanner, bool po
                 advance(lexer);
                 after_word = false;
             } else if (lexer->lookahead == '(') {
-                if (!skip_parentheses(lexer)) {
+                if (!skip_parentheses(&reader)) {
                     return false;
                 }
                 after_word = false;
@@ -3369,7 +3352,7 @@ static bool scan_trailing_macro_name(TSLexer *lexer, const Scanner *scanner, boo
                     }
                     return false;
                 }
-            } else if (!skip_parentheses(lexer)) {
+            } else if (!skip_parentheses(&reader)) {
                 return false;
             }
             gap = (Gap){0};
@@ -3401,7 +3384,7 @@ static bool scan_trailing_macro_name(TSLexer *lexer, const Scanner *scanner, boo
         if (word == TRAILING_WORD_ATTRIBUTE) {
             Gap after = {0};
             skip_gap(&reader, &after);
-            if (after.blocked || lexer->lookahead != '(' || !skip_parentheses(lexer)) {
+            if (after.blocked || lexer->lookahead != '(' || !skip_parentheses(&reader)) {
                 return false;
             }
         } else if (word == TRAILING_WORD_OTHER || (declarator && word == TRAILING_WORD_VIRT_SPECIFIER)) {

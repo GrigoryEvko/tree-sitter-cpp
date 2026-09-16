@@ -77,6 +77,13 @@ Java_org_Service_nativeInit(JNIEnv* env, jobject thiz) {}
 static UStringEnumeration * U_EXPORT2 fromUEnumeration(UEnumeration* enumToAdopt, UErrorCode& status);
 TBB_EXPORT d1::task_group_context* __TBB_EXPORTED_FUNC current_context();
 struct S { static SelectorQueryCache& NODELETE singleton(); const Cell * ALWAYS_INLINE firstPopulatedCell() const { return c; } };
+### attr_macro_with_a_comment_in_the_group
+DWORD WINAPI f(LPVOID p /* ( */);
+DWORD WINAPI g( // (
+    LPVOID p);
+DWORD WINAPI h(int a = 1'000);
+struct S { bool NODELETE k(int a /* ( */) const; void m() TSA_REQUIRES(mu /* ( */); };
+void n() __attribute__((nothrow /* ( */));
 ### attr_macro_uppercase_declarator_stays_a_declarator
 const int MAX_SIZE = 8;
 int FLAGS(int);

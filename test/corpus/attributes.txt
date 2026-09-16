@@ -1320,6 +1320,91 @@ const int MAX_SIZE = 8;
       value: (number_literal))))
 
 ================================================================================
+A comment and a digit separator in the parameter list after an attribute macro
+================================================================================
+
+DWORD WINAPI f(LPVOID p /* ( */);
+DWORD WINAPI g( // (
+    LPVOID p);
+DWORD WINAPI h(int a = 1'000);
+
+--------------------------------------------------------------------------------
+
+(translation_unit
+  (declaration
+    type: (type_identifier)
+    (attribute_macro
+      name: (identifier))
+    declarator: (function_declarator
+      declarator: (identifier)
+      parameters: (parameter_list
+        (parameter_declaration
+          type: (type_identifier)
+          declarator: (identifier))
+        (comment))))
+  (declaration
+    type: (type_identifier)
+    (attribute_macro
+      name: (identifier))
+    declarator: (function_declarator
+      declarator: (identifier)
+      parameters: (parameter_list
+        (comment)
+        (parameter_declaration
+          type: (type_identifier)
+          declarator: (identifier)))))
+  (declaration
+    type: (type_identifier)
+    (attribute_macro
+      name: (identifier))
+    declarator: (function_declarator
+      declarator: (identifier)
+      parameters: (parameter_list
+        (optional_parameter_declaration
+          type: (primitive_type)
+          declarator: (identifier)
+          default_value: (number_literal))))))
+
+================================================================================
+A comment in the arguments of a macro after a declarator
+================================================================================
+
+struct S {
+  bool NODELETE k(int a /* ( */) const;
+  void g()
+      TSA_REQUIRES(mu /* ( */);
+};
+
+--------------------------------------------------------------------------------
+
+(translation_unit
+  (struct_specifier
+    name: (type_identifier)
+    body: (field_declaration_list
+      (field_declaration
+        type: (primitive_type)
+        (attribute_macro
+          name: (identifier))
+        declarator: (function_declarator
+          declarator: (field_identifier)
+          parameters: (parameter_list
+            (parameter_declaration
+              type: (primitive_type)
+              declarator: (identifier))
+            (comment))
+          (type_qualifier)))
+      (field_declaration
+        type: (primitive_type)
+        declarator: (function_declarator
+          declarator: (field_identifier)
+          parameters: (parameter_list)
+          (attribute_macro
+            name: (identifier)
+            arguments: (argument_list
+              (identifier)
+              (comment))))))))
+
+================================================================================
 Attribute macros before a type in a typedef and a template argument
 ================================================================================
 
