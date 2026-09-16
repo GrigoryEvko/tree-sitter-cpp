@@ -912,6 +912,34 @@ fn run_versions(repository: &Path, args: &[String]) -> Result<(), Box<dyn Error>
 }
 
 /// Read the baseline of the sites of the full corpus.
+/// The text of the population baseline: the header and one row for each file and message.
+fn baseline_text(found: &[Group]) -> String {
+    let mut out = String::new();
+    out.push_str("# The count of the sites where the symbol order selects the tree, for each\n");
+    out.push_str("# file and each message of the full corpus. Refer to xtask/src/ties.rs.\n");
+    out.push_str("# The columns are the path, the count, and the message of the runtime.\n");
+    out.push_str("#\n");
+    out.push_str("# WHAT THIS FILE PROMISES: a count that rises fails the check, and a count\n");
+    out.push_str("# that falls does not. A message that moves to a different class in one file\n");
+    out.push_str("# gives one fall and one rise, and the rise fails the check.\n");
+    out.push_str("# WHAT IT DOES NOT PROMISE: a site that moves to a different row or column of\n");
+    out.push_str("# one file, with no change of the count, fails no check. The per-site\n");
+    out.push_str("# baseline test/ties/baseline.txt covers that case for the 3,000 files of\n");
+    out.push_str("# test/ties/sample.txt.\n");
+    out.push_str("#\n");
+    out.push_str("# THE FILE HOLDS THE MEASUREMENT OF THE FORK MASTER. integrate.sh writes it\n");
+    out.push_str("# again at each landing whose gate found fallen counts, with the rows of that\n");
+    out.push_str("# gate. So a gate that reads `fallen 0` measures a commit that moves no tie,\n");
+    out.push_str("# and a count that is not zero is the work of the commit under that gate. A\n");
+    out.push_str("# file that is not refreshed reports the falls of an earlier landing to each\n");
+    out.push_str("# later gate, and the count then measures history and not the commit.\n");
+    for row in found {
+        out.push_str(&row.row_text());
+        out.push('\n');
+    }
+    out
+}
+
 fn read_population_baseline(repository: &Path) -> Result<Vec<Group>, Box<dyn Error>> {
     let path = repository.join(POPULATION);
     let text = match fs::read_to_string(&path) {
@@ -933,10 +961,14 @@ fn read_population_baseline(repository: &Path) -> Result<Vec<Group>, Box<dyn Err
 /// holds one row for each file and message with a count, and it recovers the positions of one file
 /// with `cargo xtask ties corpus ROOT LIST` on that file.
 fn run_population(repository: &Path, args: &[String]) -> Result<(), Box<dyn Error>> {
-    let (write, root, list) = match args {
-        [flag, root, list] if flag == "--write-baseline" => (true, root.clone(), list.clone()),
-        [root, list] => (false, root.clone(), list.clone()),
-        _ => return Err("usage: cargo xtask ties population [--write-baseline] ROOT LIST".into()),
+    const USAGE: &str = "usage: cargo xtask ties population [--write-baseline] ROOT LIST [--write PATH]";
+    let (write, root, list, measured) = match args {
+        [flag, root, list] if flag == "--write-baseline" => (true, root.clone(), list.clone(), None),
+        [root, list] => (false, root.clone(), list.clone(), None),
+        [root, list, flag, path] if flag == "--write" => {
+            (false, root.clone(), list.clone(), Some(path.clone()))
+        }
+        _ => return Err(USAGE.into()),
     };
     let root = Path::new(&root);
     let text = fs::read_to_string(&list).map_err(|e| format!("cannot read the file list {list}: {e}"))?;
@@ -947,25 +979,15 @@ fn run_population(repository: &Path, args: &[String]) -> Result<(), Box<dyn Erro
     if write {
         let path = repository.join(POPULATION);
         fs::create_dir_all(path.parent().expect("the baseline is in a directory"))?;
-        let mut out = String::new();
-        out.push_str("# The count of the sites where the symbol order selects the tree, for each\n");
-        out.push_str("# file and each message of the full corpus. Refer to xtask/src/ties.rs.\n");
-        out.push_str("# The columns are the path, the count, and the message of the runtime.\n");
-        out.push_str("#\n");
-        out.push_str("# WHAT THIS FILE PROMISES: a count that rises fails the check, and a count\n");
-        out.push_str("# that falls does not. A message that moves to a different class in one file\n");
-        out.push_str("# gives one fall and one rise, and the rise fails the check.\n");
-        out.push_str("# WHAT IT DOES NOT PROMISE: a site that moves to a different row or column of\n");
-        out.push_str("# one file, with no change of the count, fails no check. The per-site\n");
-        out.push_str("# baseline test/ties/baseline.txt covers that case for the 3,000 files of\n");
-        out.push_str("# test/ties/sample.txt.\n");
-        for row in &found {
-            out.push_str(&row.row_text());
-            out.push('\n');
-        }
-        fs::write(&path, out)?;
+        fs::write(&path, baseline_text(&found))?;
         println!("wrote {}", path.display());
         return Ok(());
+    }
+    // The check writes the rows that it measured, so that a landing installs the baseline of the
+    // gate that passed and never of a second run. Refer to `install_tie_baseline` in integrate.sh.
+    if let Some(path) = &measured {
+        fs::write(path, baseline_text(&found)).map_err(|e| format!("cannot write {path}: {e}"))?;
+        println!("measured rows {path}");
     }
     let baseline = read_population_baseline(repository)?;
     let read: BTreeSet<&str> = paths.iter().copied().collect();
@@ -1046,7 +1068,7 @@ pub fn run(repository: &Path, args: &[String]) -> Result<(), Box<dyn Error>> {
         Some("versions") => run_versions(repository, &args[1..]),
         Some("trace") => run_trace(&args[1..]),
         _ => Err("usage: cargo xtask ties table | corpus [--write-baseline] [ROOT LIST] | \
-                    population [--write-baseline] ROOT LIST | \
+                    population [--write-baseline] ROOT LIST [--write PATH] | \
                     versions [--write-baseline] [ROOT LIST] | trace FILE [--state N]"
             .into()),
     }

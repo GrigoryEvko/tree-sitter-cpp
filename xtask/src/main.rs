@@ -44,10 +44,12 @@ tasks:
                            that test/ties/baseline.txt does not hold. With --write-baseline before
                            ROOT, write the sites to that file and fail for none. With no ROOT and no
                            LIST, read /tmp/cpp-corpora and test/ties/sample.txt.
-  ties population ROOT LIST
+  ties population ROOT LIST [--write PATH]
                            Parse each file of LIST, and print the count of the sites of each file
                            and each message. Fail for a count that test/ties/population.txt does not
                            hold. The full corpus takes 27 seconds, and it belongs in a full gate.
+                           With --write, also write the measured rows to PATH, in the format of the
+                           baseline, so that a landing installs the rows that its gate measured.
   ties versions [ROOT LIST]
                            Print each file of LIST whose GLR version count passes MAX_VERSION_COUNT
                            of the runtime. The condense step then removes a version by arrival
