@@ -2862,3 +2862,209 @@ template <typename T> void m(const D *data, const O &op) { T Q_DECL_UNINITIALIZE
             value: (argument_list
               (identifier)
               (identifier))))))))
+
+================================================================================
+A macro after the declarator of a parameter whose type the template head declares
+================================================================================
+
+// `T` is a type parameter of the head of the SAME declaration, so `T` is the type, `value` is
+// the declarator, and the macro after the declarator is the attribute macro of that
+// declarator. Before this token the fork read all THREE fields one position over: the macro
+// `T`, the type `value` and the declarator `ABSL_ATTRIBUTE_LIFETIME_BOUND`. The first three
+// lines come from abseil-cpp, from onnxruntime and from boost/graph, which hold 45 such sites.
+template <typename T> void f(T value ABSL_ATTRIBUTE_LIFETIME_BOUND);
+template <typename T> void g(T alpha RNN_UNUSED_PARAMETER, T beta RNN_UNUSED_PARAMETER);
+template <typename G, typename C> void h(const G& g, C c BOOST_GRAPH_ENABLE_IF_MODELS_PARM(G, tag));
+// THE MACRO MUST BE ON THE LINE OF THE DECLARATOR. A macro on the next line keeps the reading
+// of today, which is the reading with the macro first. The corpus holds 36 such sites, and
+// they need the terminator design of task 308.
+template <typename T> void k(T value
+    ABSL_ATTRIBUTE_LIFETIME_BOUND);
+// A KEYWORD IS A SPECIFIER AND NEVER A DECLARATOR. The type of each parameter below holds two
+// words, and the scan gives no token for one of them. Without that test each of the three
+// parameters loses its type. `T const NAME` is NOT evidence for the test, because a qualifier
+// is not a type and the tree is the same with the test and without it.
+template <typename T> void m(T typename NAME);
+template <typename T> void n(T struct NAME);
+template <typename T> void p(T class NAME);
+// THE CHARACTER AFTER THE MACRO MUST END A PARAMETER. A `,` and a `)` end one. The two lines
+// below hold a different character there, and each one gets an ERROR node without that test.
+template <typename T> void q(T value MACRO x);
+template <typename T> void r(T value MACRO = 1);
+// TWO WORDS OF ONE TYPE ARE NOT A DECLARATOR AND A MACRO. A version of this rule with no gate
+// read `long` as the type, `double` as the declarator and `NT` as a macro, in 21 of 60 files
+// of the corpus that a reader of this fork compared tree by tree on 2026-09-16.
+typedef long double NT;
+
+--------------------------------------------------------------------------------
+
+(translation_unit
+  (comment)
+  (comment)
+  (comment)
+  (comment)
+  (comment)
+  (template_declaration
+    parameters: (template_parameter_list
+      (type_parameter_declaration
+        (type_identifier)))
+    (declaration
+      type: (primitive_type)
+      declarator: (function_declarator
+        declarator: (identifier)
+        parameters: (parameter_list
+          (parameter_declaration
+            type: (type_identifier)
+            declarator: (attributed_declarator
+              (identifier)
+              (attribute_macro
+                name: (identifier))))))))
+  (template_declaration
+    parameters: (template_parameter_list
+      (type_parameter_declaration
+        (type_identifier)))
+    (declaration
+      type: (primitive_type)
+      declarator: (function_declarator
+        declarator: (identifier)
+        parameters: (parameter_list
+          (parameter_declaration
+            type: (type_identifier)
+            declarator: (attributed_declarator
+              (identifier)
+              (attribute_macro
+                name: (identifier))))
+          (parameter_declaration
+            type: (type_identifier)
+            declarator: (attributed_declarator
+              (identifier)
+              (attribute_macro
+                name: (identifier))))))))
+  (template_declaration
+    parameters: (template_parameter_list
+      (type_parameter_declaration
+        (type_identifier))
+      (type_parameter_declaration
+        (type_identifier)))
+    (declaration
+      type: (primitive_type)
+      declarator: (function_declarator
+        declarator: (identifier)
+        parameters: (parameter_list
+          (parameter_declaration
+            (type_qualifier)
+            type: (type_identifier)
+            declarator: (reference_declarator
+              (identifier)))
+          (parameter_declaration
+            type: (type_identifier)
+            declarator: (attributed_declarator
+              (identifier)
+              (attribute_macro
+                name: (identifier)
+                arguments: (argument_list
+                  (identifier)
+                  (identifier)))))))))
+  (comment)
+  (comment)
+  (comment)
+  (template_declaration
+    parameters: (template_parameter_list
+      (type_parameter_declaration
+        (type_identifier)))
+    (declaration
+      type: (primitive_type)
+      declarator: (function_declarator
+        declarator: (identifier)
+        parameters: (parameter_list
+          (parameter_declaration
+            (attribute_macro
+              name: (identifier))
+            type: (type_identifier)
+            declarator: (identifier))))))
+  (comment)
+  (comment)
+  (comment)
+  (comment)
+  (template_declaration
+    parameters: (template_parameter_list
+      (type_parameter_declaration
+        (type_identifier)))
+    (declaration
+      type: (primitive_type)
+      declarator: (function_declarator
+        declarator: (identifier)
+        parameters: (parameter_list
+          (parameter_declaration
+            (attribute_macro
+              name: (identifier))
+            type: (dependent_type
+              (type_identifier)))))))
+  (template_declaration
+    parameters: (template_parameter_list
+      (type_parameter_declaration
+        (type_identifier)))
+    (declaration
+      type: (primitive_type)
+      declarator: (function_declarator
+        declarator: (identifier)
+        parameters: (parameter_list
+          (parameter_declaration
+            (attribute_macro
+              name: (identifier))
+            type: (struct_specifier
+              name: (type_identifier)))))))
+  (template_declaration
+    parameters: (template_parameter_list
+      (type_parameter_declaration
+        (type_identifier)))
+    (declaration
+      type: (primitive_type)
+      declarator: (function_declarator
+        declarator: (identifier)
+        parameters: (parameter_list
+          (parameter_declaration
+            (attribute_macro
+              name: (identifier))
+            type: (class_specifier
+              name: (type_identifier)))))))
+  (comment)
+  (comment)
+  (template_declaration
+    parameters: (template_parameter_list
+      (type_parameter_declaration
+        (type_identifier)))
+    (declaration
+      type: (primitive_type)
+      declarator: (function_declarator
+        declarator: (identifier)
+        parameters: (parameter_list
+          (parameter_declaration
+            (attribute_macro
+              name: (identifier))
+            (attribute_macro
+              name: (identifier))
+            type: (type_identifier)
+            declarator: (identifier))))))
+  (template_declaration
+    parameters: (template_parameter_list
+      (type_parameter_declaration
+        (type_identifier)))
+    (declaration
+      type: (primitive_type)
+      declarator: (function_declarator
+        declarator: (identifier)
+        parameters: (parameter_list
+          (optional_parameter_declaration
+            (attribute_macro
+              name: (identifier))
+            type: (type_identifier)
+            declarator: (identifier)
+            default_value: (number_literal))))))
+  (comment)
+  (comment)
+  (comment)
+  (type_definition
+    type: (sized_type_specifier
+      type: (primitive_type))
+    declarator: (type_identifier)))

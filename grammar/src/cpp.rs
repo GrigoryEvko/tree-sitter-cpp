@@ -214,6 +214,12 @@ pub fn grammar() -> Grammar {
         // name the type, so the bare macro after it can be the attribute macro. Refer to
         // `is_template_parameter_type_name`.
         s!(_template_parameter_type_name),
+        // The type of a parameter, where the template head of the same declaration declares the name
+        // as a TYPE PARAMETER, a plain name follows it, and a macro-shaped name follows THAT name on
+        // the same line. The token makes the first name the type. The second name is then the
+        // declarator, and the third name is the attribute macro of that declarator. Refer to
+        // `_template_parameter_declarator_type` and to task 276.
+        s!(_template_parameter_declarator_type),
     ];
     // The conflict sets of the grammar. Each set names the rules of one ambiguity, and it tells the
     // generator to keep each reading in a GLR split.
@@ -2610,12 +2616,33 @@ fn types(g: &mut Grammar) {
             alias(s!(_template_parameter_attribute_macro), s!(attribute_macro)),
         ]
     };
+    // THE SAME TYPE, WHERE THE MACRO COMES AFTER THE DECLARATOR AND NOT BEFORE IT.
+    //
+    // `void f(T value ABSL_ATTRIBUTE_LIFETIME_BOUND)` reads today as the attribute macro `T`, the
+    // type `value`, and the declarator `ABSL_ATTRIBUTE_LIFETIME_BOUND`. THREE FIELDS ARE WRONG. The
+    // grammar already holds the correct reading, which is the type `T`, the declarator `value`, and
+    // the attribute macro of that declarator. Refer to `_declarator_attribute_macro`.
+    //
+    // THE TWO READINGS COMPETE BY TWO POINTS OF DYNAMIC PRECEDENCE AND THE WRONG ONE WINS.
+    // `attribute_macro` has -1 and the bare `_declarator_attribute_macro` has -3, so the parse
+    // selects the reading with the leading macro. The token below removes that competitor: the
+    // scanner gives it in the place of the `identifier` that `attribute_macro` needs, so the reading
+    // with the leading macro cannot be built at all. Refer to task 276.
+    //
+    // THE TOKEN TAKES NO ATTRIBUTE MACRO AFTER THE TYPE, and `template_parameter_type` takes one.
+    // Two tokens keep the two shapes apart, so no text has both readings and the parse does not fork.
+    let template_parameter_declarator_type =
+        || field("type", alias(s!(_template_parameter_declarator_type), s!(type_identifier)));
     let specifiers = |types: Rule| {
         prec_right(
             0,
             seq![
                 specifier_prefix(),
-                choice![field("type", types), template_parameter_type()],
+                choice![
+                    field("type", types),
+                    template_parameter_type(),
+                    template_parameter_declarator_type()
+                ],
                 repeat(s!(_declaration_modifiers)),
             ],
         )

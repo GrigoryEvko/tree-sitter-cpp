@@ -7311,6 +7311,19 @@
                     "value": "attribute_macro"
                   }
                 ]
+              },
+              {
+                "type": "FIELD",
+                "name": "type",
+                "content": {
+                  "type": "ALIAS",
+                  "content": {
+                    "type": "SYMBOL",
+                    "name": "_template_parameter_declarator_type"
+                  },
+                  "named": true,
+                  "value": "type_identifier"
+                }
               }
             ]
           },
@@ -7420,6 +7433,19 @@
                     "value": "attribute_macro"
                   }
                 ]
+              },
+              {
+                "type": "FIELD",
+                "name": "type",
+                "content": {
+                  "type": "ALIAS",
+                  "content": {
+                    "type": "SYMBOL",
+                    "name": "_template_parameter_declarator_type"
+                  },
+                  "named": true,
+                  "value": "type_identifier"
+                }
               }
             ]
           },
@@ -46290,6 +46316,10 @@
     {
       "type": "SYMBOL",
       "name": "_template_parameter_type_name"
+    },
+    {
+      "type": "SYMBOL",
+      "name": "_template_parameter_declarator_type"
     }
   ],
   "inline": [

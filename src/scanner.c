@@ -186,6 +186,13 @@ enum TokenType {
     /// as a TYPE PARAMETER and a macro-shaped name follows it: `T HPX_RESTRICT dest`. The token
     /// makes the first name the type, and the bare name after it is then the attribute macro.
     TEMPLATE_PARAMETER_TYPE_NAME,
+    /// The type of a parameter, where the template head of the same declaration declares the name as
+    /// a TYPE PARAMETER, a plain name follows it, and a macro-shaped name follows THAT name on the
+    /// same line: `T value ABSL_ATTRIBUTE_LIFETIME_BOUND`. The token makes the first name the type.
+    /// The second name is then the declarator, and the third name is the attribute macro of that
+    /// declarator. The token of `TEMPLATE_PARAMETER_TYPE_NAME` covers the shape where the SECOND
+    /// name is the macro.
+    TEMPLATE_PARAMETER_DECLARATOR_TYPE,
     /// The count of the external tokens, and not a token. `tree_sitter_cpp_external_scanner_create`
     /// compares it with the count of the parser.
     TOKEN_TYPE_COUNT,
@@ -8490,6 +8497,82 @@ static bool starts_initializer_element(Reader *reader) {
     return !word_in(word, CONTINUATION_KEYWORDS);
 }
 
+/// Select `TEMPLATE_PARAMETER_DECLARATOR_TYPE` for a type that a template head declares, where the
+/// declarator follows the type and a macro follows the declarator: `T value LIFETIME_BOUND`.
+///
+/// The caller read the first name and the second name. `declarator` is the second name. The reader
+/// is at the end of it. The scan reads the gap, the macro, an optional argument list of the macro,
+/// and the character after them. It gives no token when one of these tests fails.
+///
+/// EACH TEST BELOW NAMES AN INPUT THAT IT DECIDES, and a reader can parse that input with the test
+/// and without it. A comment that names an input which a later test stops anyway is a record of an
+/// occasion and not of a mechanism. Refer to the two guards of `scan_after_macro_call`.
+///
+/// A KEYWORD IS A SPECIFIER AND NEVER A DECLARATOR. `void d(T typename NAME)` has the dependent type
+/// `typename NAME`, `void e(T struct NAME)` has the elaborated type `struct NAME`, and
+/// `void g(T class NAME)` has the same. Without `is_grammar_keyword` the scan gives the token for
+/// each of the three, and each parameter then loses its type. `void a(T const NAME)` gives the same
+/// tree with the test and without it, because a qualifier is not a type, so that input is NOT
+/// evidence for this test.
+///
+/// THE MACRO MUST BE ON THE LINE OF THE DECLARATOR. `xtask trees` over the corpus measures that this
+/// test decides 16 files: the 36 sites that cross a line break live in them. The 81 sites of the
+/// corpus split into 45 on one line and 36 across a line break, and this scan takes the 45.
+///
+/// THE TESTS ON THE MACRO ARE THE TESTS OF `read_macro_name`, WHICH READS THE MACRO LATER. That
+/// function gives the token of the attribute macro after the declarator. It rejects a name with a
+/// lowercase letter, a name of one character, and a name with a character that is not ASCII. A
+/// difference between the two tests makes a declaration that has the type token and no macro token,
+/// and such a declaration gets an ERROR node. For this reason the tests here are the stricter ones.
+///
+/// THE CHARACTER AFTER THE MACRO MUST END A PARAMETER. Each of the 81 sites is a parameter, and each
+/// one has a `,` or a `)` after the macro. `void b(T value MACRO x)` and `void c(T value MACRO = 1)`
+/// have a different character there, and without this test each of the two gets an ERROR node.
+static bool scan_template_parameter_declarator(Reader *reader, const char *declarator,
+                                               const bool *valid_symbols) {
+    TSLexer *lexer = reader->lexer;
+    if (!valid_symbols[TEMPLATE_PARAMETER_DECLARATOR_TYPE] || declarator[0] == '\0' ||
+        is_grammar_keyword(declarator) || strchr(declarator, '?') != NULL) {
+        return false;
+    }
+    Gap after_declarator = {0};
+    skip_gap(reader, &after_declarator);
+    if (after_declarator.blocked || after_declarator.newlines > 0 || !readable(reader) ||
+        !is_word_start(lexer->lookahead)) {
+        return false;
+    }
+    char macro[MACRO_WORD_SIZE];
+    bool macro_has_lower = false;
+    read_word(reader, macro, &macro_has_lower);
+    if (strlen(macro) < 2 || reader->word_cut || !is_macro_name(macro, macro_has_lower) ||
+        is_grammar_keyword(macro) || strchr(macro, '\\') != NULL) {
+        return false;
+    }
+    Gap after_macro = {0};
+    skip_gap(reader, &after_macro);
+    if (after_macro.blocked || !readable(reader)) {
+        return false;
+    }
+    // The argument list of the macro comes between the macro and the end of the parameter:
+    // `CentralityMap centrality BOOST_GRAPH_ENABLE_IF_MODELS_PARM(Graph, vertex_list_graph_tag)`.
+    if (lexer->lookahead == '(') {
+        Arguments arguments = {0};
+        if (!skip_group(reader, &arguments) || reader->budget == 0) {
+            return false;
+        }
+        Gap after_arguments = {0};
+        skip_gap(reader, &after_arguments);
+        if (after_arguments.blocked || !readable(reader)) {
+            return false;
+        }
+    }
+    if (lexer->lookahead != ',' && lexer->lookahead != ')') {
+        return false;
+    }
+    lexer->result_symbol = TEMPLATE_PARAMETER_DECLARATOR_TYPE;
+    return true;
+}
+
 static bool scan_word_start(Scanner *scanner, TSLexer *lexer, const bool *valid_symbols) {
     mark_end(lexer);
     Reader reader = start_reader(lexer, MACRO_SCAN_LIMIT, scanner);
@@ -8681,7 +8764,19 @@ static bool scan_word_start(Scanner *scanner, TSLexer *lexer, const bool *valid_
         bool second_has_lower = false;
         read_word(&reader, second, &second_has_lower);
         if (strlen(second) < 2 || !is_macro_name(second, second_has_lower) || is_grammar_keyword(second)) {
-            return false;
+            // THE SECOND NAME IS NOT A MACRO, SO IT IS THE DECLARATOR, AND A MACRO CAN FOLLOW IT.
+            // `void f(T value ABSL_ATTRIBUTE_LIFETIME_BOUND)` reads today as the attribute macro
+            // `T`, the type `value`, and the declarator `ABSL_ATTRIBUTE_LIFETIME_BOUND`. All three
+            // fields are wrong. A different token makes `T` the type here. Refer to
+            // `TEMPLATE_PARAMETER_DECLARATOR_TYPE` and to task 276.
+            //
+            // THIS PATH ADDS NO DECLINE TO `scan_word_start`. The branch above already decides
+            // before it reads a character, and the code here runs only where the branch gave `false`
+            // after it read the two names. A scan that reads more and then gives `false` costs
+            // nothing, because `scan_token` gives `false` and the runtime resets the lexer. The
+            // measurement of 2026-09-16 proves it: a build that reads exactly this text on exactly
+            // this path gives 0 changed tree hashes over the 329,387 files of the corpus.
+            return scan_template_parameter_declarator(&reader, second, valid_symbols);
         }
         // A DECLARATOR MUST FOLLOW THE MACRO, AND THAT IS WHAT SEPARATES A MACRO FROM A NAME. An
         // ALL-CAPS name is macro-shaped whether it is a macro or an object, and `const TYPE TYPE_MAX
