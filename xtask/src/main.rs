@@ -11,6 +11,7 @@ mod generate;
 mod limits;
 mod parse;
 mod precedence;
+mod seed;
 mod sexp;
 mod syntax;
 mod test;
@@ -66,12 +67,20 @@ tasks:
                            A recorded tree is the memory of a decision, and `--update` rewrites it.
   syntax [NAME]            Parse each snippet in test/syntax, and report each parse error.
                            With a NAME, also print the tree of each snippet that it selects.
-  parse FILE               Print the syntax tree of FILE. With -, read the standard input. Fail
+  parse FILE [--seed SEED] Print the syntax tree of FILE. With -, read the standard input. Fail
                            when the parse passes the budget or the memory ceiling of `corpus`.
-  corpus ROOT LIST OUT     Parse each file of LIST, a list of paths relative to ROOT. Write the
+                           With --seed, give the scanner the names of the seed file SEED, and
+                           print the id of that seed in the first line.
+  corpus ROOT LIST OUT [--seed FILE | --seeds DIRECTORY]
+                           Parse each file of LIST, a list of paths relative to ROOT. Write the
                            parse errors of each file to OUT, one TSV line for each file, with a
                            flag for a parse that the budget stopped, a flag for a parse that the
-                           memory ceiling stopped, and the peak bytes of the parse.
+                           memory ceiling stopped, the peak bytes of the parse, its ceiling, and
+                           the id of its seed. With --seed, each file takes the names of FILE.
+                           With --seeds, each file takes DIRECTORY/<project>.seed, where the
+                           project is the first component of its path, and a project with no such
+                           file parses with no seed. The report names each project of the two
+                           groups. THE GATE RUNS NO SEED, and a seeded run is a second report.
   directives ROOT LIST BASELINE
                            Check that no node outside a directive begins on a line whose first
                            character that is not a blank is `#`. Such a node holds a token that the

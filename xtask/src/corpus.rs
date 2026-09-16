@@ -4,9 +4,12 @@
 //! nodes, the MISSING nodes, the bytes in ERROR nodes, the row, kind, and text of the first
 //! error, the source line of the first error, the parse time in microseconds, 1 if the
 //! budget stopped the parse, 1 if the memory ceiling stopped the parse, the peak bytes that
-//! the parse allocated, and the ceiling of the parse in bytes. The two last columns show how
-//! near each file comes to its ceiling, so that a change of `CEILING_FLOOR` or of
-//! `CEILING_PER_BYTE` is a query of the rows and not a second run.
+//! the parse allocated, the ceiling of the parse in bytes, and the id of the seed of the file or
+//! `-`. The peak and the ceiling show how near each file comes to its ceiling, so that a change of
+//! `CEILING_FLOOR` or of `CEILING_PER_BYTE` is a query of the rows and not a second run.
+//!
+//! THE TREE OF A FILE IS A FUNCTION OF THE FILE AND OF THE SEED. The id column holds the seed of
+//! each row, so that no row of a seeded run reads as a row of a run with no seed. Refer to `seed`.
 
 use std::error::Error;
 use std::fmt;
@@ -21,6 +24,7 @@ use rayon::prelude::*;
 use tree_sitter::{Language, Node, ParseOptions, ParseState, Parser, Tree};
 
 use crate::allocation;
+use crate::seed::{Seed, Seeds};
 
 /// The budget of one parse, as a count of the progress callbacks of the runtime.
 ///
@@ -85,14 +89,33 @@ const _: () = assert!(BUDGET >= 10 * LARGEST_CORPUS_CHECKS);
 /// - The one parse that took 152 GB on 2026-09-16 read a file of 19,912 bytes, whose ceiling is
 ///   77,303,808 bytes.
 ///
-/// THE PEAK OF ONE FILE MOVES BY A SMALL FRACTION BETWEEN TWO RUNS, AND THE HEADROOM COVERS IT.
-/// The parser of a corpus thread keeps the capacity of its arrays from one file to the next, so
-/// the peak of a file moves by that capacity, some megabytes at most: three corpus runs gave
-/// 806,867,464, 806,839,672 and 806,845,144 bytes for the largest peak. The count reads the size
-/// of each block from the C library, and the library gives a block of a different size for the
-/// same request when it splits a free block: 32 bytes of 808,704 in the unit test. A count of the
-/// requested sizes would be exact, but it needs a header in each block, which costs 16 bytes for
-/// each block and breaks a block that a plain `free` releases.
+/// THE PEAK OF ONE FILE MOVES BETWEEN TWO RUNS, AND THE HEADROOM COVERS THE MOVE.
+/// The parser of a corpus thread keeps the capacity of its arrays from one file to the next, and
+/// an allocation before the reset counts for no file. So the peak of a file depends on the files
+/// that the same thread read before it. Two full runs of 2026-09-16 gave:
+/// - The largest peak of all: 806,867,528 and 806,867,240 bytes.
+/// - The largest difference in absolute terms: 171,776 bytes, at
+///   llvm-project/clang/test/OpenMP/distribute_parallel_for_codegen.cpp, 21,695,704 against
+///   21,523,928, which is 3.84% of the ceiling of that file.
+/// - The largest difference in relative terms: 3,688%, at
+///   llvm-project/clang/test/Driver/darwin-header-search-libcxx-2.cpp, 904 bytes against 34,240,
+///   which is 0.05% of the ceiling of that file. A small file holds a large relative move and a
+///   trivial absolute one, because its own allocations are a few hundred bytes.
+///
+/// So the move never comes near a ceiling, and the summary of the run names the file that does.
+///
+/// THE PEAK OF A FILE IS NOT A PROPERTY OF THAT FILE ALONE. It is the property of that file parsed
+/// after the files that the same thread read before it, because the parser keeps the capacity of
+/// its arrays. So a run with a different file order, a different number of threads, or a different
+/// assignment of the files to the threads can name a DIFFERENT file as the nearest to its ceiling,
+/// with no change of the parser at all. A reader who sees that name change must not look for a
+/// regression of the grammar. The percent is what matters, and the corpus of 2026-09-16 stands at
+/// 20.8% at most.
+///
+/// The count also reads the size of each block from the C library, and the library gives a block of
+/// a different size for the same request when it splits a free block: 32 bytes of 808,704 in the
+/// unit test. A count of the requested sizes would be exact, but it needs a header in each block,
+/// which costs 16 bytes for each block and breaks a block that a plain `free` releases.
 ///
 /// THE CEILING COUNTS THE BYTES THAT THE RUNTIME ALLOCATES, AND NOT THE VIRTUAL MEMORY OF THE
 /// PROCESS. `ulimit -v` bounds the virtual size, and a corpus run reserves 64 MB of virtual memory
@@ -362,12 +385,43 @@ fn probe(parser: &mut Parser, root: &Path, rel: &str) -> Record {
 
 /// Parse the files of a list in parallel, write one TSV line for each, and print a summary.
 pub fn run(args: &[String]) -> Result<(), Box<dyn Error>> {
-    let [root, list, out] = args else {
-        return Err("usage: cargo xtask corpus ROOT LIST OUT".into());
+    const USAGE: &str = "usage: cargo xtask corpus ROOT LIST OUT [--seed FILE | --seeds DIRECTORY]";
+    let (root, list, out, seed) = match args {
+        [root, list, out] => (root, list, out, None),
+        [root, list, out, flag, value] if flag == "--seed" || flag == "--seeds" => {
+            (root, list, out, Some((flag.as_str(), value)))
+        }
+        _ => return Err(USAGE.into()),
     };
     let root = Path::new(root);
+    let list_path = list;
     let list = fs::read_to_string(list).map_err(|e| format!("cannot read the file list {list}: {e}"))?;
     let paths: Vec<&str> = list.lines().filter(|line| !line.is_empty()).collect();
+    let seeds = match seed {
+        None => Seeds::None,
+        Some(("--seed", path)) => Seeds::One(Box::new(Seed::read(Path::new(path))?)),
+        Some((_, directory)) => Seeds::by_project(Path::new(directory), &paths)?,
+    };
+    // A directory that holds no seed for any project of the list is a directory that the caller
+    // named incorrectly. A run of that kind gives the rows of a parser with no seed, and each row
+    // then says so, but the caller asked for a seed and gets no message. So the run stops here.
+    if let Some((_, given)) = seed
+        && seeds.is_none()
+    {
+        return Err(format!(
+            "{given} holds no seed file for any of the {} projects of {list_path}. A seed file of a project is \
+             <project>.seed, and the project is the first component of the path of a file.",
+            paths
+                .iter()
+                .filter_map(|rel| rel.split('/').next())
+                .collect::<std::collections::BTreeSet<_>>()
+                .len(),
+        )
+        .into());
+    }
+    // The report comes before the run, so that a run of one project never reads as a run of all
+    // of them, and so that a report of the rows names the seed that made them.
+    println!("{}", seeds.report(&paths));
     let language = Language::new(tree_sitter_cpp::LANGUAGE);
     let done = AtomicUsize::new(0);
     let started = Instant::now();
@@ -376,6 +430,10 @@ pub fn run(args: &[String]) -> Result<(), Box<dyn Error>> {
         .map_init(
             || new_parser(&language),
             |parser, rel| {
+                // The parser of a thread reads more than one project, so the context comes before
+                // each file. SAFETY: `seeds` lives until the end of this function, and each parse
+                // of this closure is inside it.
+                unsafe { parser.set_scanner_context(seeds.context(rel)) };
                 let record = probe(parser, root, rel);
                 let count = done.fetch_add(1, Ordering::Relaxed) + 1;
                 if count.is_multiple_of(100_000) {
@@ -394,7 +452,7 @@ pub fn run(args: &[String]) -> Result<(), Box<dyn Error>> {
         };
         writeln!(
             sink,
-            "{rel}\t{}\t{}\t{}\t{}\t{row}\t{kind}\t{what}\t{line}\t{}\t{}\t{}\t{}\t{}",
+            "{rel}\t{}\t{}\t{}\t{}\t{row}\t{kind}\t{what}\t{line}\t{}\t{}\t{}\t{}\t{}\t{}",
             r.bytes,
             r.errors,
             r.missing,
@@ -403,7 +461,8 @@ pub fn run(args: &[String]) -> Result<(), Box<dyn Error>> {
             u8::from(r.stopped),
             u8::from(r.memory),
             r.peak_bytes,
-            r.ceiling
+            r.ceiling,
+            seeds.id(rel)
         )?;
     }
     sink.flush()?;
