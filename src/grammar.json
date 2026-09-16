@@ -30723,6 +30723,65 @@
                                   ]
                                 },
                                 {
+                                  "type": "PREC_DYNAMIC",
+                                  "value": 3,
+                                  "content": {
+                                    "type": "SEQ",
+                                    "members": [
+                                      {
+                                        "type": "CHOICE",
+                                        "members": [
+                                          {
+                                            "type": "STRING",
+                                            "value": "class"
+                                          },
+                                          {
+                                            "type": "STRING",
+                                            "value": "struct"
+                                          },
+                                          {
+                                            "type": "STRING",
+                                            "value": "union"
+                                          },
+                                          {
+                                            "type": "STRING",
+                                            "value": "__interface"
+                                          }
+                                        ]
+                                      },
+                                      {
+                                        "type": "SYMBOL",
+                                        "name": "_class_macro_mark"
+                                      },
+                                      {
+                                        "type": "REPEAT1",
+                                        "content": {
+                                          "type": "CHOICE",
+                                          "members": [
+                                            {
+                                              "type": "SYMBOL",
+                                              "name": "attribute_macro"
+                                            },
+                                            {
+                                              "type": "ALIAS",
+                                              "content": {
+                                                "type": "SYMBOL",
+                                                "name": "_attribute_macro_call"
+                                              },
+                                              "named": true,
+                                              "value": "attribute_macro"
+                                            }
+                                          ]
+                                        }
+                                      },
+                                      {
+                                        "type": "SYMBOL",
+                                        "name": "_class_name"
+                                      }
+                                    ]
+                                  }
+                                },
+                                {
                                   "type": "CHOICE",
                                   "members": [
                                     {
@@ -30816,6 +30875,65 @@
                                             "name": "_class_name"
                                           }
                                         ]
+                                      },
+                                      {
+                                        "type": "PREC_DYNAMIC",
+                                        "value": 3,
+                                        "content": {
+                                          "type": "SEQ",
+                                          "members": [
+                                            {
+                                              "type": "CHOICE",
+                                              "members": [
+                                                {
+                                                  "type": "STRING",
+                                                  "value": "class"
+                                                },
+                                                {
+                                                  "type": "STRING",
+                                                  "value": "struct"
+                                                },
+                                                {
+                                                  "type": "STRING",
+                                                  "value": "union"
+                                                },
+                                                {
+                                                  "type": "STRING",
+                                                  "value": "__interface"
+                                                }
+                                              ]
+                                            },
+                                            {
+                                              "type": "SYMBOL",
+                                              "name": "_class_macro_mark"
+                                            },
+                                            {
+                                              "type": "REPEAT1",
+                                              "content": {
+                                                "type": "CHOICE",
+                                                "members": [
+                                                  {
+                                                    "type": "SYMBOL",
+                                                    "name": "attribute_macro"
+                                                  },
+                                                  {
+                                                    "type": "ALIAS",
+                                                    "content": {
+                                                      "type": "SYMBOL",
+                                                      "name": "_attribute_macro_call"
+                                                    },
+                                                    "named": true,
+                                                    "value": "attribute_macro"
+                                                  }
+                                                ]
+                                              }
+                                            },
+                                            {
+                                              "type": "SYMBOL",
+                                              "name": "_class_name"
+                                            }
+                                          ]
+                                        }
                                       },
                                       {
                                         "type": "CHOICE",

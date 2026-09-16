@@ -815,7 +815,7 @@ void f(struct STAT x);
           declarator: (identifier))))))
 
 ================================================================================
-A macro-shaped tag in a typedef and in a friend declaration
+A macro-shaped tag in a typedef
 ================================================================================
 
 // The empty mark of a class head fires on the text after the class key, and the keyword before
@@ -825,7 +825,7 @@ A macro-shaped tag in a typedef and in a friend declaration
 // costs of vendor/tree-sitter can turn that around with no ERROR node, and this test then fails.
 typedef struct _SECURITY_ATTRIBUTES SECURITY_ATTRIBUTES;
 typedef struct FILE FILE;
-class V { friend class BOOST_PROGRAM_OPTIONS_DECL variables_map; };
+typedef struct _CRITICAL_SECTION GTEST_CRITICAL_SECTION;
 
 --------------------------------------------------------------------------------
 
@@ -843,14 +843,41 @@ class V { friend class BOOST_PROGRAM_OPTIONS_DECL variables_map; };
     (struct_specifier
       (type_identifier))
     (type_identifier))
+  (type_definition
+    (struct_specifier
+      (type_identifier))
+    (type_identifier)))
+
+================================================================================
+A macro in the head of a friend class
+================================================================================
+
+class V {
+  friend class BOOST_PROGRAM_OPTIONS_DECL variables_map;
+  friend struct _LIBCPP_HIDDEN __do_message;
+  friend class Plain;
+  friend int, long;
+};
+
+--------------------------------------------------------------------------------
+
+(translation_unit
   (class_specifier
     (type_identifier)
     (field_declaration_list
       (friend_declaration
-        (declaration
-          (class_specifier
-            (type_identifier))
-          (identifier))))))
+        (attribute_macro
+          (identifier))
+        (type_identifier))
+      (friend_declaration
+        (attribute_macro
+          (identifier))
+        (type_identifier))
+      (friend_declaration
+        (type_identifier))
+      (friend_declaration
+        (primitive_type)
+        (sized_type_specifier)))))
 
 ================================================================================
 A macro that gives a type in a class head, an accepted incorrect reading

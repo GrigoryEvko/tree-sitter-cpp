@@ -1650,6 +1650,18 @@ const SPLICE_TYPE_OUTSIDE_A_TYPE_ONLY_CONTEXT: i32 = -1;
 /// symbol ids decides the tree.
 const SPLICE_TYPE_AS_A_SCOPE: i32 = 1 - SPLICE_TYPE_OUTSIDE_A_TYPE_ONLY_CONTEXT;
 
+/// The dynamic precedence of a macro between the class key and the name of a friend class:
+/// `friend class BOOST_PROGRAM_OPTIONS_DECL variables_map;`.
+///
+/// The second reading declares a member of the type `class BOOST_PROGRAM_OPTIONS_DECL` with the
+/// name `variables_map`, which is the tree that the fork built before this rule. A friend
+/// declaration declares no member, and both front ends reject the text without the macro: GCC 16.2
+/// gives "field 'B' has incomplete type" and Clang 22.1 gives "friends can only be classes or
+/// functions". With the macro defined as an attribute the two front ends accept it. The position is
+/// the evidence, and a measurement of 329,387 files on 2026-09-16 found 21 such lines in 15 files,
+/// and each one of the 21 holds a macro-shaped name.
+const FRIEND_CLASS_MACRO: i32 = 3;
+
 /// The dynamic precedence of a class head that holds a macro and no member: `struct LLVM_ABI A;`,
 /// `class BASE_EXPORT C {};`.
 ///
@@ -3537,6 +3549,23 @@ fn declarations(g: &mut Grammar) {
                                     ]),
                                     s!(_class_name),
                                 ],
+                                // A macro between the class key and the name of the class:
+                                // `friend class BOOST_PROGRAM_OPTIONS_DECL variables_map;`. The
+                                // empty mark of a class head reads the two names, and
+                                // `FRIEND_CLASS_MACRO` selects this reading. Refer to
+                                // `_class_declaration_item`.
+                                prec_dynamic(
+                                    FRIEND_CLASS_MACRO,
+                                    seq![
+                                        choice!["class", "struct", "union", "__interface"],
+                                        s!(_class_macro_mark),
+                                        repeat1(choice![
+                                            s!(attribute_macro),
+                                            alias(s!(_attribute_macro_call), s!(attribute_macro)),
+                                        ]),
+                                        s!(_class_name),
+                                    ]
+                                ),
                                 s!(primitive_type),
                                 s!(sized_type_specifier),
                             ],
