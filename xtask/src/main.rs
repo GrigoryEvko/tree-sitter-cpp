@@ -11,6 +11,9 @@ mod generate;
 mod limits;
 mod parse;
 mod precedence;
+/// The invariants of the source of `src/scanner.c`. The module holds tests and nothing else.
+#[cfg(test)]
+mod scanner;
 mod seed;
 mod sexp;
 mod syntax;

@@ -1,6 +1,8 @@
 #include "tree_sitter/alloc.h"
 #include "tree_sitter/parser.h"
 
+#include "seed.h"
+
 #include <assert.h>
 #include <stdlib.h>
 #include <string.h>
@@ -714,9 +716,19 @@ static bool scan_decay_copy_auto(TSLexer *lexer, const Scanner *scanner) {
 /// The maximum nesting of brackets that a macro scan follows.
 #define MACRO_MAX_DEPTH 64
 /// The size of the buffer for a word or an operator that the scan compares with a list. A longer
-/// word keeps its first 40 characters. The longest word in a list,
-/// `__builtin_ge_synthesizes_from_spaceship`, has 39 characters, and a cut word is never equal to a
-/// word in a list.
+/// word keeps its first 40 characters.
+///
+/// THE VALUE CARRIES AN INVARIANT: EVERY ENTRY OF EVERY NAME LIST OF THIS FILE IS SHORTER THAN 40
+/// CHARACTERS. A cut word holds exactly 40, so no cut word can equal an entry. That inequality is
+/// what makes `is_macro_name`, `is_type_trait`, `is_grammar_keyword`, `is_class_key` and every
+/// other caller of `word_in` unable to match a name that the text does not hold. Such a match has
+/// no ERROR node and no differ row.
+///
+/// THE MARGIN IS ONE CHARACTER. The longest entry of the 40 lists of this file is
+/// `__builtin_ge_synthesizes_from_spaceship` of TYPE_TRAITS, at 39 characters. C++ adds type
+/// traits, and this fork adds keywords, so ordinary work closes the margin.
+/// `no_entry_of_a_name_list_can_equal_a_cut_word` of xtask/src/scanner.rs reads this file and fails
+/// at the entry that crosses it.
 #define MACRO_WORD_SIZE 41
 /// The minimum length of a macro name with no arguments, as in clang-format.
 #define MACRO_MIN_BARE_LENGTH 5
@@ -935,16 +947,20 @@ static inline uint32_t finish_hash(uint32_t hash) { return hash == 0 ? 1 : hash;
 
 static Backslash step_backslash(Reader *reader);
 
-/// Read a word. Keep its start in `word`, with a NUL at the end, and a `?` for each character
-/// that is not ASCII. Set `has_lower` if the word has a lowercase ASCII letter. Keep the hash of the
-/// full word in `reader->word_hash`.
+/// Read a word into a buffer of `size` bytes. Keep its start in `word`, with a NUL at the end, and
+/// a `?` for each character that is not ASCII. Set `has_lower` if the word has a lowercase ASCII
+/// letter. Keep the hash of the full word in `reader->word_hash`.
+///
+/// THE HASH READS THE WHOLE WORD AND `size` DOES NOT BOUND IT. Two buffers of different sizes over
+/// the same text give the same `reader->word_hash`, so the record of class names reads the same
+/// hash whichever size the caller asks for.
 ///
 /// A line splice inside the word is not part of the word. Phase 2 of [lex.phases] deletes each
 /// splice before tokenization, so `Q\` and `_OBJECT` on two lines are the one word `Q_OBJECT`
 /// (libcpp `_cpp_clean_line`, gcc/libcpp/lex.cc:877, and Clang `Lexer::LexIdentifierContinue`,
 /// clang/lib/Lex/Lexer.cpp:2039). The word, its hash, and its shape then hold the spliced text, and
 /// the tables of macro names read the same word as the lexer of the parser.
-static void read_word(Reader *reader, char word[MACRO_WORD_SIZE], bool *has_lower) {
+static void read_word_sized(Reader *reader, char *word, unsigned size, bool *has_lower) {
     unsigned length = 0;
     uint32_t hash = HASH_START;
     for (;;) {
@@ -954,7 +970,7 @@ static void read_word(Reader *reader, char word[MACRO_WORD_SIZE], bool *has_lowe
             if (c >= 'a' && c <= 'z') {
                 *has_lower = true;
             }
-            if (length < MACRO_WORD_SIZE - 1) {
+            if (length < size - 1) {
                 word[length++] = c < 0x80 ? (char)c : '?';
             }
             hash = hash_character(hash, c);
@@ -972,13 +988,20 @@ static void read_word(Reader *reader, char word[MACRO_WORD_SIZE], bool *has_lowe
         // The backslash starts a universal character name of the identifier, and not a splice:
         // `jalapeño` is one word. The word holds the backslash, so that the scan reads the one
         // identifier that the lexer of the parser reads.
-        if (length < MACRO_WORD_SIZE - 1) {
+        if (length < size - 1) {
             word[length++] = '\\';
         }
         hash = hash_character(hash, '\\');
     }
     word[length] = '\0';
     reader->word_hash = finish_hash(hash);
+}
+
+/// Read a word into a buffer of `MACRO_WORD_SIZE` bytes, which is what a comparison with a list
+/// takes. The signature does not change, so `is_region_macro_name` reads a word that is cut at
+/// exactly the same character as before.
+static void read_word(Reader *reader, char word[MACRO_WORD_SIZE], bool *has_lower) {
+    read_word_sized(reader, word, MACRO_WORD_SIZE, has_lower);
 }
 
 /// Go past spaces and tabs.
@@ -7710,9 +7733,16 @@ static bool starts_initializer_element(Reader *reader) {
 static bool scan_word_start(Scanner *scanner, TSLexer *lexer, const bool *valid_symbols) {
     mark_end(lexer);
     Reader reader = start_reader(lexer, MACRO_SCAN_LIMIT, scanner);
-    char word[MACRO_WORD_SIZE];
+    // ONE READ FILLS TWO BUFFERS. `full` holds the name that a
+    // seed lookup compares, and `word` holds the first `MACRO_WORD_SIZE - 1` characters, which is
+    // what every comparison with a list takes. The copy is byte for byte what `read_word` wrote
+    // before, because `read_word_sized` cuts at the same character and writes the NUL at the end.
+    char full[TS_CPP_SEED_WORD_SIZE];
     bool has_lower = false;
-    read_word(&reader, word, &has_lower);
+    read_word_sized(&reader, full, TS_CPP_SEED_WORD_SIZE, &has_lower);
+    char word[MACRO_WORD_SIZE];
+    strncpy(word, full, MACRO_WORD_SIZE - 1);
+    word[MACRO_WORD_SIZE - 1] = '\0';
     int length = (int)strlen(word);
     int32_t next = lexer->lookahead;
     bool is_decltype = strcmp(word, "decltype") == 0;
