@@ -3058,3 +3058,125 @@ T MACRO(mu) x;
       type: (type_descriptor
         type: (type_identifier)))
     declarator: (identifier)))
+
+================================================================================
+A macro with a body whose arguments hold a call
+================================================================================
+
+MATCHER_P(IsNode, height, absl::StrCat("Is a valid node of height ", height)) {
+  return true;
+}
+BOOST_DATA_TEST_CASE(test1, data::make(s1) + s2, index) {
+  int x;
+}
+BOOST_DATA_TEST_CASE_F(F, name, data::make({ 100, 8000 }), delay) {
+  int y;
+}
+INTERCEPTOR(void, dispatch_async, dispatch_queue_t dq, void (^work)(void)) {
+  int z;
+}
+MACRO_BLOCK(Fixture, Name) {
+  int w;
+}
+struct S {
+  S(int a = f(1)) { }
+};
+
+--------------------------------------------------------------------------------
+
+(translation_unit
+  (macro_invocation
+    name: (identifier)
+    arguments: (token_tree
+      (identifier)
+      (identifier)
+      (identifier)
+      (identifier)
+      (token_tree
+        (string_literal
+          (string_content))
+        (identifier)))
+    body: (compound_statement
+      (return_statement
+        (true))))
+  (macro_invocation
+    name: (identifier)
+    arguments: (token_tree
+      (identifier)
+      (identifier)
+      (identifier)
+      (token_tree
+        (identifier))
+      (identifier)
+      (identifier))
+    body: (compound_statement
+      (declaration
+        type: (primitive_type)
+        declarator: (identifier))))
+  (macro_invocation
+    name: (identifier)
+    arguments: (token_tree
+      (identifier)
+      (identifier)
+      (identifier)
+      (identifier)
+      (token_tree
+        (token_tree
+          (number_literal)
+          (number_literal)))
+      (identifier))
+    body: (compound_statement
+      (declaration
+        type: (primitive_type)
+        declarator: (identifier))))
+  (function_definition
+    declarator: (function_declarator
+      declarator: (identifier)
+      parameters: (parameter_list
+        (parameter_declaration
+          type: (primitive_type))
+        (parameter_declaration
+          type: (type_identifier))
+        (parameter_declaration
+          type: (type_identifier)
+          declarator: (identifier))
+        (parameter_declaration
+          type: (primitive_type)
+          declarator: (function_declarator
+            declarator: (parenthesized_declarator
+              (block_pointer_declarator
+                declarator: (identifier)))
+            parameters: (parameter_list
+              (parameter_declaration
+                type: (primitive_type)))))))
+    body: (compound_statement
+      (declaration
+        type: (primitive_type)
+        declarator: (identifier))))
+  (function_definition
+    declarator: (function_declarator
+      declarator: (identifier)
+      parameters: (parameter_list
+        (parameter_declaration
+          type: (type_identifier))
+        (parameter_declaration
+          type: (type_identifier))))
+    body: (compound_statement
+      (declaration
+        type: (primitive_type)
+        declarator: (identifier))))
+  (struct_specifier
+    name: (type_identifier)
+    body: (field_declaration_list
+      (function_definition
+        declarator: (function_declarator
+          declarator: (identifier)
+          parameters: (parameter_list
+            (optional_parameter_declaration
+              type: (primitive_type)
+              declarator: (identifier)
+              default_value: (call_expression
+                function: (identifier)
+                arguments: (argument_list
+                  (number_literal))))))
+        body: (compound_statement)))))

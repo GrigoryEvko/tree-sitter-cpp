@@ -403,3 +403,13 @@ int b = EIGEN_MATHFUNC_IMPL(exp, Scalar)::run(x);
 struct S : QT_PREPEND_NAMESPACE(QObject)::Base { int m; };
 ### macro_scope_qualified_call
 void f(Handler& h) { bool c = BOOST_ASIO_VERSIONED_NAME(hch)::is_continuation(h); }
+### macro_body_call_argument
+MATCHER_P(IsNode, height, absl::StrCat("Is a valid node of height ", height)) { return true; }
+### macro_body_operator_argument
+BOOST_DATA_TEST_CASE(test1, data::make(s1) + s2, index) { int x; }
+### macro_body_braced_argument
+BOOST_DATA_TEST_CASE_F(F, name, data::make({ 100, 8000 }), delay) { int y; }
+### macro_body_block_pointer_parameter
+INTERCEPTOR(void, dispatch_async, dispatch_queue_t dq, void (^work)(void)) { int z; }
+### macro_body_default_argument
+struct S { S(int a = f(1)) { } };

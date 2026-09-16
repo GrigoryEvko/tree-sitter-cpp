@@ -858,6 +858,11 @@ typedef struct {
     /// The group has one argument with the shape of a parenthesized declarator: a `*`, a `&`, or a
     /// `&&` first, and then the tokens of a type-id: `(*p)`, `(&r)`, `(*const p)`.
     bool pointer_declarator;
+    /// An argument of a nested group that must hold parameters starts with a literal or an operator.
+    /// The nested group is then a call, and no argument of the group is a parameter declaration:
+    /// `MATCHER_P(IsNode, height, absl::StrCat("height ", height))`. A default argument holds a call
+    /// of its own, and the scan does not read the groups after a `=`.
+    bool call_arguments;
 } Arguments;
 
 /// The kind of the line that comes after a macro invocation.
@@ -1376,6 +1381,8 @@ typedef struct {
     bool angle_logic;
     /// The last token is an operator that needs an operand after it.
     bool after_operator;
+    /// A `=` is at the top level of the argument, and a default argument comes after it.
+    bool after_assign;
     /// The argument starts with `(`, and that group has no token yet.
     bool empty_parenthesis;
     /// The argument has a group in `()` at its top level.
@@ -1434,6 +1441,12 @@ static void end_argument(Arguments *args, const Argument *arg) {
 static bool skip_group(Reader *reader, Arguments *args) {
     TSLexer *lexer = reader->lexer;
     char closers[MACRO_MAX_DEPTH];
+    // A group that opens after a name is the parameter list of a declarator, and its own arguments
+    // must be parameters. `parameter_group` marks each such group, and `inner_start` and `inner_word`
+    // hold the position of the scan in the argument of the group. The top level uses `arg`.
+    bool parameter_group[MACRO_MAX_DEPTH];
+    bool inner_start[MACRO_MAX_DEPTH];
+    bool inner_word[MACRO_MAX_DEPTH];
     unsigned depth = 0;
     bool empty = true;
     Argument arg = {0};
@@ -1455,6 +1468,21 @@ static bool skip_group(Reader *reader, Arguments *args) {
             }
             closers[depth++] = c == '(' ? ')' : c == '[' ? ']' : '}';
             step(reader);
+            // No parameter declaration starts with a braced list: `data::make({ 100, 8000 })`.
+            if (depth >= 3 && c == '{' && parameter_group[depth - 2] && inner_start[depth - 2]) {
+                args->call_arguments = true;
+            }
+            bool declarator_group = false;
+            if (depth == 2) {
+                declarator_group = c == '(' && arg.after_word && arg.angles == 0 && !arg.after_assign;
+            } else if (depth > 2) {
+                declarator_group = c == '(' && parameter_group[depth - 2] && inner_word[depth - 2];
+                inner_start[depth - 2] = false;
+                inner_word[depth - 2] = false;
+            }
+            parameter_group[depth - 1] = declarator_group;
+            inner_start[depth - 1] = true;
+            inner_word[depth - 1] = false;
             if (!top) {
                 arg.empty_parenthesis = false;
                 continue;
@@ -1514,6 +1542,10 @@ static bool skip_group(Reader *reader, Arguments *args) {
                 args->empty = empty;
                 return true;
             }
+            if (depth >= 2) {
+                inner_start[depth - 1] = false;
+                inner_word[depth - 1] = false;
+            }
             if (depth == 1 && arg.empty_parenthesis) {
                 args->not_expressions = true;
             }
@@ -1528,6 +1560,24 @@ static bool skip_group(Reader *reader, Arguments *args) {
         }
         if (!top) {
             arg.empty_parenthesis = false;
+            if (depth >= 2) {
+                unsigned group = depth - 1;
+                if (token == TOKEN_COMMA) {
+                    inner_start[group] = true;
+                    inner_word[group] = false;
+                } else {
+                    // No parameter declaration starts with a literal or an operator. A parenthesized
+                    // declarator starts with a `*`, a `&`, or a `&&`, which are declarator tokens. The
+                    // `^` of a block pointer starts one too: `INTERCEPTOR(void, f, void (^work)(void))`.
+                    bool block_pointer = token == TOKEN_OPERATOR && strcmp(word, "^") == 0;
+                    if (parameter_group[group] && inner_start[group] && !block_pointer &&
+                        (token == TOKEN_LITERAL || token == TOKEN_OPERATOR)) {
+                        args->call_arguments = true;
+                    }
+                    inner_start[group] = false;
+                    inner_word[group] = token == TOKEN_WORD;
+                }
+            }
             // A `;` in parentheses or brackets, outside all braces, is not a token of an expression. The group holds
             // statements: `EMIT_BINARY(BLOCK(add32(x);))`. In braces, a `;` ends a statement of a lambda or of a GNU
             // statement expression: `f([] { g(); })`, `f(({ g(); }))`.
@@ -1599,9 +1649,16 @@ static bool skip_group(Reader *reader, Arguments *args) {
             arg.angles = 1;
             arg.angle_logic = false;
         }
+        // A parameter declaration holds an operator of an expression only in its default argument. A
+        // macro takes an expression: `BOOST_DATA_TEST_CASE(test1, data::make(s1) + s2, index)`. A
+        // pointer or reference operator, a `<`, and a `=` are declarator tokens and stay permitted.
+        if (token == TOKEN_OPERATOR && arg.tokens > 0 && !arg.after_assign) {
+            args->call_arguments = true;
+        }
         bool operator_token = token == TOKEN_OPERATOR || token == TOKEN_DECLARATOR || strcmp(word, "::") == 0;
         bool increment = strcmp(word, "++") == 0 || strcmp(word, "--") == 0;
         arg.after_operator = operator_token && !increment && !arg.after_operator_keyword;
+        arg.after_assign |= token == TOKEN_DECLARATOR && strcmp(word, "=") == 0;
         arg.after_operator_keyword = is_word && strcmp(word, "operator") == 0;
         arg.after_word = is_word && !prefix_word;
         arg.after_angle = false;
@@ -3397,7 +3454,9 @@ static Invocation scan_macro_invocation(Reader *reader, const char *name, size_t
                 return INVOCATION_STOP;
             }
             block = true;
-        } else if (call && args->not_parameters) {
+        } else if (call && (args->not_parameters || args->call_arguments)) {
+            // A call in an argument gives a body to the macro, and no function definition starts:
+            // `MATCHER_P(IsNode, height, absl::StrCat("height ", height)) {`.
             block = lexer->lookahead == '{';
         } else if (!call && lexer->lookahead == '{') {
             // A block of statements after a name: `SCOPE_EXIT { f(); };`.
