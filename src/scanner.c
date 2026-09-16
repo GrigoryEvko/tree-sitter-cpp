@@ -140,7 +140,13 @@ enum TokenType {
     /// An empty mark before the extra tokens of an `#endif` or an `#else` line. The scanner gives the
     /// mark only when the rest of that line holds a token.
     PREPROC_EXTRA_MARK,
+    /// The count of the external tokens, and not a token. `tree_sitter_cpp_external_scanner_create`
+    /// compares it with the count of the parser.
+    TOKEN_TYPE_COUNT,
 };
+
+/// The language of src/parser.c. The scanner reads its count of external tokens.
+const TSLanguage *tree_sitter_cpp(void);
 
 /// The maximum number of characters that the scanner reads in the arguments of a macro.
 #define MAX_MACRO_ARGUMENTS_LENGTH 4096
@@ -7619,6 +7625,27 @@ static bool scan_ms_asm_code(TSLexer *lexer) {
 }
 
 void *tree_sitter_cpp_external_scanner_create() {
+    // THE PARSER AND THE SCANNER MUST AGREE ON THE COUNT OF THE EXTERNAL TOKENS. `valid_symbols` has
+    // one slot for each external token of the parser, in the order of `g.externals`, and the scanner
+    // reads the slots with the enumerators of `TokenType`. A parser.c of one generate step and a
+    // scanner.c of a different one give two counts, and a slot of the scanner then reads the token of
+    // a different slot of the parser. A build of 2026-09-16 held a parser with 73 tokens, where slot
+    // 66 was the `{` of an experiment, and a scanner with 72, where slot 66 is the attribute mark. The
+    // scanner gave its empty mark nearly everywhere, the parser looped on a token with no width, and
+    // one parse of a 20 KB file took 152 GB. The runtime calls this function at the start of the
+    // first parse of a parser, before it reads a byte, so the check refuses the pair before a tree.
+    const TSLanguage *language = tree_sitter_cpp();
+    if (language->external_token_count != (uint32_t)TOKEN_TYPE_COUNT) {
+        fprintf(
+            stderr,
+            "tree-sitter-cpp: the parser of src/parser.c has %u external tokens, and the scanner of "
+            "src/scanner.c has %u. The two files come from different generate steps, and a parse with "
+            "them does not end. Run `cargo xtask generate`, and build again.\n",
+            language->external_token_count,
+            (unsigned)TOKEN_TYPE_COUNT
+        );
+        abort();
+    }
     // `bsearch` needs the traits in the order of `strcmp`.
     for (size_t i = 1; i < TYPE_TRAIT_COUNT; ++i) {
         assert(strcmp(TYPE_TRAITS[i - 1], TYPE_TRAITS[i]) < 0 && "The traits are not in order!");
