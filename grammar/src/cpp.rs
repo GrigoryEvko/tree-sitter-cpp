@@ -161,6 +161,11 @@ pub fn grammar() -> Grammar {
         // name with arguments, because a bare name there continues the declaration on the next line.
         // `_macro_line_start` keeps its meaning of a line with no specifier before it.
         s!(_macro_line_after_specifiers),
+        // An empty mark before the name of a macro in the head of a class that has no member:
+        // `struct LLVM_ABI A;`, `class BASE_EXPORT C {};`. The scanner gives the mark only when a
+        // macro-shaped name comes first, and the mark is valid after a class key only. Refer to
+        // `scan_class_macro_mark` in src/scanner.c.
+        s!(_class_macro_mark),
         // An empty mark before the extra tokens of an `#endif` or an `#else` line. The scanner gives
         // the mark only when the rest of that line holds a token, so a line with no such token takes
         // no line end, and the node of the group keeps its range.
@@ -1616,6 +1621,17 @@ const VOID_FUNCTION: i32 = 100;
 /// this precedence and the tree of the function reading.
 const EXTERN_FUNCTION_IN_BLOCK: i32 = 100;
 
+/// The dynamic precedence of a class head that holds a macro and no member: `struct LLVM_ABI A;`,
+/// `class BASE_EXPORT C {};`.
+///
+/// The second reading of that text declares a variable of an elaborated type: `struct stat st;`.
+/// The external token `_class_macro_mark` is a step of the class head only, so the variable reading
+/// cannot shift it and the mark decides the reading. This precedence selects the class head where
+/// the parser holds a second version whose state also takes the mark, so that no tie of
+/// `ts_subtree_compare` decides it. The value is the value of the class head that holds a macro and
+/// a member, because the two rules read the same head and no text takes them both.
+const CLASS_MACRO_WITHOUT_MEMBER: i32 = 3;
+
 fn types(g: &mut Grammar) {
     g.define(
         "placeholder_type_specifier",
@@ -2034,6 +2050,52 @@ fn types(g: &mut Grammar) {
                         optional(s!(base_class_clause)),
                         field("body", s!(field_declaration_list)),
                     ],
+                    // A class head that holds a macro and no member: `struct LLVM_ABI A;`,
+                    // `class BASE_EXPORT C {};`. The external scanner gives the empty mark only
+                    // when the first name has the shape of a macro, so the second reading, a
+                    // variable of an elaborated type, keeps each head that starts with a name of a
+                    // type: `struct stat st;`, `struct stat s{};`.
+                    //
+                    // THE MARK DECIDES THE READING, AND NO TIE DECIDES IT. The mark is a step of
+                    // this alternative and of no other rule, so the variable reading cannot shift
+                    // it. Where the parser holds a second version whose state also takes the mark,
+                    // the dynamic precedence `CLASS_MACRO_WITHOUT_MEMBER` selects this reading.
+                    // Refer to `scan_class_macro_mark` in src/scanner.c for the measurement and for
+                    // the stop set.
+                    // THE TOKEN BEFORE THE CLASS KEY CAN STILL END THIS READING, AND THE SCANNER
+                    // CANNOT SEE IT. `typedef struct TAG NAME;` names the tag and declares the
+                    // typedef name, and `friend class MACRO Name;` names one class. The text after
+                    // the class key is the text of a class head in each of the three forms, and the
+                    // parser table holds one state for them, because the item sets agree.
+                    //
+                    // So this alternative takes the mark and one name, and it gives the reading that
+                    // an elaborated type specifier has. For a typedef and for a friend declaration
+                    // the reading above ends with an error, and `ts_parser__select_tree` compares
+                    // the error cost before the dynamic precedence. For a declaration the two
+                    // readings are both correct, and `CLASS_MACRO_WITHOUT_MEMBER` selects the class
+                    // head.
+                    //
+                    // THIS READING DEPENDS ON THE ORDER OF THE COMPARISON IN THE RUNTIME. The fork
+                    // owns `vendor/tree-sitter`, and a change of the error costs there can turn the
+                    // two readings around with no ERROR node and no row of the differ. The corpus
+                    // test "A macro-shaped tag in a typedef and in a friend declaration" holds the
+                    // full tree of the two forms, so such a change fails a test.
+                    seq![s!(_class_macro_mark), field("name", s!(_class_name))],
+                    prec_dynamic(
+                        CLASS_MACRO_WITHOUT_MEMBER,
+                        seq![
+                            s!(_class_macro_mark),
+                            repeat1(choice![
+                                s!(attribute_macro),
+                                alias(s!(_attribute_macro_call), s!(attribute_macro)),
+                            ]),
+                            field("name", s!(_class_name)),
+                            optional(field(
+                                "body",
+                                alias(s!(_empty_field_declaration_list), s!(field_declaration_list))
+                            )),
+                        ]
+                    ),
                     prec_dynamic(
                         3,
                         seq![
@@ -2069,6 +2131,10 @@ fn types(g: &mut Grammar) {
         "_nonempty_field_declaration_list",
         seq![open_brace(), repeat1(s!(_field_declaration_list_item)), close_brace()],
     );
+    // The body of a class head that holds a macro and no member: `class BASE_EXPORT C {};`. The rule
+    // takes an empty body only, because a body with a member ends the reading that declares a
+    // variable, and the rule above takes that head.
+    g.define("_empty_field_declaration_list", seq![open_brace(), close_brace()]);
     // A function-like macro in the position of an attribute: `class TSA_CAPABILITY("mutex") M {`.
     // The static precedence gives the `(` after the name to the macro. In `void f() M (int)` the
     // other reading is a second parameter list, of a function that returns a function.

@@ -748,6 +748,204 @@ struct stat s{};
       value: (initializer_list))))
 
 ================================================================================
+Attribute macros in a class head that has no member
+================================================================================
+
+struct LLVM_ABI A;
+class BASE_EXPORT C {};
+class TSA_CAPABILITY("mutex") M;
+class _LIBCPP_TEMPLATE_VIS hash;
+struct HIDDEN foo {};
+struct stat st;
+struct A B, C2;
+struct A B2 = {};
+void f(struct STAT x);
+
+--------------------------------------------------------------------------------
+
+(translation_unit
+  (struct_specifier
+    (attribute_macro
+      name: (identifier))
+    name: (type_identifier))
+  (class_specifier
+    (attribute_macro
+      name: (identifier))
+    name: (type_identifier)
+    body: (field_declaration_list))
+  (class_specifier
+    (attribute_macro
+      name: (identifier)
+      arguments: (argument_list
+        (string_literal
+          (string_content))))
+    name: (type_identifier))
+  (class_specifier
+    (attribute_macro
+      name: (identifier))
+    name: (type_identifier))
+  (struct_specifier
+    (attribute_macro
+      name: (identifier))
+    name: (type_identifier)
+    body: (field_declaration_list))
+  (declaration
+    type: (struct_specifier
+      name: (type_identifier))
+    declarator: (identifier))
+  (declaration
+    type: (struct_specifier
+      name: (type_identifier))
+    declarator: (identifier)
+    declarator: (identifier))
+  (declaration
+    type: (struct_specifier
+      name: (type_identifier))
+    declarator: (init_declarator
+      declarator: (identifier)
+      value: (initializer_list)))
+  (declaration
+    type: (primitive_type)
+    declarator: (function_declarator
+      declarator: (identifier)
+      parameters: (parameter_list
+        (parameter_declaration
+          type: (struct_specifier
+            name: (type_identifier))
+          declarator: (identifier))))))
+
+================================================================================
+A macro-shaped tag in a typedef and in a friend declaration
+================================================================================
+
+// The empty mark of a class head fires on the text after the class key, and the keyword before
+// that key decides these two readings. The parser holds both readings, and the reading of a class
+// head ends with an error here. `ts_parser__select_tree` compares the error cost BEFORE the
+// dynamic precedence, so the reading of an elaborated type specifier wins. A change of the error
+// costs of vendor/tree-sitter can turn that around with no ERROR node, and this test then fails.
+typedef struct _SECURITY_ATTRIBUTES SECURITY_ATTRIBUTES;
+typedef struct FILE FILE;
+class V { friend class BOOST_PROGRAM_OPTIONS_DECL variables_map; };
+
+--------------------------------------------------------------------------------
+
+(translation_unit
+  (comment)
+  (comment)
+  (comment)
+  (comment)
+  (comment)
+  (type_definition
+    (struct_specifier
+      (type_identifier))
+    (type_identifier))
+  (type_definition
+    (struct_specifier
+      (type_identifier))
+    (type_identifier))
+  (class_specifier
+    (type_identifier)
+    (field_declaration_list
+      (friend_declaration
+        (declaration
+          (class_specifier
+            (type_identifier))
+          (identifier))))))
+
+================================================================================
+A macro that gives a type in a class head, an accepted incorrect reading
+================================================================================
+
+// Each line declares a VARIABLE, and the tree gives a class head. The first name is the tag of a
+// type or a macro that gives one, and no lexical signal tells it from an export macro. GCC and
+// Clang read a variable. The corpus holds 43 such lines against 1,013 correct class heads, and
+// this test holds each of the 15 shapes. Refer to `scan_class_macro_mark` in src/scanner.c.
+struct STAT sbuf;
+struct STAT statInfo {};
+struct STATFSSTRUCT stats;
+struct STATFS buf;
+struct BOOST_STATVFS vfs;
+struct MZ_FILE_STAT_STRUCT file_stat;
+struct BOOST_IOSTREAMS_FD_STAT info;
+struct SS ss;
+struct ST st1;
+struct S1 s;
+struct H3DLUT header;
+struct FILE f3;
+struct W_CATALOG_RETURNS_TBL w_catalog_returns;
+class B2 b2ingoo;
+class MO m;
+
+--------------------------------------------------------------------------------
+
+(translation_unit
+  (comment)
+  (comment)
+  (comment)
+  (comment)
+  (struct_specifier
+    (attribute_macro
+      name: (identifier))
+    name: (type_identifier))
+  (struct_specifier
+    (attribute_macro
+      name: (identifier))
+    name: (type_identifier)
+    body: (field_declaration_list))
+  (struct_specifier
+    (attribute_macro
+      name: (identifier))
+    name: (type_identifier))
+  (struct_specifier
+    (attribute_macro
+      name: (identifier))
+    name: (type_identifier))
+  (struct_specifier
+    (attribute_macro
+      name: (identifier))
+    name: (type_identifier))
+  (struct_specifier
+    (attribute_macro
+      name: (identifier))
+    name: (type_identifier))
+  (struct_specifier
+    (attribute_macro
+      name: (identifier))
+    name: (type_identifier))
+  (struct_specifier
+    (attribute_macro
+      name: (identifier))
+    name: (type_identifier))
+  (struct_specifier
+    (attribute_macro
+      name: (identifier))
+    name: (type_identifier))
+  (struct_specifier
+    (attribute_macro
+      name: (identifier))
+    name: (type_identifier))
+  (struct_specifier
+    (attribute_macro
+      name: (identifier))
+    name: (type_identifier))
+  (struct_specifier
+    (attribute_macro
+      name: (identifier))
+    name: (type_identifier))
+  (struct_specifier
+    (attribute_macro
+      name: (identifier))
+    name: (type_identifier))
+  (class_specifier
+    (attribute_macro
+      name: (identifier))
+    name: (type_identifier))
+  (class_specifier
+    (attribute_macro
+      name: (identifier))
+    name: (type_identifier)))
+
+================================================================================
 Attribute macros after a function declarator
 ================================================================================
 

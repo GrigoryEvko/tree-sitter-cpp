@@ -24783,6 +24783,86 @@
                 ]
               },
               {
+                "type": "SEQ",
+                "members": [
+                  {
+                    "type": "SYMBOL",
+                    "name": "_class_macro_mark"
+                  },
+                  {
+                    "type": "FIELD",
+                    "name": "name",
+                    "content": {
+                      "type": "SYMBOL",
+                      "name": "_class_name"
+                    }
+                  }
+                ]
+              },
+              {
+                "type": "PREC_DYNAMIC",
+                "value": 3,
+                "content": {
+                  "type": "SEQ",
+                  "members": [
+                    {
+                      "type": "SYMBOL",
+                      "name": "_class_macro_mark"
+                    },
+                    {
+                      "type": "REPEAT1",
+                      "content": {
+                        "type": "CHOICE",
+                        "members": [
+                          {
+                            "type": "SYMBOL",
+                            "name": "attribute_macro"
+                          },
+                          {
+                            "type": "ALIAS",
+                            "content": {
+                              "type": "SYMBOL",
+                              "name": "_attribute_macro_call"
+                            },
+                            "named": true,
+                            "value": "attribute_macro"
+                          }
+                        ]
+                      }
+                    },
+                    {
+                      "type": "FIELD",
+                      "name": "name",
+                      "content": {
+                        "type": "SYMBOL",
+                        "name": "_class_name"
+                      }
+                    },
+                    {
+                      "type": "CHOICE",
+                      "members": [
+                        {
+                          "type": "FIELD",
+                          "name": "body",
+                          "content": {
+                            "type": "ALIAS",
+                            "content": {
+                              "type": "SYMBOL",
+                              "name": "_empty_field_declaration_list"
+                            },
+                            "named": true,
+                            "value": "field_declaration_list"
+                          }
+                        },
+                        {
+                          "type": "BLANK"
+                        }
+                      ]
+                    }
+                  ]
+                }
+              },
+              {
                 "type": "PREC_DYNAMIC",
                 "value": 3,
                 "content": {
@@ -24954,6 +25034,53 @@
             "type": "SYMBOL",
             "name": "_field_declaration_list_item"
           }
+        },
+        {
+          "type": "ALIAS",
+          "content": {
+            "type": "TOKEN",
+            "content": {
+              "type": "CHOICE",
+              "members": [
+                {
+                  "type": "STRING",
+                  "value": "}"
+                },
+                {
+                  "type": "STRING",
+                  "value": "%>"
+                }
+              ]
+            }
+          },
+          "named": false,
+          "value": "}"
+        }
+      ]
+    },
+    "_empty_field_declaration_list": {
+      "type": "SEQ",
+      "members": [
+        {
+          "type": "ALIAS",
+          "content": {
+            "type": "TOKEN",
+            "content": {
+              "type": "CHOICE",
+              "members": [
+                {
+                  "type": "STRING",
+                  "value": "{"
+                },
+                {
+                  "type": "STRING",
+                  "value": "<%"
+                }
+              ]
+            }
+          },
+          "named": false,
+          "value": "{"
         },
         {
           "type": "ALIAS",
@@ -45024,6 +45151,10 @@
     {
       "type": "SYMBOL",
       "name": "_macro_line_after_specifiers"
+    },
+    {
+      "type": "SYMBOL",
+      "name": "_class_macro_mark"
     },
     {
       "type": "SYMBOL",

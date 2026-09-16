@@ -137,6 +137,10 @@ enum TokenType {
     /// before: `static Q_LOGGING_CATEGORY(log, "qtc", QtWarningMsg)`. The scan gives it only for a name
     /// with arguments.
     MACRO_LINE_AFTER_SPECIFIERS,
+    /// An empty mark before the name of a macro in the head of a class that has no member:
+    /// `struct LLVM_ABI A;`, `class BASE_EXPORT C {};`. The parser reads the mark after a class key
+    /// only, and the scanner gives it only when a macro-shaped name comes first.
+    CLASS_MACRO_MARK,
     /// An empty mark before the extra tokens of an `#endif` or an `#else` line. The scanner gives the
     /// mark only when the rest of that line holds a token.
     PREPROC_EXTRA_MARK,
@@ -2816,6 +2820,85 @@ static bool scan_class_key(Scanner *scanner, TSLexer *lexer) {
     bool has_lower = false;
     read_word(&reader, word, &has_lower);
     return is_class_key(word) && scan_class_head(scanner, &reader);
+}
+
+/// Scan a macro in the head of a class that has no member: `struct LLVM_ABI A;`,
+/// `class BASE_EXPORT C {};`. The token is the empty CLASS_MACRO_MARK before the name of the macro,
+/// and the parser reads it after a class key only. The scan starts after that name.
+///
+/// THE SAME TEXT HAS A SECOND READING. `struct stat st;` declares a variable of an elaborated type,
+/// and the two readings hold the same three tokens. A member in the body ends the second reading,
+/// and a head with no member gives no such evidence. Only the shape of the FIRST name separates
+/// them, and `is_macro_name` reads that shape.
+///
+/// THE SHAPE OF THE SECOND NAME SEPARATES NOTHING. Of the 17,189 class heads in the corpus that
+/// hold a macro and a member, 1,366 give the class a name that starts with a lowercase letter:
+/// `class FMT_API file {`, `struct FMT_API pipe {`, `class EASTL_API fixed_allocator :`. A rule on
+/// the second name looks safe and it is not.
+///
+/// THE STOP SET IS THE SAFETY ARGUMENT. A `,`, a `=`, a `(` after the last name, a `<`, a `:` or a
+/// body with a member stops the mark, so `struct STAT st = {};` and `class A B, C;` keep the
+/// variable reading. The scan gives the mark for `;` and for an empty `{}` only.
+///
+/// MEASUREMENT OF 329,387 FILES, 2026-09-16. The macro reading is correct in 986 forward
+/// declarations of 500 files and in 70 empty bodies of 44 files. It is incorrect in approximately
+/// 41 lines, where the macro gives a TYPE and the second name is a variable:
+/// `struct STATFSSTRUCT stats;`, `struct STAT sbuf;`, `struct STAT statInfo {};`. The corpus test
+/// "A class head with a macro and no member" pins those lines. O(n) in the length of the head.
+static bool scan_class_macro_mark(Reader *reader, const char *word, bool has_lower) {
+    TSLexer *lexer = reader->lexer;
+    if (strlen(word) < 2 || !is_macro_name(word, has_lower) || is_grammar_keyword(word)) {
+        return false;
+    }
+    // The names that the scan read. The last name is the name of the class, and the names before it
+    // are macros, so a head needs two names.
+    unsigned names = 1;
+    bool after_name = true;
+    for (;;) {
+        LOOP_STEP();
+        Gap gap = {0};
+        skip_gap(reader, &gap);
+        if (gap.blocked || !readable(reader)) {
+            return false;
+        }
+        int32_t c = lexer->lookahead;
+        if (c == '(') {
+            // The arguments of a macro call: `class TSA_CAPABILITY("mutex") M;`. A `(` after the
+            // last name belongs to an initializer of a variable, and the scan stops at the token
+            // that follows the group.
+            Arguments arguments = {0};
+            if (!after_name || !skip_group(reader, &arguments)) {
+                return false;
+            }
+            after_name = false;
+            continue;
+        }
+        if (c == ';') {
+            return names >= 2 && after_name;
+        }
+        if (c == '{') {
+            if (names < 2 || !after_name) {
+                return false;
+            }
+            step(reader);
+            Gap body = {0};
+            skip_gap(reader, &body);
+            return !body.blocked && readable(reader) && lexer->lookahead == '}';
+        }
+        if (!is_word_start(c)) {
+            return false;
+        }
+        char next[MACRO_WORD_SIZE];
+        bool next_lower = false;
+        read_word(reader, next, &next_lower);
+        // A virt-specifier and a reserved word end the head that this scan reads. The rule of a
+        // class head with a body takes those forms.
+        if (word_in(next, CLASS_VIRT_SPECIFIER_WORDS) || word_in(next, RESERVED_WORDS)) {
+            return false;
+        }
+        names++;
+        after_name = true;
+    }
 }
 
 /// The result of `scan_macro_invocation`.
@@ -7643,6 +7726,12 @@ static bool scan_word_start(Scanner *scanner, TSLexer *lexer, const bool *valid_
     if (is_class_key(word)) {
         return valid_symbols[CLASS_HEAD_MARK] && scan_class_head(scanner, &reader);
     }
+    // A macro in the head of a class that has no member. The parser takes the mark after a class key
+    // only, and the validity of the token is the evidence of that position.
+    if (valid_symbols[CLASS_MACRO_MARK] && scan_class_macro_mark(&reader, word, has_lower)) {
+        lexer->result_symbol = CLASS_MACRO_MARK;
+        return true;
+    }
     // The name of a recorded class head before a `(` is a functional cast: `A(x)`. Only name lookup
     // tells a type name from a function name there (GCC `cp_parser_postfix_expression`, Clang
     // `ParsePostfixExpressionSuffix`). The scan reads no more text: the name and the character after it
@@ -7868,6 +7957,7 @@ static bool can_be_empty(TSSymbol symbol) {
         case STATEMENT_ATTRIBUTE_MACRO_START:
         case CONSTRUCTOR_MACRO_START:
         case CLASS_HEAD_MARK:
+        case CLASS_MACRO_MARK:
         case QT_EMIT_MARKER:
         case QT_FOREACH_MARKER:
         case VA_ARG_MARKER:
