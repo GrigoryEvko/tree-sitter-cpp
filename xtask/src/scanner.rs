@@ -477,6 +477,17 @@ mod seeded {
 ///
 /// THE READER TAKES THE FUNCTIONS FROM THE FILE AND NOT FROM A LIST OF NAMES. A function that
 /// somebody writes next year is covered on the day that it is written.
+///
+/// THE READER DOES NOT LOOK ACROSS THE CALL BOUNDARY, AND A REVIEWER MUST. It reads one function at
+/// a time. It cannot tell whether the CALLER of a scan treats a given result as a stop or as "carry
+/// on". A scan that reads characters and gives `INVOCATION_NONE` is safe where every caller stops
+/// on that value and unsafe where one caller carries on with the same reader.
+///
+/// WHAT A REVIEWER MUST CHECK BY HAND, for a scan that reads characters and can give more than one
+/// result: for EACH result that means "not this one", find every caller and read what it does next.
+/// The result is safe only where every caller stops. Where one caller carries on, the scan must not
+/// read a character before it gives that result, or it must restore the reader. Refer to
+/// "THE SCANNER CAN REWIND THE LEXER, AT A PRICE" of PROTOCOL.txt.
 mod order {
     use regex::Regex;
     use std::collections::BTreeSet;
@@ -724,7 +735,9 @@ mod order {
         };
         let name = &found[1];
         let test = Regex::new(&format!(r"reader\.budget\s*!=\s*{name}")).expect("the pattern builds");
-        test.is_match(body) && body.contains("return false")
+        // THE GUARD RETURNS ANY "NO TOKEN" VALUE AND NOT ONLY `false`. A scan that gives an
+        // enumerated result says "not this one" with a name of its own.
+        test.is_match(body) && body.contains("return")
     }
 
     /// The branches at the top level of a function.
@@ -803,47 +816,76 @@ mod order {
         text
     }
 
-    /// The line of the first branch whose condition reads a character and that can be false.
+    /// The line of the first scan that reads a character on the path that leaves the block with no
+    /// token.
     ///
-    /// A condition that reads a character has a path where the scan moved the reader AND the branch
-    /// did not run: the path where the condition is false. The body of the branch cannot repair it,
-    /// because the body did not run.
+    /// THE SEARCH IS BLIND TO THE RETURN VALUE OF THE SCAN, and it must be. A scan that gives an
+    /// enumerated result says "not this one" with a name such as `INVOCATION_NONE`, and the caller
+    /// carries on with the same reader. The damage comes from the characters that the scan read and
+    /// never from the name of the value. r48 lost 8 corpus tests and 11 snippets to that shape on
+    /// 2026-09-16. A search for `return false` finds none of it.
     ///
-    /// A block that saves and tests `reader.budget` gives no token on that path. The search does not
-    /// go into such a block.
-    fn first_moving_condition(
+    /// Three kinds of statement can move the reader on that path.
+    /// - A statement of the block. Every path takes it.
+    /// - The condition of a branch. The path where the condition is false takes it, and the body of
+    ///   the branch did not run, so the body cannot repair it.
+    /// - A branch that can fall through. The search goes into it.
+    ///
+    /// A branch that returns on every path contributes nothing. The path that leaves the block is
+    /// the path where its condition was false, and nothing in it ran. A block that saves and tests
+    /// `reader.budget` gives no token on that path, so the search does not go into it either.
+    fn first_fall_through_advance(
         stripped: &[String],
         start: usize,
         end: usize,
+        after: usize,
         advances: &BTreeSet<String>,
         blanks: &BTreeSet<String>,
     ) -> Option<(usize, String)> {
         let opener = Regex::new(r"^\s*(\} else )?if \(").expect("the pattern builds");
-        let mut found: Option<(usize, String)> = None;
-        let mut index = start + 1;
-        while index < end {
+        let moving = |text: &str| -> Option<String> {
+            let names: Vec<&str> = advances
+                .iter()
+                .filter(|name| !blanks.contains(*name) && calls(text, name))
+                .map(|name| name.as_str())
+                .collect();
+            (!names.is_empty()).then(|| names.join(", "))
+        };
+        for index in statements(stripped, start, end) {
+            // THE SEARCH STARTS AFTER THE LINE THAT TOOK THE LOOKAHEAD. `scan_word_start` calls
+            // `read_word_sized` before it takes `next`, and that call reads the whole word. A search
+            // from the top of the function stops at that call, which is correct and reads nothing
+            // stale, and it would hide every scan after it.
+            if index <= after {
+                continue;
+            }
             if !opener.is_match(&stripped[index]) {
-                index += 1;
+                if let Some(names) = moving(&stripped[index]) {
+                    return Some((index + 1, names));
+                }
                 continue;
             }
             let close = block_end(stripped, index, end);
-            let text = condition(stripped, index, end);
-            let moving: Vec<&String> =
-                advances.iter().filter(|name| !blanks.contains(*name) && calls(&text, name)).collect();
-            if !moving.is_empty() {
-                let names: Vec<&str> = moving.iter().map(|name| name.as_str()).collect();
-                found = Some((index + 1, names.join(", ")));
-                break;
+            if let Some(names) = moving(&condition(stripped, index, end)) {
+                return Some((index + 1, names));
             }
-            if !has_budget_guard(&stripped[index..=close].join("\n"))
-                && let Some(inner) = first_moving_condition(stripped, index, close, advances, blanks)
-            {
-                found = Some(inner);
-                break;
+            let body = stripped[index..=close].join("\n");
+            if has_budget_guard(&body) {
+                continue;
             }
-            index = close + 1;
+            let inner = statements(stripped, index, close);
+            let returns = match inner.last() {
+                Some(last) => stripped[*last].trim().starts_with("return"),
+                None => false,
+            };
+            if returns {
+                continue;
+            }
+            if let Some(found) = first_fall_through_advance(stripped, index, close, after, advances, blanks) {
+                return Some(found);
+            }
         }
-        found
+        None
     }
 
     /// The advancing functions that a block calls on the path that leaves it with no token.
@@ -902,24 +944,23 @@ mod order {
         blanks: &BTreeSet<String>,
     ) -> Vec<String> {
         let mut out = Vec::new();
-        let names = captured_lookahead(stripped, function);
-        if let Some((line, callee)) = first_moving_condition(stripped, function.start, function.end, advances, blanks) {
-            for (name, written) in &names {
-                if *written >= line {
-                    continue;
-                }
-                let read = Regex::new(&format!(r"(^|[^A-Za-z0-9_]){name}([^A-Za-z0-9_]|$)")).expect("the pattern builds");
-                for (index, text) in stripped.iter().enumerate().take(function.end).skip(line) {
-                    if read.is_match(text) {
-                        out.push(format!(
-                            "{}:{} reads `{name}`, the lookahead of line {}, after the scan of line {line} ({callee}) \
-                             read characters and could give no token",
-                            function.name,
-                            index + 1,
-                            written + 1,
-                        ));
-                        break;
-                    }
+        for (name, written) in captured_lookahead(stripped, function) {
+            let Some((line, callee)) =
+                first_fall_through_advance(stripped, function.start, function.end, written, advances, blanks)
+            else {
+                continue;
+            };
+            let read = Regex::new(&format!(r"(^|[^A-Za-z0-9_]){name}([^A-Za-z0-9_]|$)")).expect("the pattern builds");
+            for (index, text) in stripped.iter().enumerate().take(function.end).skip(line) {
+                if read.is_match(text) {
+                    out.push(format!(
+                        "{}:{} reads `{name}`, the lookahead of line {}, after the scan of line {line} ({callee}) \
+                         read characters and could give no token",
+                        function.name,
+                        index + 1,
+                        written + 1,
+                    ));
+                    break;
                 }
             }
         }
@@ -963,13 +1004,20 @@ mod order_tests {
     use super::order;
     use std::fs;
 
-    /// A source with two functions: the movers, and a multiplexer of the given body.
+    /// A source with the movers and a multiplexer of the given body.
+    ///
+    /// THE MULTIPLEXER READS ITS WORD BEFORE THE BODY, as `scan_word_start` does with
+    /// `read_word_sized`. That call reads characters and it is correct, because every line after it
+    /// is written for it. A reader that searched from the top of the function would stop there and
+    /// hide every scan that follows. This preamble is what holds the search to the right place.
     fn source(body: &str) -> String {
         format!(
             "static void step(Reader *reader) {{\n    reader->budget--;\n    advance(reader->lexer);\n}}\n\
              static void skip_blanks(Reader *reader) {{\n    while (reader->lexer->lookahead == ' ') {{\n        step(reader);\n    }}\n}}\n\
+             static void read_word(Reader *reader, char *word) {{\n    step(reader);\n}}\n\
              static bool skip_group(Reader *reader) {{\n    step(reader);\n    return false;\n}}\n\
-             static bool scan_two(Reader *reader, const bool *valid_symbols) {{\n{body}\n    return false;\n}}\n"
+             static bool scan_two(Reader *reader, const bool *valid_symbols) {{\n\
+             \x20   char word[64];\n    read_word(reader, word);\n{body}\n    return false;\n}}\n"
         )
     }
 
@@ -1005,6 +1053,33 @@ mod order_tests {
         assert_eq!(found.len(), 1, "the reader gives one fault, and gave {found:?}");
         assert!(found[0].contains("skip_group"), "the fault names the scan that reads: {found:?}");
         assert!(found[0].contains("next"), "the fault names the stale lookahead: {found:?}");
+    }
+
+    /// THE READER FINDS A SCAN WHOSE RESULT IS AN ENUMERATED VALUE AND NOT `false`.
+    ///
+    /// r48 hit this on 2026-09-16. Its probe read a word and gave `INVOCATION_NONE` on failure,
+    /// which is the value that the branch around it already gave, so the value looked harmless. The
+    /// CALLER treats `INVOCATION_NONE` as "carry on" and scans on with the same reader, and the
+    /// reader had eaten a name. 8 corpus tests and 11 snippets failed at once, among them
+    /// `STACK_OF(X509) sk;` and `NS_IMETHOD_(void) Unlink(void *p) = 0;`.
+    ///
+    /// THE DAMAGE WAS THE CONSUMPTION AND NOT THE VALUE. A search for `return false` finds none of
+    /// this, so the reader looks at what a scan READ and never at what it gave back.
+    #[test]
+    fn the_reader_finds_a_scan_that_gives_an_enumerated_value() {
+        let text = source(
+            "    int32_t next = lexer->lookahead;\n\
+             \x20   Invocation result = skip_group(reader);\n\
+             \x20   if (result == INVOCATION_TOKEN) {\n\
+             \x20       lexer->result_symbol = A;\n\
+             \x20       return true;\n    }\n\
+             \x20   if (valid_symbols[1] && next == '(') {\n\
+             \x20       lexer->result_symbol = B;\n\
+             \x20       return true;\n    }",
+        );
+        let found = faults(&text);
+        assert_eq!(found.len(), 1, "the reader gives one fault, and gave {found:?}");
+        assert!(found[0].contains("skip_group"), "the fault names the scan that reads: {found:?}");
     }
 
     /// A block that saves the budget and gives no token where it changed is correct.
