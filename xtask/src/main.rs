@@ -15,6 +15,8 @@ mod precedence;
 #[cfg(test)]
 mod scanner;
 mod seed;
+/// The `seed` task, which writes the seed that `seed` reads.
+mod seedcollect;
 mod sexp;
 mod syntax;
 mod test;
@@ -147,6 +149,7 @@ fn main() -> ExitCode {
         Some("trees") => trees::run(&args[1..]),
         Some("differ") => differ::run(&repository(), &args[1..]),
         Some("fuzz") => fuzz::run(&repository(), &args[1..]),
+        Some("seed") => seedcollect::run(&args[1..]),
         Some("vendor") => vendor::run(&repository(), &args[1..]),
         // The child process of `fuzz`. The usage does not show it.
         Some("fuzz-worker") => fuzz::worker(),
