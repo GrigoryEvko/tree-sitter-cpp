@@ -35,6 +35,19 @@
 //! that holds more than one action, by the rules that the actions reduce. That report gives the
 //! shape of the ambiguity, and the corpus report gives the texts that reach it.
 //!
+//! THE SECOND ARRIVAL ORDER IS THE VERSION COUNT. `ts_parser__condense_stack` removes each version
+//! after the index `MAX_VERSION_COUNT`, and the pairwise comparison of that function moves a version
+//! only for a smaller error cost or a larger dynamic precedence. Two versions of equal cost and
+//! equal dynamic precedence keep the order in which they arrived, and the cull then takes the one
+//! that arrived later. `cargo xtask ties versions` reports each file whose count passes the limit,
+//! and it compares the files with `test/ties/versions.txt` under the same baseline rule.
+//!
+//! The measurement of the full corpus of 329,387 files: 59 files pass the limit of 32, the largest
+//! count is 66, and no file aborts a reduce for the limit `MAX_VERSION_COUNT_OVERFLOW`. With the
+//! limit at 256, which removes each of these culls, two files get a different tree, and the two
+//! already have an ERROR node with each limit. The remaining arrival-order culls of the runtime
+//! change no tree of a file that parses with no error.
+//!
 //! `cargo xtask ties trace FILE` prints the parse log of one file. With `--state N` it prints only
 //! the rows where the parser enters the state N, which tells which text reaches a state of the
 //! parse table.
@@ -57,6 +70,9 @@ const TIE_MESSAGES: [&str; 2] = ["select_earlier", "select_existing"];
 
 /// The path of the baseline in the repository.
 const BASELINE: &str = "test/ties/baseline.txt";
+
+/// The baseline of the version counts in the repository.
+const VERSIONS: &str = "test/ties/versions.txt";
 
 /// The list of the files of the baseline, relative to the root of the corpus.
 const SAMPLE_LIST: &str = "test/ties/sample.txt";
@@ -102,6 +118,41 @@ impl Site {
     }
 }
 
+/// The largest version count of the GLR parser in one file.
+///
+/// `ts_parser__condense_stack` of vendor/tree-sitter/src/parser.c removes each version after the
+/// index `MAX_VERSION_COUNT`. The index order is the order in which the versions arrived, and the
+/// pairwise comparison of that function moves a version only for a smaller error cost or a larger
+/// dynamic precedence. A file whose count passes the limit then loses a version by arrival order.
+#[derive(Clone, Debug, PartialEq, Eq, PartialOrd, Ord)]
+pub struct FileVersions {
+    /// The path of the file, relative to the root of the corpus.
+    pub path: String,
+    /// The largest count of versions of the parse.
+    pub versions: usize,
+    /// The row of the largest count, from 1.
+    pub row: usize,
+    /// The column of the largest count, from 1.
+    pub column: usize,
+}
+
+impl FileVersions {
+    /// One row of the baseline file.
+    fn row_text(&self) -> String {
+        format!("{}\t{}\t{}\t{}", self.path, self.versions, self.row, self.column)
+    }
+
+    /// Read one row of the baseline file.
+    fn from_row(row: &str) -> Option<Self> {
+        let mut parts = row.split('\t');
+        let path = parts.next()?.to_owned();
+        let versions = parts.next()?.parse().ok()?;
+        let line = parts.next()?.parse().ok()?;
+        let column = parts.next()?.parse().ok()?;
+        Some(Self { path, versions, row: line, column })
+    }
+}
+
 /// The state of the logger of one parser.
 #[derive(Default)]
 struct Log {
@@ -113,6 +164,10 @@ struct Log {
     column: usize,
     /// The sites of the file that the parser reads.
     sites: Vec<Site>,
+    /// The largest version count of the file, and the position of that count.
+    versions: usize,
+    versions_row: usize,
+    versions_column: usize,
 }
 
 /// Read a numeric field of a log message, for example `row:` of `process version:0, ..., row:3`.
@@ -133,6 +188,13 @@ fn read_message(log: &mut Log, message: &str) {
             log.row = row;
             log.column = column;
         }
+        if let Some(count) = field(rest, "version_count:")
+            && count > log.versions
+        {
+            log.versions = count;
+            log.versions_row = log.row;
+            log.versions_column = log.column;
+        }
         return;
     }
     if TIE_MESSAGES.iter().any(|name| message.starts_with(name)) {
@@ -145,13 +207,22 @@ fn read_message(log: &mut Log, message: &str) {
     }
 }
 
-/// Parse each file of a list and give each site where the symbol order selected the tree.
+/// The result of one run over a list of files.
+#[derive(Default)]
+pub struct Run {
+    /// Each site where the symbol order selected the tree.
+    pub sites: Vec<Site>,
+    /// The largest version count of each file, in the order of the paths.
+    pub versions: Vec<FileVersions>,
+}
+
+/// Parse each file of a list, and give the sites and the largest version count of each file.
 ///
 /// O(n) in the bytes of the files. The parse with a logger is approximately ten times the parse
 /// with no logger, because the runtime writes a message for each character of the lexer.
-pub fn measure(root: &Path, paths: &[&str]) -> Vec<Site> {
+pub fn measure(root: &Path, paths: &[&str]) -> Run {
     let language = Language::new(tree_sitter_cpp::LANGUAGE);
-    let mut sites: Vec<Site> = paths
+    let mut rows: Vec<(Vec<Site>, FileVersions)> = paths
         .par_iter()
         .map_init(
             || {
@@ -172,8 +243,14 @@ pub fn measure(root: &Path, paths: &[&str]) -> Vec<Site> {
                 (parser, shared)
             },
             |(parser, shared), path| {
+                let file = FileVersions {
+                    path: (*path).to_owned(),
+                    versions: 0,
+                    row: 1,
+                    column: 1,
+                };
                 let Ok(source) = fs::read(root.join(path)) else {
-                    return Vec::new();
+                    return (Vec::new(), file);
                 };
                 {
                     let mut log = shared.lock().expect("the reader holds one log");
@@ -182,18 +259,33 @@ pub fn measure(root: &Path, paths: &[&str]) -> Vec<Site> {
                     log.row = 0;
                     log.column = 0;
                     log.sites.clear();
+                    log.versions = 0;
+                    log.versions_row = 0;
+                    log.versions_column = 0;
                 }
                 let tree = crate::corpus::parse_with_limit(parser, &source);
                 let mut log = shared.lock().expect("the reader holds one log");
                 let sites = std::mem::take(&mut log.sites);
+                let file = FileVersions {
+                    versions: log.versions,
+                    row: log.versions_row + 1,
+                    column: log.versions_column + 1,
+                    ..file
+                };
                 drop(tree);
-                sites
+                (sites, file)
             },
         )
-        .flatten()
         .collect();
+    let mut sites: Vec<Site> = Vec::new();
+    let mut versions: Vec<FileVersions> = Vec::with_capacity(rows.len());
+    for (file_sites, file) in rows.drain(..) {
+        sites.extend(file_sites);
+        versions.push(file);
+    }
     sites.sort_unstable();
-    sites
+    versions.sort_unstable();
+    Run { sites, versions }
 }
 
 /// The comparison of the sites of a run with the sites of the baseline.
@@ -519,7 +611,7 @@ fn run_corpus(repository: &Path, args: &[String]) -> Result<(), Box<dyn Error>> 
     let root = Path::new(&root);
     let text = fs::read_to_string(&list).map_err(|e| format!("cannot read the file list {list}: {e}"))?;
     let paths: Vec<&str> = text.lines().filter(|line| !line.is_empty()).collect();
-    let found = measure(root, &paths);
+    let found = measure(root, &paths).sites;
     println!("files {}, sites {}", paths.len(), found.len());
     if write {
         let path = repository.join(BASELINE);
@@ -571,6 +663,108 @@ fn run_corpus(repository: &Path, args: &[String]) -> Result<(), Box<dyn Error>> 
     .into())
 }
 
+/// The value of `MAX_VERSION_COUNT` of the runtime.
+///
+/// The command reads the value from the source of the runtime, so that a change of the limit moves
+/// the report with it.
+fn read_max_version_count(repository: &Path) -> Result<usize, Box<dyn Error>> {
+    let path = repository.join("vendor/tree-sitter/src/parser.c");
+    let text = fs::read_to_string(&path).map_err(|e| format!("cannot read {}: {e}", path.display()))?;
+    let name = "static const unsigned MAX_VERSION_COUNT = ";
+    let rest = text
+        .split_once(name)
+        .ok_or_else(|| format!("{} has no {name}", path.display()))?
+        .1;
+    let digits: String = rest.chars().take_while(char::is_ascii_digit).collect();
+    Ok(digits.parse()?)
+}
+
+/// Read the baseline of the version counts of the repository.
+fn read_versions_baseline(repository: &Path) -> Result<Vec<FileVersions>, Box<dyn Error>> {
+    let path = repository.join(VERSIONS);
+    let text = match fs::read_to_string(&path) {
+        Ok(text) => text,
+        Err(error) if error.kind() == std::io::ErrorKind::NotFound => String::new(),
+        Err(error) => return Err(format!("cannot read {}: {error}", path.display()).into()),
+    };
+    Ok(text
+        .lines()
+        .filter(|line| !line.is_empty() && !line.starts_with('#'))
+        .filter_map(FileVersions::from_row)
+        .collect())
+}
+
+/// Parse the files of a list and report the files whose version count passes the limit.
+///
+/// A file that passes the limit loses a version by arrival order. The command fails for such a file
+/// that `test/ties/versions.txt` does not hold, and it does not fail for a file of that baseline
+/// whose count falls.
+fn run_versions(repository: &Path, args: &[String]) -> Result<(), Box<dyn Error>> {
+    let default_list = repository.join(SAMPLE_LIST).display().to_string();
+    let (write, root, list) = match args {
+        [] => (false, CORPUS.to_owned(), default_list),
+        [flag] if flag == "--write-baseline" => (true, CORPUS.to_owned(), default_list),
+        [flag, root, list] if flag == "--write-baseline" => (true, root.clone(), list.clone()),
+        [root, list] => (false, root.clone(), list.clone()),
+        _ => return Err("usage: cargo xtask ties versions [--write-baseline] [ROOT LIST]".into()),
+    };
+    let limit = read_max_version_count(repository)?;
+    let root = Path::new(&root);
+    let text = fs::read_to_string(&list).map_err(|e| format!("cannot read the file list {list}: {e}"))?;
+    let paths: Vec<&str> = text.lines().filter(|line| !line.is_empty()).collect();
+    let mut found = measure(root, &paths).versions;
+    let largest = found.iter().map(|file| file.versions).max().unwrap_or(0);
+    found.retain(|file| file.versions > limit);
+    println!(
+        "files {}, limit {limit}, largest version count {largest}, files past the limit {}",
+        paths.len(),
+        found.len()
+    );
+    if write {
+        let path = repository.join(VERSIONS);
+        fs::create_dir_all(path.parent().expect("the baseline is in a directory"))?;
+        let mut out = String::new();
+        out.push_str("# The files whose GLR version count passes MAX_VERSION_COUNT of the runtime.\n");
+        out.push_str("# Refer to xtask/src/ties.rs. The columns are the path, the largest version\n");
+        out.push_str("# count, the row, and the column.\n");
+        for file in &found {
+            out.push_str(&file.row_text());
+            out.push('\n');
+        }
+        fs::write(&path, out)?;
+        println!("wrote {}", path.display());
+        return Ok(());
+    }
+    let baseline = read_versions_baseline(repository)?;
+    let held: BTreeSet<&str> = baseline.iter().map(|file| file.path.as_str()).collect();
+    let now: BTreeSet<&str> = found.iter().map(|file| file.path.as_str()).collect();
+    // A file of the baseline that the list does not hold is no fall, and the report leaves it out.
+    let read: BTreeSet<&str> = paths.iter().copied().collect();
+    let added: Vec<&FileVersions> =
+        found.iter().filter(|file| !held.contains(file.path.as_str())).collect();
+    for file in &baseline {
+        if read.contains(file.path.as_str()) && !now.contains(file.path.as_str()) {
+            println!("gone    {} ({} versions)", file.path, file.versions);
+        }
+    }
+    for file in &added {
+        println!("NEW     {}:{}:{}  {} versions", file.path, file.row, file.column, file.versions);
+    }
+    println!("baseline {}, found {}, added {}", baseline.len(), found.len(), added.len());
+    if added.is_empty() {
+        return Ok(());
+    }
+    Err(format!(
+        "{} files whose version count passes the limit {limit} and the baseline holds none. \
+         The condense step of the runtime then removes a version by arrival order. Repair the \
+         ambiguity that makes the versions, or write the baseline again with \
+         `cargo xtask ties versions --write-baseline ROOT LIST` and give the reason in the commit \
+         message.",
+        added.len()
+    )
+    .into())
+}
+
 /// Print the parse log of one file.
 fn run_trace(args: &[String]) -> Result<(), Box<dyn Error>> {
     let (file, state) = match args {
@@ -615,8 +809,11 @@ pub fn run(repository: &Path, args: &[String]) -> Result<(), Box<dyn Error>> {
     match args.first().map(String::as_str) {
         Some("table") => run_table(repository),
         Some("corpus") => run_corpus(repository, &args[1..]),
+        Some("versions") => run_versions(repository, &args[1..]),
         Some("trace") => run_trace(&args[1..]),
-        _ => Err("usage: cargo xtask ties table | corpus [--write-baseline] [ROOT LIST] | trace FILE [--state N]".into()),
+        _ => Err("usage: cargo xtask ties table | corpus [--write-baseline] [ROOT LIST] | \
+                    versions [--write-baseline] [ROOT LIST] | trace FILE [--state N]"
+            .into()),
     }
 }
 
@@ -757,11 +954,32 @@ E(2,1),R(2,1,0,0),R(2,1,0,0),E(1,1),S(9),
         assert!(lists.iter().any(|list| list.class == Class::ShiftReduce));
     }
 
+    /// The value of `MAX_VERSION_COUNT` comes from the source of the runtime.
+    #[test]
+    fn the_version_limit_comes_from_the_runtime() {
+        let limit = read_max_version_count(&repository()).expect("the runtime has the limit");
+        assert!(limit >= 8, "MAX_VERSION_COUNT is {limit}");
+    }
+
+    /// The baseline of the version counts reads again, and each count passes the limit.
+    #[test]
+    fn the_version_baseline_of_the_repository_reads_again() {
+        let repository = repository();
+        let limit = read_max_version_count(&repository).expect("the runtime has the limit");
+        let baseline = read_versions_baseline(&repository).expect("the baseline reads");
+        assert!(!baseline.is_empty(), "test/ties/versions.txt holds no file");
+        for file in &baseline {
+            assert!(!file.path.is_empty());
+            assert!(file.versions > limit, "{} has {} versions", file.path, file.versions);
+        }
+    }
+
     /// The sites of the sample list of the corpus agree with the baseline.
     ///
     /// The test fails for a site that the baseline does not hold, and it does not fail for a site of
     /// the baseline that is gone. A repair of a tie must never fail its own check. A machine with no
-    /// corpus in `CORPUS` reads no file, and the test then compares nothing.
+    /// corpus in `CORPUS` reads no file, and the test then compares nothing. The test also compares
+    /// the files whose version count passes `MAX_VERSION_COUNT` with `test/ties/versions.txt`.
     #[test]
     fn the_sites_of_the_sample_hold_no_site_that_the_baseline_does_not_hold() {
         let repository = repository();
@@ -773,7 +991,24 @@ E(2,1),R(2,1,0,0),R(2,1,0,0),E(1,1),S(9),
         let text = fs::read_to_string(repository.join(SAMPLE_LIST)).expect("the sample list reads");
         let paths: Vec<&str> = text.lines().filter(|line| !line.is_empty()).collect();
         let baseline = read_baseline(&repository).expect("the baseline reads");
-        let found = measure(root, &paths);
+        let run = measure(root, &paths);
+        let found = run.sites;
+
+        let limit = read_max_version_count(&repository).expect("the runtime has the limit");
+        let versions = read_versions_baseline(&repository).expect("the version baseline reads");
+        let held: BTreeSet<&str> = versions.iter().map(|file| file.path.as_str()).collect();
+        let over: Vec<&FileVersions> = run
+            .versions
+            .iter()
+            .filter(|file| file.versions > limit && !held.contains(file.path.as_str()))
+            .collect();
+        assert!(
+            over.is_empty(),
+            "{} files whose version count passes {limit} and test/ties/versions.txt holds none: {:?}",
+            over.len(),
+            over.iter().take(5).map(|file| &file.path).collect::<Vec<_>>()
+        );
+
         let comparison = compare(&baseline, &found);
         let names: Vec<String> = comparison
             .added

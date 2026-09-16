@@ -37,10 +37,15 @@ tasks:
                            holds no reduce action with a value that the grammar declares.
   ties table               Print each action list of src/parser.c that holds more than one action,
                            by class and by the rules that the reduce actions reduce.
-  ties corpus ROOT LIST    Parse each file of LIST with the logger of the runtime, and print each
+  ties corpus [ROOT LIST]  Parse each file of LIST with the logger of the runtime, and print each
                            site where the order of the symbol ids selects the tree. Fail for a site
                            that test/ties/baseline.txt does not hold. With --write-baseline before
-                           ROOT, write the sites to that file and fail for none.
+                           ROOT, write the sites to that file and fail for none. With no ROOT and no
+                           LIST, read /tmp/cpp-corpora and test/ties/sample.txt.
+  ties versions [ROOT LIST]
+                           Print each file of LIST whose GLR version count passes MAX_VERSION_COUNT
+                           of the runtime. The condense step then removes a version by arrival
+                           order. Fail for a file that test/ties/versions.txt does not hold.
   ties trace FILE          Print the parse log of FILE. With --state N, print only the rows where
                            the parser enters the state N.
   test [--update] [NAME]   Run the corpus tests in test/corpus. With --update, write the actual
