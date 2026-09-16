@@ -2774,15 +2774,19 @@ static AfterCall scan_after_macro_call(Reader *reader, const Scanner *classes, b
         // there starts a declaration, and the names before it are its attribute macros:
         // `ATTR_WARN_UNUSED_RESULT ATTR_NONNULL(1, 2)` and `bool g(int a, int b);` on the next line.
         //
-        // THE EXAMPLE ABOVE IS SHADOWED: `bool` is a keyword of the grammar, and the test below
-        // stops the chain for it. A measurement over the corpus gives 524 firings, 474 of them on a
-        // keyword. The guard alone decides 50, and 48 of those hold one shape,
-        // `SWIFT_EXPORT_FROM(swift_Concurrency) SWIFT_CC(swift)` and
-        // `AsyncTaskAndContext swift_task_create(int a);` on the next line, WHICH IT READS WRONGLY.
-        // GCC and Clang accept that text with no diagnostic.
-        if (crossed_line && !is_macro_name(word, has_lower)) {
-            return AFTER_CALL_NONE;
-        }
+        // A chain of macros can cross a line break, and the word after the break tells the scan what
+        // follows. A keyword of the grammar stops the chain, and the test below reads it:
+        // `ATTR_WARN_UNUSED_RESULT ATTR_NONNULL(1, 2)` and `bool g(int a, int b);` on the next line.
+        //
+        // A NAME THAT IS NO KEYWORD MUST NOT STOP THE CHAIN, because the type of a declaration is
+        // such a name: `SWIFT_EXPORT_FROM(swift_Concurrency) SWIFT_CC(swift)` and
+        // `AsyncTaskAndContext swift_task_create(int a);` of swift. GCC and Clang accept that text
+        // with no diagnostic.
+        //
+        // An earlier guard here stopped the chain for each word that was no macro name. It fired 524
+        // times over the corpus. 474 of those held a keyword, which the test below stops anyway. The
+        // guard alone decided 50, and 48 of those held the shape above, at 23 sites of one file.
+
         // The keyword of a statement starts no declaration, and the macro is an attribute of that
         // statement: `MACRO(x) return g(a);`.
         if (word_in(word, STATEMENT_ATTRIBUTE_WORDS)) {

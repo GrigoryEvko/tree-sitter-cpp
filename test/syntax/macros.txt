@@ -451,3 +451,9 @@ void h() { SUPPRESS_UNCOUNTED_ARG baseValue.m_structure.forEach(visitor); }
 void h() { SUPPRESS_UNCOUNTED_ARG s.m = 1; }
 ### bare_macro_before_a_declaration
 void h() { ATTR S s2; }
+### macro_chain_before_a_type_name
+SWIFT_EXPORT_FROM(swift_Concurrency) SWIFT_CC(swift)
+AsyncTaskAndContext swift_task_create(int a);
+### macro_chain_before_a_keyword
+ATTR_WARN_UNUSED_RESULT ATTR_NONNULL(1, 2)
+bool g(int a, int b);
