@@ -140,6 +140,9 @@ enum TokenType {
     /// An empty mark before the extra tokens of an `#endif` or an `#else` line. The scanner gives the
     /// mark only when the rest of that line holds a token.
     PREPROC_EXTRA_MARK,
+    /// The name of a macro between the name of a function and its argument list, in an expression:
+    /// `c_policies::acosh BOOST_MATH_PREVENT_MACRO_SUBSTITUTION(x)`. The token holds the name.
+    CALL_NAME_MACRO_NAME,
     /// The count of the external tokens, and not a token. `tree_sitter_cpp_external_scanner_create`
     /// compares it with the count of the parser.
     TOKEN_TYPE_COUNT,
@@ -3606,6 +3609,28 @@ static TrailingWord read_trailing_word(TSLexer *lexer) {
     return TRAILING_WORD_OTHER;
 }
 
+/// Scan the name of a macro between the name of a function and its argument list:
+/// `BOOST_MATH_PREVENT_MACRO_SUBSTITUTION` in `return c_policies::acosh
+/// BOOST_MATH_PREVENT_MACRO_SUBSTITUTION(x);`. The macro expands to nothing, and it stops the expansion
+/// of a macro that has the name of the function. The scan starts after the name, and the token ends
+/// there.
+///
+/// A balanced group in parentheses comes after the name on the same line. The grammar takes the token
+/// after a qualified name only, and two plain names before a `(` keep the reading of the scope macro:
+/// `CGAL_NTS abs(a)`. O(n) in the length of the group.
+static bool scan_call_name_macro(Reader *reader) {
+    TSLexer *lexer = reader->lexer;
+    lexer->result_symbol = CALL_NAME_MACRO_NAME;
+    mark_end(lexer);
+    Gap gap = {0};
+    skip_gap(reader, &gap);
+    if (gap.blocked || gap.newlines > 0 || lexer->lookahead != '(') {
+        return false;
+    }
+    Arguments arguments = {0};
+    return skip_group(reader, &arguments);
+}
+
 /// Scan the name of a macro after a declarator, in the place of a GNU attribute: `PURE` in
 /// `virtual void f() PURE;`, `TSA_REQUIRES` in `void g() TSA_REQUIRES(mu);`.
 ///
@@ -3645,16 +3670,19 @@ static bool scan_trailing_macro_name(TSLexer *lexer, const Scanner *scanner, boo
             return false;
         }
         if (after_macro && lexer->lookahead == '(') {
+            // The group can be the parameter list of the declarator.
+            bool parameter_list = false;
             if (declarator) {
                 Arguments arguments = {0};
                 if (!skip_group(&reader, &arguments)) {
                     return false;
                 }
+                parameter_list = name_macro && !arguments.not_parameters;
                 if (arguments.empty || arguments.not_expressions || arguments.statements) {
                     // The group cannot be the arguments of a macro, and it is the parameter list of the
                     // declarator. The macro then comes between the name of the declarator and that list:
                     // `const P& min BOOST_PREVENT_MACRO_SUBSTITUTION () const;`.
-                    if (name_macro && !arguments.not_parameters) {
+                    if (parameter_list) {
                         lexer->result_symbol = DECLARATOR_NAME_MACRO_NAME;
                         return true;
                     }
@@ -3667,6 +3695,20 @@ static bool scan_trailing_macro_name(TSLexer *lexer, const Scanner *scanner, boo
             skip_gap(&reader, &gap);
             if (gap.blocked) {
                 return false;
+            }
+            if (parameter_list && lexer->lookahead == '{') {
+                // A body of statements after the group: `bool signbit NO_MACRO_EXPAND(T)` and `{ return false; }`
+                // in boost/math/tr1.hpp. The arguments of an attribute macro of a variable have no body after
+                // them, and the group is the parameter list of the declarator. A braced initializer holds no
+                // statement, and `T v GUARDED_BY(mu) {};` keeps the macro of the variable.
+                Arguments body = {0};
+                if (!skip_group(&reader, &body)) {
+                    return false;
+                }
+                if (body.statements) {
+                    lexer->result_symbol = DECLARATOR_NAME_MACRO_NAME;
+                }
+                return true;
             }
         }
         switch (lexer->lookahead) {
@@ -7520,6 +7562,19 @@ static bool scan_word_start(Scanner *scanner, TSLexer *lexer, const bool *valid_
     bool macro_shaped = length >= 2 && is_macro_name(word, has_lower);
     if ((valid_symbols[CALL_MACRO_NAME] || pointer_macro) && macro_shaped && !call_attribute) {
         return scan_call_macro_name(lexer, scanner, pointer_macro, true);
+    }
+    // A macro between the name of a function and its argument list, after a qualified name. The
+    // grammar makes the token valid there only. Where a declarator can start after a type, the call
+    // macro token is also valid, and an uppercase name is the declarator: `std::string NAME(x);`.
+    //
+    // A type-id keeps its reading. In the template argument
+    // `::boost::recursive_variant_ BOOST_MPL_AUX_LAMBDA_ARITY_PARAM(Arity)` of
+    // boost/variant/recursive_variant.hpp:59, the name is a type and the macro is the attribute macro
+    // of an abstract function declarator. The token of that declarator is valid there, and the token
+    // of a call takes the name away from it.
+    if (valid_symbols[CALL_NAME_MACRO_NAME] && !valid_symbols[CALL_MACRO_NAME] &&
+        !valid_symbols[DECLARATOR_NAME_MACRO_NAME] && length >= 2 && is_macro_name(word, has_lower)) {
+        return scan_call_name_macro(&reader);
     }
     // A calling convention has no arguments, and no `<` comes after it. A name before `(` keeps the scans
     // of a macro call before a parameter, and a name before `<` keeps the scan of a comparison name. Where

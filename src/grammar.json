@@ -19504,6 +19504,40 @@
             ]
           },
           {
+            "type": "PREC",
+            "value": 16,
+            "content": {
+              "type": "SEQ",
+              "members": [
+                {
+                  "type": "FIELD",
+                  "name": "function",
+                  "content": {
+                    "type": "SYMBOL",
+                    "name": "qualified_identifier"
+                  }
+                },
+                {
+                  "type": "ALIAS",
+                  "content": {
+                    "type": "SYMBOL",
+                    "name": "_call_name_macro"
+                  },
+                  "named": true,
+                  "value": "attribute_macro"
+                },
+                {
+                  "type": "FIELD",
+                  "name": "arguments",
+                  "content": {
+                    "type": "SYMBOL",
+                    "name": "argument_list"
+                  }
+                }
+              ]
+            }
+          },
+          {
             "type": "SEQ",
             "members": [
               {
@@ -32762,6 +32796,19 @@
         }
       }
     },
+    "_call_name_macro": {
+      "type": "FIELD",
+      "name": "name",
+      "content": {
+        "type": "ALIAS",
+        "content": {
+          "type": "SYMBOL",
+          "name": "_call_name_macro_name"
+        },
+        "named": true,
+        "value": "identifier"
+      }
+    },
     "_function_declarator_seq": {
       "type": "SEQ",
       "members": [
@@ -44717,6 +44764,10 @@
     {
       "type": "SYMBOL",
       "name": "_preproc_extra_mark"
+    },
+    {
+      "type": "SYMBOL",
+      "name": "_call_name_macro_name"
     }
   ],
   "inline": [

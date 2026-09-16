@@ -352,6 +352,14 @@ template(typename T, typename V)(
 concept (output_range_)(T, V),
     output_iterator<iterator_t<T>, V>
 );
+### macro_between_a_qualified_name_and_its_arguments
+inline double f(double x) { return boost::math::tr1::boost_acosh BOOST_MATH_PREVENT_MACRO_SUBSTITUTION(x); }
+int f() { return limits_type::min BOOST_PREVENT_MACRO_SUBSTITUTION (); }
+void g() { x = std::string NAME(y); }
+void h() { y = ::acosh MACRO(z); }
+### macro_between_a_name_and_a_parameter_list_before_a_body
+template<class T> bool signbit NO_MACRO_EXPAND(T)
+{ static_assert(sizeof(T) == 0, "never"); return false; }
 ### macro_template_with_a_template_template_parameter
 template(template<typename...> class ContT, typename Rng, typename C = meta::invoke<detail::from_range<ContT>, Rng>)(
     requires range<Rng>)

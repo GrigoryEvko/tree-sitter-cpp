@@ -1809,6 +1809,16 @@
           }
         ]
       }
+    },
+    "children": {
+      "multiple": false,
+      "required": false,
+      "types": [
+        {
+          "type": "attribute_macro",
+          "named": true
+        }
+      ]
     }
   },
   {

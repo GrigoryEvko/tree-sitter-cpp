@@ -2129,3 +2129,143 @@ struct S {
                   type: (type_identifier)
                   declarator: (reference_declarator
                     (identifier)))))))))))
+
+================================================================================
+A macro between the name of a function and its arguments
+================================================================================
+
+double f(double x) {
+    return c_policies::acosh BOOST_MATH_PREVENT_MACRO_SUBSTITUTION(x);
+}
+double g(double x) { return ::acosh MACRO(x) + a::b::acosh MACRO(x); }
+template<class T> bool signbit NO_MACRO_EXPAND(T)
+{ return false; }
+
+--------------------------------------------------------------------------------
+
+(translation_unit
+  (function_definition
+    type: (primitive_type)
+    declarator: (function_declarator
+      declarator: (identifier)
+      parameters: (parameter_list
+        (parameter_declaration
+          type: (primitive_type)
+          declarator: (identifier))))
+    body: (compound_statement
+      (return_statement
+        (call_expression
+          function: (qualified_identifier
+            scope: (namespace_identifier)
+            name: (identifier))
+          (attribute_macro
+            name: (identifier))
+          arguments: (argument_list
+            (identifier))))))
+  (function_definition
+    type: (primitive_type)
+    declarator: (function_declarator
+      declarator: (identifier)
+      parameters: (parameter_list
+        (parameter_declaration
+          type: (primitive_type)
+          declarator: (identifier))))
+    body: (compound_statement
+      (return_statement
+        (binary_expression
+          left: (call_expression
+            function: (qualified_identifier
+              name: (identifier))
+            (attribute_macro
+              name: (identifier))
+            arguments: (argument_list
+              (identifier)))
+          right: (call_expression
+            function: (qualified_identifier
+              scope: (namespace_identifier)
+              name: (qualified_identifier
+                scope: (namespace_identifier)
+                name: (identifier)))
+            (attribute_macro
+              name: (identifier))
+            arguments: (argument_list
+              (identifier)))))))
+  (template_declaration
+    parameters: (template_parameter_list
+      (type_parameter_declaration
+        (type_identifier)))
+    (function_definition
+      type: (primitive_type)
+      declarator: (function_declarator
+        declarator: (identifier)
+        (attribute_macro
+          name: (identifier))
+        parameters: (parameter_list
+          (parameter_declaration
+            type: (type_identifier))))
+      body: (compound_statement
+        (return_statement
+          (false))))))
+
+================================================================================
+Two plain names before a call keep the reading with the macro scope
+================================================================================
+
+int h(int a) { return STD MAX(a); }
+double k(double x) { return acosh MACRO(x); }
+void g(bool v) { if (v) { T_ P_(LINE) } }
+
+--------------------------------------------------------------------------------
+
+(translation_unit
+  (function_definition
+    type: (primitive_type)
+    declarator: (function_declarator
+      declarator: (identifier)
+      parameters: (parameter_list
+        (parameter_declaration
+          type: (primitive_type)
+          declarator: (identifier))))
+    body: (compound_statement
+      (return_statement
+        (call_expression
+          function: (qualified_identifier
+            scope: (namespace_identifier)
+            name: (identifier))
+          arguments: (argument_list
+            (identifier))))))
+  (function_definition
+    type: (primitive_type)
+    declarator: (function_declarator
+      declarator: (identifier)
+      parameters: (parameter_list
+        (parameter_declaration
+          type: (primitive_type)
+          declarator: (identifier))))
+    body: (compound_statement
+      (return_statement
+        (call_expression
+          function: (qualified_identifier
+            scope: (namespace_identifier)
+            name: (identifier))
+          arguments: (argument_list
+            (identifier))))))
+  (function_definition
+    type: (primitive_type)
+    declarator: (function_declarator
+      declarator: (identifier)
+      parameters: (parameter_list
+        (parameter_declaration
+          type: (primitive_type)
+          declarator: (identifier))))
+    body: (compound_statement
+      (if_statement
+        condition: (condition_clause
+          value: (identifier))
+        consequence: (compound_statement
+          (macro_invocation
+            name: (identifier))
+          (macro_invocation
+            name: (identifier)
+            arguments: (token_tree
+              (identifier))))))))

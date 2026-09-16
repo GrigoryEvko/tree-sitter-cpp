@@ -165,6 +165,10 @@ pub fn grammar() -> Grammar {
         // the mark only when the rest of that line holds a token, so a line with no such token takes
         // no line end, and the node of the group keeps its range.
         s!(_preproc_extra_mark),
+        // The name of a macro between the name of a function and its argument list:
+        // `c_policies::acosh BOOST_MATH_PREVENT_MACRO_SUBSTITUTION(x)`. The token holds the name, and
+        // the grammar makes it valid after a qualified name only. Refer to `call_expression`.
+        s!(_call_name_macro_name),
     ];
     // The conflict sets of the grammar. Each set names the rules of one ambiguity, and it tells the
     // generator to keep each reading in a GLR split.
@@ -3940,6 +3944,12 @@ fn declarations(g: &mut Grammar) {
         "_declarator_name_macro",
         prec_dynamic(-2, field("name", alias(s!(_declarator_name_macro_name), s!(identifier)))),
     );
+    // The same macro between the name of a function and its argument list, in an expression:
+    // `return c_policies::acosh BOOST_MATH_PREVENT_MACRO_SUBSTITUTION(x);`. Refer to `call_expression`.
+    g.define(
+        "_call_name_macro",
+        field("name", alias(s!(_call_name_macro_name), s!(identifier))),
+    );
     g.define(
         "_function_declarator_seq",
         seq![
@@ -6267,6 +6277,36 @@ fn expressions(g: &mut Grammar) {
                     ),
                     field("arguments", s!(argument_list)),
                 ],
+                // A macro between the name of a function and its arguments, which expands to nothing:
+                // `c_policies::acosh BOOST_MATH_PREVENT_MACRO_SUBSTITUTION(x)` in boost, which stops the
+                // expansion of a macro with the name of the function. GCC `cp_parser_postfix_expression`
+                // and Clang `ParsePostfixExpressionSuffix` read the expansion, which is the call. The
+                // external scanner reads the name of the macro, and only a `(` comes after it. Refer
+                // to `scan_call_name_macro` in src/scanner.c.
+                //
+                // The macro has its own external token, and it is not the token of
+                // `_declarator_name_macro`. That token is valid in each function declarator, and an
+                // abstract function declarator takes it too. The macro before the parameter list of a
+                // type-id is the calling convention of that type, which `call_macro` reads:
+                // `using F = HRESULT WINAPI(IMLOperatorRegistry **registry);`. A token that is valid
+                // after a qualified name in an expression only cannot take that position.
+                //
+                // THE NAME OF THE FUNCTION IS A QUALIFIED NAME, AND NEVER A PLAIN NAME. Two plain names
+                // before a `(` are also a macro that gives a scope and the name that it qualifies, which
+                // `_macro_scope_expression_name` reads. That rule has no scanner token, so a token here
+                // takes the name and the other reading stops. The measurement of 2026-09-16 gives
+                // approximately 1300 rows of two macro-shaped names in the corpus, and the FIRST name is
+                // the macro in each one: `T_ P_(LINE)` 1183 rows in the test drivers of bde,
+                // `TRUE USE_ITT_BUILD_ARG(o)` 16, `LIBRARY_PREFIX ORT_TSTR("x")` 19. A qualified name
+                // before the macro cannot be such a scope, and the position is the evidence.
+                prec(
+                    CALL,
+                    seq![
+                        field("function", s!(qualified_identifier)),
+                        alias(s!(_call_name_macro), s!(attribute_macro)),
+                        field("arguments", s!(argument_list)),
+                    ]
+                ),
                 // A functional cast to a class that the file declares: `A(x)`. Only name lookup tells
                 // a type name from a function name in `T(x)` (GCC `cp_parser_postfix_expression`,
                 // Clang `ParsePostfixExpressionSuffix`). The external scanner records the names of the
