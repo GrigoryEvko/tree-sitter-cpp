@@ -174,6 +174,11 @@ enum TokenType {
     /// `"arena." STRINGIFY(MALLCTL_ARENAS_ALL) ".purge"`. The scan gives it when a balanced group
     /// and a string literal come after the name.
     CONCATENATED_MACRO_START,
+    /// An empty token before the name of a macro call that gives a whole template parameter:
+    /// `template <typename T, FMT_ENABLE_IF(!x)>`. The scan gives it only when the balanced group
+    /// after the name CANNOT be a parameter list, because a group that can be one keeps the reading
+    /// of a parameter declaration that it has today.
+    TEMPLATE_PARAMETER_MACRO_START,
     /// The count of the external tokens, and not a token. `tree_sitter_cpp_external_scanner_create`
     /// compares it with the count of the parser.
     TOKEN_TYPE_COUNT,
@@ -867,6 +872,16 @@ typedef struct {
     /// `MATCHER_P(IsNode, height, absl::StrCat("height ", height))`. A default argument holds a call
     /// of its own, and the scan does not read the groups after a `=`.
     bool call_arguments;
+    /// An argument starts with a `*`, a `&`, or a `&&`. Such an argument can be a declarator of a
+    /// pointer or of a reference, whatever comes after the operator: `(*p)`, `(&)`, `(*p[3])`.
+    /// `pointer_declarator` takes the tokens after the operator, and this field takes the operator
+    /// only, for a reader that must know that a declarator is possible.
+    bool pointer_first;
+    /// An argument starts with a bracketed group: `((V))`, `((a, b))`, `([1])`. Such an argument can
+    /// be a parenthesized declarator, and the tokens in the group decide which one. This record
+    /// holds the top level only, so a reader that must know the shape of the group reads this field
+    /// and takes no decision from the tokens of the group.
+    bool group_first;
 } Arguments;
 
 /// The kind of the line that comes after a macro invocation.
@@ -1420,6 +1435,7 @@ static void end_argument(Arguments *args, const Argument *arg) {
     args->pointer_declarator = args->argument_count == 0 && arg->first_is_pointer && arg->tokens >= 2 &&
                                !arg->not_type_id && arg->type_id_end;
     args->bare_name |= arg->tokens == 1 && arg->first_is_word && !arg->first_is_type;
+    args->pointer_first |= arg->first_is_pointer;
     args->argument_count++;
     if (arg->tokens == 0) {
         args->not_parameters = true;
@@ -1507,6 +1523,9 @@ static bool skip_group(Reader *reader, Arguments *args) {
             bool attribute = c == '[' && lexer->lookahead == '[';
             if ((arg.tokens == 0 && !attribute) || (arg.tokens == 1 && arg.first_is_word && c == '{')) {
                 args->not_parameters = true;
+            }
+            if (arg.tokens == 0) {
+                args->group_first = true;
             }
             if (arg.tokens == 1 && arg.first_is_type && c == '[') {
                 args->not_expressions = true;
@@ -3629,7 +3648,11 @@ static bool scan_macro_start(Reader reader, const char *name, bool has_lower, co
         macro_name && length >= 2;
     // A line that holds only macro invocations, where a statement can start: `T_ P_(LINE) P(X)`.
     bool macro_line_possible = valid_symbols[MACRO_LINE_START] && valid_symbols[MACRO_CALL_START] && macro_name;
-    if (!invocation && !constructor && !attribute_call && !statement_attribute) {
+    // A macro call that gives a whole template parameter needs no macro-shaped name, because the
+    // group after the name decides it. Refer to the reading of `template_parameter_macro` below.
+    bool template_parameter_macro = valid_symbols[TEMPLATE_PARAMETER_MACRO_START] && !is_grammar_keyword(name) &&
+                                    !word_in(name, TYPE_WORDS);
+    if (!invocation && !constructor && !attribute_call && !statement_attribute && !template_parameter_macro) {
         return false;
     }
 
@@ -3643,7 +3666,7 @@ static bool scan_macro_start(Reader reader, const char *name, bool has_lower, co
     bool same_line = gap.newlines == 0;
     Arguments args = {0};
     bool call = false;
-    if ((macro_name || sal || member_name) && !gap.directive && lexer->lookahead == '(' &&
+    if ((macro_name || sal || member_name || template_parameter_macro) && !gap.directive && lexer->lookahead == '(' &&
         (same_line || length >= MACRO_MIN_BARE_LENGTH)) {
         if (!skip_group(&reader, &args)) {
             return false;
@@ -3669,6 +3692,40 @@ static bool scan_macro_start(Reader reader, const char *name, bool has_lower, co
             return false;
         }
         lexer->result_symbol = MACRO_SCOPE_START;
+        return true;
+    }
+    // A macro call that gives a whole template parameter: `template <typename T,
+    // FMT_ENABLE_IF(!std::is_same<Char, char>::value)>` in fmt. The grammar reads `NAME(...)` there
+    // as a parameter of type NAME with an abstract function declarator, so a group that is no
+    // parameter list has no reading, and the file holds an ERROR node.
+    //
+    // THE GROUP GIVES THE EVIDENCE AND THE NAME PROVES NOTHING, so the name needs no macro shape.
+    // A `!`, a `==`, a `?`, a `;`, and a statement keyword cannot come at the top level of a
+    // parameter list, and a text with such a group is invalid without a macro. GCC
+    // `cp_parser_template_parameter_list` (gcc/cp/parser.cc) and Clang `ParseTemplateParameterList`
+    // (clang/lib/Parse/ParseTemplate.cpp) read a parameter declaration there, and both reject each
+    // of those groups.
+    //
+    // A GROUP THAT CAN BE A PARAMETER LIST OR A DECLARATOR GETS NO TOKEN, and the reading of that
+    // text does not move. `U(V)` is a legal non-type parameter of function type, `U()` is the same
+    // form with no parameter, and `U(*p)`, `U(&r)`, `U(*)` and `U(*p[3])` are the parenthesized
+    // declarator of a pointer or of a reference. `U((V))`, `U((v))` and `U((V, W))` are the same
+    // declarator with the parentheses that a declarator can always take. THE TWO FRONT ENDS TAKE ALL
+    // OF THEM: with every name declared, Clang 22.1.8 reports no error for any of the nine, and GCC
+    // 16.2.1 reports only that `U(V)` declares a parameter with no type, which is its reading of the
+    // same declarator. `pointer_first` holds the fact for the pointers and the references,
+    // `group_first` for the group in a group, and `one_type_id` keeps the group of a macro type
+    // specifier, which this scan answers first.
+    //
+    // A GROUP IN A GROUP DECLINES WHATEVER IT HOLDS, and `hb_requires ((hb_is_source_of<...>::value))`
+    // of harfbuzz keeps the tree that it has today, which is wrong. This record reads the top level
+    // of the group only, so the scan cannot tell that group from `U((V))`, and a rule that cannot
+    // tell two texts apart must take the reading that holds for both. Refer to the macro table.
+    //
+    // The scan of the group is the one above, because the lexer cannot read the same group twice.
+    if (call && template_parameter_macro && !gap.directive && args.not_parameters && !args.empty &&
+        !args.pointer_first && !args.group_first && !args.one_type_id) {
+        lexer->result_symbol = TEMPLATE_PARAMETER_MACRO_START;
         return true;
     }
     // A name that is a macro only by its place must have the argument list that makes it one. A group
@@ -8625,6 +8682,7 @@ static bool can_be_empty(TSSymbol symbol) {
         case MACRO_SCOPE_START:
         case CONCATENATED_MACRO_START:
         case INITIALIZER_MACRO_START:
+        case TEMPLATE_PARAMETER_MACRO_START:
         case RAW_STRING_CONTENT:
             return true;
         default:

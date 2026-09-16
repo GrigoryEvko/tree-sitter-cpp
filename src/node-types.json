@@ -10960,6 +10960,10 @@
       "required": false,
       "types": [
         {
+          "type": "macro_invocation",
+          "named": true
+        },
+        {
           "type": "optional_parameter_declaration",
           "named": true
         },

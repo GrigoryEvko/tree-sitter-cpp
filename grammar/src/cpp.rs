@@ -201,6 +201,11 @@ pub fn grammar() -> Grammar {
         // `"arena." STRINGIFY(ALL) ".purge"`. The scanner gives it when a balanced group and a
         // string literal come after the name. Refer to `_concatenated_macro_call`.
         s!(_concatenated_macro_start),
+        // An empty token before the name of a macro call that gives a whole template parameter:
+        // `template <typename T, FMT_ENABLE_IF(!x)>`. The scanner gives it only where the group
+        // after the name cannot be a parameter list, so a text with the two readings does not move.
+        // Refer to `_template_parameter_macro`.
+        s!(_template_parameter_macro_start),
     ];
     // The conflict sets of the grammar. Each set names the rules of one ambiguity, and it tells the
     // generator to keep each reading in a GLR split.
@@ -2906,6 +2911,44 @@ fn declarations(g: &mut Grammar) {
             ],
         ),
     );
+    // A whole template parameter that a macro call gives: `template <typename T,
+    // FMT_ENABLE_IF(!std::is_same<Char, char>::value)> void f();` in fmt. The macro expands to a
+    // parameter, and its argument is a constraint that no parameter holds. The grammar reads
+    // `NAME(...)` in this position as a parameter of type NAME with an abstract function declarator,
+    // so an argument that is no parameter list has NO READING AT ALL, and the file gets an ERROR node.
+    //
+    // A token tree holds the argument, because the tokens of the argument are a constraint of the
+    // expansion and not a parameter of this list. The tokens `!`, `==`, and `&&` occur in them.
+    //
+    // THE SCANNER DECIDES, AND NOT A PRECEDENCE. The empty token comes only where the group after the
+    // name cannot be a parameter list, which is the pattern of `_macro_call_attribute_tokens` and
+    // `_statement_attribute_macro_tokens`: "The scanner gives a different token when the arguments
+    // are not expressions, and the arguments are then a token tree, as in a macro invocation."
+    // Where the scanner gives no token this rule is not reachable, so a text that has the two
+    // readings keeps the tree that it has today, by construction and not by a number.
+    //
+    // A RULE WITH A DYNAMIC PRECEDENCE CANNOT DO THIS, and the measurement says why. An alternative
+    // here needs a conflict of `_declarator_of_name`, `type_specifier` and this rule, and with that
+    // conflict the generator keeps ONE reading. With the value -400 in the reduce action of the
+    // table, a parse of `template <class T, U(V)> void h();` under the runtime logger runs from
+    // `template` to `>` with `version_count:1` and gives the macro. The two candidates that the
+    // logger compares, -99 against -199, BOTH hold this production, so the reading of a parameter is
+    // not one of them. It is gone from the table, and no value can select a reading that is absent.
+    //
+    // The position does not prove which reading is correct where a parameter list is possible, and
+    // this rule does not decide it. `template <class T, U(V)>` with the types U and V is a legal
+    // non-type parameter of function type, and it is the same shape as the macro call. Only the name
+    // tells them apart, and the fact necessary for that is whether the project DEFINES the name as a
+    // macro. The type seed of #275 cannot answer it, because a macro name is no type and never
+    // enters that seed, so its absence there proves nothing. The macro table of #276 can decide it.
+    g.define(
+        "_template_parameter_macro",
+        seq![
+            s!(_template_parameter_macro_start),
+            field("name", s!(identifier)),
+            field("arguments", alias(s!(_macro_arguments), s!(token_tree))),
+        ],
+    );
     let template_parameters = || {
         comma_sep(choice![
             s!(parameter_declaration),
@@ -2918,6 +2961,7 @@ fn declarations(g: &mut Grammar) {
             s!(variadic_type_parameter_declaration),
             s!(optional_type_parameter_declaration),
             s!(template_template_parameter_declaration),
+            alias(s!(_template_parameter_macro), s!(macro_invocation)),
         ])
     };
     g.define(

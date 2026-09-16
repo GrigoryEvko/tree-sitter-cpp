@@ -3361,3 +3361,98 @@ void j() { f(a, b ? g(c, &d) : "", e); }
                     argument: (identifier))))
               alternative: (string_literal))
             (identifier)))))))
+
+================================================================================
+A macro call that gives a whole template parameter
+================================================================================
+
+template <typename Char, FMT_ENABLE_IF(!std::is_same<Char, char>::value)>
+void write(Char c);
+
+template <typename T, CHECK(a == b)> struct S;
+
+template <class T, U(V)> void keeps_the_parameter();
+
+template <class T, U(*p)> void keeps_the_declarator();
+
+template <class T, U((V))> void keeps_the_group_in_a_group();
+
+--------------------------------------------------------------------------------
+
+(translation_unit
+  (template_declaration
+    parameters: (template_parameter_list
+      (type_parameter_declaration
+        (type_identifier))
+      (macro_invocation
+        name: (identifier)
+        arguments: (token_tree
+          (identifier)
+          (identifier)
+          (identifier)
+          (primitive_type)
+          (identifier))))
+    (declaration
+      type: (primitive_type)
+      declarator: (function_declarator
+        declarator: (identifier)
+        parameters: (parameter_list
+          (parameter_declaration
+            type: (type_identifier)
+            declarator: (identifier))))))
+  (template_declaration
+    parameters: (template_parameter_list
+      (type_parameter_declaration
+        (type_identifier))
+      (macro_invocation
+        name: (identifier)
+        arguments: (token_tree
+          (identifier)
+          (identifier))))
+    (struct_specifier
+      name: (type_identifier)))
+  (template_declaration
+    parameters: (template_parameter_list
+      (type_parameter_declaration
+        (type_identifier))
+      (parameter_declaration
+        type: (type_identifier)
+        declarator: (abstract_function_declarator
+          parameters: (parameter_list
+            (parameter_declaration
+              type: (type_identifier))))))
+    (declaration
+      type: (primitive_type)
+      declarator: (function_declarator
+        declarator: (identifier)
+        parameters: (parameter_list))))
+  (template_declaration
+    parameters: (template_parameter_list
+      (type_parameter_declaration
+        (type_identifier))
+      (parameter_declaration
+        type: (type_identifier)
+        declarator: (parenthesized_declarator
+          (pointer_declarator
+            declarator: (identifier)))))
+    (declaration
+      type: (primitive_type)
+      declarator: (function_declarator
+        declarator: (identifier)
+        parameters: (parameter_list))))
+  (template_declaration
+    parameters: (template_parameter_list
+      (type_parameter_declaration
+        (type_identifier))
+      (parameter_declaration
+        type: (type_identifier)
+        declarator: (abstract_parenthesized_declarator
+          (abstract_function_declarator
+            parameters: (parameter_list
+              (parameter_declaration
+                type: (type_identifier)))))))
+    (declaration
+      type: (primitive_type)
+      declarator: (function_declarator
+        declarator: (identifier)
+        parameters: (parameter_list)))))

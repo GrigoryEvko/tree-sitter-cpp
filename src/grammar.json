@@ -26675,6 +26675,36 @@
         }
       ]
     },
+    "_template_parameter_macro": {
+      "type": "SEQ",
+      "members": [
+        {
+          "type": "SYMBOL",
+          "name": "_template_parameter_macro_start"
+        },
+        {
+          "type": "FIELD",
+          "name": "name",
+          "content": {
+            "type": "SYMBOL",
+            "name": "identifier"
+          }
+        },
+        {
+          "type": "FIELD",
+          "name": "arguments",
+          "content": {
+            "type": "ALIAS",
+            "content": {
+              "type": "SYMBOL",
+              "name": "_macro_arguments"
+            },
+            "named": true,
+            "value": "token_tree"
+          }
+        }
+      ]
+    },
     "template_parameter_list": {
       "type": "SEQ",
       "members": [
@@ -26723,6 +26753,15 @@
                     {
                       "type": "SYMBOL",
                       "name": "template_template_parameter_declaration"
+                    },
+                    {
+                      "type": "ALIAS",
+                      "content": {
+                        "type": "SYMBOL",
+                        "name": "_template_parameter_macro"
+                      },
+                      "named": true,
+                      "value": "macro_invocation"
                     }
                   ]
                 },
@@ -26770,6 +26809,15 @@
                           {
                             "type": "SYMBOL",
                             "name": "template_template_parameter_declaration"
+                          },
+                          {
+                            "type": "ALIAS",
+                            "content": {
+                              "type": "SYMBOL",
+                              "name": "_template_parameter_macro"
+                            },
+                            "named": true,
+                            "value": "macro_invocation"
                           }
                         ]
                       }
@@ -26849,6 +26897,15 @@
                     {
                       "type": "SYMBOL",
                       "name": "template_template_parameter_declaration"
+                    },
+                    {
+                      "type": "ALIAS",
+                      "content": {
+                        "type": "SYMBOL",
+                        "name": "_template_parameter_macro"
+                      },
+                      "named": true,
+                      "value": "macro_invocation"
                     }
                   ]
                 },
@@ -26896,6 +26953,15 @@
                           {
                             "type": "SYMBOL",
                             "name": "template_template_parameter_declaration"
+                          },
+                          {
+                            "type": "ALIAS",
+                            "content": {
+                              "type": "SYMBOL",
+                              "name": "_template_parameter_macro"
+                            },
+                            "named": true,
+                            "value": "macro_invocation"
                           }
                         ]
                       }
@@ -45650,6 +45716,10 @@
     {
       "type": "SYMBOL",
       "name": "_concatenated_macro_start"
+    },
+    {
+      "type": "SYMBOL",
+      "name": "_template_parameter_macro_start"
     }
   ],
   "inline": [
