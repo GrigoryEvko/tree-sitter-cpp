@@ -305,3 +305,16 @@ APICALL EXPORT std::string PLUGIN_API_VERSION() { return {}; }
 LLVM_ABI LLVM_READNONE LLT getLCMType(LLT OrigTy, LLT TargetTy);
 extern "C" WINBASEAPI BOOL WINAPI GetPhysicallyInstalledSystemMemory(PULONGLONG p);
 template <class T, class U> VULKAN_HPP_CONSTEXPR_14 VULKAN_HPP_INLINE T exchange(T &obj, U &&newValue) { return obj; }
+### macro_type_of_a_template_parameter
+template <BOOST_ASIO_COMPLETION_TOKEN_FOR(void()) NullaryToken = deferred_t> void defer(NullaryToken t);
+template <typename... Signatures, BOOST_ASIO_COMPLETION_TOKEN_FOR(Signatures...) CompletionToken> void deferred(CompletionToken t);
+template <BOOST_ASIO_COMPLETION_TOKEN_FOR(void(boost::system::error_code, std::size_t)) WriteToken> void write(WriteToken t);
+template <BOOST_ASIO_COMPLETION_TOKEN_FOR(
+    void(std::exception_ptr)) CompletionToken> void spawn(CompletionToken t);
+template <BOOST_FWD_REF(T) x> void one();
+template <template <BOOST_FWD_REF(T) x> class C> void nested();
+### macro_type_keeps_a_comparison_and_a_product
+void g(int x, int n) { if (MASK(x) & FLAG) f(); if (OK(x) && a[0]) f(); }
+void h(int x) { int y = SIZE(x) * 2; }
+### macro_type_keeps_a_call_in_its_argument
+void test_nans() { BOOST_TEST(isnanq(detail::nans())) && BOOST_TEST(issignaling(detail::nans())); }

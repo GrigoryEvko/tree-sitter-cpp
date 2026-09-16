@@ -1668,3 +1668,55 @@ using create_registry_delegate = HRESULT WINAPI(IMLOperatorRegistry **registry);
             declarator: (pointer_declarator
               declarator: (pointer_declarator
                 declarator: (identifier)))))))))
+
+================================================================================
+A macro that gives the type of a template parameter
+================================================================================
+
+template <BOOST_ASIO_COMPLETION_TOKEN_FOR(void()) NullaryToken = deferred_t>
+void defer(NullaryToken t);
+template <typename... Signatures, BOOST_ASIO_COMPLETION_TOKEN_FOR(Signatures...) CompletionToken>
+void deferred(CompletionToken t);
+
+--------------------------------------------------------------------------------
+
+(translation_unit
+  (template_declaration
+    parameters: (template_parameter_list
+      (optional_parameter_declaration
+        type: (macro_type_specifier
+          name: (identifier)
+          type: (type_descriptor
+            type: (primitive_type)
+            declarator: (abstract_function_declarator
+              parameters: (parameter_list))))
+        declarator: (identifier)
+        default_value: (type_descriptor
+          type: (type_identifier))))
+    (declaration
+      type: (primitive_type)
+      declarator: (function_declarator
+        declarator: (identifier)
+        parameters: (parameter_list
+          (parameter_declaration
+            type: (type_identifier)
+            declarator: (identifier))))))
+  (template_declaration
+    parameters: (template_parameter_list
+      (variadic_type_parameter_declaration
+        (type_identifier))
+      (parameter_declaration
+        type: (macro_type_specifier
+          name: (identifier)
+          type: (parameter_pack_expansion
+            pattern: (type_descriptor
+              type: (type_identifier))))
+        declarator: (identifier)))
+    (declaration
+      type: (primitive_type)
+      declarator: (function_declarator
+        declarator: (identifier)
+        parameters: (parameter_list
+          (parameter_declaration
+            type: (type_identifier)
+            declarator: (identifier)))))))

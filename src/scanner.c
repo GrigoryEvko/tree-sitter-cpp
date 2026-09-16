@@ -1273,6 +1273,9 @@ typedef struct {
     /// The last token of the argument can end a type-id: a word, a `*`, a `&`, a `&&`, or a template
     /// argument list.
     bool type_id_end;
+    /// The argument was a type-id before a `(` opened at its top level, and that group is the parameter
+    /// list of an abstract function declarator: `void()`, `void(::boost::system::error_code)`.
+    bool function_parameters;
 } Argument;
 
 /// Record the facts about an argument at its end.
@@ -1363,10 +1366,18 @@ static bool skip_group(Reader *reader, Arguments *args) {
             if (c == '{' && closers[0] == '}' && arg.parenthesis_group) {
                 args->statements = true;
             }
+            // A `(` after the word of a type opens the parameter list of an abstract function
+            // declarator, and the argument stays a type-id:
+            // `BOOST_ASIO_COMPLETION_TOKEN_FOR(void(error_code, size_t))` of boost/libs/asio. A name
+            // that is no keyword of a type keeps its call, because only name lookup tells a function
+            // type from a call: `BOOST_TEST(isnanq(x)) && BOOST_TEST(y);` of
+            // boost/libs/charconv/test/test_float128.cpp:583 stays an expression. Each other group
+            // gives tokens that no type-id holds.
+            arg.function_parameters = c == '(' && arg.tokens == 1 && arg.first_is_type;
             arg.parenthesis_group |= c == '(';
             arg.empty_parenthesis = arg.tokens == 0 && c == '(';
             arg.groups += c != '[';
-            arg.not_type_id = true;
+            arg.not_type_id |= !arg.function_parameters;
             arg.type_id_end = false;
             arg.tokens++;
             continue;
@@ -1387,6 +1398,12 @@ static bool skip_group(Reader *reader, Arguments *args) {
             }
             if (depth == 1 && arg.empty_parenthesis) {
                 args->not_expressions = true;
+            }
+            // The parameter list of an abstract function declarator closed, and the argument is a
+            // type-id again: `void(int)` ends with the `)` of its parameter list.
+            if (depth == 1 && arg.function_parameters) {
+                arg.function_parameters = false;
+                arg.type_id_end = true;
             }
             arg.empty_parenthesis = false;
             continue;
@@ -1467,14 +1484,17 @@ static bool skip_group(Reader *reader, Arguments *args) {
         arg.after_operator_keyword = is_word && strcmp(word, "operator") == 0;
         arg.after_word = is_word && !prefix_word;
         arg.after_angle = false;
-        // The tokens of a type-id: a name, a `::`, a pointer or reference operator, and the `<` of a
-        // template argument list. A name that starts a statement or an expression is not a type.
+        // The tokens of a type-id: a name, a `::`, a pointer or reference operator, the `<` of a
+        // template argument list, and the `...` of a pack expansion after a type-id:
+        // `BOOST_ASIO_COMPLETION_TOKEN_FOR(Signatures...)` of boost/libs/asio. A name that starts a
+        // statement or an expression is not a type.
         bool type_name = is_word && !word_in(word, STATEMENT_KEYWORDS) && !word_in(word, NOT_PARAMETER_WORDS);
         bool pointer_operator = token == TOKEN_DECLARATOR && (strcmp(word, "*") == 0 || strcmp(word, "&") == 0 ||
                                                               strcmp(word, "&&") == 0);
         bool scope = token == TOKEN_SCOPE && strcmp(word, "::") == 0;
-        arg.not_type_id |= !(type_name || pointer_operator || scope || opens_angle);
-        arg.type_id_end = type_name || pointer_operator;
+        bool pack_ellipsis = strcmp(word, "...") == 0 && arg.type_id_end;
+        arg.not_type_id |= !(type_name || pointer_operator || scope || opens_angle || pack_ellipsis);
+        arg.type_id_end = type_name || pointer_operator || pack_ellipsis;
         arg.tokens++;
     }
 }
@@ -2119,6 +2139,11 @@ static bool scan_declarator_suffix(Reader *reader) {
 /// text can also be a product or a bit operation, and a `)` or a `[` ends such an expression:
 /// `if (MASK(x) & FLAG)`, `if (OK(x) && a[0])`. Only a parameter takes a `)` after such an operator:
 /// `f(STACK_OF(X509) *sk)`. A `==` is a comparison, and a `=` starts an initializer.
+///
+/// A `>` ends the last parameter of a template parameter list:
+/// `template <BOOST_ASIO_COMPLETION_TOKEN_FOR(Signatures...) CompletionToken>` of
+/// boost/libs/asio/include/boost/asio/deferred.hpp:111. A `>>` ends two such lists, and a `>=` is a
+/// comparison. Only a parameter takes that token, and a declaration keeps `MASK(x) y >= n`.
 static bool ends_macro_type_declarator(Reader *reader, bool pointer, bool parameter) {
     TSLexer *lexer = reader->lexer;
     int32_t c = lexer->lookahead;
@@ -2126,6 +2151,10 @@ static bool ends_macro_type_declarator(Reader *reader, bool pointer, bool parame
         return true;
     }
     if (c == '=') {
+        step(reader);
+        return lexer->lookahead != '=';
+    }
+    if (c == '>' && parameter) {
         step(reader);
         return lexer->lookahead != '=';
     }

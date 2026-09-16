@@ -21976,8 +21976,22 @@
           "type": "FIELD",
           "name": "type",
           "content": {
-            "type": "SYMBOL",
-            "name": "type_descriptor"
+            "type": "CHOICE",
+            "members": [
+              {
+                "type": "SYMBOL",
+                "name": "type_descriptor"
+              },
+              {
+                "type": "ALIAS",
+                "content": {
+                  "type": "SYMBOL",
+                  "name": "type_parameter_pack_expansion"
+                },
+                "named": true,
+                "value": "parameter_pack_expansion"
+              }
+            ]
           }
         },
         {
@@ -24141,8 +24155,22 @@
           "type": "FIELD",
           "name": "type",
           "content": {
-            "type": "SYMBOL",
-            "name": "type_descriptor"
+            "type": "CHOICE",
+            "members": [
+              {
+                "type": "SYMBOL",
+                "name": "type_descriptor"
+              },
+              {
+                "type": "ALIAS",
+                "content": {
+                  "type": "SYMBOL",
+                  "name": "type_parameter_pack_expansion"
+                },
+                "named": true,
+                "value": "parameter_pack_expansion"
+              }
+            ]
           }
         },
         {

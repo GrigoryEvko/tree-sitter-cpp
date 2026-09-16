@@ -1632,12 +1632,22 @@ fn types(g: &mut Grammar) {
     // `type_specifier`. A cast, a template argument, and the operand of `sizeof` take a type with no
     // declarator after it, and the scanner gives no token there. The second token is for a parameter,
     // where a `)` also ends the declarator. Refer to `ends_macro_type_declarator` in src/scanner.c.
+    // The argument can be a pack expansion, as each type-id in a template argument list can:
+    // `BOOST_ASIO_COMPLETION_TOKEN_FOR(Signatures...) CompletionToken` of
+    // boost/libs/asio/include/boost/asio/deferred.hpp:111, where the macro gives
+    // `::boost::asio::completion_token_for<Signatures...>`.
     let macro_type_specifier = |start: Rule| {
         seq![
             start,
             field("name", s!(identifier)),
             "(",
-            field("type", s!(type_descriptor)),
+            field(
+                "type",
+                choice![
+                    s!(type_descriptor),
+                    alias(s!(type_parameter_pack_expansion), s!(parameter_pack_expansion)),
+                ]
+            ),
             ")",
         ]
     };

@@ -6480,6 +6480,10 @@
         "required": true,
         "types": [
           {
+            "type": "parameter_pack_expansion",
+            "named": true
+          },
+          {
             "type": "type_descriptor",
             "named": true
           }
