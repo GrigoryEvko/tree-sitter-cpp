@@ -3807,3 +3807,80 @@ void h() {
       (declaration
         type: (type_identifier)
         declarator: (identifier)))))
+
+================================================================================
+A macro between the type of a declaration and the declarator of a function
+================================================================================
+
+// The same macro before the declarator of a FUNCTION. The first line comes from
+// v8/src/ast/prettyprinter.h:97 and the third from
+// llvm-project/compiler-rt/lib/asan/asan_poisoning.cpp:72. With the macro defined as a GNU
+// attribute, Clang builds `CXXMethodDecl Print` with a `FormatAttr` and `FunctionDecl
+// ReleasePoisonRecords` with a `ReleaseCapabilityAttr`, and GCC accepts each line. So the macro
+// is the attribute and the name after it is the function.
+//
+// The second line keeps its tree: a macro that GIVES the type takes no mark, because the macro
+// can be the type itself where one plain name stands before the declarator.
+struct AstPrinter {
+    void PRINTF_FORMAT(2, 3) Print(const char *format, ...);
+};
+inline GTEST_1_TUPLE_(T) make_tuple(const T0& f0) { return 1; }
+void SANITIZER_RELEASE(poison_records_mutex) ReleasePoisonRecords() { }
+
+--------------------------------------------------------------------------------
+
+(translation_unit
+  (comment)
+  (comment)
+  (comment)
+  (comment)
+  (comment)
+  (comment)
+  (comment)
+  (comment)
+  (comment)
+  (struct_specifier
+    name: (type_identifier)
+    body: (field_declaration_list
+      (field_declaration
+        type: (primitive_type)
+        (attribute_macro
+          name: (identifier)
+          arguments: (argument_list
+            (number_literal)
+            (number_literal)))
+        declarator: (function_declarator
+          declarator: (field_identifier)
+          parameters: (parameter_list
+            (parameter_declaration
+              (type_qualifier)
+              type: (primitive_type)
+              declarator: (pointer_declarator
+                declarator: (identifier))))))))
+  (function_definition
+    (storage_class_specifier)
+    type: (macro_type_specifier
+      name: (identifier)
+      type: (type_descriptor
+        type: (type_identifier)))
+    declarator: (function_declarator
+      declarator: (identifier)
+      parameters: (parameter_list
+        (parameter_declaration
+          (type_qualifier)
+          type: (type_identifier)
+          declarator: (reference_declarator
+            (identifier)))))
+    body: (compound_statement
+      (return_statement
+        (number_literal))))
+  (function_definition
+    type: (primitive_type)
+    (attribute_macro
+      name: (identifier)
+      arguments: (argument_list
+        (identifier)))
+    declarator: (function_declarator
+      declarator: (identifier)
+      parameters: (parameter_list))
+    body: (compound_statement)))

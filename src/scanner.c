@@ -4180,7 +4180,11 @@ static bool scan_call_macro_name(TSLexer *lexer, const Scanner *scanner, bool po
             if (lexer->lookahead == '=') {
                 return false;
             }
-        } else if (end != ';' && end != ',') {
+        } else if (end != ';' && end != ',' && end != '(') {
+            // A `(` after the name opens the parameter list of a function declarator:
+            // `int PRINTF_FORMAT(1, 2) f(const char *s);`. The grammar takes the declarator, because
+            // the attribute macro sits in `_declaration_specifiers` and each declarator follows it.
+            //
             // A `{` after the name also ends the head of a class, where the name is the class and no
             // declarator stands: `class LIBCPP_ABI LIBCPP_CAPABILITY("mutex") mutex {`.
             return false;
