@@ -18,18 +18,35 @@ use tree_sitter::{Language, Node, ParseOptions, ParseState, Parser, Tree};
 
 /// The budget of one parse, as a count of the progress callbacks of the runtime.
 ///
+/// DO NOT PUT A TIME IN THE PLACE OF THIS COUNT. A time limit looks simpler and more direct, and
+/// this function had one of 20 seconds. A wall-clock limit is not the same in each run: the same
+/// bytes and the same parser then give a complete tree alone and a stopped parse under the load of
+/// a parallel gate. A parser that gives two answers for the same bytes serves no data flow graph.
+///
+/// Two files showed the defect. `OpenRCT2/src/openrct2/ride/VehicleSubpositionData.cpp` is a
+/// generated file of 6.8 MB. It takes 148,044 callbacks and 2.2 s alone, and it is the largest
+/// count of the 329,387 corpus files. `boost/libs/qvm/include/boost/qvm/gen/swizzle4.hpp` is
+/// 1.2 MB, and it takes 20,638 callbacks and 7.1 s in a parallel run.
+///
+/// The old limit stopped the two under load. `xtask trees` then wrote `stopped` in the place of the
+/// tree hash, and the gate of a commit that changes only comment lines reported a changed hash. A
+/// measurement of the corpus at the load average 954 found 80 files above 20 s, and each of the 80
+/// gives a complete tree alone.
+///
 /// The runtime calls the progress callback one time for each 100 parse operations
 /// (`OP_COUNT_PER_PARSER_CALLBACK_CHECK` in vendor/tree-sitter/src/parser.c), so the budget is
-/// 200,000,000 operations. The count of the callbacks of one parse is the same on each machine,
-/// under each load, and in each run.
+/// 200,000,000 operations. The count of one parse is the same on each machine, under each load, and
+/// in each run. An input of 84 MB stops at the callback 2,000,001 in each run, and the two runs took
+/// 43.6 s and 42.0 s.
 ///
-/// A WALL-CLOCK LIMIT IS NOT THE SAME IN EACH RUN, AND THIS FUNCTION HAD ONE. The largest count of
-/// the 329,387 corpus files is 148,044, for the 6.8 MB generated file
-/// `OpenRCT2/src/openrct2/ride/VehicleSubpositionData.cpp`. That file parses in 2.2 s alone, and
-/// the count is 148,044 in each run. Under the load of five parallel gates the same parse took more
-/// than the old limit of 20 s. The limit then stopped it, `xtask trees` wrote `stopped` in the
-/// place of the tree hash, and the gate reported a changed hash for a file that no change touched.
-/// The budget is 13 times the largest count, and the second largest count is 147,695.
+/// The budget is 13 times the largest count of the corpus files, and the second largest count is
+/// 147,695. A smaller budget stops a large file that has no defect, and the reports of the gate then
+/// move with the load of the machine.
+///
+/// THE COUNT BOUNDS THE OPERATIONS OF THE PARSER, AND NOT THE WORK OF THE EXTERNAL SCANNER. A file
+/// of 50,000 statements `a b;` takes 11,003 callbacks and 13.8 s. A file of 50,000 statements
+/// `x = 1;` takes the same 11,003 callbacks and 0.35 s. The lookahead scans of the scanner are the
+/// difference, and no counter of the runtime reads them.
 const BUDGET: u64 = 2_000_000;
 /// The largest count of progress callbacks of the 329,387 corpus files, for the 6.8 MB generated
 /// file `OpenRCT2/src/openrct2/ride/VehicleSubpositionData.cpp`.
