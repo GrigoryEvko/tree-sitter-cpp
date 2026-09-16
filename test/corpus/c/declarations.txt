@@ -276,7 +276,12 @@ int const * const restrict x;
     (type_qualifier)
     declarator: (pointer_declarator
       (type_qualifier)
-      (type_qualifier)
+      ; `restrict` is a C99 keyword and C++ has none. This parser is the C++ parser, and it
+      ; reads the word as a name. GCC gives `restrict` the flag `D_CONLY` in `c_common_reswords`
+      ; and Clang gives it `C99_KEYWORD`, and both reject this line in C++:
+      ; GCC "expected initializer before 'x'". Refer to `type_qualifier` in `grammar/src/cpp.rs`.
+      (attribute_macro
+        name: (identifier))
       declarator: (identifier))))
 
 ================================================================================
@@ -622,7 +627,11 @@ noreturn void b() {}
       (identifier)
       (number_literal)))
   (declaration
-    (type_qualifier)
+    ; `restrict int y = 6;` is invalid in C too: GCC C gives "invalid use of 'restrict'", because
+    ; the qualifier takes a pointer only. In C++ the word is a name, and the macro reading holds
+    ; for the line. Refer to the note of `Pointer variable declarations` in this file.
+    (attribute_macro
+      (identifier))
     (primitive_type)
     (init_declarator
       (identifier)

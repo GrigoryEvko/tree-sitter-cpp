@@ -1892,9 +1892,23 @@ fn types(g: &mut Grammar) {
     g.define("_nondefining_type_specifier", nondefining_type_specifier);
     // `_Nullable` and its relatives are Clang nullability qualifiers. `_Complex` is a GNU type
     // keyword in the position of a qualifier.
+    //
+    // C++ HAS NO `restrict`, AND THE C RULE HOLDS IT. The keyword tables of the two front ends say
+    // so directly: GCC gives it `D_CONLY | D_C99` in `c_common_reswords` (c-common.cc:555), and
+    // c-common.h:438 defines `D_CONLY` as "C only (not in C++)". Clang gives it `C99_KEYWORD`
+    // (TokenKinds.def:409). Both reject `void f(int* restrict r);` and accept the same text with
+    // `__restrict` or `__restrict__`. The word is an ordinary name in C++, and the corpus writes it
+    // as one: of the 28 sites in files that parse with no error, 21 are in a file that writes
+    // `#define restrict __restrict__` at its own line 344, and the other 7 are a parameter name, a
+    // method name or a bit-field name.
     g.redefine("type_qualifier", |original| {
+        let members: Vec<Rule> = original
+            .into_members()
+            .into_iter()
+            .filter(|m| *m != Rule::from("restrict"))
+            .collect();
         choice![
-            original,
+            Rule::Choice(members),
             "mutable",
             "constinit",
             "consteval",

@@ -13202,10 +13202,6 @@
     "named": false
   },
   {
-    "type": "restrict",
-    "named": false
-  },
-  {
     "type": "return",
     "named": false
   },

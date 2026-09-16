@@ -13442,10 +13442,6 @@
             },
             {
               "type": "STRING",
-              "value": "restrict"
-            },
-            {
-              "type": "STRING",
               "value": "__restrict__"
             },
             {

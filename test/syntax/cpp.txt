@@ -222,7 +222,10 @@ int x;
 ### ext_raw_string_with_pre
 const char* s = R"(pre(x) post(y) ^^T [:s:] template for)";
 ### ext_restrict
-void f(int* __restrict p, int* __restrict__ q, int* restrict r);
+void f(int* __restrict p, int* __restrict__ q);
+### ext_restrict_bare_is_a_name
+void f(int* restrict r);
+extern int printf(const char *restrict, ...);
 ### ext_statement_expr
 int x = ({ int y = 1; y; });
 ### ext_static_assert_in_class

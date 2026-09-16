@@ -2063,7 +2063,7 @@ static const char *const GRAMMAR_KEYWORDS[] = {
     "int8_t", "intptr_t", "long", "max_align_t", "module", "mutable", "namespace", "new", "noexcept", "noreturn",
     "not", "not_eq", "nullptr", "nullptr_t", "offsetof", "operator", "or", "or_eq", "override", "post", "pre",
     "private", "protected", "ptrdiff_t", "public", "register", "reinterpret_cast", "replaceable_if_eligible",
-    "requires", "restrict", "return", "sealed", "short", "signals", "signed", "size_t", "sizeof", "slots", "ssize_t",
+    "requires", "return", "sealed", "short", "signals", "signed", "size_t", "sizeof", "slots", "ssize_t",
     "static", "static_assert", "static_cast", "struct", "switch", "template", "this", "thread_local", "throw",
     "trivially_relocatable_if_eligible", "true",
     "try", "typedef", "typeid", "typename", "typeof", "typeof_unqual", "uint16_t", "uint32_t", "uint64_t",
@@ -2086,9 +2086,12 @@ static bool is_grammar_keyword(const char *word) {
 
 /// The keywords of `_constructor_specifiers` in the grammar, which can come between the macros before
 /// a constructor.
+///
+/// The list holds `__restrict` and `__restrict__` and no bare `restrict`, because C++ has no such
+/// keyword and the grammar gives the word no rule. Refer to `type_qualifier` in `grammar/src/cpp.rs`.
 static const char *const CONSTRUCTOR_SPECIFIER_WORDS[] = {
     "extern",           "static",     "register",   "inline",      "__inline",      "__inline__", "__forceinline",
-    "thread_local",     "__thread",   "const",      "constexpr",   "volatile",      "restrict",   "__restrict__",
+    "thread_local",     "__thread",   "const",      "constexpr",   "volatile",      "__restrict__",
     "__extension__",    "_Atomic",    "_Noreturn",  "noreturn",    "_Nonnull",      "mutable",    "constinit",
     "consteval",        "_Nullable",  "_Null_unspecified",         "__nullable",    "__nonnull",  "_Complex",
     "__complex__",      "__restrict", "__const",    "__const__",   "__volatile",    "__volatile__",
@@ -4079,8 +4082,11 @@ static const char *const KEYWORDS_BEFORE_PARENTHESIS[] = {
 
 /// The qualifiers that can come between the macro of a pointer declarator and the name of that
 /// declarator: `uint8_t* WEBP_RESTRICT const dst`.
+///
+/// The list holds `__restrict` and `__restrict__` and no bare `restrict`, because C++ has no such
+/// keyword. A bare `restrict` in that position is a name, and the macro path reads it as one.
 static const char *const POINTER_QUALIFIER_WORDS[] = {
-    "const",    "volatile",  "restrict", "__restrict", "__restrict__",      "_Nonnull",
+    "const",    "volatile",  "__restrict", "__restrict__",      "_Nonnull",
     "_Nullable", "__nonnull", "__nullable", "_Null_unspecified", "_Nullable_result", NULL,
 };
 

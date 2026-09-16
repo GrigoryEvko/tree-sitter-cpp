@@ -309,6 +309,62 @@ void f(AggregateDataPtr __restrict place, size_t & __restrict pos, char * __rest
             (identifier)))))))
 
 ================================
+Bare restrict is a name in C++ and the two front ends reject it as a qualifier
+================================
+
+void clip_add_bias(const float* restrict pb, float* restrict pd);
+extern int printf(const char *restrict, ...);
+int restrict = 1;
+
+---
+
+; C++ HAS NO `restrict`. GCC gives the word `D_CONLY | D_C99` in `c_common_reswords`
+; (gcc/c-family/c-common.cc:555), and gcc/c-family/c-common.h:438 defines `D_CONLY` as
+; "C only (not in C++)". Clang gives it `C99_KEYWORD` (clang/Basic/TokenKinds.def:409).
+; Both accept the same three lines with `__restrict` or `__restrict__`, and both reject
+; these: GCC "expected ',' or '...' before 'pb'", Clang "expected ')'".
+;
+; THE READING IS THE ONE THE FORK GIVES EVERY OTHER NAME AT THAT POSITION. A name before
+; a declarator name is an attribute macro, as for `BROTLI_RESTRICT` and `absl_nonnull`,
+; and a name with no declarator after it is the declarator. 21 of the 28 corpus sites are
+; in a file that writes `#define restrict __restrict__` at its own line 344.
+(translation_unit
+  (declaration
+    (primitive_type)
+    (function_declarator
+      (identifier)
+      (parameter_list
+        (parameter_declaration
+          (type_qualifier)
+          (primitive_type)
+          (pointer_declarator
+            (attribute_macro
+              (identifier))
+            (identifier)))
+        (parameter_declaration
+          (primitive_type)
+          (pointer_declarator
+            (attribute_macro
+              (identifier))
+            (identifier))))))
+  (declaration
+    (storage_class_specifier)
+    (primitive_type)
+    (function_declarator
+      (identifier)
+      (parameter_list
+        (parameter_declaration
+          (type_qualifier)
+          (primitive_type)
+          (pointer_declarator
+            (identifier))))))
+  (declaration
+    (primitive_type)
+    (init_declarator
+      (identifier)
+      (number_literal))))
+
+================================
 GNU attributes in a type-id, after a pointer, and on a lambda
 ================================
 
