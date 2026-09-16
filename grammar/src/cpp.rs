@@ -1821,11 +1821,16 @@ fn types(g: &mut Grammar) {
     // A macro can take the place of that keyword, as it does in a declaration:
     // `typedef int32_t U_CALLCONV UCharIteratorGetIndex(UCharIterator *iter, int origin);` in the ICU
     // headers, where `U_CALLCONV` is `__cdecl` or nothing. The external scanner reads the name.
+    //
+    // A macro also comes after the declarator of a typedef, as it does after the declarator of a
+    // variable: `typedef int T API;`, `typedef int T GUARDED_BY(mu);`. GCC and Clang read the
+    // expansion as an attribute of the typedef and accept the form.
     g.redefine("_type_definition_declarators", |_| {
         comma_sep1(seq![
             optional(s!(ms_call_modifier)),
             optional(call_macro()),
-            field("declarator", s!(_type_declarator))
+            field("declarator", s!(_type_declarator)),
+            optional(declarator_attribute_macros("_declarator_attribute_macro")),
         ])
     });
     // GCC `cp_parser_std_attribute`: an attribute token can be a keyword, for example `using`.
@@ -4227,7 +4232,20 @@ fn declarations(g: &mut Grammar) {
             "using",
             field("name", s!(_type_identifier)),
             // GCC reads GNU attributes after the name (parser.cc, cp_parser_alias_declaration).
+            //
+            // [dcl.typedef] p2 puts an attribute-specifier-seq after the identifier of an
+            // alias-declaration, and a macro comes in that place:
+            // `using scalar_array_type KOKKOS_DEPRECATED_WITH_COMMENT("Use data_type instead.") =
+            // int;` in Kokkos, `using MemorySpan V8_DEPRECATE_SOON("Use std::span instead.") =
+            // std::span<T>;` in v8. The macro takes an argument list or no argument, as after the
+            // declarator of a variable, and the same external token reads its name.
+            //
+            // The macros come after the attributes. `using T MACRO [[a]] = int;` keeps its ERROR
+            // node, and the two front ends accept that order. One repeat of the attributes and the
+            // macros together gives an unresolved conflict of `alias_declaration_repeat1`, and no
+            // file of the corpus writes an attribute after a macro there.
             repeat(choice![s!(attribute_declaration), s!(attribute_specifier)]),
+            optional(declarator_attribute_macros("_declarator_attribute_macro")),
             "=",
             field("type", s!(type_descriptor)),
             ";",
