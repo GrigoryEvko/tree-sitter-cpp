@@ -92,6 +92,25 @@ TEST_CASE
 BOOST_AUTO_TEST_CASE
 (fastest_icl_interval_map_fundamentals_4_ordered_types)
 {            interval_map_fundamentals_4_ordered_types<INTERVAL_MAP, discrete_type_1, int>();}
+### member_macro_with_parameter_shaped_arguments
+class LowerDFGToB3 {
+    WTF_MAKE_NONCOPYABLE(LowerDFGToB3);
+    WTF_MAKE_TZONE_ALLOCATED(LowerDFGToB3);
+public:
+    LowerDFGToB3(State& state);
+};
+class MockPassInstrumentationCallbacks {
+public:
+  MOCK_METHOD2(runBeforeSkippedPass, void(StringRef PassID, IRUnitRef));
+  MOCK_METHOD1(runAfterPass, void(StringRef));
+};
+template <typename T> struct is_protectable {
+  BOOST_STATIC_CONSTANT(bool, value = true);
+};
+class MultiMeshInstance2D : public Node2D {
+	GDCLASS(MultiMeshInstance2D, Node2D);
+	Ref<MultiMesh> multimesh;
+};
 ### macro_before_constructor
 AUD_NAMESPACE_BEGIN
 HRTF::HRTF() : m_empty(true)

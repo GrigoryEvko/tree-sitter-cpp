@@ -4018,6 +4018,170 @@ try { return x; } catch (...) { return 0; }
             (number_literal)))))))
 
 ================================================================================
+A macro invocation with a semicolon in a class body whose arguments can be a parameter list
+================================================================================
+
+struct Foo {
+  Foo(int x);
+  explicit Foo(char c);
+  DISALLOW_NEW();
+  WTF_MAKE_NONCOPYABLE(Foo);
+  MOCK_METHOD1(g, void(int));
+  BOOST_STATIC_CONSTANT(bool, value = true);
+  GDCLASS(Foo, Node);
+  static MACRO_AFTER_SPECIFIER(x);
+  template <class T> DECL_AFTER_TEMPLATE(T);
+  CGAL_Mixed_case_macro(x);
+  struct Inner {
+    Inner(int y);
+    DISALLOW_COPY(Inner);
+  };
+};
+struct FOO {
+  FOO(int x);
+  BAR(int x);
+};
+template <> struct S<int> {
+  S(int x);
+  DISALLOW_COPY(S);
+};
+class CaseMap U_FINAL : public UMemory {
+  CaseMap();
+};
+
+--------------------------------------------------------------------------------
+
+(translation_unit
+  (struct_specifier
+    name: (type_identifier)
+    body: (field_declaration_list
+      (declaration
+        declarator: (function_declarator
+          declarator: (identifier)
+          parameters: (parameter_list
+            (parameter_declaration
+              type: (primitive_type)
+              declarator: (identifier)))))
+      (declaration
+        (explicit_function_specifier)
+        declarator: (function_declarator
+          declarator: (identifier)
+          parameters: (parameter_list
+            (parameter_declaration
+              type: (primitive_type)
+              declarator: (identifier)))))
+      (macro_invocation
+        name: (identifier)
+        arguments: (token_tree))
+      (macro_invocation
+        name: (identifier)
+        arguments: (token_tree
+          (identifier)))
+      (macro_invocation
+        name: (identifier)
+        arguments: (token_tree
+          (identifier)
+          (primitive_type)
+          (token_tree
+            (primitive_type))))
+      (macro_invocation
+        name: (identifier)
+        arguments: (token_tree
+          (primitive_type)
+          (identifier)
+          (true)))
+      (macro_invocation
+        name: (identifier)
+        arguments: (token_tree
+          (identifier)
+          (identifier)))
+      (declaration
+        (storage_class_specifier)
+        declarator: (function_declarator
+          declarator: (identifier)
+          parameters: (parameter_list
+            (parameter_declaration
+              type: (type_identifier)))))
+      (template_declaration
+        parameters: (template_parameter_list
+          (type_parameter_declaration
+            (type_identifier)))
+        (declaration
+          declarator: (function_declarator
+            declarator: (identifier)
+            parameters: (parameter_list
+              (parameter_declaration
+                type: (type_identifier))))))
+      (declaration
+        declarator: (function_declarator
+          declarator: (identifier)
+          parameters: (parameter_list
+            (parameter_declaration
+              type: (type_identifier)))))
+      (field_declaration
+        type: (struct_specifier
+          name: (type_identifier)
+          body: (field_declaration_list
+            (declaration
+              declarator: (function_declarator
+                declarator: (identifier)
+                parameters: (parameter_list
+                  (parameter_declaration
+                    type: (primitive_type)
+                    declarator: (identifier)))))
+            (macro_invocation
+              name: (identifier)
+              arguments: (token_tree
+                (identifier))))))))
+  (struct_specifier
+    name: (type_identifier)
+    body: (field_declaration_list
+      (declaration
+        declarator: (function_declarator
+          declarator: (identifier)
+          parameters: (parameter_list
+            (parameter_declaration
+              type: (primitive_type)
+              declarator: (identifier)))))
+      (macro_invocation
+        name: (identifier)
+        arguments: (token_tree
+          (primitive_type)
+          (identifier)))))
+  (template_declaration
+    parameters: (template_parameter_list)
+    (struct_specifier
+      name: (template_type
+        name: (type_identifier)
+        arguments: (template_argument_list
+          (type_descriptor
+            type: (primitive_type))))
+      body: (field_declaration_list
+        (declaration
+          declarator: (function_declarator
+            declarator: (identifier)
+            parameters: (parameter_list
+              (parameter_declaration
+                type: (primitive_type)
+                declarator: (identifier)))))
+        (macro_invocation
+          name: (identifier)
+          arguments: (token_tree
+            (identifier))))))
+  (class_specifier
+    (attribute_macro
+      name: (identifier))
+    name: (type_identifier)
+    (base_class_clause
+      (access_specifier)
+      (type_identifier))
+    body: (field_declaration_list
+      (declaration
+        declarator: (function_declarator
+          declarator: (identifier)
+          parameters: (parameter_list))))))
+
+================================================================================
 Two macro invocations in one item of an enumerator list
 ================================================================================
 

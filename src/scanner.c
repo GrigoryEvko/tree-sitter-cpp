@@ -3680,10 +3680,12 @@ typedef enum {
 /// `name` is the name, and `length` is its length. `same_line` tells if no line break comes between the
 /// name and its arguments. `call` tells if the name has arguments, and `args` holds their facts. `gap`
 /// is the space after the name and its arguments. `classes` holds the recorded class names, or it is
-/// NULL where a member cannot start.
+/// NULL where a member cannot start. `member_macro_name` tells if a member starts at the name, the
+/// name has the shape of a macro name with two characters or more, and no class head of the file
+/// recorded the name.
 static Invocation scan_macro_invocation(Reader *reader, const char *name, size_t length, bool same_line, bool call,
                                         const Arguments *args, const Gap *gap, const bool *valid_symbols,
-                                        const Scanner *classes) {
+                                        const Scanner *classes, bool member_macro_name) {
     TSLexer *lexer = reader->lexer;
     // After a directive that ends a branch of a structured group, the lookahead is not a token of the line.
     int32_t c = gap->directive ? 0 : lexer->lookahead;
@@ -3724,6 +3726,34 @@ static Invocation scan_macro_invocation(Reader *reader, const char *name, size_t
         }
         if (line_start && args->not_parameters) {
             lexer->result_symbol = line_symbol;
+            return INVOCATION_TOKEN;
+        }
+        // A MEMBER WITH NO TYPE WHOSE NAME IS NOT THE NAME OF ITS CLASS IS A MACRO. C++ gives a
+        // member with no decl-specifier-seq three readings, a constructor, a destructor, and a
+        // conversion function ([class.mem], GCC `cp_parser_member_declaration`, Clang
+        // `ParseCXXClassMemberDeclaration`), and a constructor takes the name of its class. So
+        // `WTF_MAKE_NONCOPYABLE(LowerDFGToB3);` in `class LowerDFGToB3`, `DISALLOW_NEW();`,
+        // `GDCLASS(Area3D, CollisionObject3D);`, `MOCK_METHOD1(g, void(int));` with a function type
+        // in the group, and `BOOST_STATIC_CONSTANT(bool, value = true);` with a default argument in
+        // the group are macro invocations, and the group needs no shape. Over the corpus, 30,669
+        // such members have a name in uppercase, the project of 26,482 of them defines the name as
+        // a function-like macro, and no project defines one as an object-like macro that names the
+        // class.
+        //
+        // THE CLASS RECORD IS THE EVIDENCE, AND THE SHAPE OF THE NAME GUARDS TWO DEFECTS OF THE
+        // RECORD. `scan_class_head` records the last name of the head, so `class CaseMap U_FINAL :
+        // public UMemory {` records `U_FINAL`, and `CaseMap();` in its body is a constructor whose
+        // name the record does not hold: 488 sites, 486 with a lowercase letter. The record also
+        // misses a head when a `/` that is no comment comes before the first member, when more than
+        // MAX_CLASSES heads come after it, or when the head holds an error: 62 constructors in 36
+        // files, each with a lowercase letter. A name with no lowercase letter and two characters
+        // or more leaves both defects to the record, and it leaves the macro reading to the
+        // mixed-case macros: `CGAL_Algebraic_Kernel_cons(x);` and `CPP_assert(x);` keep the
+        // reading of a constructor declaration until the record is correct. `S(int x);` and
+        // `FOO(int x);` in the class of that name keep their reading, because the record holds the
+        // name.
+        if (member_macro_name && valid_symbols[MACRO_LINE_START]) {
+            lexer->result_symbol = MACRO_LINE_START;
             return INVOCATION_TOKEN;
         }
         return INVOCATION_STOP;
@@ -4062,7 +4092,8 @@ static bool scan_macro_start(Reader reader, const char *name, bool has_lower, co
     // with the shape of a parenthesized declarator declares a member: `Foo (*p);`, `Foo (&r);`.
     if (invocation && (macro_name || (call && !args.pointer_declarator))) {
         Invocation result =
-            scan_macro_invocation(&reader, name, length, same_line, call, &args, &gap, valid_symbols, classes);
+            scan_macro_invocation(&reader, name, length, same_line, call, &args, &gap, valid_symbols, classes,
+                                  member_start && macro_name && length >= 2 && !class_name);
         if (result == INVOCATION_TOKEN || result == INVOCATION_STOP) {
             return result == INVOCATION_TOKEN;
         }
