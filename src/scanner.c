@@ -3620,9 +3620,13 @@ typedef enum {
 /// or member with its `;`. No other statement and no member ends before `}` without `;`. Where a braced list can
 /// also start, as in the arguments `f({ FLAG })` or on the next line, a name before `}` is an element of the list.
 ///
-/// The block form is an uppercase name and `{` on the same line. The name has an argument list
-/// that cannot be a parameter list, with an optional template parameter list and parameter list
-/// after it, or the name has no arguments and the block holds statements.
+/// The block form is an uppercase name with a body. With no arguments, the name and the `{` are on
+/// the same line, and the block holds statements: `SCOPE_EXIT { f(); };`. With an argument list,
+/// the arguments cannot be a parameter list, or a call statement can start at the name, and an
+/// optional template parameter list and parameter list can come before the body. The argument
+/// list can start on the line after a name of MACRO_MIN_BARE_LENGTH or more characters:
+/// `BOOST_AUTO_TEST_CASE`, a line break, `(name)`, and `{ g(); }` of boost icl. The `{` can come
+/// after line breaks.
 ///
 /// The statement form is an uppercase name with an argument list and a body, where a statement can start and a
 /// function definition cannot: in a block, a case body, a label, or a substatement. The arguments can be a parameter
@@ -3696,7 +3700,18 @@ static Invocation scan_macro_invocation(Reader *reader, const char *name, size_t
         return valid_symbols[lexer->result_symbol] ? INVOCATION_TOKEN : INVOCATION_STOP;
     }
 
-    if (same_line && valid_symbols[MACRO_BLOCK_START] && !gap->directive) {
+    // THE ARGUMENT LIST CAN START ON THE LINE AFTER THE NAME. `scan_macro_start` reads a group on
+    // the next line for a name of MACRO_MIN_BARE_LENGTH or more characters, so `call` with no
+    // `same_line` is that shape: `BOOST_AUTO_TEST_CASE`, a line break, `(name)`, and `{ g(); }` of
+    // boost icl. The line break between the name and the group gives no reading of its own: at an
+    // item start, `NAME`, a line break, `(x)`, and `{` has the readings of `NAME(x) {`, and the
+    // branches below decide them with the same tests. A name of fewer characters reads no group on
+    // the next line, and `FOUR`, a line break, `(x)`, and `{ g(); }` is a function definition. A
+    // name that is the declarator of a function whose return type stands on the line before,
+    // `restriction<Ch>`, `BOOST_IOSTREAMS_RESTRICT`, `(Ch& is)`, and `{` of boost iostreams, is not
+    // at an item start, and no token of this form is valid there. The bare form keeps `same_line`:
+    // `SCOPE_EXIT` and `{` on one line.
+    if ((same_line || call) && valid_symbols[MACRO_BLOCK_START] && !gap->directive) {
         bool block = false;
         if (call && args->not_parameters && lexer->lookahead == '<') {
             // A generic body: `NAME(args) <typename T>(T x) {`.

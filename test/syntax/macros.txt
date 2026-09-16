@@ -79,6 +79,19 @@ BOOST_ASIO_TEST_SUITE
   BOOST_ASIO_TEST_CASE(append_test)
   BOOST_ASIO_TEST_CASE(other_test)
 )
+### macro_arguments_next_line_and_body
+TEST_CASE
+(
+    "A failing expression with a non streamable type is still captured",
+    "[Tricky][failing][.]"
+)
+{
+    Opaque o1, o2;
+    o1.val = 7;
+}
+BOOST_AUTO_TEST_CASE
+(fastest_icl_interval_map_fundamentals_4_ordered_types)
+{            interval_map_fundamentals_4_ordered_types<INTERVAL_MAP, discrete_type_1, int>();}
 ### macro_before_constructor
 AUD_NAMESPACE_BEGIN
 HRTF::HRTF() : m_empty(true)

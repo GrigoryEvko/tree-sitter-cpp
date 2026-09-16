@@ -3756,6 +3756,141 @@ BOOST_MSM_EUML_ACTION(No_Transition) { template <class T> void operator()(T) { }
   (expression_statement))
 
 ================================================================================
+A macro name, a line break, its arguments, and a body
+================================================================================
+
+BOOST_AUTO_TEST_CASE
+(name)
+{ g(); }
+BOOST_AUTO_TEST_CASE_TEMPLATE
+(name, T, types)
+{ T x; }
+TEST_CASE
+(
+    "A failing expression",
+    "[Tricky]"
+)
+{
+    int i = 7;
+}
+MY_TYPE_NAME
+(x)
+{ 1 };
+SCOPED_ENUM_START
+(colors)
+{ red = 0, green };
+template<typename Ch>
+restriction<Ch>
+BOOST_IOSTREAMS_RESTRICT
+    (Ch& is, int off)
+{ return restriction<Ch>(is, off); }
+struct S {
+  S
+  (int x)
+  { g(x); }
+};
+
+--------------------------------------------------------------------------------
+
+(translation_unit
+  (macro_invocation
+    name: (identifier)
+    arguments: (token_tree
+      (identifier))
+    body: (compound_statement
+      (expression_statement
+        (call_expression
+          function: (identifier)
+          arguments: (argument_list)))))
+  (macro_invocation
+    name: (identifier)
+    arguments: (token_tree
+      (identifier)
+      (identifier)
+      (identifier))
+    body: (compound_statement
+      (declaration
+        type: (type_identifier)
+        declarator: (identifier))))
+  (macro_invocation
+    name: (identifier)
+    arguments: (token_tree
+      (string_literal
+        (string_content))
+      (string_literal
+        (string_content)))
+    body: (compound_statement
+      (declaration
+        type: (primitive_type)
+        declarator: (init_declarator
+          declarator: (identifier)
+          value: (number_literal)))))
+  (declaration
+    type: (type_identifier)
+    declarator: (init_declarator
+      declarator: (parenthesized_declarator
+        (identifier))
+      value: (initializer_list
+        (number_literal))))
+  (declaration
+    type: (type_identifier)
+    declarator: (init_declarator
+      declarator: (parenthesized_declarator
+        (identifier))
+      value: (initializer_list
+        (assignment_expression
+          left: (identifier)
+          right: (number_literal))
+        (identifier))))
+  (template_declaration
+    parameters: (template_parameter_list
+      (type_parameter_declaration
+        (type_identifier)))
+    (function_definition
+      type: (template_type
+        name: (type_identifier)
+        arguments: (template_argument_list
+          (type_descriptor
+            type: (type_identifier))))
+      declarator: (function_declarator
+        declarator: (identifier)
+        parameters: (parameter_list
+          (parameter_declaration
+            type: (type_identifier)
+            declarator: (reference_declarator
+              (identifier)))
+          (parameter_declaration
+            type: (primitive_type)
+            declarator: (identifier))))
+      body: (compound_statement
+        (return_statement
+          (call_expression
+            function: (template_function
+              name: (identifier)
+              arguments: (template_argument_list
+                (type_descriptor
+                  type: (type_identifier))))
+            arguments: (argument_list
+              (identifier)
+              (identifier)))))))
+  (struct_specifier
+    name: (type_identifier)
+    body: (field_declaration_list
+      (function_definition
+        declarator: (function_declarator
+          declarator: (identifier)
+          parameters: (parameter_list
+            (parameter_declaration
+              type: (primitive_type)
+              declarator: (identifier))))
+        body: (compound_statement
+          (expression_statement
+            (call_expression
+              function: (identifier)
+              arguments: (argument_list
+                (identifier)))))))))
+
+================================================================================
 Two macro invocations in one item of an enumerator list
 ================================================================================
 
