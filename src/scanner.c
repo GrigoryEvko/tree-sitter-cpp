@@ -9238,6 +9238,12 @@ static bool scan_token(Scanner *scanner, TSLexer *lexer, const bool *valid_symbo
     // are valid. The macro is then part of the function declarator, as a GNU attribute is.
     // A macro name after the name of an enumerator is on the line of that name. On a different line, also
     // after a directive line, a name is an enumerator after a macro that expands to enumerators.
+    //
+    // THE SCAN READS THE NAME AND CAN THEN GIVE NO TOKEN, AND THAT COSTS NOTHING HERE, BY TWO FACTS.
+    // The four parse states that hold the token hold no macro token, and the tokens that they hold
+    // want a `[`, a `#`, or a keyword, which the refused name is not (`ts_external_scanner_states`
+    // of src/parser.c). A build where this branch yields to the scans after it changed no tree over
+    // 329,387 files on 2026-09-16. Refer to `stop_sites` of xtask/src/scanner.rs.
     if (valid_symbols[ENUMERATOR_MACRO_NAME]) {
         if (space.line_break || lexer->get_column(lexer) == space.spaces || !read_macro_name(lexer)) {
             return false;

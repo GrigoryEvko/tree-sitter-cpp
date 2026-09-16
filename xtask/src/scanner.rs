@@ -996,10 +996,52 @@ mod order {
     /// THE ANSWER DOES NOT SEPARATE THE SITES. Every branch of this inventory shares a state with
     /// `_macro_line_start`, including the `CLASS_MACRO_MARK` site that is correct by design. So
     /// co-validity proves EXPOSURE for every row and decides nothing, which is the same lesson as
-    /// the 24,347 above.
+    /// the 24,347 above. `report_the_co_valid_tokens_of_each_stop_site` prints the pairs of each
+    /// row from that table, without the recovery row that holds every token.
     /// A branch that cannot decide from `next` has no repair here except a rewind of the lexer,
     /// which this fork refused on price. Refer to "THE SCANNER CAN REWIND THE LEXER, AT A PRICE"
     /// of PROTOCOL.txt.
+    ///
+    /// THE PRICE OF EACH ROW, AT eb03d9e, OVER 329,387 CORPUS FILES AND 7,646 COMPILER TEST FILES.
+    /// A yield draft is a build where the branch does not run wherever a later form is also live.
+    /// A draft gives three numbers: the trees that change (reach), the files that lose their error
+    /// (FIXED), and the files that get one (NEW ERROR). A reach with FIXED 0 is not a repair, and
+    /// the trees say what it is.
+    /// TWO CUTS OF THE TABLE GIVE THE COUNTS, AND A READER MUST NOT COMPARE ONE WITH THE OTHER. The
+    /// 47 and the 48 are the states that a token shares with `_macro_line_start`. On that cut every
+    /// narrow row shares one state, and that one is the recovery row, which holds every token. The
+    /// counts of "real states" leave the recovery row out: ALIGNAS_TYPE_NAME has 1, ENUMERATOR_MACRO_NAME
+    /// 4, DECLARATOR_MACRO_NAME 8, TRAILING_MACRO_NAME 20, and TEMPLATE_PARAMETER_TYPE_NAME 85.
+    /// - `scan_word_start` TEMPLATE_PARAMETER_TYPE_NAME, 47 states with `_macro_line_start`: reach
+    ///   32, FIXED 0, NEW ERROR 0. Each of the 32 is the row's own success undone: `T MACRO name`
+    ///   with `T` from the template head, where the yield gives `attribute_macro T` and the type
+    ///   `MACRO`. The pin "A macro after a type that the template head declares" falls with it.
+    /// - `scan_macro_start` MACRO_SCOPE_START at the `:`, 48 states with `_macro_line_start`:
+    ///   reach 9, FIXED 0, NEW ERROR 2, and 5 files with more error bytes. Each of the 9 is
+    ///   `MACRO(args)::name`, the row's own success undone. The scan eats the first `:`, and no
+    ///   later form of the function gave a token in any of the 9.
+    /// - `scan_word_start` INITIALIZER_MACRO_START: 24,347 exposures to one neutral change, above.
+    /// - `scan_token` ENUMERATOR_MACRO_NAME: reach 0. Its four real states hold no macro token, and
+    ///   the forms after it want a `[`, a `#`, or a keyword, which the refused name is not.
+    /// - `scan_word_start` CLASS_MACRO_MARK: correct by design. The stop is the purpose of the guard.
+    /// - `scan_word_start` MACRO_SCOPE_START at the group: zero by construction. The block runs only
+    ///   with no macro token live, and `macro && scan_macro_start` is the only statement after it.
+    /// - `scan_trailing_macro_name`, 20 real states: zero by construction. `read_macro_name` refuses
+    ///   the names that `is_macro_name` with two characters refuses, so the call name macro of a
+    ///   shared state refuses them too, and every later statement of the function wants that name.
+    /// - `scan_directive` at `##`: zero by construction. The branch gives no token only without
+    ///   `pending`, and the later form of the function wants `pending`.
+    /// - `scan_macro_start` at the group and at `if (call)`: one read that three decisions share,
+    ///   so a yield of one is a yield of all three. Unmeasured.
+    /// - `scan_word_start` ALIGNAS_TYPE_NAME, one real state: unmeasured. That state also holds
+    ///   `functional_cast_name`, `macro_scope_start` and `concatenated_macro_start`, so the price is
+    ///   a declared type name in `alignas(...)` that a `(` follows. One build prices it.
+    ///
+    /// THE INSTRUMENT THAT FINDS A REAL DEFECT IS A CONSTRUCT SOMEBODY READS, AND THE COUNTS ONLY
+    /// SAY WHERE TO LOOK. Co-validity proves exposure for every row and separates none. The yield
+    /// drafts priced the two widest rows at zero. A count of 22 clean trees changed would have read
+    /// as a repair, and five trees read said the opposite. The one defect of this family with a
+    /// price, 23 sites of valid C++, came from r47 reading four broken files.
     pub fn stop_sites(
         stripped: &[String],
         function: &Function,
@@ -1132,11 +1174,42 @@ mod order {
         }
         out
     }
+
+    /// The external tokens of each row of `ts_external_scanner_states` of src/parser.c.
+    ///
+    /// The parser fills `valid_symbols` from that table, one row for each external lexer state, so
+    /// two tokens can be valid at one position exactly when one row holds both. A name comes back
+    /// without the leading underscore of a hidden rule: `_macro_scope_start` reads as
+    /// `macro_scope_start`, which is the C constant `MACRO_SCOPE_START` in lowercase. The table
+    /// ends at the first `};` after its brace. O(n) in the length of the table.
+    pub fn external_states(parser: &str) -> Vec<BTreeSet<String>> {
+        let Some(start) = parser.find("static const bool ts_external_scanner_states") else {
+            return Vec::new();
+        };
+        let Some(open) = parser[start..].find('{') else {
+            return Vec::new();
+        };
+        let body = &parser[start + open..];
+        let body = body.find("\n};").map_or(body, |end| &body[..end]);
+        let row = Regex::new(r"^\s*\[\d+\]\s*=\s*\{").expect("the pattern builds");
+        let entry = Regex::new(r"\[ts_external_token_([A-Za-z0-9_]+)\]\s*=\s*true").expect("the pattern builds");
+        let mut states: Vec<BTreeSet<String>> = Vec::new();
+        for line in body.lines() {
+            if row.is_match(line) {
+                states.push(BTreeSet::new());
+            } else if let (Some(found), Some(state)) = (entry.captures(line), states.last_mut()) {
+                state.insert(found[1].trim_start_matches('_').to_string());
+            }
+        }
+        states
+    }
 }
 
 #[cfg(test)]
 mod order_tests {
     use super::order;
+    use regex::Regex;
+    use std::collections::BTreeSet;
     use std::fs;
 
     /// A source with the movers and a multiplexer of the given body.
@@ -1328,6 +1401,55 @@ mod order_tests {
             "the scan of the stop sites found none. The file holds them, so a zero here means that \
              the reader broke. Run this test with --nocapture and read the rows."
         );
+    }
+
+    /// Print the tokens that share a parse state with the token of each stop site.
+    ///
+    /// AN INVENTORY, NOT A GATE. The table proves exposure for every row and decides nothing, and
+    /// `order::stop_sites` says why. The recovery row holds every token and says nothing, so the
+    /// test leaves it out. A row whose condition names no token prints that fact. The test asserts
+    /// that the table reads and that the sites still exist, for the reason `report_the_stop_sites`
+    /// gives.
+    #[test]
+    fn report_the_co_valid_tokens_of_each_stop_site() {
+        let source = crate::repository().join("src").join("scanner.c");
+        let text = fs::read_to_string(&source).expect("src/scanner.c reads");
+        let stripped = order::strip(&text);
+        let all = order::functions(&stripped);
+        let advances = order::advancing(&stripped, &all);
+        let blanks = order::blank_only(&stripped, &all, &advances);
+        let givers = order::token_givers(&stripped, &all);
+        let mut rows = Vec::new();
+        for index in order::multiplexers(&stripped, &all) {
+            rows.extend(order::stop_sites(&stripped, &all[index], &advances, &blanks, &givers));
+        }
+        assert!(!rows.is_empty(), "the scan of the stop sites found none. Refer to report_the_stop_sites.");
+        let parser = crate::repository().join("src").join("parser.c");
+        let table = fs::read_to_string(&parser).expect("src/parser.c reads");
+        let states = order::external_states(&table);
+        assert!(!states.is_empty(), "src/parser.c holds no ts_external_scanner_states table, so the reader broke");
+        let full = states.iter().map(BTreeSet::len).max().unwrap_or(0);
+        let real: Vec<&BTreeSet<String>> = states.iter().filter(|state| state.len() < full).collect();
+        let symbol = Regex::new(r"valid_symbols\[([A-Z_0-9]+)\]").expect("the pattern builds");
+        println!("CO-VALID TOKENS OF {} STOP SITES, over {} real states of {}", rows.len(), real.len(), states.len());
+        for row in &rows {
+            let site = row.split(" reads a character").next().unwrap_or(row);
+            let names: BTreeSet<String> = symbol.captures_iter(row).map(|found| found[1].to_lowercase()).collect();
+            if names.is_empty() {
+                println!("  {site}: the condition names no token");
+                continue;
+            }
+            for name in &names {
+                let holding: Vec<&&BTreeSet<String>> = real.iter().filter(|state| state.contains(name)).collect();
+                let mut shared: BTreeSet<&str> = BTreeSet::new();
+                for state in &holding {
+                    shared.extend(state.iter().map(String::as_str));
+                }
+                shared.remove(name.as_str());
+                let list: Vec<&str> = shared.into_iter().collect();
+                println!("  {site} {name}: {} real states, shared with {}", holding.len(), list.join(", "));
+            }
+        }
     }
 
     /// NO SCAN OF THE FILE READS A CHARACTER AND THEN LETS ANOTHER SCAN READ FROM THERE.
