@@ -16,6 +16,12 @@ typedef X* (Z::*MethO)(int);
 typedef void (ns::Outer<T>::Inner::*fn)(int);
 ### member_pointer_typedef_global_scope
 typedef int ::ns::C::*P;
+### member_pointer_abstract_global_scope_parameter
+void f(int ::ns::T::*, int ::S::*);
+### member_pointer_abstract_global_scope_function
+void f(void (::ns::T::*)());
+### member_pointer_abstract_global_scope_cast
+auto q = static_cast<void (::C::*)()>(p);
 ### member_pointer_const_ref_qualified
 void (C::*const pm)() && = nullptr;
 ### member_pointer_parameter

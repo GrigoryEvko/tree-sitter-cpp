@@ -2340,6 +2340,44 @@ bool b = std::is_member_pointer<int decltype(s)::*>::value;
           (identifier))))))
 
 ================================================================================
+Abstract member pointer declarators with a global scope
+================================================================================
+
+void f(int ::ns::T::*, int ::S::*);
+void g(void (::ns::T::*)());
+
+--------------------------------------------------------------------------------
+
+(translation_unit
+  (declaration
+    (primitive_type)
+    (function_declarator
+      (identifier)
+      (parameter_list
+        (parameter_declaration
+          (primitive_type)
+          (abstract_member_pointer_declarator
+            (namespace_identifier)
+            (namespace_identifier)))
+        (parameter_declaration
+          (primitive_type)
+          (abstract_member_pointer_declarator
+            (namespace_identifier))))))
+  (declaration
+    (primitive_type)
+    (function_declarator
+      (identifier)
+      (parameter_list
+        (parameter_declaration
+          (primitive_type)
+          (abstract_function_declarator
+            (abstract_parenthesized_declarator
+              (abstract_member_pointer_declarator
+                (namespace_identifier)
+                (namespace_identifier)))
+            (parameter_list)))))))
+
+================================================================================
 Braced initializers after declarators of objects
 ================================================================================
 

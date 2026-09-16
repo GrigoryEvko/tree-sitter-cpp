@@ -3398,10 +3398,26 @@ fn declarations(g: &mut Grammar) {
     }
     // A pointer to a member in an abstract declarator: `void (S::*)()`, `int (::ns::S::*)`. The
     // scope has a name before each `::`, as the nested-name-specifier of the standard has. An
-    // abstract declarator can start after each type argument of a template. A scope that starts
-    // with `_member_pointer_start`, or a right recursive scope, changes the parse states in
-    // `a<b::c<d::e<f>>>`. The parser then drops the correct parse of approximately 200 files of
-    // real code. These inline steps with a conflict entry keep the states of the base grammar.
+    // abstract declarator can start after each type argument of a template.
+    //
+    // The steps are inline, and they are not `_scope_resolution`, the steps of a qualified name.
+    // `_scope_resolution` takes an empty scope. A `repeat1` of it reads `A:: ::` in two ways, and a
+    // conflict set of `_scope_resolution` alone is then necessary. Such a set stops the report of a
+    // conflict in each qualified name.
+    //
+    // The older reason for the inline steps was the version limit of the parser. With
+    // `_scope_resolution`, the parse states of `a<b::c<d::e<f>>>` change. The parser then removed
+    // the correct parse of approximately 200 corpus files. The runtime repairs that limit:
+    // `ts_parser__merge_finished_version` in vendor/tree-sitter/src/parser.c merges those versions.
+    // Refer to upstream-patches/11-merge-finished-version.patch.
+    //
+    // The scope steps have the precedence of `_scope_resolution`, and the steps after the `*` keep
+    // the precedence 0. With the precedence 0 after a leading `::`, the parse table builder removes
+    // the step of this rule with no report, because the reduction of a `_scope_resolution` with an
+    // empty scope has the precedence 1. `void f(int ::ns::T::*);`, `void f(int ::S::*);` and
+    // `void f(void (::ns::T::*)());` then got a MISSING node. GCC and Clang accept each of the
+    // three. The precedence of the reduction stays 0: `int S::* (S::*)(int) const` is a pointer to
+    // a member of a function type, and the function declarator is inside the outer member pointer.
     g.define(
         "abstract_member_pointer_declarator",
         prec_dynamic(
@@ -3409,19 +3425,30 @@ fn declarations(g: &mut Grammar) {
             prec_right(
                 0,
                 seq![
-                    optional("::"),
-                    // Each step has the precedence of `_scope_resolution`, so that a second
-                    // `::` does not prefer a qualified name.
-                    repeat1(prec(
+                    // The precedence covers the leading `::` and the steps after it. The last step
+                    // of the region keeps the precedence 0, because the `*` follows it.
+                    prec(
                         1,
                         seq![
-                            field(
-                                "scope",
-                                choice![s!(_namespace_identifier), s!(template_type), s!(decltype)]
-                            ),
-                            "::",
+                            optional("::"),
+                            // Each step has the precedence of `_scope_resolution`, so that a second
+                            // `::` does not prefer a qualified name.
+                            repeat1(prec(
+                                1,
+                                seq![
+                                    field(
+                                        "scope",
+                                        choice![
+                                            s!(_namespace_identifier),
+                                            s!(template_type),
+                                            s!(decltype)
+                                        ]
+                                    ),
+                                    "::",
+                                ]
+                            )),
                         ]
-                    )),
+                    ),
                     "*",
                     member_pointer_qualifiers(),
                     field("declarator", optional(s!(_abstract_declarator))),
