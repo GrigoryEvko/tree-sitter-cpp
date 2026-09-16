@@ -312,19 +312,29 @@ fn project_of(path: &str) -> &str {
     path.split('/').next().unwrap_or("")
 }
 
-/// Write one seed file, read it back with `crate::seed`, and give the report line.
-fn write_seed(path: &Path, project: &str, names: &Names) -> Result<String, Box<dyn Error>> {
-    let (rows, dropped) = names.rows();
+/// The text of a seed file. One writer, so `collect` and `check` cannot disagree by a byte.
+fn seed_text(rows: &[(&str, &'static str)]) -> String {
     let mut text = String::with_capacity(rows.len() * 24 + 256);
     text.push_str("# The names that this project declares as a type or as a template.\n");
     text.push_str("# `cargo xtask seed collect` writes this file. The reader is xtask/src/seed.rs.\n");
     text.push_str("# The rows ascend by the bytes of the name, and a reader binary searches them.\n");
-    for (name, kind) in &rows {
+    text.push_str("# A COMMITTED SEED IS THE MEMORY OF WHAT A PROJECT DECLARES. `cargo xtask seed check`\n");
+    text.push_str("# collects again and fails on any name added, any name removed, and any kind changed.\n");
+    text.push_str("# A change to this file changes every parse that loads it, so the commit that makes\n");
+    text.push_str("# the change must say which names moved and why.\n");
+    for (name, kind) in rows {
         text.push_str(name);
         text.push('\t');
         text.push_str(kind);
         text.push('\n');
     }
+    text
+}
+
+/// Write one seed file, read it back with `crate::seed`, and give the report line.
+fn write_seed(path: &Path, project: &str, names: &Names) -> Result<String, Box<dyn Error>> {
+    let (rows, dropped) = names.rows();
+    let text = seed_text(&rows);
     if let Some(directory) = path.parent() {
         fs::create_dir_all(directory)?;
     }
@@ -360,9 +370,122 @@ fn write_seed(path: &Path, project: &str, names: &Names) -> Result<String, Box<d
     Ok(format!("{project}\t{} names\t{}\t{}{tail}", seed.names(), seed.id(), path.display()))
 }
 
+/// Compare a fresh collection with the seeds that the tree holds.
+///
+/// THE CHECK FAILS ON A DIFFERENCE IN EITHER DIRECTION: a name that the collection adds, a name that
+/// it no longer finds, and a name whose kind changed. A check that fails only on an addition
+/// pre-approves every loss, and #283 found two stored baselines of this fork in exactly that shape,
+/// which pre-approved 8 tie sites and 58 files for every later commit. A SEED THAT SILENTLY LOSES
+/// NAMES GIVES A PARSE THAT LOOKS CORRECT AND IS NOT, which is the failure the seed exists to
+/// prevent, arriving from inside.
+fn check(root: &Path, list: &Path, directory: &Path) -> Result<(), Box<dyn Error>> {
+    let text = fs::read_to_string(list).map_err(|e| format!("cannot read the list {}: {e}", list.display()))?;
+    let paths: Vec<&str> = text.lines().map(str::trim).filter(|line| !line.is_empty()).collect();
+    let mut committed: Vec<PathBuf> = fs::read_dir(directory)
+        .map_err(|e| format!("cannot read {}: {e}", directory.display()))?
+        .filter_map(|entry| entry.ok().map(|entry| entry.path()))
+        .filter(|path| path.extension().is_some_and(|extension| extension == "seed"))
+        .collect();
+    committed.sort();
+    if committed.is_empty() {
+        return Err(format!("{} holds no seed to check", directory.display()).into());
+    }
+    let mut failures = Vec::new();
+    for path in &committed {
+        let project = path.file_stem().and_then(|stem| stem.to_str()).ok_or("a seed file with no name")?;
+        let of_project: Vec<&str> =
+            paths.iter().copied().filter(|candidate| project_of(candidate) == project).collect();
+        if of_project.is_empty() {
+            return Err(format!(
+                "{} holds the seed of `{project}` and {} names no file of that project, so the check                  would compare a fresh collection of nothing with a committed file",
+                directory.display(),
+                list.display()
+            )
+            .into());
+        }
+        let mut names = collect_names(root, &of_project);
+        names.resolve();
+        let (rows, _) = names.rows();
+        let fresh = seed_text(&rows);
+        let stored = fs::read_to_string(path).map_err(|e| format!("cannot read {}: {e}", path.display()))?;
+        if fresh == stored {
+            println!("{project}\t{} names\tagrees with {}", rows.len(), path.display());
+            continue;
+        }
+        failures.push(difference(project, path, &stored, &fresh));
+    }
+    if failures.is_empty() {
+        return Ok(());
+    }
+    Err(format!(
+        "{}\nA seed of test/seed is the memory of what a project declares. A change to it is a change \
+         to every parse that loads it, so it must be explained in the commit that makes it. Write the \
+         new file with `cargo xtask seed collect` and say in the commit message which names moved and \
+         why.",
+        failures.join("\n")
+    )
+    .into())
+}
+
+/// The rows of a seed file as a map of the name to the kind.
+fn rows_of(text: &str) -> BTreeMap<&str, &str> {
+    text.lines().filter(|line| !line.starts_with('#')).filter_map(|line| line.split_once('\t')).collect()
+}
+
+/// A message that names every name that moved between two seed files.
+fn difference(project: &str, path: &Path, stored: &str, fresh: &str) -> String {
+    let before = rows_of(stored);
+    let after = rows_of(fresh);
+    let added: Vec<&str> = after.keys().filter(|name| !before.contains_key(*name)).copied().collect();
+    let removed: Vec<&str> = before.keys().filter(|name| !after.contains_key(*name)).copied().collect();
+    let changed: Vec<String> = before
+        .iter()
+        .filter_map(|(name, kind)| {
+            after.get(name).filter(|fresh_kind| *fresh_kind != kind).map(|fresh_kind| format!("{name} {kind} -> {fresh_kind}"))
+        })
+        .collect();
+    let mut parts = vec![format!(
+        "{}: the fresh collection of `{project}` differs from the committed seed, {} names against {}",
+        path.display(),
+        after.len(),
+        before.len()
+    )];
+    let mut say = |label: &str, names: &[String]| {
+        if !names.is_empty() {
+            let shown: Vec<&str> = names.iter().take(12).map(String::as_str).collect();
+            parts.push(format!("  {label} {}: {}", names.len(), shown.join(", ")));
+        }
+    };
+    say("added", &added.iter().map(|name| (*name).to_owned()).collect::<Vec<_>>());
+    say("REMOVED", &removed.iter().map(|name| (*name).to_owned()).collect::<Vec<_>>());
+    say("changed kind", &changed);
+    parts.join("\n")
+}
+
+/// Collect the names of the files of `paths`, in parallel.
+fn collect_names(root: &Path, paths: &[&str]) -> Names {
+    paths
+        .par_iter()
+        .fold(Names::default, |mut names: Names, path| {
+            if let Ok(source) = fs::read(root.join(path)) {
+                names.merge(names_of(&source));
+            }
+            names
+        })
+        .reduce(Names::default, |mut left, right| {
+            left.merge(right);
+            left
+        })
+}
+
 /// Collect the names of a file list and write one seed, or one seed for each project.
 pub fn run(args: &[String]) -> Result<(), Box<dyn Error>> {
-    const USAGE: &str = "usage: cargo xtask seed collect ROOT LIST (--out FILE | --out-dir DIRECTORY)";
+    const USAGE: &str = "usage: cargo xtask seed collect ROOT LIST (--out FILE | --out-dir DIRECTORY)\n       cargo xtask seed check ROOT LIST DIRECTORY";
+    if let [command, root, list, directory] = args
+        && command == "check"
+    {
+        return check(Path::new(root), Path::new(list), Path::new(directory));
+    }
     let (root, list, out, per_project) = match args {
         [collect, root, list, flag, out] if collect == "collect" && flag == "--out" => (root, list, out, false),
         [collect, root, list, flag, out] if collect == "collect" && flag == "--out-dir" => (root, list, out, true),
@@ -541,6 +664,41 @@ mod tests {
         let names: Vec<&str> =
             text.lines().filter(|line| !line.starts_with('#')).filter_map(|line| line.split_once('\t')).map(|(name, _)| name).collect();
         assert_eq!(names, ["Keep"], "only the class whose other declarations are constructors keeps its row");
+    }
+
+    /// EVERY SEED OF test/seed IS ONE THAT THE READER TAKES.
+    ///
+    /// `cargo xtask seed check` compares a committed seed with a fresh collection, and it needs the
+    /// corpus at /tmp/cpp-corpora, so the gate runs it and this suite cannot. THIS TEST COVERS WHAT
+    /// IT CAN COVER WITH NO CORPUS: that the committed file is one the reader takes, that its rows
+    /// ascend strictly by their bytes, and that no name passes the length of the format. A file
+    /// that someone edits by hand fails here without waiting for a gate.
+    #[test]
+    fn every_committed_seed_is_one_that_the_reader_takes() {
+        let directory = crate::repository().join("test").join("seed");
+        let mut files: Vec<PathBuf> = fs::read_dir(&directory)
+            .unwrap_or_else(|e| panic!("{} reads: {e}", directory.display()))
+            .filter_map(|entry| entry.ok().map(|entry| entry.path()))
+            .filter(|path| path.extension().is_some_and(|extension| extension == "seed"))
+            .collect();
+        files.sort();
+        assert!(!files.is_empty(), "{} holds no seed, and the check of the gate would compare nothing", directory.display());
+        for path in &files {
+            let seed = Seed::read(path).unwrap_or_else(|e| panic!("the reader takes {}: {e}", path.display()));
+            let text = fs::read_to_string(path).expect("the seed reads");
+            let rows: Vec<(&str, &str)> =
+                text.lines().filter(|line| !line.starts_with('#')).filter_map(|line| line.split_once('\t')).collect();
+            assert_eq!(seed.names(), rows.len(), "{}", path.display());
+            for (name, kind) in &rows {
+                assert!(name.len() <= super::MAX_NAME, "{}: `{name}` has {} bytes", path.display(), name.len());
+                assert!(matches!(*kind, "type" | "template"), "{}: the kind of `{name}` is `{kind}`", path.display());
+            }
+            assert!(
+                rows.windows(2).all(|pair| pair[0].0.as_bytes() < pair[1].0.as_bytes()),
+                "{}: the rows do not ascend strictly by their bytes",
+                path.display()
+            );
+        }
     }
 
     /// THE PROJECT DECIDES THE THREE READINGS OF `struct MACRO NAME;`.

@@ -95,6 +95,17 @@ tasks:
                            project is the first component of its path, and a project with no such
                            file parses with no seed. The report names each project of the two
                            groups. THE GATE RUNS NO SEED, and a seeded run is a second report.
+  seed collect ROOT LIST (--out FILE | --out-dir DIRECTORY)
+                           Write the names that each project of LIST declares as a type or as a
+                           template, as `name<TAB>kind` rows that ascend by the bytes of the name.
+                           With --out-dir, write one <project>.seed for each project. The task reads
+                           back what it wrote with the reader of `seed`, and it reports the names
+                           that it dropped for passing TS_CPP_SEED_WORD_SIZE - 1 bytes.
+  seed check ROOT LIST DIRECTORY
+                           Collect again and compare each <project>.seed of DIRECTORY with the
+                           result. Fail on a name added, a name REMOVED, and a kind changed. A seed
+                           is the memory of what a project declares, and a change to it changes
+                           every parse that loads it.
   directives ROOT LIST BASELINE
                            Check that no node outside a directive begins on a line whose first
                            character that is not a blank is `#`. Such a node holds a token that the
