@@ -5406,8 +5406,12 @@ static bool scan_directive(Scanner *scanner, TSLexer *lexer, const bool *valid_s
         is_directive = at_line_start || item_position;
     } else if (lexer->lookahead == '%') {
         advance(lexer);
-        at_line_start = after_line_break || lexer->get_column(lexer) == spaces + 1;
-        is_directive = lexer->lookahead == ':' && (at_line_start || item_position);
+        // Only `%:` is a directive. The `:` comes before the column, because `get_column` reads the
+        // line of the token, and a `%` of a modulo operator then reads the line for nothing.
+        if (lexer->lookahead == ':') {
+            at_line_start = after_line_break || lexer->get_column(lexer) == spaces + 1;
+            is_directive = at_line_start || item_position;
+        }
     }
     if (!is_directive && !pending) {
         return false;
