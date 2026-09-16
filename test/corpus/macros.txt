@@ -2793,3 +2793,88 @@ void g(int a, int b) {
             function: (identifier)
             arguments: (argument_list
               (number_literal))))))))
+
+================================================================================
+A line of macro invocations that continues on the next line
+================================================================================
+
+void f(int v) {
+    if (v) {
+        P_(LINE) P_(STR) P_(IDX)
+        P_(EXP_GT) P_(EXP_GE)
+    }
+    if (v) { P(LINE) P(TEXT) P(NUM) }
+}
+ATTR_WARN_UNUSED_RESULT ATTR_NONNULL(1, 2)
+bool g(int a, int b);
+
+--------------------------------------------------------------------------------
+
+(translation_unit
+  (function_definition
+    type: (primitive_type)
+    declarator: (function_declarator
+      declarator: (identifier)
+      parameters: (parameter_list
+        (parameter_declaration
+          type: (primitive_type)
+          declarator: (identifier))))
+    body: (compound_statement
+      (if_statement
+        condition: (condition_clause
+          value: (identifier))
+        consequence: (compound_statement
+          (macro_invocation
+            name: (identifier)
+            arguments: (token_tree
+              (identifier)))
+          (macro_invocation
+            name: (identifier)
+            arguments: (token_tree
+              (identifier)))
+          (macro_invocation
+            name: (identifier)
+            arguments: (token_tree
+              (identifier)))
+          (macro_invocation
+            name: (identifier)
+            arguments: (token_tree
+              (identifier)))
+          (macro_invocation
+            name: (identifier)
+            arguments: (token_tree
+              (identifier)))))
+      (if_statement
+        condition: (condition_clause
+          value: (identifier))
+        consequence: (compound_statement
+          (macro_invocation
+            name: (identifier)
+            arguments: (token_tree
+              (identifier)))
+          (macro_invocation
+            name: (identifier)
+            arguments: (token_tree
+              (identifier)))
+          (macro_invocation
+            name: (identifier)
+            arguments: (token_tree
+              (identifier)))))))
+  (declaration
+    (attribute_macro
+      name: (identifier))
+    (attribute_macro
+      name: (identifier)
+      arguments: (argument_list
+        (number_literal)
+        (number_literal)))
+    type: (primitive_type)
+    declarator: (function_declarator
+      declarator: (identifier)
+      parameters: (parameter_list
+        (parameter_declaration
+          type: (primitive_type)
+          declarator: (identifier))
+        (parameter_declaration
+          type: (primitive_type)
+          declarator: (identifier))))))

@@ -2402,6 +2402,11 @@ static AfterCall scan_after_macro_call(Reader *reader, const Scanner *classes, b
     bool pointer = false;
     // More macro invocations came after the call: `P_(LINE) P(X)`.
     bool chain = false;
+    // The chain of macro invocations went past a line break, and it continues on a line of its own:
+    // `P_(LINE) P_(STR)` and `P_(EXP_GT) P_(EXP_GE)` in the test drivers of bde. Only a macro line can
+    // come out of the scan after that, because a declaration on a line of its own takes the names
+    // before it as its attribute macros.
+    bool crossed_line = false;
     for (;;) {
         LOOP_STEP();
         Gap gap = {0};
@@ -2414,8 +2419,16 @@ static AfterCall scan_after_macro_call(Reader *reader, const Scanner *classes, b
         if (chain && !gap.blocked && (!readable(reader) || lexer->lookahead == '}' || lexer->lookahead == ';')) {
             return AFTER_CALL_MACRO_LINE;
         }
-        if (gap.blocked || (gap.newlines > 0 && !next_line) || !readable(reader)) {
+        if (gap.blocked || !readable(reader)) {
             return AFTER_CALL_NONE;
+        }
+        if (gap.newlines > 0 && !next_line) {
+            // A chain of macro invocations continues on the next line. Each name of that line is a macro
+            // invocation with arguments, and no other text comes before the end of the chain.
+            if (!chain || !is_word_start(lexer->lookahead)) {
+                return AFTER_CALL_NONE;
+            }
+            crossed_line = true;
         }
         int32_t c = lexer->lookahead;
         if (c == '[') {
@@ -2488,6 +2501,12 @@ static AfterCall scan_after_macro_call(Reader *reader, const Scanner *classes, b
         read_word(reader, word, &has_lower);
         uint32_t name = reader->word_hash;
         size_t length = strlen(word);
+        // Only the name of a macro continues a chain that went past a line break. Each other word
+        // there starts a declaration, and the names before it are its attribute macros:
+        // `ATTR_WARN_UNUSED_RESULT ATTR_NONNULL(1, 2)` and `bool g(int a, int b);` on the next line.
+        if (crossed_line && !is_macro_name(word, has_lower)) {
+            return AFTER_CALL_NONE;
+        }
         // The keyword of a statement starts no declaration, and the macro is an attribute of that
         // statement: `MACRO(x) return g(a);`.
         if (word_in(word, STATEMENT_ATTRIBUTE_WORDS)) {
@@ -3360,7 +3379,11 @@ static bool scan_macro_start(Reader reader, const char *name, bool has_lower, co
         // `template <class R>`, `BSLSTL_MAP_REQUIRES_CONTAINER_COMPATIBLE_RANGE(R, T)`, `map(R r);`.
         // A blank line, a comment, or a directive line between them ends the macro.
         bool next_line = sal || (after_specifiers && !gap.separated);
-        if (!same_line || (gap.newlines > 0 && !next_line) || !((macro_name && length >= 2) || sal)) {
+        // A name of ONE character can be the first element of a line of macro invocations:
+        // `P(LINE) P(TEXT) P(NUM)` in the test drivers of bde. The rest of that line must hold macro
+        // invocations, and a line of macro invocations is the only result that such a name can give.
+        bool short_line = macro_line_possible && length < 2;
+        if (!same_line || (gap.newlines > 0 && !next_line) || !((macro_name && length >= 2) || sal || short_line)) {
             return false;
         }
         AfterCall after = scan_after_macro_call(&reader, classes, sal, next_line,
@@ -3369,7 +3392,7 @@ static bool scan_macro_start(Reader reader, const char *name, bool has_lower, co
             lexer->result_symbol = MACRO_LINE_START;
             return reader.budget > 0;
         }
-        if (after == AFTER_CALL_NONE || reader.budget == 0) {
+        if (after == AFTER_CALL_NONE || reader.budget == 0 || short_line) {
             return false;
         }
         bool tokens = args.not_expressions || args.statements;
