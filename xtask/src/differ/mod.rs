@@ -171,6 +171,8 @@ pub struct Analysis {
     pub tree: Option<OurTree>,
     pub our_facts: Vec<Fact>,
     pub outcomes: Vec<Outcome>,
+    /// Our facts that no Clang fact stands at. Refer to [`compare::unmatched`].
+    pub unmatched: Vec<Fact>,
     /// True when Clang accepts the file and its JSON AST is read.
     pub compared: bool,
 }
@@ -209,10 +211,15 @@ fn analyze(parser: &mut Parser, oracle: &Oracle, path: &Path, source: Vec<u8>, e
     );
     let our_facts = tree.as_ref().map_or_else(Vec::new, |tree| ours::facts(tree, &source));
     let compared = clang.check.status == Status::Accept && clang.json == oracle::JsonStatus::Read && tree.is_some();
-    let outcomes = if compared {
-        compare::compare(&clang::facts(&clang.nodes, &source), &our_facts)
+    // The Clang facts serve both directions, so the walk of the JSON nodes runs one time.
+    let (outcomes, unmatched) = if compared {
+        let theirs = clang::facts(&clang.nodes, &source);
+        (
+            compare::compare(&theirs, &our_facts),
+            compare::unmatched(&theirs, &our_facts),
+        )
     } else {
-        Vec::new()
+        (Vec::new(), Vec::new())
     };
     Analysis {
         language: given.language,
@@ -224,6 +231,7 @@ fn analyze(parser: &mut Parser, oracle: &Oracle, path: &Path, source: Vec<u8>, e
         tree,
         our_facts,
         outcomes,
+        unmatched,
         compared,
     }
 }
@@ -264,6 +272,9 @@ pub struct FileResult {
     pub compared: bool,
     /// The number of Clang facts of each category with each verdict.
     pub counts: BTreeMap<Category, [u32; 5]>,
+    /// The number of OUR facts of each category that no Clang fact stands at, and the number of
+    /// those that stand inside a macro definition. Refer to [`compare::unmatched`].
+    pub added: BTreeMap<Category, [u32; 2]>,
     pub rows: Vec<Row>,
 }
 
@@ -309,6 +320,7 @@ fn summarize(label: String, analysis: Analysis) -> FileResult {
     let source = &analysis.source;
     let starts = line_starts(source);
     let mut counts: BTreeMap<Category, [u32; 5]> = BTreeMap::new();
+    let mut added: BTreeMap<Category, [u32; 2]> = BTreeMap::new();
     let mut rows = Vec::new();
     let (our_errors, our_first) = match &analysis.tree {
         Some(tree) if tree.errors > 0 => {
@@ -345,6 +357,24 @@ fn summarize(label: String, analysis: Analysis) -> FileResult {
                 excerpt: excerpt(source, fact.begin, fact.end),
             });
         }
+        // A FACT INSIDE A MACRO DEFINITION IS NOT A DEFECT, AND IT IS THE LARGEST GROUP HERE.
+        // Clang expands a macro before it builds an AST, so the body of a `#define` reaches no
+        // Clang fact whatever it holds. The count separates that group at the point of measurement,
+        // because a number and its caution must travel in one report.
+        for fact in &analysis.unmatched {
+            let mut current = Some(fact.node);
+            let mut in_macro = false;
+            while let Some(index) = current {
+                if tree.kind(index).starts_with("preproc_") {
+                    in_macro = true;
+                    break;
+                }
+                current = tree.parent(index);
+            }
+            let entry = added.entry(fact.label.category).or_default();
+            entry[0] += 1;
+            entry[1] += u32::from(in_macro);
+        }
     }
     FileResult {
         label,
@@ -362,6 +392,7 @@ fn summarize(label: String, analysis: Analysis) -> FileResult {
         stopped: analysis.tree.is_none(),
         compared: analysis.compared,
         counts,
+        added,
         rows,
     }
 }
@@ -388,6 +419,7 @@ fn unreadable(label: String, error: &str) -> FileResult {
         stopped: false,
         compared: false,
         counts: BTreeMap::new(),
+        added: BTreeMap::new(),
         rows: Vec::new(),
     }
 }

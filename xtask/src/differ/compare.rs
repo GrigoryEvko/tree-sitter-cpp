@@ -117,6 +117,39 @@ pub fn compare(clang: &[Fact], ours: &[Fact]) -> Vec<Outcome> {
     outcomes
 }
 
+/// Our facts that no Clang fact stands at, one for each range and label.
+///
+/// THE COMPARISON ABOVE MEASURES RECALL AND THIS FUNCTION IS THE OTHER HALF. Each [`Outcome`] holds
+/// one CLANG fact, so a node of ours that Clang states no fact for gives no outcome, no row and no
+/// count. "function definition 11222 of 11230, 99.9%" says that we carry 99.9% of the function
+/// definitions CLANG STATES. IT SAYS NOTHING ABOUT HOW MANY OF THE NODES WE CALL A FUNCTION
+/// DEFINITION ARE ONE. Task 312 measured 319,310 sites in 28,456 corpus files where a macro with a
+/// body reads as a `function_definition`, and no row of that table can hold one of them.
+///
+/// A COUNT FROM THIS FUNCTION IS NOT A COUNT OF DEFECTS. Our tree holds real nodes that Clang's AST
+/// has no fact for, and the largest group is everything inside a macro definition, which Clang
+/// expands before it builds an AST. The count is a CLASSIFICATION to read by category, and a rate
+/// over it has no meaning until each group in it has a name.
+///
+/// The rule is the rule of [`compare`] turned around: a fact matches when a fact of the other side
+/// holds the same byte range. O(n) in the number of facts.
+pub fn unmatched(clang: &[Fact], ours: &[Fact]) -> Vec<Fact> {
+    let at: HashSet<(u32, u32)> = clang.iter().map(|fact| (fact.begin, fact.end)).collect();
+    let mut seen = HashSet::with_capacity(ours.len());
+    let mut out = Vec::new();
+    for fact in ours {
+        if at.contains(&(fact.begin, fact.end)) {
+            continue;
+        }
+        // Two facts with the same range and label count one time, as they do in `compare`.
+        if !seen.insert((fact.begin, fact.end, fact.label)) {
+            continue;
+        }
+        out.push(*fact);
+    }
+    out
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -163,5 +196,21 @@ mod tests {
         let ours = [fact(0, 8, Category::ExpressionStatement), fact(0, 7, Category::Lambda)];
         let verdicts: Vec<Verdict> = compare(&clang, &ours).iter().map(|o| o.verdict).collect();
         assert_eq!(verdicts, [Verdict::Ambiguous, Verdict::Nested, Verdict::Nested]);
+    }
+
+    #[test]
+    fn our_fact_at_a_range_with_no_clang_fact_is_unmatched() {
+        let clang = [fact(0, 10, Category::Compound), fact(2, 6, Category::Call)];
+        let ours = [
+            // The same range and a DIFFERENT category is a mismatch for `compare`, not an unmatched
+            // fact. This direction asks about the RANGE only.
+            fact(2, 6, Category::FunctionalCast),
+            fact(0, 10, Category::Compound),
+            fact(12, 16, Category::FunctionDefinition),
+            fact(12, 16, Category::FunctionDefinition),
+            fact(20, 21, Category::Name),
+        ];
+        let ranges: Vec<(u32, u32)> = unmatched(&clang, &ours).iter().map(|f| (f.begin, f.end)).collect();
+        assert_eq!(ranges, [(12, 16), (20, 21)]);
     }
 }

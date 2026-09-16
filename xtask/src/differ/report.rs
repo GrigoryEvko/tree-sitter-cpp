@@ -280,6 +280,48 @@ pub fn write(
         percent(all[0] + all[1] + all[2], total)
     )?;
 
+    // THE TABLE ABOVE IS RECALL. THIS ONE IS THE OTHER HALF, AND THE TWO ANSWER DIFFERENT QUESTIONS.
+    // Every row above counts CLANG facts, so a node of ours that Clang states no fact for cannot
+    // appear in it. The caution travels with the numbers, in the same output, because a count read
+    // without it becomes a defect count in the next message that quotes it.
+    let mut ours: BTreeMap<Category, [u64; 2]> = BTreeMap::new();
+    for r in &readable {
+        for (category, counts) in &r.added {
+            let total = ours.entry(*category).or_default();
+            for (sum, count) in total.iter_mut().zip(counts) {
+                *sum += u64::from(*count);
+            }
+        }
+    }
+    let facts: u64 = ours.values().map(|counts| counts[0]).sum();
+    let in_macro: u64 = ours.values().map(|counts| counts[1]).sum();
+    writeln!(
+        w,
+        "our facts that no clang fact stands at: {facts}, of which {in_macro} stand in a macro definition\n\
+         \x20 THE TABLE ABOVE MEASURES RECALL AND THIS ONE DOES NOT MEASURE PRECISION YET. A row above\n\
+         \x20 counts the CLANG facts of a category, so `agree%` says how many of the nodes CLANG states\n\
+         \x20 we carry. It says NOTHING about how many of the nodes WE state are correct. This count is\n\
+         \x20 the population that answer needs, and it is NOT A COUNT OF DEFECTS. THREE GROUPS IN IT\n\
+         \x20 ARE CORRECT BY CONSTRUCTION: the body of a macro definition, which Clang expands before\n\
+         \x20 it builds an AST and which the second column counts; a node of ours that Clang's AST\n\
+         \x20 states nothing about; and OUR CORRECT NODE AT A DIFFERENT BYTE RANGE, because Clang\n\
+         \x20 ends a declaration at a token that is not always the last token of the construct.\n\
+         \x20 READ IT AS A CLASSIFICATION. A rate over it has no meaning until each group has a name."
+    )?;
+    writeln!(w, "  {:<24} {:<12} {:>8} {:>10}", "category", "group", "ours", "in a macro")?;
+    for category in Category::ALL {
+        let Some(counts) = ours.get(category) else { continue };
+        writeln!(
+            w,
+            "  {:<24} {:<12} {:>8} {:>10}",
+            category.name(),
+            category.group().name(),
+            counts[0],
+            counts[1]
+        )?;
+    }
+    writeln!(w)?;
+
     let silent = classes(
         results,
         |r, row| !r.our_error() && matches!(row.verdict, Verdict::Mismatch | Verdict::Missing),
