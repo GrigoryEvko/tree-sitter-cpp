@@ -74,6 +74,14 @@ impl Fnv {
     }
 }
 
+/// The FNV-1a hash of a text. `test` fingerprints the recorded tree of an example with it, and the
+/// value is the same in each process, build, and machine.
+pub(crate) fn fingerprint(text: &str) -> u64 {
+    let mut hash = Fnv::new();
+    hash.bytes(text.as_bytes());
+    hash.0
+}
+
 /// The FNV-1a hash of a name and of a 0xff byte. UTF-8 text has no 0xff byte, so that two
 /// sequences of names that make the same text give different hashes.
 fn name_hash(name: &str) -> u64 {

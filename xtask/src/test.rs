@@ -263,6 +263,109 @@ fn replace_outputs(content: &str, replacements: &[(Range<usize>, String)]) -> St
 }
 
 /// The paths of the test files under a directory, sorted by name in each directory, without hidden files.
+/// Write the fingerprint of the recorded tree of each example of a corpus directory, as
+/// `group<TAB>name<TAB>hash`, in the order of the files and of the examples.
+///
+/// A RECORDED TREE IS THE MEMORY OF A DECISION, AND `--update` REWRITES IT IN PLACE. Each rule of
+/// this grammar that no name test guards has a losing case that makes no ERROR node, so a pinned
+/// reading is the only check that holds it. A commit that rewrites the pin that catches it then
+/// passes each check of the gate. The gate compares this output with the output of the reference,
+/// and integrate.sh refuses a landing that changes a recorded tree unless the agent states the
+/// count. Refer to task 286.
+///
+/// The fingerprint reads `Example::expected`, which holds the S-expression with no comment and with
+/// normalized white space. So a change of the layout of a recorded tree moves no fingerprint, and a
+/// change of a node kind, of a field name, or of the shape moves one.
+fn write_pins(corpus: &Path) -> Result<(), Box<dyn Error>> {
+    let mut files = Vec::new();
+    test_files(corpus, &mut files)?;
+    let mut out = std::io::BufWriter::new(std::io::stdout().lock());
+    for file in &files {
+        let content = fs::read_to_string(file).map_err(|e| format!("cannot read {}: {e}", file.display()))?;
+        let examples = parse_examples(&content).map_err(|e| format!("{}: {e}", file.display()))?;
+        let group = file
+            .strip_prefix(corpus)
+            .unwrap_or(file)
+            .with_extension("")
+            .display()
+            .to_string();
+        for example in &examples {
+            use std::io::Write as _;
+            writeln!(
+                out,
+                "{group}\t{}\t{:016x}",
+                example.name,
+                crate::trees::fingerprint(&example.expected)
+            )?;
+        }
+    }
+    Ok(())
+}
+
+/// One row of an output of `test --pins`: the group and the name of an example, and its fingerprint.
+fn read_pins(path: &Path) -> Result<Vec<(String, String)>, Box<dyn Error>> {
+    let text = fs::read_to_string(path).map_err(|e| format!("cannot read {}: {e}", path.display()))?;
+    text.lines()
+        .filter(|line| !line.is_empty())
+        .map(|line| {
+            let mut parts = line.rsplitn(2, '\t');
+            let hash = parts.next().unwrap_or_default().to_owned();
+            let key = parts.next().unwrap_or_default().to_owned();
+            if key.is_empty() {
+                return Err(format!("{}: the row `{line}` is not `group<TAB>name<TAB>hash`", path.display()).into());
+            }
+            Ok((key, hash))
+        })
+        .collect()
+}
+
+/// Compare two outputs of `test --pins`, and print the counts and the first changed examples.
+///
+/// A CHANGED example is one that the two outputs both hold with a different fingerprint, which is a
+/// rewrite of a recorded tree. An example that one output alone holds is added or removed, and the
+/// count of the examples of the gate covers a removal.
+fn compare_pins(before: &Path, after: &Path) -> Result<(), Box<dyn Error>> {
+    let (old, new) = (read_pins(before)?, read_pins(after)?);
+    let comparison = pin_comparison(&old, &new);
+    for key in comparison.changed.iter().take(40) {
+        println!("changed pin\t{key}");
+    }
+    println!(
+        "examples {} -> {}, changed {}, added {}, removed {}",
+        old.len(),
+        new.len(),
+        comparison.changed.len(),
+        comparison.added,
+        comparison.removed
+    );
+    Ok(())
+}
+
+/// The examples whose recorded tree changed, and the counts of the added and removed examples.
+#[derive(Debug, PartialEq, Eq)]
+struct PinComparison {
+    changed: Vec<String>,
+    added: usize,
+    removed: usize,
+}
+
+/// Compare two lists of fingerprints by the group and the name of each example. O(n log n).
+fn pin_comparison(old: &[(String, String)], new: &[(String, String)]) -> PinComparison {
+    let map = |rows: &[(String, String)]| -> std::collections::BTreeMap<String, String> {
+        rows.iter().map(|(key, hash)| (key.clone(), hash.clone())).collect()
+    };
+    let (old, new) = (map(old), map(new));
+    PinComparison {
+        changed: old
+            .iter()
+            .filter(|(key, hash)| new.get(*key).is_some_and(|other| other != *hash))
+            .map(|(key, _)| key.clone())
+            .collect(),
+        added: new.keys().filter(|key| !old.contains_key(*key)).count(),
+        removed: old.keys().filter(|key| !new.contains_key(*key)).count(),
+    }
+}
+
 fn test_files(directory: &Path, files: &mut Vec<PathBuf>) -> Result<(), Box<dyn Error>> {
     let mut entries: Vec<PathBuf> = fs::read_dir(directory)
         .map_err(|e| format!("cannot read {}: {e}", directory.display()))?
@@ -333,13 +436,25 @@ fn print_difference(expected: &str, actual: &str) {
 /// no error and no `:error` attribute into its test file. With a NAME, run only the examples whose
 /// name contains it.
 pub fn run(repository: &Path, args: &[String]) -> Result<(), Box<dyn Error>> {
+    match args {
+        [flag] if flag == "--pins" => return write_pins(&repository.join("test").join("corpus")),
+        [flag, directory] if flag == "--pins" => return write_pins(Path::new(directory)),
+        [flag, before, after] if flag == "--pins-compare" => {
+            return compare_pins(Path::new(before), Path::new(after));
+        }
+        _ => {}
+    }
     let mut update = false;
     let mut filter: Option<&str> = None;
     for arg in args {
         match arg.as_str() {
             "--update" => update = true,
             text if !text.starts_with('-') && filter.is_none() => filter = Some(text),
-            _ => return Err("usage: cargo xtask test [--update] [NAME]".into()),
+            _ => {
+                return Err("usage: cargo xtask test [--update] [NAME] | test --pins [DIRECTORY] | \
+                            test --pins-compare BEFORE AFTER"
+                    .into());
+            }
         }
     }
     let corpus = repository.join("test").join("corpus");
@@ -426,6 +541,53 @@ pub fn run(repository: &Path, args: &[String]) -> Result<(), Box<dyn Error>> {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    fn rows(pairs: &[(&str, &str)]) -> Vec<(String, String)> {
+        pairs
+            .iter()
+            .map(|(key, hash)| ((*key).to_owned(), (*hash).to_owned()))
+            .collect()
+    }
+
+    /// A recorded tree that changes is the rewrite of a decision, and the comparison names it.
+    #[test]
+    fn a_recorded_tree_that_changes_is_a_changed_pin() {
+        let old = rows(&[("a\tone", "1111"), ("a\ttwo", "2222"), ("b\tthree", "3333")]);
+        let new = rows(&[("a\tone", "1111"), ("a\ttwo", "9999"), ("b\tfour", "4444")]);
+        assert_eq!(
+            pin_comparison(&old, &new),
+            PinComparison {
+                changed: vec!["a\ttwo".to_owned()],
+                added: 1,
+                removed: 1,
+            }
+        );
+        // Two equal lists give no change, whatever their order.
+        let turned = rows(&[("b\tthree", "3333"), ("a\ttwo", "2222"), ("a\tone", "1111")]);
+        assert_eq!(
+            pin_comparison(&old, &turned),
+            PinComparison {
+                changed: Vec::new(),
+                added: 0,
+                removed: 0,
+            }
+        );
+    }
+
+    /// The fingerprint reads the tree with normalized white space, so the layout of a recorded tree
+    /// moves no fingerprint, and a change of a node kind or of a field name moves one.
+    #[test]
+    fn the_fingerprint_of_a_recorded_tree_reads_the_tree_and_not_its_layout() {
+        let example = |tree: &str| {
+            let content = format!("====\nfirst\n====\nint x;\n---\n\n{tree}\n");
+            let examples = parse_examples(&content).expect("the content is valid");
+            crate::trees::fingerprint(&examples[0].expected)
+        };
+        let plain = example("(translation_unit (declaration))");
+        assert_eq!(plain, example("(translation_unit\n  ; a comment\n    (declaration) )"));
+        assert_ne!(plain, example("(translation_unit (expression_statement))"));
+        assert_ne!(plain, example("(translation_unit declarator: (declaration))"));
+    }
 
     #[test]
     fn an_example_has_a_name_attributes_an_input_and_a_normalized_tree() {

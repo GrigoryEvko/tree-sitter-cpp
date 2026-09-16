@@ -58,6 +58,12 @@ tasks:
                            the parser enters the state N.
   test [--update] [NAME]   Run the corpus tests in test/corpus. With --update, write the actual
                            tree of each failed test that has no error into the test file.
+  test --pins [DIRECTORY]  Write the fingerprint of the recorded tree of each example of test/corpus
+                           or of DIRECTORY, as the group, the name, and a hash.
+  test --pins-compare BEFORE AFTER
+                           Compare two outputs of `test --pins`. Print each example whose recorded
+                           tree changed, and the counts of the changed, added, and removed examples.
+                           A recorded tree is the memory of a decision, and `--update` rewrites it.
   syntax [NAME]            Parse each snippet in test/syntax, and report each parse error.
                            With a NAME, also print the tree of each snippet that it selects.
   parse FILE               Print the syntax tree of FILE. With -, read the standard input. Fail
