@@ -2611,3 +2611,80 @@ int y;
   (declaration
     type: (primitive_type)
     declarator: (identifier)))
+
+================================================================================
+Conditional groups in the arguments of a call and of a macro invocation
+================================================================================
+
+void f(int a, int b) {
+  MIN(a,
+#ifdef X
+      b
+#endif
+  );
+}
+BASE_FEATURE(kName,
+#if BUILDFLAG(IS_CHROMEOS)
+             FEATURE_ENABLED_BY_DEFAULT
+#else
+             FEATURE_DISABLED_BY_DEFAULT
+#endif
+);
+DEFINE_THING(
+#if 0
+    a, b
+#else
+    c
+#endif
+)
+
+--------------------------------------------------------------------------------
+
+(translation_unit
+  (function_definition
+    type: (primitive_type)
+    declarator: (function_declarator
+      declarator: (identifier)
+      parameters: (parameter_list
+        (parameter_declaration
+          type: (primitive_type)
+          declarator: (identifier))
+        (parameter_declaration
+          type: (primitive_type)
+          declarator: (identifier))))
+    body: (compound_statement
+      (expression_statement
+        (call_expression
+          function: (identifier)
+          arguments: (argument_list
+            (identifier)
+            (preproc_call
+              directive: (preproc_directive)
+              argument: (preproc_arg))
+            (identifier)
+            (preproc_call
+              directive: (preproc_directive)))))))
+  (expression_statement
+    (call_expression
+      function: (identifier)
+      arguments: (argument_list
+        (identifier)
+        (preproc_call
+          directive: (preproc_directive)
+          argument: (preproc_arg))
+        (identifier)
+        (preproc_skipped)
+        (preproc_call
+          directive: (preproc_directive)))))
+  (macro_invocation
+    name: (identifier)
+    arguments: (token_tree
+      (preproc_call
+        directive: (preproc_directive)
+        argument: (preproc_arg))
+      (preproc_skipped)
+      (preproc_call
+        directive: (preproc_directive))
+      (identifier)
+      (preproc_call
+        directive: (preproc_directive)))))
