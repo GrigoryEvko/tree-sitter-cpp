@@ -6150,7 +6150,7 @@ static FeedResult feed_close(Close *close, const TextToken *token, int32_t next)
 /// The scan starts after the name, which `read_word` read. It stops at the end of the expression or
 /// at an assignment operator, and it reads a maximum of `MAX_COMPARISON_LOOKAHEAD` characters. O(n)
 /// in the characters that it reads.
-static bool scan_comparison_name(Reader *reader, const char *name) {
+static bool scan_comparison_name(Reader *reader, const char *name, bool comparison_valid, bool cast_name) {
     TSLexer *lexer = reader->lexer;
     lexer->result_symbol = COMPARISON_NAME;
     mark_end(lexer);
@@ -6170,6 +6170,12 @@ static bool scan_comparison_name(Reader *reader, const char *name) {
     Close close = {0};
     TextToken token;
     unsigned depth = 0;
+    // The nesting of the angle brackets. The scan stepped past the first `<`, so the count starts at 1.
+    // Only the functional cast reads this count. The comparison reads `closed` as before. The count
+    // stops at the close of the first group: a later `<` opens the brackets of a different name, as in
+    // `ModuloImpl<A, B>::template apply<R>(a, b)`, and the token holds the first name only.
+    unsigned angles = 1;
+    bool angles_done = false;
     bool closed = false;
     bool pending_logical = false;
     LastToken last = LAST_NONE;
@@ -6195,7 +6201,7 @@ static bool scan_comparison_name(Reader *reader, const char *name) {
         if (close.rule != CLOSE_NONE) {
             FeedResult result = feed_close(&close, &token, lexer->lookahead);
             if (result == FEED_MARK) {
-                return true;
+                return comparison_valid;
             }
             if (result == FEED_STOP) {
                 close.rule = CLOSE_NONE;
@@ -6240,6 +6246,35 @@ static bool scan_comparison_name(Reader *reader, const char *name) {
                 if (lexer->lookahead == '=') {
                     return false;
                 }
+            }
+            unsigned levels = split ? 2 : 1;
+            // True when this `>` closes the last open bracket of the first group. A `>` after that
+            // group is an operator: the second `>` of `a<b> >(c)` compares two values.
+            bool closes = !angles_done && angles > 0 && angles <= levels;
+            if (!angles_done) {
+                angles = angles > levels ? angles - levels : 0;
+                angles_done = angles == 0;
+            }
+            // A functional cast to a class template: `B<int>(x)`, `time_point<_Clock, _To>(t)`.
+            //
+            // The condition has five parts. The `>` closes the last open bracket. The name is in the
+            // record, and a type specifier cannot start at the name (`cast_name`). No logical operator
+            // is in the brackets. The `(` of the argument list comes IMMEDIATELY after the `>`, with
+            // no blank. The last two parts keep a comparison of values: `x < 0 || x > (n - 1)` has the
+            // operator, and `a<b> > (c)` has the blank.
+            //
+            // The count of the brackets is exact, so a nested list gives the same answer with one `>>`
+            // token and with two `>` tokens: `B<C<int>>(x)` and `B<C<int> >(x)` are both casts.
+            //
+            // THE RULE IS INCORRECT FOR ONE FORM, and it is the form of `is_class_name` in
+            // `scan_word_start`. A name that hides a class gives the record a class that the name does
+            // not denote. `struct A { int m; }; int A = 3; return A < b > (c);` is two comparisons,
+            // and GCC accepts it. The blank before the `(` keeps the comparison there, and the
+            // measurement found no corpus site of this form with no blank. Refer to the comment of the
+            // functional cast in `scan_word_start` for the record and for [basic.scope.scope].
+            if (closes && cast_name && !facts.logical && lexer->lookahead == '(') {
+                lexer->result_symbol = FUNCTIONAL_CAST_NAME;
+                return true;
             }
             bool same = last == LAST_WORD && last_is_name && chain && operand_chain;
             if (close.rule == CLOSE_NONE) {
@@ -6294,6 +6329,9 @@ static bool scan_comparison_name(Reader *reader, const char *name) {
             }
             last = LAST_LINK;
         } else if (strcmp(t, "<") == 0) {
+            if (!angles_done) {
+                angles++;
+            }
             facts.less = true;
             facts.name_before_less = before_last == LAST_WORD && chain;
             facts.comma_before_less = facts.comma;
@@ -7142,9 +7180,10 @@ static bool scan_word_start(Scanner *scanner, TSLexer *lexer, const bool *valid_
     // scopes. The measurement gave 4 incorrect rows of 224 in the 7646 compiler test files, against
     // approximately 1500 correct casts that a record like that removes in the corpus. Because of this
     // measurement, the fork keeps the incorrect form.
-    if (valid_symbols[FUNCTIONAL_CAST_NAME] && next == '(' && !valid_symbols[TYPE_TRAIT_TYPE_MARKER] &&
-        !valid_symbols[MACRO_TYPE_START] && !valid_symbols[PARAMETER_MACRO_TYPE_START] &&
-        !is_grammar_keyword(word) && is_class_name(scanner, reader.word_hash)) {
+    bool cast_name = valid_symbols[FUNCTIONAL_CAST_NAME] && !valid_symbols[TYPE_TRAIT_TYPE_MARKER] &&
+                     !valid_symbols[MACRO_TYPE_START] && !valid_symbols[PARAMETER_MACRO_TYPE_START] &&
+                     !is_grammar_keyword(word) && is_class_name(scanner, reader.word_hash);
+    if (cast_name && next == '(') {
         mark_end(lexer);
         lexer->result_symbol = FUNCTIONAL_CAST_NAME;
         return true;
@@ -7168,8 +7207,10 @@ static bool scan_word_start(Scanner *scanner, TSLexer *lexer, const bool *valid_
                       !word_in(word, LINE_KEYWORDS) && !word_in(word, PREFIX_WORDS) &&
                       !word_in(word, TYPE_WORDS) && !word_in(word, NOT_PARAMETER_WORDS) &&
                       !word_in(word, NOT_COMPARISON_NAMES);
-    if (comparison) {
-        return scan_comparison_name(&reader, word);
+    // A template-id of a recorded class before a `(` is a functional cast: `B<int>(x)`. One scan gives
+    // the two answers, because a scan that declines cannot go back to the start of the brackets.
+    if (comparison || (cast_name && (next == '<' || blank))) {
+        return scan_comparison_name(&reader, word, comparison, cast_name);
     }
     return macro && scan_macro_start(reader, word, has_lower, valid_symbols, scanner);
 }

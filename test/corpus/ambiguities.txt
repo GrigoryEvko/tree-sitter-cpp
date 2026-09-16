@@ -1798,3 +1798,216 @@ F<A(int)> fv;
               (parameter_declaration
                 type: (primitive_type)))))))
     declarator: (identifier)))
+
+================================================================================
+Functional casts to a class template that the file declares
+================================================================================
+
+template<class T> struct B { int m; };
+template<class T> struct C { int m; };
+struct a { int m; };
+B<int> f0() { return B<int>(1); }
+B<C<int>> f1() { return B<C<int>>(1); }
+B<C<int> > f2() { return B<C<int> >(1); }
+bool f3(int b, int c) { return a<b> >(c); }
+bool f4(int x, int n) { return x < 0 || x > (n - 1); }
+template<class A, class B> struct M { int m; };
+template<class A, class B, class R> R f5(A a, B b) { return M<A, B>::template apply<R>(a, b); }
+
+--------------------------------------------------------------------------------
+
+(translation_unit
+  (template_declaration
+    parameters: (template_parameter_list
+      (type_parameter_declaration
+        (type_identifier)))
+    (struct_specifier
+      name: (type_identifier)
+      body: (field_declaration_list
+        (field_declaration
+          type: (primitive_type)
+          declarator: (field_identifier)))))
+  (template_declaration
+    parameters: (template_parameter_list
+      (type_parameter_declaration
+        (type_identifier)))
+    (struct_specifier
+      name: (type_identifier)
+      body: (field_declaration_list
+        (field_declaration
+          type: (primitive_type)
+          declarator: (field_identifier)))))
+  (struct_specifier
+    name: (type_identifier)
+    body: (field_declaration_list
+      (field_declaration
+        type: (primitive_type)
+        declarator: (field_identifier))))
+  (function_definition
+    type: (template_type
+      name: (type_identifier)
+      arguments: (template_argument_list
+        (type_descriptor
+          type: (primitive_type))))
+    declarator: (function_declarator
+      declarator: (identifier)
+      parameters: (parameter_list))
+    body: (compound_statement
+      (return_statement
+        (call_expression
+          function: (template_type
+            name: (type_identifier)
+            arguments: (template_argument_list
+              (type_descriptor
+                type: (primitive_type))))
+          arguments: (argument_list
+            (number_literal))))))
+  (function_definition
+    type: (template_type
+      name: (type_identifier)
+      arguments: (template_argument_list
+        (type_descriptor
+          type: (template_type
+            name: (type_identifier)
+            arguments: (template_argument_list
+              (type_descriptor
+                type: (primitive_type)))))))
+    declarator: (function_declarator
+      declarator: (identifier)
+      parameters: (parameter_list))
+    body: (compound_statement
+      (return_statement
+        (call_expression
+          function: (template_type
+            name: (type_identifier)
+            arguments: (template_argument_list
+              (type_descriptor
+                type: (template_type
+                  name: (type_identifier)
+                  arguments: (template_argument_list
+                    (type_descriptor
+                      type: (primitive_type)))))))
+          arguments: (argument_list
+            (number_literal))))))
+  (function_definition
+    type: (template_type
+      name: (type_identifier)
+      arguments: (template_argument_list
+        (type_descriptor
+          type: (template_type
+            name: (type_identifier)
+            arguments: (template_argument_list
+              (type_descriptor
+                type: (primitive_type)))))))
+    declarator: (function_declarator
+      declarator: (identifier)
+      parameters: (parameter_list))
+    body: (compound_statement
+      (return_statement
+        (call_expression
+          function: (template_type
+            name: (type_identifier)
+            arguments: (template_argument_list
+              (type_descriptor
+                type: (template_type
+                  name: (type_identifier)
+                  arguments: (template_argument_list
+                    (type_descriptor
+                      type: (primitive_type)))))))
+          arguments: (argument_list
+            (number_literal))))))
+  (function_definition
+    type: (primitive_type)
+    declarator: (function_declarator
+      declarator: (identifier)
+      parameters: (parameter_list
+        (parameter_declaration
+          type: (primitive_type)
+          declarator: (identifier))
+        (parameter_declaration
+          type: (primitive_type)
+          declarator: (identifier))))
+    body: (compound_statement
+      (return_statement
+        (binary_expression
+          left: (template_function
+            name: (identifier)
+            arguments: (template_argument_list
+              (type_descriptor
+                type: (type_identifier))))
+          right: (parenthesized_expression
+            (identifier))))))
+  (function_definition
+    type: (primitive_type)
+    declarator: (function_declarator
+      declarator: (identifier)
+      parameters: (parameter_list
+        (parameter_declaration
+          type: (primitive_type)
+          declarator: (identifier))
+        (parameter_declaration
+          type: (primitive_type)
+          declarator: (identifier))))
+    body: (compound_statement
+      (return_statement
+        (binary_expression
+          left: (binary_expression
+            left: (identifier)
+            right: (number_literal))
+          right: (binary_expression
+            left: (identifier)
+            right: (parenthesized_expression
+              (binary_expression
+                left: (identifier)
+                right: (number_literal))))))))
+  (template_declaration
+    parameters: (template_parameter_list
+      (type_parameter_declaration
+        (type_identifier))
+      (type_parameter_declaration
+        (type_identifier)))
+    (struct_specifier
+      name: (type_identifier)
+      body: (field_declaration_list
+        (field_declaration
+          type: (primitive_type)
+          declarator: (field_identifier)))))
+  (template_declaration
+    parameters: (template_parameter_list
+      (type_parameter_declaration
+        (type_identifier))
+      (type_parameter_declaration
+        (type_identifier))
+      (type_parameter_declaration
+        (type_identifier)))
+    (function_definition
+      type: (type_identifier)
+      declarator: (function_declarator
+        declarator: (identifier)
+        parameters: (parameter_list
+          (parameter_declaration
+            type: (type_identifier)
+            declarator: (identifier))
+          (parameter_declaration
+            type: (type_identifier)
+            declarator: (identifier))))
+      body: (compound_statement
+        (return_statement
+          (call_expression
+            function: (qualified_identifier
+              scope: (template_type
+                name: (type_identifier)
+                arguments: (template_argument_list
+                  (type_descriptor
+                    type: (type_identifier))
+                  (type_descriptor
+                    type: (type_identifier))))
+              name: (dependent_name
+                (template_function
+                  name: (identifier)
+                  arguments: (template_argument_list
+                    (type_descriptor
+                      type: (type_identifier))))))
+            arguments: (argument_list
+              (identifier)
+              (identifier))))))))

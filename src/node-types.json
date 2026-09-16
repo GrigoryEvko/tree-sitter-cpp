@@ -1769,6 +1769,10 @@
             "named": true
           },
           {
+            "type": "template_type",
+            "named": true
+          },
+          {
             "type": "type_identifier",
             "named": true
           }

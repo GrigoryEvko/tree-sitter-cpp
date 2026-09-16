@@ -5856,6 +5856,17 @@ fn expressions(g: &mut Grammar) {
                     field("function", alias(s!(_functional_cast_name), s!(type_identifier))),
                     field("arguments", s!(argument_list)),
                 ],
+                // The same cast to a class template: `B<int>(x)`. The scanner gives the token for a
+                // recorded name whose angle brackets close before a `(`. Refer to
+                // `scan_comparison_name` in src/scanner.c, which gives this token and the token of a
+                // comparison in one scan.
+                seq![
+                    field(
+                        "function",
+                        alias(s!(_functional_cast_template), s!(template_type))
+                    ),
+                    field("arguments", s!(argument_list)),
+                ],
                 // A CUDA kernel call: `kernel<<<blocks, threads>>>(args)` (Clang ParseExpr.cpp,
                 // ParsePostfixExpressionSuffix). The precedence is the precedence of `<<`, so that
                 // the call does not change how the parser reads a shift expression.
@@ -5882,6 +5893,15 @@ fn expressions(g: &mut Grammar) {
     // `<<<` and `>>>` are two tokens each. One token `<<<` changes the tokens of `operator<<<T>`.
     // Each comma ends the step of its expression. The last expression then meets `>>` with no
     // reduction, and the shift of a shift expression `b >> c` cannot take the `>>` first.
+    // The callee of a functional cast to a class template. The name comes from the external scanner,
+    // and the rule has the shape of `template_type`, which it takes as its node kind.
+    g.define(
+        "_functional_cast_template",
+        seq![
+            field("name", alias(s!(_functional_cast_name), s!(type_identifier))),
+            field("arguments", s!(template_argument_list)),
+        ],
+    );
     g.define(
         "cuda_execution_configuration",
         seq!["<<", "<", repeat(seq![s!(expression), ","]), s!(expression), ">>", ">"],
