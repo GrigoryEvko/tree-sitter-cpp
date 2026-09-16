@@ -157,6 +157,14 @@ pub fn grammar() -> Grammar {
         s!(_preproc_params_mark),
         s!(_functional_cast_name),
     ];
+    // The conflict sets of the grammar. Each set names the rules of one ambiguity, and it tells the
+    // generator to keep each reading in a GLR split.
+    //
+    // DECLARE ONLY THE SETS THAT THE PARSE TABLE BUILDER USES. A set with no use stops the report of
+    // a later conflict of the same rules. The generator then makes a GLR split with no word, the
+    // parser selects one reading by the symbol order, and a silent misparse follows. With the set
+    // removed, the generator stops with an error and names the rules. `cargo xtask generate` fails
+    // when the generator reports a set with no use, and the count of such sets cannot grow again.
     g.conflicts = conflict_sets(&[
         // C
         &["type_specifier", "_declarator_of_name"],

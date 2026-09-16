@@ -82,8 +82,10 @@ pub fn run(repository: &Path, args: &[String]) -> Result<(), Box<dyn Error>> {
             );
         }
     }
-    // A conflict set that the parse table builder does not use makes the generator accept a real
-    // conflict of the same symbols with no report. Declare only the sets that the generator asks for.
+    // A conflict set that the parse table builder does not use stops the report of a later conflict
+    // of the same symbols. The generator then makes a GLR split with no word, the parser selects one
+    // reading by the symbol order, and a silent misparse follows. With the set removed, the
+    // generator stops with an error and names the symbols. Declare only the sets that it names.
     if !unnecessary.is_empty() {
         let count: usize = unnecessary
             .iter()
