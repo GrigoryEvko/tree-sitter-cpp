@@ -13,6 +13,15 @@
 # WHAT IT DOES NOT PROMISE: nothing about the SITE. A file that leaves the population at one
 # site and joins it at another keeps its row, and no check here sees that.
 #
+# A COUNT MEASURED AGAINST A STALE BASELINE IS A FINDING AND NOT A BASELINE. integrate.sh
+# writes this file again at each landing whose gate found falls, so a fall of the next gate
+# belongs to the commits under that gate. The first run of this check read 136 falls against
+# a baseline of an earlier master, and 124 of those belonged to one landing that nobody had
+# connected to this class.
+# A FALL IS WORTH ATTRIBUTING. A file leaves this population when a rule DECIDES its tree,
+# and also when a reading is REMOVED. The two look the same here, and only the commit that
+# caused the fall knows which one it made.
+#
 # 2830 files, of the corpus of the fork master.
 Cataclysm-DDA/src/debug_console.cpp
 Cataclysm-DDA/src/third-party/flatbuffers/hash.h

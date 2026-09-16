@@ -91,6 +91,15 @@ fn baseline_header(files: usize) -> String {
          # WHAT IT DOES NOT PROMISE: nothing about the SITE. A file that leaves the population at one\n\
          # site and joins it at another keeps its row, and no check here sees that.\n\
          #\n\
+         # A COUNT MEASURED AGAINST A STALE BASELINE IS A FINDING AND NOT A BASELINE. integrate.sh\n\
+         # writes this file again at each landing whose gate found falls, so a fall of the next gate\n\
+         # belongs to the commits under that gate. The first run of this check read 136 falls against\n\
+         # a baseline of an earlier master, and 124 of those belonged to one landing that nobody had\n\
+         # connected to this class.\n\
+         # A FALL IS WORTH ATTRIBUTING. A file leaves this population when a rule DECIDES its tree,\n\
+         # and also when a reading is REMOVED. The two look the same here, and only the commit that\n\
+         # caused the fall knows which one it made.\n\
+         #\n\
          # {files} files, of the corpus of the fork master.\n"
     )
 }
