@@ -729,6 +729,11 @@ static bool scan_decay_copy_auto(TSLexer *lexer, const Scanner *scanner) {
 /// traits, and this fork adds keywords, so ordinary work closes the margin.
 /// `no_entry_of_a_name_list_can_equal_a_cut_word` of xtask/src/scanner.rs reads this file and fails
 /// at the entry that crosses it.
+///
+/// THE SEED OF src/seed.h CANNOT CARRY THIS INVARIANT. A name list is a closed set that this fork
+/// keeps short. A seed is an open set whose entries reach exactly `TS_CPP_SEED_WORD_SIZE - 1`
+/// bytes, so a cut word can equal one of them. `is_seed_type_name` reads `word_cut` of the `Reader`
+/// in the place of this inequality. Two lookups, two guards, and neither guard works on the other.
 #define MACRO_WORD_SIZE 41
 /// The minimum length of a macro name with no arguments, as in clang-format.
 #define MACRO_MIN_BARE_LENGTH 5
@@ -740,6 +745,14 @@ typedef struct {
     uint32_t budget;
     /// The hash of the full text of the last word that `read_word` read. The value is never 0.
     uint32_t word_hash;
+    /// True when the buffer of the last word was too small and the word lost characters.
+    ///
+    /// A COMPARISON WITH A NAME LIST DOES NOT READ THIS, because a cut word holds `MACRO_WORD_SIZE
+    /// - 1` characters and every entry of every list is shorter, so a cut word can equal none of
+    /// them. A SEED LOOKUP MUST READ IT. A seed is an open set whose entries reach the length of
+    /// the buffer, so a cut word can equal an entry there, and the seed would then give a name that
+    /// the text does not hold.
+    bool word_cut;
     /// The scanner, which holds the open groups at the start of the scan, or NULL.
     const Scanner *scanner;
     /// The number of the open groups of `scanner` with an `#endif` that the scan did not read.
@@ -757,6 +770,7 @@ static inline Reader start_reader(TSLexer *lexer, uint32_t budget, const Scanner
     reader.lexer = lexer;
     reader.budget = budget;
     reader.word_hash = 0;
+    reader.word_cut = false;
     reader.scanner = scanner;
     reader.outer_groups = scanner != NULL ? scanner->group_count : 0;
     reader.group_count = 0;
@@ -963,6 +977,7 @@ static Backslash step_backslash(Reader *reader);
 static void read_word_sized(Reader *reader, char *word, unsigned size, bool *has_lower) {
     unsigned length = 0;
     uint32_t hash = HASH_START;
+    reader->word_cut = false;
     for (;;) {
         while (readable(reader) && is_word_char(reader->lexer->lookahead)) {
             LOOP_STEP();
@@ -972,6 +987,8 @@ static void read_word_sized(Reader *reader, char *word, unsigned size, bool *has
             }
             if (length < size - 1) {
                 word[length++] = c < 0x80 ? (char)c : '?';
+            } else {
+                reader->word_cut = true;
             }
             hash = hash_character(hash, c);
             step(reader);
@@ -990,6 +1007,8 @@ static void read_word_sized(Reader *reader, char *word, unsigned size, bool *has
         // identifier that the lexer of the parser reads.
         if (length < size - 1) {
             word[length++] = '\\';
+        } else {
+            reader->word_cut = true;
         }
         hash = hash_character(hash, '\\');
     }
@@ -1983,6 +2002,67 @@ static bool is_loose_name(const Scanner *scanner, uint32_t name) {
         }
     }
     return false;
+}
+
+/// Give the kinds of `name` in `seed`, or 0 when the seed holds no such name. `length` is the bytes
+/// of `name`, with no NUL.
+///
+/// A BINARY SEARCH OVER THE BYTES OF THE NAME. The entries ascend in the order of `memcmp` and the
+/// length is the tie break, which src/seed.h declares and `cargo xtask seed collect` writes. There
+/// is no hash of the name. A hash makes two names one entry, and the reading that such a collision
+/// gives has no ERROR node and no differ row. O(log n) compares of O(`length`) each.
+///
+/// The bounds check reads a seed that a caller built by hand and that names bytes outside its own
+/// text block. The runtime never reads the target, so this scan is the only reader of those bytes.
+static uint16_t seed_kinds(const TSCppSeed *seed, const char *name, uint32_t length) {
+    if (seed == NULL || seed->magic != TS_CPP_SEED_MAGIC || seed->version != TS_CPP_SEED_VERSION) {
+        return 0;
+    }
+    uint32_t low = 0;
+    uint32_t high = seed->count;
+    while (low < high) {
+        uint32_t middle = low + (high - low) / 2;
+        const TSCppSeedEntry *entry = &seed->entries[middle];
+        if (entry->offset > seed->text_size || entry->length > seed->text_size - entry->offset) {
+            return 0;
+        }
+        uint32_t shortest = entry->length < length ? entry->length : length;
+        int order = memcmp(seed->text + entry->offset, name, shortest);
+        if (order == 0) {
+            if (entry->length == length) {
+                return entry->kinds;
+            }
+            order = entry->length < length ? -1 : 1;
+        }
+        if (order < 0) {
+            low = middle + 1;
+        } else {
+            high = middle;
+        }
+    }
+    return 0;
+}
+
+/// True when the seed of the parse names `name` as a type or as a template.
+///
+/// A CUT WORD GIVES FALSE, AND THAT GUARD IS REQUIRED. `name` holds the first
+/// `TS_CPP_SEED_WORD_SIZE - 1` bytes of a longer word, and a compare would then take a seed entry
+/// that is only a prefix of the word in the text. A name list needs no such guard, because a cut
+/// word is longer than every entry of every list and can equal none of them. A seed is an open set
+/// whose entries reach exactly the length of the buffer, so the inequality that protects a list
+/// becomes an equality here. The corpus holds a type name of 260 bytes and two of 244 and 243, and
+/// each of them would take a seed entry that shares its first 64 bytes.
+///
+/// A NAME THAT IS NOT ASCII GIVES FALSE AND THAT IS CORRECT. `read_word_sized` writes one `?` for
+/// each character that is not ASCII, and the seed holds the bytes of the name, so the compare gives
+/// a miss. No C++ identifier holds a `?`, so no entry can be reached by the replacement. A miss
+/// loses a repair and accepts nothing.
+static bool is_seed_type_name(const Scanner *scanner, const char *name, const Reader *reader) {
+    if (scanner == NULL || reader->word_cut) {
+        return false;
+    }
+    uint16_t kinds = seed_kinds((const TSCppSeed *)scanner->context, name, (uint32_t)strlen(name));
+    return (kinds & (TS_CPP_SEED_TYPE | TS_CPP_SEED_TEMPLATE)) != 0;
 }
 
 /// MEASUREMENT OF TASK 240. Record a name in the second record. Return false if it already is the most
@@ -7856,7 +7936,8 @@ static bool scan_word_start(Scanner *scanner, TSLexer *lexer, const bool *valid_
     bool cast_name = valid_symbols[FUNCTIONAL_CAST_NAME] && !valid_symbols[TYPE_TRAIT_TYPE_MARKER] &&
                      !valid_symbols[MACRO_TYPE_START] && !valid_symbols[PARAMETER_MACRO_TYPE_START] &&
                      !is_grammar_keyword(word) &&
-                     (is_class_name(scanner, reader.word_hash) || is_loose_name(scanner, reader.word_hash));
+                     (is_class_name(scanner, reader.word_hash) || is_loose_name(scanner, reader.word_hash) ||
+                      is_seed_type_name(scanner, full, &reader));
     if (cast_name && next == '(') {
         mark_end(lexer);
         lexer->result_symbol = FUNCTIONAL_CAST_NAME;

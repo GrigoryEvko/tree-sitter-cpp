@@ -1,4 +1,5 @@
-//! The invariants of the source of `src/scanner.c` that no compiler checks.
+//! The invariants of the external scanner: of the source of `src/scanner.c`, and of what the
+//! scanner does with the seed of a parse.
 //!
 //! A C compiler cannot compare the length of a string literal in an array with the value of a
 //! `#define`, because `strlen` is not a constant expression. These tests read the source and do the
@@ -215,5 +216,210 @@ mod tests {
                 );
             }
         }
+    }
+}
+
+/// What the scanner does with the seed of a parse.
+///
+/// THE GATE RUNS NO SEED, so every count of a gate is zero for this whole feature. These tests are
+/// the only evidence that the seed reaches the scanner and changes a tree. A count cannot carry it.
+#[cfg(test)]
+mod seeded {
+    use std::fs;
+    use std::io::Write as _;
+    use std::path::{Path, PathBuf};
+
+    use tree_sitter::{InputEdit, Language, Parser, Point, Tree};
+
+    use crate::seed::Seed;
+
+    /// A seed file in a directory of its own. The directory goes at the end of the test.
+    ///
+    /// `Seed::read` takes a path, so a test that wants a seed writes one. The tests of
+    /// `crate::seed` hold a helper of the same shape for the reader of the format. This one is
+    /// separate because that one is private to its module.
+    struct SeedFile(PathBuf);
+
+    /// The counter of the directories of the tests. Two tests run at the same time, so each file
+    /// takes a directory of its own.
+    static COUNT: std::sync::atomic::AtomicUsize = std::sync::atomic::AtomicUsize::new(0);
+
+    impl SeedFile {
+        fn new(text: &str) -> Self {
+            let count = COUNT.fetch_add(1, std::sync::atomic::Ordering::Relaxed);
+            let directory = std::env::temp_dir().join(format!("xtask-scanner-{}-{count}", std::process::id()));
+            fs::create_dir_all(&directory).expect("the directory of the test");
+            let path = directory.join("project.seed");
+            let mut file = fs::File::create(&path).expect("the file of the test");
+            file.write_all(text.as_bytes()).expect("the text of the test");
+            Self(path)
+        }
+
+        fn path(&self) -> &Path {
+            &self.0
+        }
+    }
+
+    impl Drop for SeedFile {
+        fn drop(&mut self) {
+            let _ = fs::remove_dir_all(self.0.parent().expect("the file is in a directory"));
+        }
+    }
+
+    /// A parser of this grammar.
+    fn parser() -> Parser {
+        let mut parser = Parser::new();
+        parser.set_language(&Language::new(tree_sitter_cpp::LANGUAGE)).expect("the grammar loads");
+        parser
+    }
+
+    /// Parse `source` with no seed.
+    fn bare(source: &str) -> Tree {
+        parser().parse(source, None).expect("the parse ends")
+    }
+
+    /// `A(x)` in a position where a declaration cannot start. With `A` a type, the callee is a
+    /// `type_identifier` and the call is a functional cast. With `A` a name the parse does not know,
+    /// the callee is an `identifier` and the call is a call.
+    const CAST: &str = "int f() { return A(x); }\n";
+
+    /// True when the tree reads the callee of the call as a type.
+    fn is_cast(tree: &Tree) -> bool {
+        tree.root_node().to_sexp().contains("function: (type_identifier)")
+    }
+
+    /// THE SEED REACHES THE SCANNER THROUGH THE PUBLIC ENTRY POINT AND CHANGES A TREE.
+    ///
+    /// This is the one proof in the system that the runtime half and the scanner half are
+    /// connected. A test that called the scanner's own setter would prove the reader and nothing
+    /// about the runtime, so this one goes through `ts_parser_set_scanner_context` only.
+    ///
+    /// BOTH ORDERS AROUND `ts_parser_set_language` MUST WORK, and only one of them needs the
+    /// runtime to give the context to the scanner right after `create`. A test of the other order
+    /// alone would pass with that call missing.
+    #[test]
+    fn a_seed_changes_a_tree_through_the_public_entry_point_in_both_orders() {
+        let file = SeedFile::new("A\ttype\n");
+        let seed = Seed::read(file.path()).expect("the seed reads");
+        assert_eq!(seed.names(), 1);
+
+        let unseeded = bare(CAST);
+        assert!(!is_cast(&unseeded), "with no seed the callee is a name and not a type");
+
+        // The language first, then the context. The runtime already has a scanner, so
+        // `ts_parser_set_scanner_context` gives the context to it.
+        let mut after = Parser::new();
+        after.set_language(&Language::new(tree_sitter_cpp::LANGUAGE)).expect("the grammar loads");
+        // SAFETY: `seed` lives to the end of this test and every parse is inside it.
+        unsafe { after.set_scanner_context(seed.as_context()) };
+        let tree_after = after.parse(CAST, None).expect("the parse ends");
+
+        // The context first, then the language. The parser has no scanner yet, so the runtime must
+        // give the context at `create`, which happens inside the first parse.
+        let mut before = Parser::new();
+        // SAFETY: as above.
+        unsafe { before.set_scanner_context(seed.as_context()) };
+        before.set_language(&Language::new(tree_sitter_cpp::LANGUAGE)).expect("the grammar loads");
+        let tree_before = before.parse(CAST, None).expect("the parse ends");
+
+        assert!(is_cast(&tree_after), "the seed did not reach the scanner when the language came first");
+        assert!(is_cast(&tree_before), "the seed did not reach the scanner when the context came first");
+        assert_eq!(tree_after.root_node().to_sexp(), tree_before.root_node().to_sexp());
+        assert_ne!(tree_after.root_node().to_sexp(), unseeded.root_node().to_sexp());
+
+        // The tree of the seeded parse is the tree that the file gets when it declares the class
+        // itself, which is what the seed is for.
+        let declared = bare(&format!("struct A {{}};\n{CAST}"));
+        assert!(is_cast(&declared));
+
+        // A context of NULL gives exactly the unseeded reading again.
+        // SAFETY: a null context reads nothing.
+        unsafe { after.set_scanner_context(std::ptr::null()) };
+        let again = after.parse(CAST, None).expect("the parse ends");
+        assert_eq!(again.root_node().to_sexp(), unseeded.root_node().to_sexp());
+    }
+
+    /// A NAME THAT THE SEED DOES NOT HOLD KEEPS THE READING OF A CALL.
+    #[test]
+    fn a_name_the_seed_does_not_hold_keeps_the_reading_of_a_call() {
+        let file = SeedFile::new("A\ttype\n");
+        let seed = Seed::read(file.path()).expect("the seed reads");
+        let mut parser = parser();
+        // SAFETY: `seed` lives to the end of this test.
+        unsafe { parser.set_scanner_context(seed.as_context()) };
+        let tree = parser.parse("int f() { return B(x); }\n", None).expect("the parse ends");
+        assert!(!is_cast(&tree), "the seed holds `A` and not `B`");
+    }
+
+    /// A NAME LONGER THAN THE BUFFER MUST NOT TAKE A SEED ENTRY THAT IS ONLY ITS PREFIX.
+    ///
+    /// `read_word_sized` keeps the first `TS_CPP_SEED_WORD_SIZE - 1` bytes of a word, so without a
+    /// guard a compare would take an entry of exactly that length as the whole name. The entry here
+    /// is a real corpus name of 64 bytes, and the source name is that name with a tail. A name list
+    /// needs no such guard, because a cut word is longer than every entry of every list. A seed is
+    /// an open set whose entries reach the length of the buffer, so `is_seed_type_name` reads
+    /// `word_cut` of the `Reader`. Without that read, the longer name here IS read as a type.
+    #[test]
+    fn a_name_longer_than_the_buffer_does_not_take_an_entry_that_is_its_prefix() {
+        const NAME: &str = "BackForwardCacheBrowserTestWithNotRestoredReasonsMaskCrossOrigin";
+        assert_eq!(NAME.len(), 64, "the name is the longest that the format takes");
+        let file = SeedFile::new(&format!("{NAME}\ttype\n"));
+        let seed = Seed::read(file.path()).expect("the seed reads");
+        let mut parser = parser();
+        // SAFETY: `seed` lives to the end of this test.
+        unsafe { parser.set_scanner_context(seed.as_context()) };
+
+        let exact = parser.parse(format!("int f() {{ return {NAME}(x); }}\n"), None).expect("the parse ends");
+        assert!(is_cast(&exact), "a name of exactly the length of an entry must take that entry");
+
+        let longer = parser.parse(format!("int f() {{ return {NAME}Tail(x); }}\n"), None).expect("the parse ends");
+        assert!(!is_cast(&longer), "a longer name took a seed entry that is only its prefix");
+    }
+
+    /// THE CONTEXT SURVIVES A PARSE THAT REUSES A TREE.
+    ///
+    /// `serialize` and `deserialize` do not carry the context, and they must not. The buffer is 1 KB
+    /// and it runs at every token. THE POINTER SURVIVES TODAY ONLY BECAUSE `deserialize` CLEARS EACH
+    /// FIELD OF THE STATE BY NAME AND NEVER WRITES OVER THE WHOLE STRUCT. A `memset` there, which is
+    /// the natural thing for the next hand to reach for, would drop the seed in the middle of a
+    /// parse. There would be no ERROR node and no differ row, and only the trees would change.
+    ///
+    /// The source puts the cast after enough text that the reparse reuses the part before it and
+    /// restores the scanner from its serialized state to read the rest.
+    #[test]
+    fn the_context_survives_a_parse_that_reuses_a_tree() {
+        let file = SeedFile::new("A\ttype\n");
+        let seed = Seed::read(file.path()).expect("the seed reads");
+        let mut parser = parser();
+        // SAFETY: `seed` lives to the end of this test.
+        unsafe { parser.set_scanner_context(seed.as_context()) };
+
+        let padding = "struct Pad {};\n".repeat(40);
+        let first = format!("{padding}int f() {{ return A(x); }}\n");
+        let second = format!("{padding}int f() {{ return A(xy); }}\n");
+        let mut tree = parser.parse(&first, None).expect("the parse ends");
+        assert!(is_cast(&tree), "the first parse reads the cast");
+
+        // One byte goes in after the `x` of the argument. The row is the line of the cast and the
+        // column is the offset of the new byte in that line.
+        let line = "int f() { return A(x";
+        let start = padding.len() + line.len();
+        let row = padding.lines().count();
+        let column = line.len();
+        tree.edit(&InputEdit {
+            start_byte: start,
+            old_end_byte: start,
+            new_end_byte: start + 1,
+            start_position: Point::new(row, column),
+            old_end_position: Point::new(row, column),
+            new_end_position: Point::new(row, column + 1),
+        });
+        let again = parser.parse(&second, Some(&tree)).expect("the parse ends");
+        assert!(
+            is_cast(&again),
+            "the reparse lost the seed. `deserialize` of src/scanner.c cleared the context, and the \
+             trees of an incremental parse then differ from the trees of a full parse with no error \
+             anywhere to show it."
+        );
     }
 }
