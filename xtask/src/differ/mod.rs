@@ -34,12 +34,15 @@ const USAGE: &str = "\
 usage: cargo xtask differ [OPTIONS] ROOT LIST OUT
        cargo xtask differ [OPTIONS] --syntax OUT
        cargo xtask differ [OPTIONS] --show [--tree] [-- FLAG...] < SNIPPET
+       cargo xtask differ --compare A B
 
   ROOT LIST OUT  Compare each file of LIST, a list of paths relative to ROOT.
   --syntax OUT   Compare each snippet of test/syntax/*.txt.
   --show         Read one snippet from the standard input. Print the facts of Clang and of our tree
                  by byte range. The FLAGs go to the two compilers. --tree also prints our tree.
   OUT            A directory for validity.tsv, disagreements.tsv, and summary.txt.
+  --compare A B  Compare the category tables of two OUT directories. Print each category that moved,
+                 and each category that fell. A fall is a decrease of the agree percent.
 
 options:
   --top N          The number of classes of disagreements in the summary (20).
@@ -55,6 +58,8 @@ options:
 const PARSE_LIMIT: Duration = Duration::from_secs(20);
 /// The maximum length of the excerpt of a disagreement.
 const EXCERPT_CHARS: usize = 100;
+/// The number of files from which a run with no cache gives a warning.
+const CACHE_WARNING_FILES: usize = 100;
 
 /// The settings of a run.
 struct Settings {
@@ -68,6 +73,7 @@ struct Settings {
     cache: bool,
     syntax: bool,
     show: bool,
+    compare: bool,
     tree: bool,
     positional: Vec<String>,
     flags: Vec<String>,
@@ -87,6 +93,7 @@ impl Settings {
             cache: true,
             syntax: false,
             show: false,
+            compare: false,
             tree: false,
             positional: Vec::new(),
             flags: Vec::new(),
@@ -112,6 +119,7 @@ impl Settings {
                 "--clang" => settings.clang = value("--clang")?,
                 "--no-cache" => settings.cache = false,
                 "--syntax" => settings.syntax = true,
+                "--compare" => settings.compare = true,
                 "--show" => settings.show = true,
                 "--tree" => settings.tree = true,
                 "--" => {
@@ -121,12 +129,15 @@ impl Settings {
                 text => settings.positional.push(text.to_owned()),
             }
         }
-        let expected = match (settings.show, settings.syntax) {
-            (true, _) => 0,
-            (false, true) => 1,
-            (false, false) => 3,
+        let expected = match (settings.compare, settings.show, settings.syntax) {
+            (true, _, _) => 2,
+            (false, true, _) => 0,
+            (false, false, true) => 1,
+            (false, false, false) => 3,
         };
-        if settings.positional.len() != expected || (settings.show && settings.syntax) {
+        // Each mode takes its own positional arguments, and no two modes go together.
+        let modes = u8::from(settings.compare) + u8::from(settings.show) + u8::from(settings.syntax);
+        if settings.positional.len() != expected || modes > 1 {
             return Err(USAGE.into());
         }
         settings.work = std::path::absolute(&settings.work).map_err(|e| {
@@ -423,6 +434,11 @@ fn syntax_inputs(repository: &Path, work: &Path) -> Result<Vec<(PathBuf, String)
 /// Compare the files or the snippets, write the report, and print the summary.
 pub fn run(repository: &Path, args: &[String]) -> Result<(), Box<dyn Error>> {
     let settings = Settings::parse(repository, args)?;
+    // The comparison of two runs reads two files. It starts no compiler and it makes no work directory.
+    if settings.compare {
+        let (a, b) = (&settings.positional[0], &settings.positional[1]);
+        return report::compare(Path::new(a), Path::new(b));
+    }
     fs::create_dir_all(&settings.work).map_err(|e| format!("cannot create {}: {e}", settings.work.display()))?;
     let oracle = Oracle {
         gcc: Compiler::new(&settings.gcc)?,
@@ -443,6 +459,17 @@ pub fn run(repository: &Path, args: &[String]) -> Result<(), Box<dyn Error>> {
             &settings.positional[2],
         )
     };
+    // The cache holds the result of each compiler run. A run with no cache starts two compilers for
+    // each file, and it takes minutes in the place of seconds. The gate links the shared cache into
+    // the work directory, and a run that forgets the link has no other warning.
+    let cache = settings.work.join("cache");
+    if settings.cache && inputs.len() >= CACHE_WARNING_FILES && !cache.exists() {
+        eprintln!(
+            "differ: {} does not exist. This run starts the compilers for {} files in the place of a cache read.",
+            cache.display(),
+            inputs.len()
+        );
+    }
     let pool = rayon::ThreadPoolBuilder::new()
         .num_threads(settings.jobs)
         .build()

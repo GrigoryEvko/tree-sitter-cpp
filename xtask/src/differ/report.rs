@@ -1,7 +1,7 @@
 //! Write the TSV files and the summary of a run, and print the side-by-side view of one snippet.
 
 use std::cmp::Reverse;
-use std::collections::{BTreeMap, HashMap, HashSet};
+use std::collections::{BTreeMap, BTreeSet, HashMap, HashSet};
 use std::error::Error;
 use std::fmt::Write as _;
 use std::fs;
@@ -424,4 +424,133 @@ pub fn show(analysis: &Analysis, tree: Option<&str>) -> usize {
         println!("\n{tree}");
     }
     disagreements
+}
+
+/// One row of the category table of a summary.
+#[derive(Clone, Copy, Debug, Default, PartialEq)]
+struct CategoryRow {
+    facts: u64,
+    agree: u64,
+    percent: f64,
+}
+
+/// The number of counts that follow the name in a row of the category table: the facts, the five
+/// verdicts, the agree percent, and the explained percent.
+const CATEGORY_COUNTS: usize = 8;
+
+/// Read the category table of a `summary.txt`. The key of a row is its name and its group together.
+///
+/// The name of a category holds a blank, as in `functional cast`, and the `all` row has no group. The
+/// reader takes the fields from the right for this reason: the last eight fields are the counts, and
+/// each field before them belongs to the name. A line with fewer fields, or with a last field that is
+/// not a number, is not a row of the table. O(n) in the length of the file.
+fn read_categories(text: &str) -> BTreeMap<String, CategoryRow> {
+    let mut rows = BTreeMap::new();
+    for line in text.lines() {
+        let fields: Vec<&str> = line.split_whitespace().collect();
+        if fields.len() <= CATEGORY_COUNTS {
+            continue;
+        }
+        let counts = &fields[fields.len() - CATEGORY_COUNTS..];
+        let (Ok(facts), Ok(agree), Ok(percent)) = (
+            counts[0].parse::<u64>(),
+            counts[1].parse::<u64>(),
+            counts[CATEGORY_COUNTS - 2].parse::<f64>(),
+        ) else {
+            continue;
+        };
+        let name = fields[..fields.len() - CATEGORY_COUNTS].join(" ");
+        rows.insert(name, CategoryRow { facts, agree, percent });
+    }
+    rows
+}
+
+/// Compare the category tables of two runs of the differ, and print each category that moved.
+///
+/// The gate asks whether a commit makes a category fall, and only this comparison answers it. A
+/// category falls when its agree percent decreases. O(n log n) in the number of categories.
+pub fn compare(a: &Path, b: &Path) -> Result<(), Box<dyn Error>> {
+    let read = |directory: &Path| -> Result<BTreeMap<String, CategoryRow>, Box<dyn Error>> {
+        let path = directory.join("summary.txt");
+        let text = fs::read_to_string(&path).map_err(|e| format!("cannot read {}: {e}", path.display()))?;
+        let rows = read_categories(&text);
+        if rows.is_empty() {
+            return Err(format!("{} holds no category table", path.display()).into());
+        }
+        Ok(rows)
+    };
+    let (before, after) = (read(a)?, read(b)?);
+    println!("{:<34} {:>16} {:>18} {:>16}", "category", "facts", "agree", "agree%");
+    let mut fell = Vec::new();
+    let mut moved = 0;
+    for name in before.keys().chain(after.keys()).collect::<BTreeSet<_>>() {
+        let (x, y) = (before.get(name).copied(), after.get(name).copied());
+        let (x, y) = (x.unwrap_or_default(), y.unwrap_or_default());
+        if x == y {
+            continue;
+        }
+        moved += 1;
+        // A category that falls loses agreements for the same facts, or it agrees on a smaller part.
+        let fall = y.percent < x.percent;
+        if fall && name != "all" {
+            fell.push(name.clone());
+        }
+        println!(
+            "{:<34} {:>7}->{:<7} {:>8}->{:<8} {:>7.1}->{:<7.1}{}",
+            name,
+            x.facts,
+            y.facts,
+            x.agree,
+            y.agree,
+            x.percent,
+            y.percent,
+            if fall { "  <== FALL" } else { "" }
+        );
+    }
+    if moved == 0 {
+        println!("no category moved");
+    }
+    println!("\ncategories that fell: {}", fell.len());
+    for name in &fell {
+        println!("  {name}");
+    }
+    if let (Some(x), Some(y)) = (before.get("all"), after.get("all")) {
+        let percent = |r: &CategoryRow| 100.0 * r.agree as f64 / r.facts.max(1) as f64;
+        println!(
+            "all agreement {:.3}% -> {:.3}%, agreements {} -> {} of {} facts",
+            percent(x),
+            percent(y),
+            x.agree,
+            y.agree,
+            y.facts
+        );
+    }
+    Ok(())
+}
+
+#[cfg(test)]
+mod tests {
+    use super::read_categories;
+
+    /// The reader takes the name of a category from the fields before the counts, so a name with a
+    /// blank and a row with no group both give the correct key.
+    #[test]
+    fn the_reader_of_a_category_table_keeps_a_name_that_holds_a_blank() {
+        let text = "\
+structure: 5558 files compared, clang does not accept 2061, JSON larger than the limit 84
+  category                 group           facts    agree ambiguous  nested mismatch  missing  agree% explained%
+  functional cast          expression       1863     1126       730       2        1        4    60.4      99.7
+  call                     expression      10148    10101         9       0       37        1    99.5      99.6
+  all                                     206072   203951      1584      46      212     279    99.0      99.8
+";
+        let rows = read_categories(text);
+        assert_eq!(rows.len(), 3, "the header and the structure line are not rows");
+        let cast = rows.get("functional cast expression").expect("the name holds its group");
+        assert_eq!(cast.facts, 1863);
+        assert_eq!(cast.agree, 1126);
+        assert!((cast.percent - 60.4).abs() < 1e-9);
+        let all = rows.get("all").expect("the row with no group");
+        assert_eq!(all.facts, 206072);
+        assert_eq!(all.agree, 203951);
+    }
 }
