@@ -2059,7 +2059,10 @@ fn types(g: &mut Grammar) {
             1,
             prec_dynamic(
                 -1,
-                seq![field("name", s!(identifier)), field("arguments", s!(argument_list))],
+                seq![
+                    field("name", s!(identifier)),
+                    field("arguments", alias(s!(_macro_call_argument_list), s!(argument_list))),
+                ],
             ),
         ),
     );
@@ -2270,7 +2273,7 @@ fn types(g: &mut Grammar) {
         seq![
             s!(_macro_call_attribute_start),
             field("name", s!(identifier)),
-            field("arguments", s!(argument_list)),
+            field("arguments", alias(s!(_macro_call_argument_list), s!(argument_list))),
         ],
     );
     // The scanner gives a different token when the arguments are not expressions, and the arguments
@@ -2512,7 +2515,7 @@ fn types(g: &mut Grammar) {
             0,
             seq![
                 field("name", alias(s!(_enumerator_macro_name), s!(identifier))),
-                optional(field("arguments", s!(argument_list))),
+                optional(field("arguments", alias(s!(_macro_call_argument_list), s!(argument_list)))),
             ],
         ),
     );
@@ -2889,7 +2892,43 @@ fn declarations(g: &mut Grammar) {
         "_attribute_macro_arguments",
         seq![
             "(",
-            comma_sep1(choice![s!(expression), s!(initializer_list), s!(compound_statement)]),
+            comma_sep1(choice![
+                s!(expression),
+                s!(initializer_list),
+                s!(compound_statement),
+                s!(_macro_argument_attribute)
+            ]),
+            ")",
+        ],
+    );
+    // An attribute as the argument of a macro: `typedef int t ATTR([[deprecated]]);`,
+    // `using t ATTR(__attribute__((x))) = int;`, `DEPRECATED([[x]]) int v;`, and
+    // `STDEXEC_PP_WHEN(STDEXEC_APPLE_CLANG(), [[clang::optnone]]) auto get_id() -> int;` of
+    // stdexec/test/stdexec/types/test_task.cpp:52. The macro expands to its argument, and the front
+    // ends read the attribute in the place of the macro. [dcl.attr.grammar] p7 lets two consecutive
+    // `[` tokens appear only in an attribute-specifier or in the balanced tokens of an attribute
+    // argument, so a `[[` in an argument starts no expression, and the argument keeps one reading.
+    //
+    // Without this rule, the `[[` gave an ERROR node with a `lambda_capture_specifier`. The
+    // measurement of 329,387 files on 2026-09-16 gave one file whose first error is this form, the
+    // stdexec test above. The external scanner reads `[[x]]` as an expression argument (`skip_group`),
+    // so the same argument list serves the token of a macro before the specifiers.
+    g.define(
+        "_macro_argument_attribute",
+        choice![s!(attribute_declaration), s!(attribute_specifier)],
+    );
+    // The argument list of an attribute macro that takes the arguments of a call: the list of a call,
+    // and an attribute as an argument. Each macro in the place of an attribute takes this list, and a
+    // call keeps `argument_list`, because a call has no attribute among its arguments.
+    g.define(
+        "_macro_call_argument_list",
+        seq![
+            "(",
+            comma_sep(choice![
+                s!(expression),
+                s!(compound_statement),
+                s!(_macro_argument_attribute)
+            ]),
             ")",
         ],
     );
@@ -3245,7 +3284,7 @@ fn declarations(g: &mut Grammar) {
         seq![
             s!(_constructor_macro_start),
             field("name", s!(identifier)),
-            optional(field("arguments", s!(argument_list))),
+            optional(field("arguments", alias(s!(_macro_call_argument_list), s!(argument_list)))),
         ],
     );
     g.define("_constructor_attribute_macro", field("name", s!(identifier)));
@@ -4009,7 +4048,7 @@ fn declarations(g: &mut Grammar) {
             0,
             seq![
                 field("name", alias(s!(_trailing_macro_name), s!(identifier))),
-                optional(field("arguments", s!(argument_list))),
+                optional(field("arguments", alias(s!(_macro_call_argument_list), s!(argument_list)))),
             ],
         ),
     );
@@ -5921,7 +5960,7 @@ fn statements(g: &mut Grammar) {
             seq![
                 s!(_statement_attribute_macro_start),
                 field("name", s!(identifier)),
-                optional(field("arguments", s!(argument_list))),
+                optional(field("arguments", alias(s!(_macro_call_argument_list), s!(argument_list)))),
             ],
         ),
     );

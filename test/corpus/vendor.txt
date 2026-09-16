@@ -1962,3 +1962,154 @@ void f() { [[maybe_unused]] typedef int t8; }
             (identifier)))
         (primitive_type)
         (type_identifier)))))
+
+================================================================================
+An attribute in the arguments of a macro
+================================================================================
+
+typedef int t1 ATTR([[deprecated]]);
+using t2 ATTR([[deprecated]]) = int;
+DEPRECATED([[x]]) typedef int t3;
+DEPRECATED([[x]]) int v4;
+int v5 ATTR([[deprecated]], b);
+void g6() ATTR([[deprecated]]);
+class ATTR([[a]]) C7 { int m; };
+typedef int t8 ATTR(__attribute__((x)));
+struct C9 { int m ATTR([[deprecated]]); DEPRECATED([[x]]) C9(int); };
+enum E10 { e10 ATTR([[deprecated]]) = 1 };
+void g11() { STMT([[likely]]) return; }
+
+--------------------------------------------------------------------------------
+
+(translation_unit
+  (type_definition
+    (primitive_type)
+    (type_identifier)
+    (attribute_macro
+      (identifier)
+      (argument_list
+        (attribute_declaration
+          (attribute
+            (identifier))))))
+  (alias_declaration
+    (type_identifier)
+    (attribute_macro
+      (identifier)
+      (argument_list
+        (attribute_declaration
+          (attribute
+            (identifier)))))
+    (type_descriptor
+      (primitive_type)))
+  (type_definition
+    (attribute_macro
+      (identifier)
+      (argument_list
+        (attribute_declaration
+          (attribute
+            (identifier)))))
+    (primitive_type)
+    (type_identifier))
+  (declaration
+    (attribute_macro
+      (identifier)
+      (argument_list
+        (attribute_declaration
+          (attribute
+            (identifier)))))
+    (primitive_type)
+    (identifier))
+  (declaration
+    (primitive_type)
+    (attributed_declarator
+      (identifier)
+      (attribute_macro
+        (identifier)
+        (argument_list
+          (attribute_declaration
+            (attribute
+              (identifier)))
+          (identifier)))))
+  (declaration
+    (primitive_type)
+    (function_declarator
+      (identifier)
+      (parameter_list)
+      (attribute_macro
+        (identifier)
+        (argument_list
+          (attribute_declaration
+            (attribute
+              (identifier)))))))
+  (class_specifier
+    (attribute_macro
+      (identifier)
+      (argument_list
+        (attribute_declaration
+          (attribute
+            (identifier)))))
+    (type_identifier)
+    (field_declaration_list
+      (field_declaration
+        (primitive_type)
+        (field_identifier))))
+  (type_definition
+    (primitive_type)
+    (type_identifier)
+    (attribute_macro
+      (identifier)
+      (argument_list
+        (attribute_specifier
+          (argument_list
+            (identifier))))))
+  (struct_specifier
+    (type_identifier)
+    (field_declaration_list
+      (field_declaration
+        (primitive_type)
+        (attributed_declarator
+          (field_identifier)
+          (attribute_macro
+            (identifier)
+            (argument_list
+              (attribute_declaration
+                (attribute
+                  (identifier)))))))
+      (declaration
+        (attribute_macro
+          (identifier)
+          (argument_list
+            (attribute_declaration
+              (attribute
+                (identifier)))))
+        (function_declarator
+          (identifier)
+          (parameter_list
+            (parameter_declaration
+              (primitive_type)))))))
+  (enum_specifier
+    (type_identifier)
+    (enumerator_list
+      (enumerator
+        (identifier)
+        (attribute_macro
+          (identifier)
+          (argument_list
+            (attribute_declaration
+              (attribute
+                (identifier)))))
+        (number_literal))))
+  (function_definition
+    (primitive_type)
+    (function_declarator
+      (identifier)
+      (parameter_list))
+    (compound_statement
+      (attributed_statement
+        (attribute_macro
+          (identifier)
+          (argument_list
+            (attribute_declaration
+              (attribute
+                (identifier)))))
+        (return_statement)))))
