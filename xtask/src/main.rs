@@ -8,6 +8,7 @@ mod fuzz;
 mod generate;
 mod limits;
 mod parse;
+mod precedence;
 mod sexp;
 mod syntax;
 mod test;
@@ -30,6 +31,9 @@ tasks:
                            builder does not use.
   limits [PARSER_C]        Print the use of each fixed-width limit of the parser tables of
                            src/parser.c or PARSER_C. Fail when a use is more than 90% of its limit.
+  precedence [PARSER_C]    Print each dynamic precedence of src/grammar.json and the values of the
+                           reduce actions of src/parser.c or PARSER_C. Fail when the parse table
+                           holds no reduce action with a value that the grammar declares.
   test [--update] [NAME]   Run the corpus tests in test/corpus. With --update, write the actual
                            tree of each failed test that has no error into the test file.
   syntax [NAME]            Parse each snippet in test/syntax, and report each parse error.
@@ -73,6 +77,7 @@ fn main() -> ExitCode {
     let result: Result<(), Box<dyn Error>> = match args.first().map(String::as_str) {
         Some("generate") => generate::run(&repository(), &args[1..]),
         Some("limits") => limits::run(&repository(), &args[1..]),
+        Some("precedence") => precedence::run(&repository(), &args[1..]),
         Some("test") => test::run(&repository(), &args[1..]),
         Some("syntax") => syntax::run(&repository(), &args[1..]),
         Some("parse") => parse::run(&args[1..]),
