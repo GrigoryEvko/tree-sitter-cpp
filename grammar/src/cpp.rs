@@ -5360,12 +5360,15 @@ fn statements(g: &mut Grammar) {
             choice![s!(seh_except_clause), s!(seh_finally_clause)],
         ],
     );
+    // The filter takes the comma operator: `__except (Check(GetExceptionInformation()),
+    // EXCEPTION_EXECUTE_HANDLER)` in the tests of the MSVC STL. Clang reads it with
+    // `ParseExpression` (ParseStmt.cpp:656), which reads each operand of a comma.
     g.define(
         "seh_except_clause",
         seq![
             "__except",
             "(",
-            field("filter", s!(expression)),
+            field("filter", choice![s!(expression), s!(comma_expression)]),
             ")",
             field("body", s!(compound_statement)),
         ],

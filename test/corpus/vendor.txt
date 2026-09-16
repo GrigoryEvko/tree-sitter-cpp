@@ -1623,6 +1623,7 @@ void f() {
   } __finally {
   }
   __try { } __except (1) { }
+  __try { } __except (Check(GetExceptionInformation()), EXCEPTION_EXECUTE_HANDLER) { }
 }
 void g() { int __except = 0; }
 
@@ -1662,6 +1663,18 @@ void g() { int __except = 0; }
         (compound_statement)
         (seh_except_clause
           (number_literal)
+          (compound_statement)))
+      (seh_try_statement
+        (compound_statement)
+        (seh_except_clause
+          (comma_expression
+            (call_expression
+              (identifier)
+              (argument_list
+                (call_expression
+                  (identifier)
+                  (argument_list))))
+            (identifier))
           (compound_statement)))))
   (function_definition
     (primitive_type)
