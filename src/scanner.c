@@ -137,6 +137,9 @@ enum TokenType {
     /// before: `static Q_LOGGING_CATEGORY(log, "qtc", QtWarningMsg)`. The scan gives it only for a name
     /// with arguments.
     MACRO_LINE_AFTER_SPECIFIERS,
+    /// An empty mark before the extra tokens of an `#endif` or an `#else` line. The scanner gives the
+    /// mark only when the rest of that line holds a token.
+    PREPROC_EXTRA_MARK,
 };
 
 /// The maximum number of characters that the scanner reads in the arguments of a macro.
@@ -191,6 +194,12 @@ typedef struct {
     uint16_t deep_groups;
     /// The number of recorded class names.
     uint8_t class_count;
+    /// True when the last `#endif` or `#else` of the scanner has a token after it on its line.
+    ///
+    /// The mark of those extra tokens is empty, so a scan of the text cannot find the line again: the
+    /// parser asks for the mark at the position of the next token, which is on the line that follows.
+    /// The scan of the directive line reads the answer, and the mark reads it here.
+    bool preproc_extra_tokens;
     /// The hashes of the names of the last class heads with a body, the most recent last.
     uint32_t classes[MAX_CLASSES];
 } Scanner;
@@ -3801,6 +3810,62 @@ typedef enum {
 /// part of a number (libcpp `lex_number`, lex.cc:2325), and it starts no character literal. A line splice
 /// continues the line (libcpp `_cpp_clean_line`, lex.cc:877).
 ///
+/// Give the empty mark before the extra tokens of an `#endif` or an `#else` line. The lookahead is the
+/// character after the directive name.
+///
+/// An `#endif` and an `#else` take a fixed number of tokens, and the preprocessor gives a warning and
+/// removes the rest of the line: libcpp `check_eol_endif_labels` (gcc/libcpp/directives.cc:250) from
+/// `do_else` (:2648) and `do_endif` (:2791), and Clang `Preprocessor::CheckEndOfDirective`
+/// (clang/lib/Lex/PPDirectives.cpp:465) from `HandleElseDirective` (:3661) and `HandleEndifDirective`
+/// (:3635). The two front ends compile such a line with a warning only.
+///
+/// The mark is empty, and the rule takes it as an option. A line with no extra token then takes no mark
+/// and no line end, and the node of the branch or of the group keeps the range that it had. Only the
+/// mark makes the text of the line valid in this position.
+///
+/// The scan gives no mark before a comment, so that `#endif // c` keeps the comment as a node. A
+/// declined scan reads the horizontal space of the line only. The scan of the white space that follows
+/// reads the line break after that space, and a line break resets the count of the spaces. O(n) in the
+/// length of the horizontal space.
+static bool scan_preproc_extra_mark(Scanner *scanner, TSLexer *lexer) {
+    if (!scanner->preproc_extra_tokens) {
+        return false;
+    }
+    scanner->preproc_extra_tokens = false;
+    mark_end(lexer);
+    lexer->result_symbol = PREPROC_EXTRA_MARK;
+    return true;
+}
+
+/// True when the rest of a directive line holds a token. The lookahead is the character after the
+/// directive name. The scan reads no character of the token of the directive, because `scan_directive`
+/// ended that token before it.
+///
+/// A comment is no token of the line, so `#endif // c` keeps the comment as a node of the tree. A line
+/// splice continues the line. O(n) in the length of the rest of the line.
+static bool line_has_extra_tokens(TSLexer *lexer) {
+    for (;;) {
+        LOOP_STEP();
+        if (is_splice_space(lexer->lookahead)) {
+            advance(lexer);
+            continue;
+        }
+        if (lexer->lookahead == '\\' && skip_backslash(lexer, false) == BACKSLASH_SPLICE) {
+            continue;
+        }
+        break;
+    }
+    if (lexer->eof(lexer) || is_line_break(lexer->lookahead) || lexer->lookahead == '\\') {
+        return false;
+    }
+    if (lexer->lookahead != '/') {
+        return true;
+    }
+    // A comment is white space of the line. A `/` that starts no comment is a token.
+    advance(lexer);
+    return lexer->lookahead != '/' && lexer->lookahead != '*';
+}
+
 /// The token ends at the last character that is not white space. White space before the text, and a line splice
 /// before the text, are not part of the token. A backslash that starts no line splice is also white space there,
 /// and the token then starts after it. O(n) in the length of the line.
@@ -5480,6 +5545,12 @@ static bool scan_directive(Scanner *scanner, TSLexer *lexer, const bool *valid_s
                     }
                 }
                 break;
+        }
+        // An `#endif` and an `#else` take a fixed number of tokens. The rest of their line is extra
+        // tokens, and the mark of those tokens reads this answer. The scan comes after `mark_end` of
+        // the directive token, so it reads no character of that token.
+        if (type == PREPROC_ENDIF || type == PREPROC_ELSE) {
+            scanner->preproc_extra_tokens = line_has_extra_tokens(lexer);
         }
         lexer->result_symbol = type;
         return true;
@@ -7432,6 +7503,7 @@ static bool can_be_empty(TSSymbol symbol) {
         case TYPE_TRAIT_TYPE_MARKER:
         case MEMBER_POINTER_START:
         case PREPROC_LINE_END:
+        case PREPROC_EXTRA_MARK:
         case RAW_STRING_CONTENT:
             return true;
         default:
@@ -7473,6 +7545,13 @@ static bool scan_token(Scanner *scanner, TSLexer *lexer, const bool *valid_symbo
         // In a string literal or a character literal, a `#` is text.
         if (valid_symbols[PREPROC_LITERAL_MARKER]) {
             return false;
+        }
+
+        // The extra tokens of an `#endif` or an `#else` line come after the directive name, on the
+        // same line. A declined scan reads the horizontal space of that line only, and the scans
+        // that follow read the same tokens as before.
+        if (valid_symbols[PREPROC_EXTRA_MARK] && scan_preproc_extra_mark(scanner, lexer)) {
+            return true;
         }
 
         // Inside a directive line, a line break ends the line, and the next line is not examined. A `(`
@@ -7594,12 +7673,14 @@ static bool scan_token(Scanner *scanner, TSLexer *lexer, const bool *valid_symbo
 /// a scanner with no delimiter, no group, and no class name is empty. A deeper group needs a full array of groups,
 /// so an empty state has no such group.
 unsigned tree_sitter_cpp_external_scanner_serialize(void *payload, char *buffer) {
-    static_assert(1 + MAX_DELIMITER_LENGTH * sizeof(wchar_t) + 1 + MAX_GROUPS + 2 + MAX_CLASSES * sizeof(uint32_t) <
+    static_assert(1 + MAX_DELIMITER_LENGTH * sizeof(wchar_t) + 1 + MAX_GROUPS + 2 + 1 +
+                          MAX_CLASSES * sizeof(uint32_t) <
                       TREE_SITTER_SERIALIZATION_BUFFER_SIZE,
                   "Serialized state is too long!");
 
     Scanner *scanner = (Scanner *)payload;
-    if (scanner->delimiter_length == 0 && scanner->group_count == 0 && scanner->class_count == 0) {
+    if (scanner->delimiter_length == 0 && scanner->group_count == 0 && scanner->class_count == 0 &&
+        !scanner->preproc_extra_tokens) {
         return 0;
     }
     unsigned size = 0;
@@ -7611,6 +7692,7 @@ unsigned tree_sitter_cpp_external_scanner_serialize(void *payload, char *buffer)
     size += scanner->group_count;
     buffer[size++] = (char)(scanner->deep_groups & 0xff);
     buffer[size++] = (char)(scanner->deep_groups >> 8);
+    buffer[size++] = (char)scanner->preproc_extra_tokens;
     memcpy(&buffer[size], scanner->classes, scanner->class_count * sizeof(uint32_t));
     size += scanner->class_count * sizeof(uint32_t);
     return size;
@@ -7622,6 +7704,7 @@ void tree_sitter_cpp_external_scanner_deserialize(void *payload, const char *buf
     scanner->group_count = 0;
     scanner->deep_groups = 0;
     scanner->class_count = 0;
+    scanner->preproc_extra_tokens = false;
     if (length == 0) {
         return;
     }
@@ -7637,6 +7720,8 @@ void tree_sitter_cpp_external_scanner_deserialize(void *payload, const char *buf
         assert(size + 2 <= length && "Can't decode the count of the deeper groups!");
         scanner->deep_groups = (uint16_t)((uint8_t)buffer[size] | ((uint8_t)buffer[size + 1] << 8));
         size += 2;
+        assert(size < length && "Can't decode the mark of the extra tokens!");
+        scanner->preproc_extra_tokens = buffer[size++] != 0;
     }
     unsigned names = size < length ? (length - size) / sizeof(uint32_t) : 0;
     assert(names <= MAX_CLASSES && "Can't decode serialized class names!");

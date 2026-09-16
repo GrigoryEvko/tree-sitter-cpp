@@ -23,6 +23,20 @@ int e;
 #elifndef F junk
 int f;
 #endif
+### pp_extra_tokens_after_an_endif_and_an_else
+#ifdef USE_DML
+int a;
+#endif USE_DML
+#if 1
+int b;
+#else MACRO_0
+int c;
+#endif
+### pp_no_extra_tokens_after_an_endif_with_a_comment
+#ifdef A
+int a;
+#endif // a comment
+MACRO(x)
 ### pp_define_continued_in_initializer_list
 static const int descriptors[] = {
     #define M(NAME) \

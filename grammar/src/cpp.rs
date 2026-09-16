@@ -161,6 +161,10 @@ pub fn grammar() -> Grammar {
         // name with arguments, because a bare name there continues the declaration on the next line.
         // `_macro_line_start` keeps its meaning of a line with no specifier before it.
         s!(_macro_line_after_specifiers),
+        // An empty mark before the extra tokens of an `#endif` or an `#else` line. The scanner gives
+        // the mark only when the rest of that line holds a token, so a line with no such token takes
+        // no line end, and the node of the group keeps its range.
+        s!(_preproc_extra_mark),
     ];
     // The conflict sets of the grammar. Each set names the rules of one ambiguity, and it tells the
     // generator to keep each reading in a GLR split.
@@ -7405,6 +7409,39 @@ fn preprocessor(g: &mut Grammar) {
         g.redefine(&name, scanner_directive_tokens);
     }
     g.rules.shift_remove("preproc_directive");
+    // The tokens after an `#endif` and after an `#else` are extra tokens of the directive line. The
+    // preprocessor gives a warning and removes them: libcpp `check_eol_endif_labels`
+    // (gcc/libcpp/directives.cc:250) from `do_else` (:2648) and `do_endif` (:2791), and Clang
+    // `Preprocessor::CheckEndOfDirective` (clang/lib/Lex/PPDirectives.cpp:465) from
+    // `HandleElseDirective` (:3661) and `HandleEndifDirective` (:3635). The two front ends compile
+    // such a line with a warning only. Without this rule `#endif USE_DML` gave a `macro_invocation`
+    // for a token that no longer exists after the preprocessor, with no ERROR node.
+    //
+    // The mark of the scanner comes before the text. It is empty, and the scanner gives it only when
+    // the rest of the line holds a token. A line with no such token then takes no mark and no line
+    // end, and the node of the branch or of the group keeps the range that it had. A line end with
+    // no mark would extend `preproc_else`, `preproc_elif` and the group over the line break, and 235
+    // corpus files would get a different range to repair 13 files.
+    let extra_tokens = || {
+        optional(seq![
+            s!(_preproc_extra_mark),
+            repeat1(s!(preproc_arg)),
+            s!(_preproc_line_end),
+        ])
+    };
+    for suffix in CONDITIONAL_SUFFIXES {
+        for (rule, token, name) in [
+            ("preproc_if", "_preproc_endif", "#endif"),
+            ("preproc_ifdef", "_preproc_endif", "#endif"),
+            ("preproc_else", "_preproc_else", "#else"),
+        ] {
+            let directive = alias(sym(token), name);
+            let replacement = seq![alias(sym(token), name), extra_tokens()];
+            g.redefine(&format!("{rule}{suffix}"), |original| {
+                replace_rule(original, &directive, &replacement)
+            });
+        }
+    }
     // The external scanner gives the text of a directive line (`scan_preproc_arg` in src/scanner.c). A
     // pattern of the lexer reads no literal, so a `//` or a `/*` in the content of a string literal
     // started a comment, a raw string literal ended at the line break, and a `/` at the end of a line
