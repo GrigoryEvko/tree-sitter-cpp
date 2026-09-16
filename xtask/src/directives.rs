@@ -65,11 +65,6 @@ impl Site {
     }
 }
 
-/// The start of the line that holds `at`.
-fn line_start(source: &[u8], at: usize) -> usize {
-    source[..at].iter().rposition(|&c| c == b'\n').map_or(0, |i| i + 1)
-}
-
 /// True if the line that starts at `start` has `#` as its first character that is not a blank.
 fn is_directive_line(source: &[u8], start: usize) -> bool {
     source[start..]
@@ -79,15 +74,71 @@ fn is_directive_line(source: &[u8], start: usize) -> bool {
         == Some(b'#')
 }
 
+/// The byte range of each line whose first character that is not a blank is `#`, in the order of the
+/// source. The end is the newline of the line, or the end of the source.
+///
+/// One forward pass over the source gives every directive line. A corpus file holds 15,457 bytes and
+/// 18 directive lines on average, so a search of these few ranges costs far less than a scan back to
+/// the start of the line for each leaf of the tree. O(n) in the bytes of the source.
+fn directive_lines(source: &[u8]) -> Vec<(usize, usize)> {
+    let mut lines = Vec::new();
+    let mut start = 0;
+    while start < source.len() {
+        let end = source[start..]
+            .iter()
+            .position(|&c| c == b'\n')
+            .map_or(source.len(), |i| start + i);
+        if is_directive_line(source, start) {
+            lines.push((start, end));
+        }
+        start = end + 1;
+    }
+    lines
+}
+
+/// The directive line that holds a byte, if a directive line does. O(log n) in the directive lines.
+fn directive_line_of(lines: &[(usize, usize)], at: usize) -> Option<(usize, usize)> {
+    let index = lines.partition_point(|&(start, _)| start <= at);
+    let &(start, end) = lines.get(index.checked_sub(1)?)?;
+    (at <= end).then_some((start, end))
+}
+
 /// The nodes of one tree that begin on a directive line and are not part of a directive.
 ///
-/// The walk carries two facts down the tree: a `preproc_` ancestor, which makes a node part of a
-/// directive, and the ranges of the strings and the comments, which tell whether the start of a
-/// line is inside one. Only a leaf gives a site, because the start of an inner node is the start of
-/// its first leaf. O(n) in the number of nodes.
+/// The walk carries a `preproc_` ancestor down the tree, which makes a node part of a directive.
+/// Only a leaf gives a site, because the start of an inner node is the start of its first leaf.
+///
+/// A file with no directive line gives no site and needs no walk. The ranges of the strings and the
+/// comments tell whether the start of a line is inside one, and only a file that holds a candidate
+/// pays for them. O(n) in the bytes and the nodes.
 pub fn sites(path: &str, source: &[u8], tree: &Tree) -> Vec<Site> {
-    let mut covers: Vec<(usize, usize)> = Vec::new();
+    let lines = directive_lines(source);
+    if lines.is_empty() {
+        return Vec::new();
+    }
+
     let mut cursor = tree.walk();
+    let mut candidates: Vec<(String, usize, usize, usize)> = Vec::new();
+    let mut stack = vec![(tree.root_node(), false)];
+    while let Some((node, in_directive)) = stack.pop() {
+        let kind = node.kind();
+        let directive = in_directive || kind.starts_with("preproc_");
+        if !directive && kind != "comment" && node.child_count() == 0 {
+            let begin = node.start_byte();
+            if let Some((start, end)) = directive_line_of(&lines, begin) {
+                candidates.push((kind.to_owned(), begin, start, end));
+            }
+        }
+        for child in node.children(&mut cursor) {
+            stack.push((child, directive));
+        }
+    }
+    if candidates.is_empty() {
+        return Vec::new();
+    }
+
+    // The second walk runs only for a file that holds a candidate, and almost no file does.
+    let mut covers: Vec<(usize, usize)> = Vec::new();
     let mut stack = vec![tree.root_node()];
     while let Some(node) = stack.pop() {
         if matches!(node.kind(), "raw_string_literal" | "string_literal" | "comment") {
@@ -100,31 +151,18 @@ pub fn sites(path: &str, source: &[u8], tree: &Tree) -> Vec<Site> {
     let inside = |at: usize| covers.iter().any(|&(s, e)| s <= at && at < e);
 
     let mut found = Vec::new();
-    let mut stack = vec![(tree.root_node(), false)];
-    while let Some((node, in_directive)) = stack.pop() {
-        let kind = node.kind();
-        let directive = in_directive || kind.starts_with("preproc_");
-        if !directive && kind != "comment" && node.child_count() == 0 {
-            let begin = node.start_byte();
-            let start = line_start(source, begin);
-            if is_directive_line(source, start) && !inside(start) {
-                let end = source[start..]
-                    .iter()
-                    .position(|&c| c == b'\n')
-                    .map_or(source.len(), |i| start + i);
-                let mut text = String::from_utf8_lossy(&source[start..end]).replace(['\t', '\r'], " ");
-                text.truncate(text.char_indices().nth(LINE_BYTES).map_or(text.len(), |(i, _)| i));
-                found.push(Site {
-                    path: path.to_owned(),
-                    line: source[..begin].iter().filter(|&&c| c == b'\n').count() + 1,
-                    kind: kind.to_owned(),
-                    text: text.trim().to_owned(),
-                });
-            }
+    for (kind, begin, start, end) in candidates {
+        if inside(start) {
+            continue;
         }
-        for child in node.children(&mut cursor) {
-            stack.push((child, directive));
-        }
+        let mut text = String::from_utf8_lossy(&source[start..end]).replace(['\t', '\r'], " ");
+        text.truncate(text.char_indices().nth(LINE_BYTES).map_or(text.len(), |(i, _)| i));
+        found.push(Site {
+            path: path.to_owned(),
+            line: source[..begin].iter().filter(|&&c| c == b'\n').count() + 1,
+            kind,
+            text: text.trim().to_owned(),
+        });
     }
     found.sort();
     found
@@ -188,7 +226,18 @@ pub fn run(args: &[String]) -> Result<(), Box<dyn Error>> {
         })
         .flatten()
         .collect();
-    let mut found = found;
+    report(found, baseline)
+}
+
+/// Compare the sites of a pass with a baseline, print the report line, and fail on a new site.
+///
+/// `sites` is a pure function of a source and a tree, so a pass that already parses the corpus can
+/// collect the sites and call this. The check then costs no second parse of 329,387 files. Refer to
+/// `cargo xtask trees --directives`.
+///
+/// A new site fails. A site that is gone does not, so a repair is never blocked by the check that
+/// measures it.
+pub fn report(mut found: Vec<Site>, baseline: &Path) -> Result<(), Box<dyn Error>> {
     found.sort();
 
     let recorded = read_baseline(baseline)?;
@@ -252,11 +301,31 @@ mod tests {
     #[test]
     fn the_predicates_read_a_directive_line() {
         let source = b"  #  endif X\nint y;\n";
-        assert_eq!(super::line_start(source, 5), 0, "the start of the first line");
+        let lines = super::directive_lines(source);
+        assert_eq!(lines, vec![(0, 12)], "a blank before the `#` keeps the directive, and line 2 is code");
+        assert_eq!(
+            super::directive_line_of(&lines, 5),
+            Some((0, 12)),
+            "a byte of the first line is on the directive line"
+        );
+        assert_eq!(
+            super::directive_line_of(&lines, 15),
+            None,
+            "a byte of the second line is on no directive line"
+        );
         assert!(super::is_directive_line(source, 0), "a blank before the `#` keeps the directive");
-        let second = super::line_start(source, 15);
-        assert_eq!(second, 13, "the start of the second line");
-        assert!(!super::is_directive_line(source, second), "a line of code is not a directive line");
+        assert!(!super::is_directive_line(source, 13), "a line of code is not a directive line");
+    }
+
+    /// A directive line at the end of a source with no line end still has a range, and the last byte
+    /// of the source is on it.
+    #[test]
+    fn a_directive_line_with_no_line_end_has_a_range() {
+        let source = b"int y;\n#endif X";
+        let lines = super::directive_lines(source);
+        assert_eq!(lines, vec![(7, 15)], "the range ends at the end of the source");
+        assert_eq!(super::directive_line_of(&lines, 14), Some((7, 15)));
+        assert_eq!(super::directive_line_of(&lines, 3), None, "a byte before the directive line");
     }
 
     /// The exclusion of a string carries weight. Without it the tokens after the close of a raw
@@ -268,11 +337,11 @@ mod tests {
         let tree = parser.parse(source, None).expect("the snippet parses");
         let mut cursor = tree.walk();
         let mut stack = vec![tree.root_node()];
+        let lines = super::directive_lines(source.as_bytes());
         let mut on_a_hash_line = 0;
         while let Some(node) = stack.pop() {
             if node.child_count() == 0 && node.kind() != "comment" {
-                let start = super::line_start(source.as_bytes(), node.start_byte());
-                if super::is_directive_line(source.as_bytes(), start) {
+                if super::directive_line_of(&lines, node.start_byte()).is_some() {
                     on_a_hash_line += 1;
                 }
             }
@@ -304,12 +373,11 @@ mod tests {
         let tree = parser.parse(source, None).expect("the snippet parses");
         let mut cursor = tree.walk();
         let mut stack = vec![tree.root_node()];
+        let lines = super::directive_lines(source.as_bytes());
         let mut on_a_directive_line = 0;
         while let Some(node) = stack.pop() {
             if node.child_count() == 0 && node.kind() != "comment" {
-                let begin = node.start_byte();
-                let start = super::line_start(source.as_bytes(), begin);
-                if super::is_directive_line(source.as_bytes(), start) {
+                if super::directive_line_of(&lines, node.start_byte()).is_some() {
                     on_a_directive_line += 1;
                 }
             }
@@ -328,5 +396,56 @@ mod tests {
     #[test]
     fn a_line_of_a_raw_string_is_not_a_directive_line() {
         assert!(scan("const char *s = R\"cc(\n#endif)cc\";\nint y;\n").is_empty());
+    }
+
+    /// A baseline file of a test, with one line for each site.
+    fn baseline_file(name: &str, rows: &[&str]) -> std::path::PathBuf {
+        let path = std::env::temp_dir().join(format!("directive-sites-{name}-{}.txt", std::process::id()));
+        std::fs::write(&path, rows.join("\n")).expect("the test writes its baseline");
+        path
+    }
+
+    /// A site that the baseline does not hold fails the check.
+    ///
+    /// No directive form of C++ gives a site, so this test builds the site instead of parsing one.
+    /// It holds the failing path of `report`, which no corpus file can reach.
+    #[test]
+    fn a_site_that_the_baseline_does_not_hold_fails() {
+        let path = baseline_file("new", &[]);
+        let found = vec![Site {
+            path: "a/b.cc".to_owned(),
+            line: 2,
+            kind: "identifier".to_owned(),
+            text: "#endif GUARD".to_owned(),
+        }];
+        let error = super::report(found, &path).expect_err("a new site fails the check");
+        assert!(
+            error.to_string().starts_with("1 node(s) begin on a directive line"),
+            "the message names the count of new sites: {error}"
+        );
+        std::fs::remove_file(&path).ok();
+    }
+
+    /// A site of the baseline that the pass does not find is a repair, and it does not fail.
+    #[test]
+    fn a_site_of_the_baseline_that_is_gone_does_not_fail() {
+        let path = baseline_file("gone", &["a/b.cc\t2\tidentifier\t#endif GUARD"]);
+        super::report(Vec::new(), &path).expect("a site that is gone does not fail the check");
+        std::fs::remove_file(&path).ok();
+    }
+
+    /// A site that the baseline holds passes, and the baseline keeps it.
+    #[test]
+    fn a_site_that_the_baseline_holds_passes() {
+        let path = baseline_file("held", &["a/b.cc\t2\tidentifier\t#endif GUARD"]);
+        let found = vec![Site {
+            path: "a/b.cc".to_owned(),
+            line: 2,
+            kind: "identifier".to_owned(),
+            // The text is not part of the key, and a different text still matches.
+            text: "#endif OTHER".to_owned(),
+        }];
+        super::report(found, &path).expect("a site of the baseline does not fail the check");
+        std::fs::remove_file(&path).ok();
     }
 }

@@ -38,7 +38,7 @@ use tree_sitter::{Language, Node, Tree};
 
 use crate::corpus::{new_parser, parse_with_limit};
 
-const USAGE: &str = "usage: cargo xtask trees ROOT LIST OUT | cargo xtask trees --compare A.tsv B.tsv";
+const USAGE: &str = "usage: cargo xtask trees ROOT LIST OUT [--directives BASELINE] | cargo xtask trees --compare A.tsv B.tsv";
 /// The offset basis of the 64-bit FNV-1a hash.
 const FNV_OFFSET: u64 = 0xcbf2_9ce4_8422_2325;
 /// The prime of the 64-bit FNV-1a hash.
@@ -207,13 +207,29 @@ fn tree_facts(tree: &Tree, names: &Names, bytes: usize) -> TreeFacts {
     }
 }
 
-/// Parse one file, and give its TSV line without the line end.
-fn tree_line(parser: &mut tree_sitter::Parser, names: &Names, root: &Path, rel: &str) -> String {
+/// Parse one file, and give its TSV line without the line end, with the directive sites of the tree.
+///
+/// The sites are empty unless `want_sites` is true. This pass already holds the source and the tree,
+/// so the directive check costs no second parse. Refer to `directives::report`.
+fn tree_line(
+    parser: &mut tree_sitter::Parser,
+    names: &Names,
+    root: &Path,
+    rel: &str,
+    want_sites: bool,
+) -> (String, Vec<crate::directives::Site>) {
+    let no_sites = Vec::new();
     let Ok(source) = fs::read(root.join(rel)) else {
-        return format!("{rel}\t1\tunreadable\t0\t-\t-\t-");
+        return (format!("{rel}\t1\tunreadable\t0\t-\t-\t-"), no_sites);
     };
     let Some(tree) = parse_with_limit(parser, &source) else {
-        return format!("{rel}\t1\tstopped\t0\t-\t-\t-");
+        return (format!("{rel}\t1\tstopped\t0\t-\t-\t-"), no_sites);
+    };
+    // A file with a parse error is the subject of the corpus report, and not of this check.
+    let found = if want_sites && !tree.root_node().has_error() {
+        crate::directives::sites(rel, &source, &tree)
+    } else {
+        no_sites
     };
     let facts = tree_facts(&tree, names, source.len());
     let (error_byte, error_kind) = match &facts.first_error {
@@ -227,16 +243,20 @@ fn tree_line(parser: &mut tree_sitter::Parser, names: &Names, root: &Path, rel: 
         }
         write!(blocks, "{value:08x}").expect("a write to a String does not fail");
     }
-    format!(
+    let line = format!(
         "{rel}\t{}\t{:016x}\t{}\t{error_byte}\t{error_kind}\t{blocks}",
         u8::from(tree.root_node().has_error()),
         facts.hash,
         facts.nodes
-    )
+    );
+    (line, found)
 }
 
 /// Parse the files of a list in parallel, and write one TSV line for each file.
-fn write_trees(root: &str, list: &str, out: &str) -> Result<(), Box<dyn Error>> {
+///
+/// With a baseline, the same pass also collects the directive sites of each tree and reports them.
+/// Refer to `directives::report`.
+fn write_trees(root: &str, list: &str, out: &str, baseline: Option<&str>) -> Result<(), Box<dyn Error>> {
     let root = Path::new(root);
     let list = fs::read_to_string(list).map_err(|e| format!("cannot read the file list {list}: {e}"))?;
     let paths: Vec<&str> = list.lines().filter(|line| !line.is_empty()).collect();
@@ -244,12 +264,13 @@ fn write_trees(root: &str, list: &str, out: &str) -> Result<(), Box<dyn Error>> 
     let names = Names::new(&language);
     let done = AtomicUsize::new(0);
     let started = Instant::now();
-    let lines: Vec<String> = paths
+    let want_sites = baseline.is_some();
+    let results: Vec<(String, Vec<crate::directives::Site>)> = paths
         .par_iter()
         .map_init(
             || new_parser(&language),
             |parser, rel| {
-                let line = tree_line(parser, &names, root, rel);
+                let line = tree_line(parser, &names, root, rel, want_sites);
                 let count = done.fetch_add(1, Ordering::Relaxed) + 1;
                 if count.is_multiple_of(100_000) {
                     eprintln!("{count} files in {:.0} s", started.elapsed().as_secs_f64());
@@ -258,6 +279,12 @@ fn write_trees(root: &str, list: &str, out: &str) -> Result<(), Box<dyn Error>> 
             },
         )
         .collect();
+    let mut lines = Vec::with_capacity(results.len());
+    let mut found = Vec::new();
+    for (line, sites) in results {
+        lines.push(line);
+        found.extend(sites);
+    }
 
     let mut sink = BufWriter::new(fs::File::create(out).map_err(|e| format!("cannot create {out}: {e}"))?);
     for line in &lines {
@@ -274,7 +301,10 @@ fn write_trees(root: &str, list: &str, out: &str) -> Result<(), Box<dyn Error>> 
         lines.len(),
         started.elapsed().as_secs_f64()
     );
-    Ok(())
+    match baseline {
+        Some(baseline) => crate::directives::report(found, Path::new(baseline)),
+        None => Ok(()),
+    }
 }
 
 /// One line of an output of `xtask trees`.
@@ -375,7 +405,10 @@ fn compare(path_a: &str, path_b: &str) -> Result<(), Box<dyn Error>> {
 pub fn run(args: &[String]) -> Result<(), Box<dyn Error>> {
     match args {
         [flag, a, b] if flag == "--compare" => compare(a, b),
-        [root, list, out] if !root.starts_with("--") => write_trees(root, list, out),
+        [root, list, out] if !root.starts_with("--") => write_trees(root, list, out, None),
+        [root, list, out, flag, baseline] if !root.starts_with("--") && flag == "--directives" => {
+            write_trees(root, list, out, Some(baseline))
+        }
         _ => Err(USAGE.into()),
     }
 }
