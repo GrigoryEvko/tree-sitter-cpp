@@ -206,6 +206,9 @@ pub fn grammar() -> Grammar {
         // after the name cannot be a parameter list, so a text with the two readings does not move.
         // Refer to `_template_parameter_macro`.
         s!(_template_parameter_macro_start),
+        // An empty token before the word `using`. The scanner reads an alias declaration and records
+        // the name that it declares. Refer to `scan_using_alias`.
+        s!(_using_alias_mark),
     ];
     // The conflict sets of the grammar. Each set names the rules of one ambiguity, and it tells the
     // generator to keep each reading in a GLR split.
@@ -2143,6 +2146,10 @@ fn types(g: &mut Grammar) {
     // class head mark is: the parser shifts it in each state, and the parse states and the trees do
     // not change. Refer to `scan_template_head` in src/scanner.c and to task 291.
     g.extras.push(s!(_template_head_mark));
+    // The scanner records the name that a `using` alias declaration of the file declares, and it
+    // gives `_using_alias_mark` before the word `using` to do it. The token is an empty extra, as
+    // the class head mark and the template head mark are. Refer to `scan_using_alias`.
+    g.extras.push(s!(_using_alias_mark));
     // THE OPERAND OF `alignas` IS A TYPE OR A CONSTANT EXPRESSION, AND A BARE NAME IS BOTH. c4e81d4
     // states the expression reading as a rule, because only the declaration of the name tells the
     // two apart and the grammar holds no declaration. The scanner gives `_alignas_type_name` for a

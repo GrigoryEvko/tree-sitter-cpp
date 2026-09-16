@@ -179,6 +179,9 @@ enum TokenType {
     /// after the name CANNOT be a parameter list, because a group that can be one keeps the reading
     /// of a parameter declaration that it has today.
     TEMPLATE_PARAMETER_MACRO_START,
+    /// An empty token before the word `using`. The scan reads an alias declaration and records the
+    /// name that it declares. Refer to `scan_using_alias`.
+    USING_ALIAS_MARK,
     /// The count of the external tokens, and not a token. `tree_sitter_cpp_external_scanner_create`
     /// compares it with the count of the parser.
     TOKEN_TYPE_COUNT,
@@ -269,6 +272,16 @@ typedef struct {
     /// declared earlier and a forward record can hold it, AND ALL 4 WOULD BE RIGHT ANYWAY, because
     /// the file or the project declares the name as a type as well. Exposure 4, wrong 0.
     uint32_t templates[MAX_CLASSES];
+    /// The number of recorded `using` alias names.
+    uint8_t alias_count;
+    /// The hashes of the names that `using` alias declarations of the file declare, the most recent
+    /// last. `alignas(T)` reads them, AND NOTHING ELSE DOES.
+    ///
+    /// THE RECORD IS ITS OWN, AND THAT IS THE POINT. A shared record is an interface: putting these
+    /// names into `classes` or `loose` would give them to the functional cast, which reads those two
+    /// at its own position, and would change trees far beyond the task that added them. A record of
+    /// its own cannot reach a consumer that does not name it.
+    uint32_t aliases[MAX_CLASSES];
     /// The context of the parser, the seed of #275, or NULL. The runtime gives it through
     /// `tree_sitter_cpp_external_scanner_set_context`, and `serialize` and `deserialize` do not
     /// carry it, so `reset` and `deserialize` must not clear it.
@@ -2111,6 +2124,25 @@ static bool record_class_name(Scanner *scanner, uint32_t name) {
     return record_name(scanner->classes, &scanner->class_count, name);
 }
 
+/// Record the name of a `using` alias as the most recent name. Return false if it already is the
+/// most recent name.
+static bool record_alias_name(Scanner *scanner, uint32_t name) {
+    return record_name(scanner->aliases, &scanner->alias_count, name);
+}
+
+/// True when a `using` alias declaration of the file declared the name. O(n) in MAX_CLASSES.
+static bool is_alias_name(const Scanner *scanner, uint32_t name) {
+    if (scanner == NULL) {
+        return false;
+    }
+    for (unsigned i = 0; i < scanner->alias_count; i++) {
+        if (scanner->aliases[i] == name) {
+            return true;
+        }
+    }
+    return false;
+}
+
 /// Record the name of a template type parameter as the most recent name. Return false if it already
 /// is the most recent name.
 static bool record_template_name(Scanner *scanner, uint32_t name) {
@@ -2218,7 +2250,8 @@ static bool is_alignas_type_name(const Scanner *scanner, const char *full, const
     //    that the file decides and the construct does not, a class head declares 119 and the ring
     //    reaches 111 of those. The other 98 rest on a `using` alias or a typedef, and the scanner
     //    records neither. A record of those names is a separate step with a count of its own.
-    if (is_class_name(scanner, reader->word_hash) || is_loose_name(scanner, reader->word_hash)) {
+    if (is_class_name(scanner, reader->word_hash) || is_loose_name(scanner, reader->word_hash)
+        || is_alias_name(scanner, reader->word_hash)) {
         return true;
     }
     // 3. THE PROJECT, task 291 step 3. The seed of the parse, which holds the names that the whole
@@ -3264,6 +3297,53 @@ static bool scan_template_head(Scanner *scanner, Reader *reader) {
         return false;
     }
     lexer->result_symbol = TEMPLATE_HEAD_MARK;
+    return true;
+}
+
+/// Scan an alias declaration after the word `using`, and record the name that it declares. Return
+/// true if the recorded names change. The token is the empty extra USING_ALIAS_MARK before the word.
+///
+/// AN ALIAS DECLARATION HAS AN `=` AND THE OTHER TWO FORMS OF `using` DO NOT. `using A = B;`
+/// declares the type name `A`. `using namespace ns;` and `using ns::f;` declare no type name, and
+/// the first word after `using` is `namespace` or the first part of a qualified name in those. The
+/// scan reads one word and then requires an `=`, which tells the three apart with no list of
+/// keywords. `template <class T> using V = W<T>;` has the same shape after its head.
+///
+/// THE TOKEN IS GIVEN ONLY WHEN THE RECORD CHANGES, as `scan_class_head` and `scan_template_head`
+/// do. An empty token that a scan gives again at the same position never ends.
+///
+/// A TYPEDEF DECLARES A TYPE NAME TOO AND THIS SCAN DOES NOT READ IT. The name of a typedef is its
+/// declarator and it comes last, `typedef int (*fn)(void);`, so reading it needs a declarator scan
+/// rather than one word. Of the 98 sites that only an alias or a typedef declares, 90 are a `using`
+/// alias and 8 are a typedef. The 8 keep the expression reading.
+static bool scan_using_alias(Scanner *scanner, Reader *reader) {
+    TSLexer *lexer = reader->lexer;
+    Gap gap = {0};
+    skip_gap(reader, &gap);
+    if (gap.blocked || !readable(reader) || !is_word_start(lexer->lookahead)) {
+        return false;
+    }
+    char word[MACRO_WORD_SIZE];
+    bool has_lower = false;
+    read_word(reader, word, &has_lower);
+    if (word[0] == '\0') {
+        return false;
+    }
+    uint32_t name = reader->word_hash;
+    Gap after = {0};
+    skip_gap(reader, &after);
+    if (after.blocked || !readable(reader) || lexer->lookahead != '=') {
+        return false;
+    }
+    // `==` is a comparison and not the `=` of an alias declaration.
+    step(reader);
+    if (readable(reader) && lexer->lookahead == '=') {
+        return false;
+    }
+    if (!record_alias_name(scanner, name)) {
+        return false;
+    }
+    lexer->result_symbol = USING_ALIAS_MARK;
     return true;
 }
 
@@ -8317,6 +8397,9 @@ static bool scan_word_start(Scanner *scanner, TSLexer *lexer, const bool *valid_
     if (valid_symbols[TEMPLATE_HEAD_MARK] && strcmp(word, "template") == 0) {
         return scan_template_head(scanner, &reader);
     }
+    if (valid_symbols[USING_ALIAS_MARK] && strcmp(word, "using") == 0) {
+        return scan_using_alias(scanner, &reader);
+    }
     bool is_decltype = strcmp(word, "decltype") == 0;
     if (valid_symbols[MEMBER_POINTER_START] && (next == ':' || next == '<' || (is_decltype && next == '('))) {
         lexer->result_symbol = MEMBER_POINTER_START;
@@ -8680,6 +8763,7 @@ static bool can_be_empty(TSSymbol symbol) {
         case MACRO_ENUMERATOR_START:
         case MACRO_STATEMENT_START:
         case TEMPLATE_HEAD_MARK:
+        case USING_ALIAS_MARK:
         case MACRO_CALL_ATTRIBUTE_START:
         case MACRO_CALL_ATTRIBUTE_TOKENS_START:
         case ATTRIBUTE_TOKENS_MARKER:
@@ -8872,13 +8956,13 @@ static bool scan_token(Scanner *scanner, TSLexer *lexer, const bool *valid_symbo
 /// so an empty state has no such group.
 unsigned tree_sitter_cpp_external_scanner_serialize(void *payload, char *buffer) {
     static_assert(1 + MAX_DELIMITER_LENGTH * sizeof(wchar_t) + 1 + MAX_GROUPS + 2 + 1 + 1 +
-                          1 + 3 * MAX_CLASSES * sizeof(uint32_t) <
+                          2 + 4 * MAX_CLASSES * sizeof(uint32_t) <
                       TREE_SITTER_SERIALIZATION_BUFFER_SIZE,
                   "Serialized state is too long!");
 
     Scanner *scanner = (Scanner *)payload;
     if (scanner->delimiter_length == 0 && scanner->group_count == 0 && scanner->class_count == 0 &&
-        scanner->loose_count == 0 && scanner->template_count == 0 && !scanner->preproc_extra_tokens) {
+        scanner->loose_count == 0 && scanner->template_count == 0 && scanner->alias_count == 0 && !scanner->preproc_extra_tokens) {
         return 0;
     }
     unsigned size = 0;
@@ -8902,6 +8986,9 @@ unsigned tree_sitter_cpp_external_scanner_serialize(void *payload, char *buffer)
     buffer[size++] = (char)scanner->template_count;
     memcpy(&buffer[size], scanner->templates, scanner->template_count * sizeof(uint32_t));
     size += scanner->template_count * sizeof(uint32_t);
+    buffer[size++] = (char)scanner->alias_count;
+    memcpy(&buffer[size], scanner->aliases, scanner->alias_count * sizeof(uint32_t));
+    size += scanner->alias_count * sizeof(uint32_t);
     memcpy(&buffer[size], scanner->classes, scanner->class_count * sizeof(uint32_t));
     size += scanner->class_count * sizeof(uint32_t);
     return size;
@@ -8915,6 +9002,7 @@ void tree_sitter_cpp_external_scanner_deserialize(void *payload, const char *buf
     scanner->class_count = 0;
     scanner->loose_count = 0;
     scanner->template_count = 0;
+    scanner->alias_count = 0;
     scanner->preproc_extra_tokens = false;
     if (length == 0) {
         return;
@@ -8943,6 +9031,11 @@ void tree_sitter_cpp_external_scanner_deserialize(void *payload, const char *buf
         assert(scanner->template_count <= MAX_CLASSES && "Can't decode the names of the third record!");
         memcpy(scanner->templates, &buffer[size], scanner->template_count * sizeof(uint32_t));
         size += scanner->template_count * sizeof(uint32_t);
+        assert(size < length && "Can't decode the count of the alias record!");
+        scanner->alias_count = (uint8_t)buffer[size++];
+        assert(scanner->alias_count <= MAX_CLASSES && "Can't decode the names of the alias record!");
+        memcpy(scanner->aliases, &buffer[size], scanner->alias_count * sizeof(uint32_t));
+        size += scanner->alias_count * sizeof(uint32_t);
     }
     unsigned names = size < length ? (length - size) / sizeof(uint32_t) : 0;
     assert(names <= MAX_CLASSES && "Can't decode serialized class names!");
