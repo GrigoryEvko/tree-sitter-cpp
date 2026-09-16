@@ -309,18 +309,11 @@ class A : public B {
 Destructor definitions
 ================================================================================
 
-~T() {}
 T::~T() {}
 
 --------------------------------------------------------------------------------
 
 (translation_unit
-  (function_definition
-    (function_declarator
-      (destructor_name
-        (identifier))
-      (parameter_list))
-    (compound_statement))
   (function_definition
     (function_declarator
       (qualified_identifier
@@ -329,6 +322,105 @@ T::~T() {}
           (identifier)))
       (parameter_list))
     (compound_statement)))
+
+================================================================================
+An unqualified name before parameters and a body outside a class body
+================================================================================
+
+struct S { S(x) {} };
+T (x) {};
+T (a::b) {};
+T (f)(U u) { return T(); }
+NAME(a)(int x) { }
+Foo (x) : m(x) {}
+TEST(a, b) try {} catch (...) {}
+namespace N { T (x) {}; }
+
+--------------------------------------------------------------------------------
+
+(translation_unit
+  (struct_specifier
+    name: (type_identifier)
+    body: (field_declaration_list
+      (function_definition
+        declarator: (function_declarator
+          declarator: (identifier)
+          parameters: (parameter_list
+            (parameter_declaration
+              type: (type_identifier))))
+        body: (compound_statement))))
+  (declaration
+    type: (type_identifier)
+    declarator: (init_declarator
+      declarator: (parenthesized_declarator
+        (identifier))
+      value: (initializer_list)))
+  (declaration
+    type: (type_identifier)
+    declarator: (init_declarator
+      declarator: (parenthesized_declarator
+        (qualified_identifier
+          scope: (namespace_identifier)
+          name: (identifier)))
+      value: (initializer_list)))
+  (function_definition
+    type: (type_identifier)
+    declarator: (function_declarator
+      declarator: (parenthesized_declarator
+        (identifier))
+      parameters: (parameter_list
+        (parameter_declaration
+          type: (type_identifier)
+          declarator: (identifier))))
+    body: (compound_statement
+      (return_statement
+        (call_expression
+          function: (identifier)
+          arguments: (argument_list)))))
+  (function_definition
+    type: (type_identifier)
+    declarator: (function_declarator
+      declarator: (parenthesized_declarator
+        (identifier))
+      parameters: (parameter_list
+        (parameter_declaration
+          type: (primitive_type)
+          declarator: (identifier))))
+    body: (compound_statement))
+  (function_definition
+    declarator: (function_declarator
+      declarator: (identifier)
+      parameters: (parameter_list
+        (parameter_declaration
+          type: (type_identifier))))
+    (field_initializer_list
+      (field_initializer
+        (field_identifier)
+        (argument_list
+          (identifier))))
+    body: (compound_statement))
+  (function_definition
+    declarator: (function_declarator
+      declarator: (identifier)
+      parameters: (parameter_list
+        (parameter_declaration
+          type: (type_identifier))
+        (parameter_declaration
+          type: (type_identifier))))
+    (try_statement
+      body: (compound_statement)
+      (catch_clause
+        parameters: (parameter_list)
+        body: (compound_statement))))
+  (namespace_definition
+    name: (namespace_identifier)
+    body: (declaration_list
+      (declaration
+        type: (type_identifier)
+        declarator: (init_declarator
+          declarator: (parenthesized_declarator
+            (identifier))
+          value: (initializer_list))))))
 
 ================================================================================
 Function-try-block definitions

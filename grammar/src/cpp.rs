@@ -347,13 +347,29 @@ pub fn grammar() -> Grammar {
         &["_nondefining_type_specifier", "attribute_macro"],
         &["_binary_fold_operator", "_fold_operator"],
         &["_function_declarator_seq"],
-        // The function declarator of a deduction guide has the parts of `_function_declarator_seq`, and the
-        // same ambiguities after its parameter list.
-        &["_deduction_guide_declarator", "_function_declarator_seq"],
-        // After the `->` of a guide and a template-id, the return type of the guide is complete. The
-        // trailing return type of a function declarator takes more qualifiers and a declarator. The
-        // token after the template-id tells the two apart.
-        &["_nondefining_type_specifier", "_deduction_guide_class"],
+        // Outside a class body, `A::A(` starts a constructor, a call, or the declarator of a
+        // declaration whose type is a keyword or a macro: `A::A(int) {}`, `A::f(x);`,
+        // `MACRO A::f(int);`. The tokens in the parentheses and after them tell the three apart.
+        // Refer to `_qualified_function_declarator`.
+        &["expression", "_declarator_of_name", "_qualified_function_declarator"],
+        &["_declarator_of_name", "_qualified_function_declarator"],
+        // Outside a class body, `NAME(` starts a macro head, a call, the declarator of a declaration
+        // whose type is a keyword or a macro, or the type of a declaration: `TEST(a, b) try { }`,
+        // `f(x);`, `MACRO f(int);`, `T (x) {};`. Refer to `_unqualified_function_declarator`.
+        &[
+            "expression",
+            "_declarator_of_name",
+            "type_specifier",
+            "_unqualified_function_declarator",
+            "_macro_head_group",
+        ],
+        &[
+            "_declarator_of_name",
+            "type_specifier",
+            "_unqualified_function_declarator",
+            "_macro_head_group",
+        ],
+        &["_declarator_of_name", "_unqualified_function_declarator", "_macro_head_group"],
         &["type_specifier", "sized_type_specifier"],
         &["initializer_pair", "comma_expression"],
         &["expression_statement", "_for_statement_body"],
@@ -404,18 +420,20 @@ pub fn grammar() -> Grammar {
         &["type_specifier", "_class_name"],
         &["type_specifier", "compound_literal_expression", "_class_name"],
         // A macro before a declaration, a constructor, or a conversion function. The token
-        // after the specifiers decides, as for the conflicts of `_constructor_specifiers`.
+        // after the specifiers decides, as for the conflicts of `_constructor_specifiers`. The
+        // constructor of this set is the one outside a class body, whose name is qualified. Refer to
+        // `_namespace_constructor_or_destructor_definition`.
         &[
             "operator_cast_definition",
             "operator_cast_declaration",
-            "constructor_or_destructor_definition",
+            "_namespace_constructor_or_destructor_definition",
         ],
         // At namespace scope, a deduction guide starts with the specifiers of a constructor. This set
         // is the set above with `_deduction_guide_declaration`, for the same ambiguity.
         &[
             "operator_cast_definition",
             "operator_cast_declaration",
-            "constructor_or_destructor_definition",
+            "_namespace_constructor_or_destructor_definition",
             "_deduction_guide_declaration",
         ],
         // The generator names a shared repeat after the first rule that uses it. This set is the
@@ -467,11 +485,25 @@ pub fn grammar() -> Grammar {
         &[
             "_declaration_specifiers",
             "_void_declaration_specifiers",
-            "constructor_or_destructor_definition",
+            "_namespace_constructor_or_destructor_definition",
         ],
         &[
             "_declaration_specifiers",
             "_void_declaration_specifiers",
+            "_constructor_specifiers",
+        ],
+        // The two sets above in a block and in a declaration list, where a declaration with `extern`
+        // before its type is a third reading. Refer to `_extern_declaration_specifiers`.
+        &[
+            "_declaration_specifiers",
+            "_void_declaration_specifiers",
+            "_extern_declaration_specifiers",
+            "_block_constructor_or_destructor_definition",
+        ],
+        &[
+            "_declaration_specifiers",
+            "_void_declaration_specifiers",
+            "_extern_declaration_specifiers",
             "_constructor_specifiers",
         ],
         // A typedef takes the same specifiers before its keyword, and it shares their repeat. This
@@ -515,7 +547,7 @@ pub fn grammar() -> Grammar {
             "_void_declaration_specifiers",
             "operator_cast_definition",
             "operator_cast_declaration",
-            "constructor_or_destructor_definition",
+            "_namespace_constructor_or_destructor_definition",
             "_structured_binding_specifiers",
         ],
         // A declaration list holds a declaration and a linkage specification, and no constructor and
@@ -538,7 +570,7 @@ pub fn grammar() -> Grammar {
             "_void_declaration_specifiers",
             "operator_cast_definition",
             "operator_cast_declaration",
-            "constructor_or_destructor_definition",
+            "_namespace_constructor_or_destructor_definition",
             "_structured_binding_specifiers",
             "_linkage_attribute",
         ],
@@ -553,6 +585,18 @@ pub fn grammar() -> Grammar {
             "_void_declaration_specifiers",
             "_extern_declaration_specifiers",
             "_block_constructor_or_destructor_definition",
+            "_structured_binding_specifiers",
+        ],
+        // The set above with the specifiers of a constructor in the place of the definition of a
+        // block. The parse table shares the state of the specifiers between a block and a
+        // declaration list, and the constructor of a declaration list has a qualified name.
+        &[
+            "_block_declaration",
+            "type_definition",
+            "_declaration_specifiers",
+            "_void_declaration_specifiers",
+            "_extern_declaration_specifiers",
+            "_constructor_specifiers",
             "_structured_binding_specifiers",
         ],
         // `P...[0](x)` calls an element of a value pack or casts to an element of a type pack.
@@ -1434,7 +1478,10 @@ fn items(g: &mut Grammar) {
     // operands and the input operands, and rejects the clobbers and the labels (parser.cc:25296).
     // Clang rejects each qualifier and each operand list there, and GCC C reads only the plain form.
     g.define("asm_declaration", seq![s!(gnu_asm_expression), ";"]);
-    let definitions = || [alias(s!(constructor_or_destructor_definition), s!(function_definition))];
+    // Outside a class body, the name of a constructor or a destructor is qualified. Refer to
+    // `_namespace_constructor_or_destructor_definition`.
+    let definitions =
+        || [alias(s!(_namespace_constructor_or_destructor_definition), s!(function_definition))];
     // A block takes the form with a body only. A constructor definition has no decl-specifier-seq,
     // and a declaration in a block must have one. GCC `cp_parser_simple_declaration`
     // (parser.cc:17999) says so in its own comment: "In a block scope, a valid declaration must
@@ -3765,19 +3812,23 @@ fn declarations(g: &mut Grammar) {
     };
     // A calling convention can come before a constructor outside its class, as before the specifiers
     // of a declaration: `__thiscall I::I() {}`.
-    let constructor_head = || {
+    //
+    // `plain` is the declarator with no macro before it, and `named` is the declarator after one
+    // macro or more. A class body takes each declarator of a function, and a name outside a class
+    // body is qualified. Refer to `namespace_constructor_head`.
+    let constructor_head_with = |plain: Rule, named: Rule| {
         seq![
             c::extension_prefix(),
             optional(s!(ms_call_modifier)),
             repeat(s!(_constructor_specifiers)),
             choice![
-                field("declarator", s!(function_declarator)),
+                plain,
                 seq![
                     repeat1(seq![
                         choice![s!(attribute_macro), macro_call_attribute()],
                         repeat(s!(_constructor_specifiers)),
                     ]),
-                    named_declarator(),
+                    named.clone(),
                 ],
                 seq![
                     alias(s!(_constructor_first_macro), s!(attribute_macro)),
@@ -3789,11 +3840,42 @@ fn declarations(g: &mut Grammar) {
                         ],
                         repeat(s!(_constructor_specifiers)),
                     ]),
-                    named_declarator(),
+                    named,
                 ],
             ],
         ]
     };
+    let constructor_head =
+        || constructor_head_with(field("declarator", s!(function_declarator)), named_declarator());
+    // OUTSIDE A CLASS BODY, THE NAME OF A CONSTRUCTOR OR A DESTRUCTOR IS QUALIFIED. [class.ctor.general]
+    // p1 gives the id-expression of a constructor three forms: a qualified-id in a friend declaration,
+    // the injected-class-name in a member-declaration of the class, and otherwise a qualified-id whose
+    // unqualified-id is the injected-class-name. [class.dtor] p1 gives the same three forms for a
+    // destructor. The two front ends apply the form of the name BEFORE any lookup. GCC
+    // `cp_parser_constructor_declarator_p` (parser.cc) sets `constructor_p = false` for a name with
+    // no nested-name-specifier outside a class-specifier, and in C++17 it lets only a class name
+    // continue, for a deduction guide. Clang `ParseDeclarationSpecifiers` (ParseDecl.cpp) calls
+    // `isConstructorDeclarator` for an unqualified name only with `DSContext == DSC_class`, and at
+    // `DSC_top_level` it reads the name as a type. So `T (x) {}` at namespace scope is a variable `x`
+    // of the type `T` with an empty braced initializer, or an error, and never a constructor.
+    //
+    // The constructor definition of a class body and of a template body keeps each declarator,
+    // because the two lists serve a class body, where the name is the injected-class-name.
+    //
+    // AN UNQUALIFIED NAME BEFORE PARAMETERS AND A BODY AT NAMESPACE SCOPE IS A MACRO HEAD, AND THE
+    // GRAMMAR KEEPS THAT READING WITH THE PRECEDENCE `MACRO_HEAD_OUTSIDE_CLASS`. Refer to
+    // `_unqualified_function_declarator` for the forms and their counts.
+    let namespace_declarator = || {
+        field(
+            "declarator",
+            choice![
+                alias(s!(_qualified_function_declarator), s!(function_declarator)),
+                alias(s!(_unqualified_function_declarator), s!(function_declarator)),
+            ],
+        )
+    };
+    let namespace_constructor_head =
+        || constructor_head_with(namespace_declarator(), namespace_declarator());
     // The empty token is a child of the first macro. The error recovery then pops the same number of
     // stack entries as for a macro without the token. The first macro can have arguments:
     // `DEPRECATED("x") S(double);`.
@@ -3825,21 +3907,89 @@ fn declarations(g: &mut Grammar) {
             ],
         ),
     );
+    // The declarator of a constructor or a destructor outside a class body: `A::A(int x)`,
+    // `A<T>::A()`, `N::A::~A()`. The dynamic precedence is the one of `function_declarator`.
+    g.define(
+        "_qualified_function_declarator",
+        prec_dynamic(
+            1,
+            seq![
+                field("declarator", s!(qualified_identifier)),
+                s!(_function_declarator_seq),
+            ],
+        ),
+    );
+    // A macro head: an unqualified name before a parameter list, or an unqualified name with a group
+    // before a parameter list. The text of a function definition with no type at namespace scope
+    // and this head is macro code, because no constructor stands there. The corpus of 2026-09-17,
+    // at the base 5e65534, holds 1,727 such definitions in 599 files, 277 of them with no error:
+    //   `NAME(args)(params) { }`     845 sites. `TORCH_IMPL_FUNC(add_out)(const Tensor& a) {` of
+    //                                pytorch, `MONGO_INITIALIZER(x)(InitializerContext*) {`. With
+    //                                one name in the group, 486 sites, the function `add_out` with
+    //                                the type `TORCH_IMPL_FUNC` comes first. Refer to the precedence.
+    //   `MACRO(args)` on a line, and `name(params) {` on the next line, 28 files. The scanner reads
+    //                                the first line as a macro invocation. `EXPORT_XPCOM_API(nsresult)`
+    //                                before `NS_GetDebug(nsIDebug2** aResult) {` of firefox.
+    //   `NAME(args) try { }`         46 sites, `TEST(a, b) try { } catch (...) { }` of ClickHouse.
+    //   `NAME(args) ATTR { }`        6 files, `TEST(a, b) NO_THREAD_SAFETY_ANALYSIS {` of chromium.
+    //   `NAME(args) { }` past the scan limit of the scanner, 9 files, and after a specifier, 1 file.
+    //   `main() { }`                 7 files of C with an implicit `int`.
+    // Where the scanner reads `NAME(args) { }` as a macro invocation, this rule does not fire.
+    //
+    // THE PRECEDENCE PUTS THIS READING BELOW EACH READING OF C++. `T (x) {};` is then the variable
+    // `x` of the type `T` with an empty braced initializer, at `NAME_GROUPING_OUTSIDE_BLOCK` plus
+    // `PAREN_DECLARATOR`, and `T (f)(int x) {}` is the function `f` with the type `T`. The two front
+    // ends read the two texts so with the names declared. `DECLARE(x){};` of rpcs3 and
+    // `CARBON_DEFINE_ENUM_CLASS_NAMES(TokenKind) { #include "x.def" };` of carbon-lang then get the
+    // declaration, 25 sites in 18 files. The readings of a class body and of a block do not change.
+    //
+    // A bare destructor name, a template function, and an operator name before parameters are not
+    // macro heads. The corpus holds them at namespace scope only in files with an error, where the
+    // error recovery pushed a member out of its class body.
+    g.define(
+        "_unqualified_function_declarator",
+        prec_dynamic(
+            MACRO_HEAD_OUTSIDE_CLASS,
+            seq![
+                field(
+                    "declarator",
+                    choice![
+                        s!(identifier),
+                        alias(s!(_macro_head_group), s!(function_declarator)),
+                    ]
+                ),
+                s!(_function_declarator_seq),
+            ],
+        ),
+    );
+    // The name and the group of a macro head, before the parameter list: `TORCH_IMPL_FUNC(add_out)`.
+    g.define(
+        "_macro_head_group",
+        seq![field("declarator", s!(identifier)), s!(_function_declarator_seq)],
+    );
+    let constructor_body = || {
+        choice![
+            seq![
+                optional(s!(field_initializer_list)),
+                field("body", s!(compound_statement))
+            ],
+            alias(s!(constructor_try_statement), s!(try_statement)),
+            s!(default_method_clause),
+            s!(delete_method_clause),
+            s!(pure_virtual_clause),
+        ]
+    };
     g.define(
         "constructor_or_destructor_definition",
-        seq![
-            constructor_head(),
-            choice![
-                seq![
-                    optional(s!(field_initializer_list)),
-                    field("body", s!(compound_statement))
-                ],
-                alias(s!(constructor_try_statement), s!(try_statement)),
-                s!(default_method_clause),
-                s!(delete_method_clause),
-                s!(pure_virtual_clause),
-            ],
-        ],
+        seq![constructor_head(), constructor_body()],
+    );
+    // The definition at namespace scope, in a linkage specification, and in an export declaration.
+    // Refer to `namespace_constructor_head`.
+    define_after(
+        g,
+        "constructor_or_destructor_definition",
+        "_namespace_constructor_or_destructor_definition",
+        seq![namespace_constructor_head(), constructor_body()],
     );
     // The definition in a block. A block holds no declaration whose decl-specifier-seq is absent,
     // and a constructor definition has none, so C++ has no such definition in a block. The grammar
@@ -5876,6 +6026,16 @@ fn block_declaration(g: &mut Grammar) {
 /// `cp_parser_simple_declaration`. Clang `isCXXSimpleDeclaration`). A declarator with one operator more
 /// keeps the declaration: `T (*p)[3];`, `T (x)[3];`.
 const NAME_GROUPING_OUTSIDE_BLOCK: i32 = -150;
+
+/// The dynamic precedence of a macro head at namespace scope: an unqualified name, or an unqualified
+/// name with a group, before a parameter list and the body of a function definition with no type.
+///
+/// C++ has no such definition outside a class body ([class.ctor.general] p1, [class.dtor] p1), so the
+/// text is macro code. The value is less than `NAME_GROUPING_OUTSIDE_BLOCK` plus `PAREN_DECLARATOR`,
+/// so a declaration of a variable with a braced initializer, `T (x) {};`, and a function with a
+/// grouped name, `T (f)(int) {}`, come before the macro head. Refer to
+/// `_unqualified_function_declarator`.
+const MACRO_HEAD_OUTSIDE_CLASS: i32 = -200;
 
 /// Give a declaration outside a block in which a grouping of a name is the full declarator the dynamic
 /// precedence `NAME_GROUPING_OUTSIDE_BLOCK`.

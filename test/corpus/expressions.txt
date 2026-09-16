@@ -2005,7 +2005,7 @@ Alternative tokens (digraphs)
 
 if (not marked and (x < left or right < x)) {}
 
-operator not_eq(int) { return true; }
+bool operator not_eq(S, int) { return true; }
 
 foo and_eq bar();
 
@@ -2027,9 +2027,12 @@ foo and_eq bar();
               (identifier))))))
     (compound_statement))
   (function_definition
+    (primitive_type)
     (function_declarator
       (operator_name)
       (parameter_list
+        (parameter_declaration
+          (type_identifier))
         (parameter_declaration
           (primitive_type))))
     (compound_statement
