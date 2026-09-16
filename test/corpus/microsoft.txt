@@ -90,3 +90,58 @@ void f() {
         (assignment_expression
           left: (identifier)
           right: (number_literal))))))
+
+================================================================================
+MS pointer size modifiers and the w64 modifier
+================================================================================
+
+void f0(int * __ptr32 p) {}
+void * __ptr64 f1(int * __ptr64 p) { return 0; }
+int * __ptr32 const g = 0;
+long __w64 v;
+
+--------------------------------------------------------------------------------
+
+(translation_unit
+  (function_definition
+    type: (primitive_type)
+    declarator: (function_declarator
+      declarator: (identifier)
+      parameters: (parameter_list
+        (parameter_declaration
+          type: (primitive_type)
+          declarator: (pointer_declarator
+            (ms_pointer_modifier
+              (ms_sized_ptr_modifier))
+            declarator: (identifier)))))
+    body: (compound_statement))
+  (function_definition
+    type: (primitive_type)
+    declarator: (pointer_declarator
+      (ms_pointer_modifier
+        (ms_sized_ptr_modifier))
+      declarator: (function_declarator
+        declarator: (identifier)
+        parameters: (parameter_list
+          (parameter_declaration
+            type: (primitive_type)
+            declarator: (pointer_declarator
+              (ms_pointer_modifier
+                (ms_sized_ptr_modifier))
+              declarator: (identifier))))))
+    body: (compound_statement
+      (return_statement
+        (number_literal))))
+  (declaration
+    type: (primitive_type)
+    declarator: (init_declarator
+      declarator: (pointer_declarator
+        (ms_pointer_modifier
+          (ms_sized_ptr_modifier))
+        (type_qualifier)
+        declarator: (identifier))
+      value: (number_literal)))
+  (declaration
+    type: (sized_type_specifier)
+    (ms_w64_modifier)
+    declarator: (identifier)))

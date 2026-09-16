@@ -3131,6 +3131,10 @@
           "named": true
         },
         {
+          "type": "ms_w64_modifier",
+          "named": true
+        },
+        {
           "type": "storage_class_specifier",
           "named": true
         },
@@ -3845,6 +3849,10 @@
           "named": true
         },
         {
+          "type": "ms_w64_modifier",
+          "named": true
+        },
+        {
           "type": "storage_class_specifier",
           "named": true
         },
@@ -3892,6 +3900,10 @@
         },
         {
           "type": "ms_declspec_modifier",
+          "named": true
+        },
+        {
+          "type": "ms_w64_modifier",
           "named": true
         },
         {
@@ -4187,6 +4199,10 @@
         },
         {
           "type": "ms_declspec_modifier",
+          "named": true
+        },
+        {
+          "type": "ms_w64_modifier",
           "named": true
         },
         {
@@ -4760,6 +4776,10 @@
           "named": true
         },
         {
+          "type": "ms_w64_modifier",
+          "named": true
+        },
+        {
           "type": "storage_class_specifier",
           "named": true
         },
@@ -4930,6 +4950,10 @@
         },
         {
           "type": "ms_declspec_modifier",
+          "named": true
+        },
+        {
+          "type": "ms_w64_modifier",
           "named": true
         },
         {
@@ -5246,6 +5270,10 @@
         },
         {
           "type": "ms_declspec_modifier",
+          "named": true
+        },
+        {
+          "type": "ms_w64_modifier",
           "named": true
         },
         {
@@ -6895,6 +6923,10 @@
           "named": true
         },
         {
+          "type": "ms_sized_ptr_modifier",
+          "named": true
+        },
+        {
           "type": "ms_unaligned_ptr_modifier",
           "named": true
         },
@@ -6907,6 +6939,11 @@
   },
   {
     "type": "ms_restrict_modifier",
+    "named": true,
+    "fields": {}
+  },
+  {
+    "type": "ms_sized_ptr_modifier",
     "named": true,
     "fields": {}
   },
@@ -7404,6 +7441,10 @@
           "named": true
         },
         {
+          "type": "ms_w64_modifier",
+          "named": true
+        },
+        {
           "type": "storage_class_specifier",
           "named": true
         },
@@ -7498,6 +7539,10 @@
         },
         {
           "type": "ms_declspec_modifier",
+          "named": true
+        },
+        {
+          "type": "ms_w64_modifier",
           "named": true
         },
         {
@@ -7716,6 +7761,10 @@
         },
         {
           "type": "ms_declspec_modifier",
+          "named": true
+        },
+        {
+          "type": "ms_w64_modifier",
           "named": true
         },
         {
@@ -9318,6 +9367,10 @@
           "named": true
         },
         {
+          "type": "ms_w64_modifier",
+          "named": true
+        },
+        {
           "type": "storage_class_specifier",
           "named": true
         },
@@ -10778,6 +10831,10 @@
           "named": true
         },
         {
+          "type": "ms_w64_modifier",
+          "named": true
+        },
+        {
           "type": "storage_class_specifier",
           "named": true
         },
@@ -11974,6 +12031,10 @@
           "named": true
         },
         {
+          "type": "ms_w64_modifier",
+          "named": true
+        },
+        {
           "type": "storage_class_specifier",
           "named": true
         },
@@ -12615,6 +12676,14 @@
     "named": false
   },
   {
+    "type": "__ptr32",
+    "named": false
+  },
+  {
+    "type": "__ptr64",
+    "named": false
+  },
+  {
     "type": "__real",
     "named": false
   },
@@ -12917,6 +12986,10 @@
   },
   {
     "type": "ms_unsigned_ptr_modifier",
+    "named": true
+  },
+  {
+    "type": "ms_w64_modifier",
     "named": true
   },
   {

@@ -6909,6 +6909,10 @@
             {
               "type": "SYMBOL",
               "name": "ms_declspec_modifier"
+            },
+            {
+              "type": "SYMBOL",
+              "name": "ms_w64_modifier"
             }
           ]
         },
@@ -8233,6 +8237,19 @@
         }
       ]
     },
+    "ms_sized_ptr_modifier": {
+      "type": "CHOICE",
+      "members": [
+        {
+          "type": "STRING",
+          "value": "__ptr32"
+        },
+        {
+          "type": "STRING",
+          "value": "__ptr64"
+        }
+      ]
+    },
     "ms_pointer_modifier": {
       "type": "CHOICE",
       "members": [
@@ -8251,8 +8268,16 @@
         {
           "type": "SYMBOL",
           "name": "ms_signed_ptr_modifier"
+        },
+        {
+          "type": "SYMBOL",
+          "name": "ms_sized_ptr_modifier"
         }
       ]
+    },
+    "ms_w64_modifier": {
+      "type": "STRING",
+      "value": "__w64"
     },
     "declaration_list": {
       "type": "SEQ",

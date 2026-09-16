@@ -518,6 +518,10 @@ fn declarations(g: &mut Grammar) {
             ";",
         ],
     );
+    // `typedef int __w64 my_int;` still gives an ERROR node. The C++ layer rebuilds this rule with
+    // `qualifiers_with_attributes`, which matches on the shape of the trailing repeat, so a choice
+    // here loses the attributes and the declspec of a typedef. No corpus file writes `__w64` outside
+    // a string or a comment, so the form waits for a repair in `cpp.rs`.
     g.define(
         "_type_definition_type",
         seq![
@@ -538,6 +542,7 @@ fn declarations(g: &mut Grammar) {
             s!(attribute_specifier),
             s!(attribute_declaration),
             s!(ms_declspec_modifier),
+            s!(ms_w64_modifier),
         ],
     );
     g.define(
@@ -593,6 +598,10 @@ fn declarations(g: &mut Grammar) {
     g.define("ms_unsigned_ptr_modifier", "__uptr");
     g.define("ms_signed_ptr_modifier", "__sptr");
     g.define("ms_unaligned_ptr_modifier", choice!["_unaligned", "__unaligned"]);
+    // MSVC `__ptr32` and `__ptr64` give the size of a pointer, and they stand where `__uptr` and
+    // `__sptr` stand: after the `*` of a declarator. Clang reads them with `-fms-extensions`
+    // (`Parser::ParseTypeQualifierListOpt`, clang/lib/Parse/ParseDecl.cpp).
+    g.define("ms_sized_ptr_modifier", choice!["__ptr32", "__ptr64"]);
     g.define(
         "ms_pointer_modifier",
         choice![
@@ -600,8 +609,14 @@ fn declarations(g: &mut Grammar) {
             s!(ms_restrict_modifier),
             s!(ms_unsigned_ptr_modifier),
             s!(ms_signed_ptr_modifier),
+            s!(ms_sized_ptr_modifier),
         ],
     );
+    // MSVC `__w64` marks a declaration for the portability warnings of a 64-bit build. It is not a
+    // pointer modifier: it stands in the specifiers, as in `typedef int __w64 my_int;` and
+    // `long __w64 v;`. Without the rule the second form reads `__w64` as the name of a type and
+    // gives no ERROR node, so the tree is wrong and no error count shows it.
+    g.define("ms_w64_modifier", "__w64");
     g.define(
         "declaration_list",
         seq![open_brace(), repeat(s!(_block_item)), close_brace()],
