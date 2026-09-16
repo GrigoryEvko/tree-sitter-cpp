@@ -215,10 +215,10 @@ pub fn grammar() -> Grammar {
         // `is_template_parameter_type_name`.
         s!(_template_parameter_type_name),
         // The type of a parameter, where the template head of the same declaration declares the name
-        // as a TYPE PARAMETER, a plain name follows it, and a macro-shaped name follows THAT name on
-        // the same line. The token makes the first name the type. The second name is then the
-        // declarator, and the third name is the attribute macro of that declarator. Refer to
-        // `_template_parameter_declarator_type` and to task 276.
+        // as a TYPE PARAMETER, a plain name follows it, and a macro-shaped name follows THAT name, on
+        // the same line or after a line break. The token makes the first name the type. The second
+        // name is then the declarator, and the third name is the attribute macro of that declarator.
+        // Refer to `_template_parameter_declarator_type` and to task 276.
         s!(_template_parameter_declarator_type),
     ];
     // The conflict sets of the grammar. Each set names the rules of one ambiguity, and it tells the
@@ -2596,9 +2596,12 @@ fn types(g: &mut Grammar) {
     //
     // `template <typename T> void g(T HPX_RESTRICT dest);` reads today as the attribute macro `T`
     // with the type `HPX_RESTRICT`. THE TWO NAMES ARE SWAPPED. `T` is a type parameter of the head,
-    // so it is the type, and `HPX_RESTRICT` is the macro. The measurement of 2026-09-16 gives 333
-    // such sites in 64 files and 12 projects, against 4,968 sites of the ordinary order that the
-    // fork reads correctly and 0 where each of the two names is a parameter.
+    // so it is the type, and `HPX_RESTRICT` is the macro. The measurement of 2026-09-16 at 8154a88
+    // gives 332 such sites in 63 files and 11 projects, against 4,968 sites of the ordinary order
+    // that the fork reads correctly and 0 where each of the two names is a parameter. The first
+    // count of that measurement was 333 sites in 64 files and 12 projects. The one row that left it
+    // is cgal Arr_rational_function_traits_2.h:338, a source with a MISSING COMMA between two
+    // parameters, which the parser reads as one parameter and which is not this construct.
     //
     // THE BARE FORM IS CLOSED IN GENERAL AND THIS OPENS IT FOR ONE CASE ONLY. Two plain names before
     // a declarator are a macro and a type in either order, and two recorded trees of this fork

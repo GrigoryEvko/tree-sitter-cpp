@@ -187,8 +187,9 @@ enum TokenType {
     /// makes the first name the type, and the bare name after it is then the attribute macro.
     TEMPLATE_PARAMETER_TYPE_NAME,
     /// The type of a parameter, where the template head of the same declaration declares the name as
-    /// a TYPE PARAMETER, a plain name follows it, and a macro-shaped name follows THAT name on the
-    /// same line: `T value ABSL_ATTRIBUTE_LIFETIME_BOUND`. The token makes the first name the type.
+    /// a TYPE PARAMETER, a plain name follows it, and a macro-shaped name follows THAT name, on the
+    /// same line or after a line break: `T value ABSL_ATTRIBUTE_LIFETIME_BOUND`. The token makes the
+    /// first name the type.
     /// The second name is then the declarator, and the third name is the attribute macro of that
     /// declarator. The token of `TEMPLATE_PARAMETER_TYPE_NAME` covers the shape where the SECOND
     /// name is the macro.
@@ -8515,9 +8516,15 @@ static bool starts_initializer_element(Reader *reader) {
 /// tree with the test and without it, because a qualifier is not a type, so that input is NOT
 /// evidence for this test.
 ///
-/// THE MACRO MUST BE ON THE LINE OF THE DECLARATOR. `xtask trees` over the corpus measures that this
-/// test decides 16 files: the 36 sites that cross a line break live in them. The 81 sites of the
-/// corpus split into 45 on one line and 36 across a line break, and this scan takes the 45.
+/// THE MACRO CAN BE ON THE LINE OF THE DECLARATOR OR ON A LATER LINE, AND THE SCAN NEEDS NO TEST
+/// FOR THE LINE BREAK. The 81 sites of the corpus split into 45 on one line and 36 across a line
+/// break, with a comment or a blank line between the two in 12 of the 36. The first version of this
+/// scan took the 45 only. A draft with no test for the line break, measured with `xtask trees` over
+/// the corpus at f27dcd0 and again at 150087f, changed exactly the 16 files that hold the 36 sites,
+/// 7 of them clean, and no other file. The population that a test for the line break would have to
+/// decline is zero, so there is no such test. This is NOT the terminator of a chain of macro
+/// invocations in `scan_after_macro_call`, which is a different mechanism with a measured price of
+/// two clean files. `skip_gap` passes the comments and the blank lines.
 ///
 /// THE TESTS ON THE MACRO ARE THE TESTS OF `read_macro_name`, WHICH READS THE MACRO LATER. That
 /// function gives the token of the attribute macro after the declarator. It rejects a name with a
@@ -8537,8 +8544,7 @@ static bool scan_template_parameter_declarator(Reader *reader, const char *decla
     }
     Gap after_declarator = {0};
     skip_gap(reader, &after_declarator);
-    if (after_declarator.blocked || after_declarator.newlines > 0 || !readable(reader) ||
-        !is_word_start(lexer->lookahead)) {
+    if (after_declarator.blocked || !readable(reader) || !is_word_start(lexer->lookahead)) {
         return false;
     }
     char macro[MACRO_WORD_SIZE];

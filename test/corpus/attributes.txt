@@ -2875,11 +2875,21 @@ A macro after the declarator of a parameter whose type the template head declare
 template <typename T> void f(T value ABSL_ATTRIBUTE_LIFETIME_BOUND);
 template <typename T> void g(T alpha RNN_UNUSED_PARAMETER, T beta RNN_UNUSED_PARAMETER);
 template <typename G, typename C> void h(const G& g, C c BOOST_GRAPH_ENABLE_IF_MODELS_PARM(G, tag));
-// THE MACRO MUST BE ON THE LINE OF THE DECLARATOR. A macro on the next line keeps the reading
-// of today, which is the reading with the macro first. The corpus holds 36 such sites, and
-// they need the terminator design of task 308.
+// THE MACRO CAN BE ON A LATER LINE, WITH A COMMENT OR A BLANK LINE BETWEEN. The corpus holds 36
+// such sites, in boost/container, boost/flyweight and boost/graph_parallel, and a draft with no
+// test for the line break changed exactly the 16 files that hold them and no other file. The two
+// lines after `k` come from boost/flyweight test_basic_template.hpp and from boost/container
+// devector.hpp.
 template <typename T> void k(T value
     ABSL_ATTRIBUTE_LIFETIME_BOUND);
+template<typename Flyweight,typename ForwardIterator>
+void test_basic_template(
+  ForwardIterator first,ForwardIterator last
+  BOOST_APPEND_EXPLICIT_TEMPLATE_TYPE(Flyweight));
+template <class InputIterator>
+iterator insert(const_iterator position, InputIterator first, InputIterator last
+   //Input iterators
+   BOOST_CONTAINER_DOCIGN(InputIterator));
 // A KEYWORD IS A SPECIFIER AND NEVER A DECLARATOR. The type of each parameter below holds two
 // words, and the scan gives no token for one of them. Without that test each of the three
 // parameters loses its type. `T const NAME` is NOT evidence for the test, because a qualifier
@@ -2968,6 +2978,8 @@ typedef long double NT;
   (comment)
   (comment)
   (comment)
+  (comment)
+  (comment)
   (template_declaration
     parameters: (template_parameter_list
       (type_parameter_declaration
@@ -2978,10 +2990,57 @@ typedef long double NT;
         declarator: (identifier)
         parameters: (parameter_list
           (parameter_declaration
-            (attribute_macro
-              name: (identifier))
             type: (type_identifier)
-            declarator: (identifier))))))
+            declarator: (attributed_declarator
+              (identifier)
+              (attribute_macro
+                name: (identifier))))))))
+  (template_declaration
+    parameters: (template_parameter_list
+      (type_parameter_declaration
+        (type_identifier))
+      (type_parameter_declaration
+        (type_identifier)))
+    (declaration
+      type: (primitive_type)
+      declarator: (function_declarator
+        declarator: (identifier)
+        parameters: (parameter_list
+          (parameter_declaration
+            type: (type_identifier)
+            declarator: (identifier))
+          (parameter_declaration
+            type: (type_identifier)
+            declarator: (attributed_declarator
+              (identifier)
+              (attribute_macro
+                name: (identifier)
+                arguments: (argument_list
+                  (identifier)))))))))
+  (template_declaration
+    parameters: (template_parameter_list
+      (type_parameter_declaration
+        (type_identifier)))
+    (declaration
+      type: (type_identifier)
+      declarator: (function_declarator
+        declarator: (identifier)
+        parameters: (parameter_list
+          (parameter_declaration
+            type: (type_identifier)
+            declarator: (identifier))
+          (parameter_declaration
+            type: (type_identifier)
+            declarator: (identifier))
+          (parameter_declaration
+            type: (type_identifier)
+            declarator: (attributed_declarator
+              (identifier)
+              (comment)
+              (attribute_macro
+                name: (identifier)
+                arguments: (argument_list
+                  (identifier)))))))))
   (comment)
   (comment)
   (comment)
