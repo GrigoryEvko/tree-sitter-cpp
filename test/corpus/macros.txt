@@ -3456,3 +3456,91 @@ template <class T, U((V))> void keeps_the_group_in_a_group();
       declarator: (function_declarator
         declarator: (identifier)
         parameters: (parameter_list)))))
+
+================================================================================
+A macro call before a statement that starts with a call
+================================================================================
+
+void g() {
+  TEST_CYCLE() cv::broadcast(src, shape_dst, dst);
+  BGL_FORALL_VERTICES_T(v, G, Graph) put(color, v, Color::white());
+  BOOST_SCOPED_ENUM(traffic_light) signal(traffic_light::red);
+  STACK_OF(X509) sk;
+}
+struct S {
+  NS_IMETHOD_(void) Unlink(void *p) = 0;
+};
+
+--------------------------------------------------------------------------------
+
+(translation_unit
+  (function_definition
+    type: (primitive_type)
+    declarator: (function_declarator
+      declarator: (identifier)
+      parameters: (parameter_list))
+    body: (compound_statement
+      (attributed_statement
+        (attribute_macro
+          name: (identifier)
+          arguments: (argument_list))
+        (expression_statement
+          (call_expression
+            function: (qualified_identifier
+              scope: (namespace_identifier)
+              name: (identifier))
+            arguments: (argument_list
+              (identifier)
+              (identifier)
+              (identifier)))))
+      (attributed_statement
+        (attribute_macro
+          name: (identifier)
+          arguments: (argument_list
+            (identifier)
+            (identifier)
+            (identifier)))
+        (expression_statement
+          (call_expression
+            function: (identifier)
+            arguments: (argument_list
+              (identifier)
+              (identifier)
+              (call_expression
+                function: (qualified_identifier
+                  scope: (namespace_identifier)
+                  name: (identifier))
+                arguments: (argument_list))))))
+      (declaration
+        type: (macro_type_specifier
+          name: (identifier)
+          type: (type_descriptor
+            type: (type_identifier)))
+        declarator: (init_declarator
+          declarator: (identifier)
+          value: (argument_list
+            (qualified_identifier
+              scope: (namespace_identifier)
+              name: (identifier)))))
+      (declaration
+        type: (macro_type_specifier
+          name: (identifier)
+          type: (type_descriptor
+            type: (type_identifier)))
+        declarator: (identifier))))
+  (struct_specifier
+    name: (type_identifier)
+    body: (field_declaration_list
+      (field_declaration
+        type: (macro_type_specifier
+          name: (identifier)
+          type: (type_descriptor
+            type: (primitive_type)))
+        declarator: (function_declarator
+          declarator: (field_identifier)
+          parameters: (parameter_list
+            (parameter_declaration
+              type: (primitive_type)
+              declarator: (pointer_declarator
+                declarator: (identifier)))))
+        default_value: (number_literal)))))

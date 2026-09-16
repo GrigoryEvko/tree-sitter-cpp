@@ -2851,7 +2851,14 @@ static AfterCall scan_after_macro_call(Reader *reader, const Scanner *classes, b
                 if (!scan_declarator_suffix(reader)) {
                     return AFTER_CALL_NONE;
                 }
-                return ends_macro_type_declarator(reader, false, parameter) ? AFTER_CALL_TYPE : AFTER_CALL_NONE;
+                // A `;` or an assignment after the parameter list also ends an expression statement,
+                // and the macro can be the attribute of that statement: `TEST_CYCLE() f(src, dst);`.
+                // The caller keeps the type of a macro whose one argument is a type-id.
+                int32_t call_end = lexer->lookahead;
+                if (!ends_macro_type_declarator(reader, false, parameter)) {
+                    return AFTER_CALL_NONE;
+                }
+                return call_end == ';' || call_end == '=' ? AFTER_CALL_TYPE_OR_STATEMENT : AFTER_CALL_TYPE;
             }
             // A macro call after a name that is not a macro, as in `T MID() (`, is not a declarator.
             Arguments arguments = {0};

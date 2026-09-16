@@ -421,3 +421,11 @@ void b() { g(S(a) ". baz"); }
 const char* p = "a" S(x) "b";
 ### macro_concatenation_stream
 void c() { s << "#line " STRINGIFY(__LINE__) "\n"; }
+### macro_statement_empty_arguments
+void g() { TEST_CYCLE() cv::broadcast(src, shape_dst, dst); }
+### macro_statement_call_after_arguments
+void g() { BGL_FORALL_VERTICES_T(v, G, Graph) put(color, v, Color::white()); }
+### macro_type_with_a_call_declarator
+void g() { BOOST_SCOPED_ENUM(traffic_light) signal(traffic_light::red); }
+### macro_type_before_a_function_declarator
+struct S { NS_IMETHOD_(void) Unlink(void *p) = 0; };
