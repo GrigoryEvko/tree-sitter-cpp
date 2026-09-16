@@ -13440,109 +13440,118 @@
       "type": "CHOICE",
       "members": [
         {
-          "type": "SYMBOL",
-          "name": "struct_specifier"
-        },
-        {
-          "type": "SYMBOL",
-          "name": "union_specifier"
-        },
-        {
-          "type": "SYMBOL",
-          "name": "enum_specifier"
-        },
-        {
-          "type": "SYMBOL",
-          "name": "class_specifier"
-        },
-        {
-          "type": "SYMBOL",
-          "name": "interface_specifier"
-        },
-        {
-          "type": "SYMBOL",
-          "name": "sized_type_specifier"
-        },
-        {
           "type": "CHOICE",
           "members": [
             {
               "type": "SYMBOL",
-              "name": "primitive_type"
+              "name": "struct_specifier"
             },
             {
-              "type": "ALIAS",
+              "type": "SYMBOL",
+              "name": "union_specifier"
+            },
+            {
+              "type": "SYMBOL",
+              "name": "enum_specifier"
+            },
+            {
+              "type": "SYMBOL",
+              "name": "class_specifier"
+            },
+            {
+              "type": "SYMBOL",
+              "name": "interface_specifier"
+            },
+            {
+              "type": "SYMBOL",
+              "name": "sized_type_specifier"
+            },
+            {
+              "type": "CHOICE",
+              "members": [
+                {
+                  "type": "SYMBOL",
+                  "name": "primitive_type"
+                },
+                {
+                  "type": "ALIAS",
+                  "content": {
+                    "type": "STRING",
+                    "value": "void"
+                  },
+                  "named": true,
+                  "value": "primitive_type"
+                }
+              ]
+            },
+            {
+              "type": "SYMBOL",
+              "name": "template_type"
+            },
+            {
+              "type": "SYMBOL",
+              "name": "dependent_type"
+            },
+            {
+              "type": "SYMBOL",
+              "name": "splice_type_specifier"
+            },
+            {
+              "type": "SYMBOL",
+              "name": "placeholder_type_specifier"
+            },
+            {
+              "type": "SYMBOL",
+              "name": "decltype"
+            },
+            {
+              "type": "SYMBOL",
+              "name": "typeof_specifier"
+            },
+            {
+              "type": "SYMBOL",
+              "name": "pack_index_specifier"
+            },
+            {
+              "type": "SYMBOL",
+              "name": "type_trait_specifier"
+            },
+            {
+              "type": "PREC_RIGHT",
+              "value": 0,
               "content": {
-                "type": "STRING",
-                "value": "void"
-              },
-              "named": true,
-              "value": "primitive_type"
+                "type": "CHOICE",
+                "members": [
+                  {
+                    "type": "ALIAS",
+                    "content": {
+                      "type": "SYMBOL",
+                      "name": "qualified_type_identifier"
+                    },
+                    "named": true,
+                    "value": "qualified_identifier"
+                  },
+                  {
+                    "type": "ALIAS",
+                    "content": {
+                      "type": "RESERVED",
+                      "content": {
+                        "type": "SYMBOL",
+                        "name": "identifier"
+                      },
+                      "context_name": "type_name"
+                    },
+                    "named": true,
+                    "value": "type_identifier"
+                  }
+                ]
+              }
             }
           ]
         },
         {
           "type": "SYMBOL",
-          "name": "template_type"
-        },
-        {
-          "type": "SYMBOL",
-          "name": "dependent_type"
-        },
-        {
-          "type": "SYMBOL",
-          "name": "splice_type_specifier"
-        },
-        {
-          "type": "SYMBOL",
-          "name": "placeholder_type_specifier"
-        },
-        {
-          "type": "SYMBOL",
-          "name": "decltype"
-        },
-        {
-          "type": "SYMBOL",
-          "name": "typeof_specifier"
-        },
-        {
-          "type": "SYMBOL",
-          "name": "pack_index_specifier"
-        },
-        {
-          "type": "SYMBOL",
-          "name": "type_trait_specifier"
-        },
-        {
-          "type": "PREC_RIGHT",
-          "value": 0,
-          "content": {
-            "type": "CHOICE",
-            "members": [
-              {
-                "type": "ALIAS",
-                "content": {
-                  "type": "SYMBOL",
-                  "name": "qualified_type_identifier"
-                },
-                "named": true,
-                "value": "qualified_identifier"
-              },
-              {
-                "type": "ALIAS",
-                "content": {
-                  "type": "RESERVED",
-                  "content": {
-                    "type": "SYMBOL",
-                    "name": "identifier"
-                  },
-                  "context_name": "type_name"
-                },
-                "named": true,
-                "value": "type_identifier"
-              }
-            ]
-          }
+          "name": "bit_int_specifier"
         }
       ]
     },
@@ -24666,6 +24675,47 @@
               }
             ]
           }
+        }
+      ]
+    },
+    "bit_int_specifier": {
+      "type": "SEQ",
+      "members": [
+        {
+          "type": "REPEAT",
+          "content": {
+            "type": "CHOICE",
+            "members": [
+              {
+                "type": "STRING",
+                "value": "signed"
+              },
+              {
+                "type": "STRING",
+                "value": "unsigned"
+              }
+            ]
+          }
+        },
+        {
+          "type": "STRING",
+          "value": "_BitInt"
+        },
+        {
+          "type": "STRING",
+          "value": "("
+        },
+        {
+          "type": "FIELD",
+          "name": "size",
+          "content": {
+            "type": "SYMBOL",
+            "name": "expression"
+          }
+        },
+        {
+          "type": "STRING",
+          "value": ")"
         }
       ]
     },
@@ -45554,6 +45604,10 @@
     [
       "preproc_defined",
       "_preproc_token"
+    ],
+    [
+      "sized_type_specifier",
+      "bit_int_specifier"
     ],
     [
       "requires_clause",

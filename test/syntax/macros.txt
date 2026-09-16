@@ -429,3 +429,11 @@ void g() { BGL_FORALL_VERTICES_T(v, G, Graph) put(color, v, Color::white()); }
 void g() { BOOST_SCOPED_ENUM(traffic_light) signal(traffic_light::red); }
 ### macro_type_before_a_function_declarator
 struct S { NS_IMETHOD_(void) Unlink(void *p) = 0; };
+### bit_int_declaration
+unsigned _BitInt(128) u;
+### bit_int_alias
+template <int N> using bitint = _BitInt(N);
+### bit_int_parameter
+void f(_BitInt(7) i);
+### bit_int_template_argument
+void g() { h<_BitInt(8)>(); }

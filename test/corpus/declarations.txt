@@ -3014,3 +3014,72 @@ void f(int c) {
             condition: (false))))
       (static_assert_declaration
         condition: (true)))))
+
+================================================================================
+The bit-precise integer type of C23
+================================================================================
+
+_BitInt(8) v() { return 0; }
+unsigned _BitInt(128) u;
+using U128 = unsigned _BitInt(128);
+signed _BitInt(8) s;
+void f(_BitInt(7) i);
+template <int N> using bitint = _BitInt(N);
+unsigned long long b;
+unsigned c;
+unsigned int e;
+
+--------------------------------------------------------------------------------
+
+(translation_unit
+  (function_definition
+    type: (bit_int_specifier
+      size: (number_literal))
+    declarator: (function_declarator
+      declarator: (identifier)
+      parameters: (parameter_list))
+    body: (compound_statement
+      (return_statement
+        (number_literal))))
+  (declaration
+    type: (bit_int_specifier
+      size: (number_literal))
+    declarator: (identifier))
+  (alias_declaration
+    name: (type_identifier)
+    type: (type_descriptor
+      type: (bit_int_specifier
+        size: (number_literal))))
+  (declaration
+    type: (bit_int_specifier
+      size: (number_literal))
+    declarator: (identifier))
+  (declaration
+    type: (primitive_type)
+    declarator: (function_declarator
+      declarator: (identifier)
+      parameters: (parameter_list
+        (parameter_declaration
+          type: (bit_int_specifier
+            size: (number_literal))
+          declarator: (identifier)))))
+  (template_declaration
+    parameters: (template_parameter_list
+      (parameter_declaration
+        type: (primitive_type)
+        declarator: (identifier)))
+    (alias_declaration
+      name: (type_identifier)
+      type: (type_descriptor
+        type: (bit_int_specifier
+          size: (identifier)))))
+  (declaration
+    type: (sized_type_specifier)
+    declarator: (identifier))
+  (declaration
+    type: (sized_type_specifier)
+    declarator: (identifier))
+  (declaration
+    type: (sized_type_specifier
+      type: (primitive_type))
+    declarator: (identifier)))

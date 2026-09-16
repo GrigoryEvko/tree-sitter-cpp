@@ -555,6 +555,9 @@ pub fn grammar() -> Grammar {
         &["preproc_argument_list", "_preproc_token"],
         &["_preproc_expression", "_preproc_token"],
         &["preproc_defined", "_preproc_token"],
+        // `unsigned` before `_BitInt(` starts the bit-precise type of C23, and before any other base
+        // type it starts a sized type. Only the word after the sign keywords tells the two apart.
+        &["sized_type_specifier", "bit_int_specifier"],
         // The second group of the macro `template(...)` holds a requires-clause or tokens. Only a token
         // that is not part of a constraint, as `AND` in `(requires C<T> AND D<T>)`, tells them apart.
         // Refer to `_macro_template_requires_group`.
@@ -1916,6 +1919,20 @@ fn types(g: &mut Grammar) {
     // a size keyword is then an attribute macro where a macro can come: `_In_ unsigned n`,
     // `API unsigned f();`. The name has a lower dynamic precedence than the macro. A type-id has no
     // attribute macros, and there the name stays the type: `(__private long *)p`.
+    // `_BitInt(N)` is the bit-precise integer type of C23. GCC and Clang give it to C++ as an
+    // extension, and a sign keyword can come before it or after it: `unsigned _BitInt(128) x;`,
+    // `_BitInt(8) signed y;`. The operand is a constant expression.
+    g.define(
+        "bit_int_specifier",
+        seq![
+            repeat(choice!["signed", "unsigned"]),
+            "_BitInt",
+            "(",
+            field("size", s!(expression)),
+            ")",
+        ],
+    );
+    g.redefine("type_specifier", |original| choice![original, s!(bit_int_specifier)]);
     g.redefine("sized_type_specifier", |original| {
         let keywords = replace_rule(
             original,

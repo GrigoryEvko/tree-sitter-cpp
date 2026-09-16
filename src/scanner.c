@@ -2027,7 +2027,7 @@ static bool is_region_macro_name(const char *word) {
 /// string as a keyword where the grammar accepts it. A macro name is never one of them.
 static const char *const GRAMMAR_KEYWORDS[] = {
     "FALSE", "NULL", "Q_EMIT", "Q_FOREACH", "Q_FOREVER", "Q_SIGNALS", "Q_SLOTS", "TRUE", "_Alignas", "_Alignof",
-    "_Atomic", "_Complex", "_Generic", "_Nonnull", "_Noreturn", "_Null_unspecified", "_Nullable",
+    "_Atomic", "_BitInt", "_Complex", "_Generic", "_Nonnull", "_Noreturn", "_Null_unspecified", "_Nullable",
     "_Nullable_result", "_Pragma", "_Static_assert", "__alignof", "__alignof__", "__asm", "__asm__", "__attribute",
     "__attribute__",
     "__based",

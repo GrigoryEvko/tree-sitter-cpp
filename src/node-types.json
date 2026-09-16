@@ -478,6 +478,10 @@
     "named": true,
     "subtypes": [
       {
+        "type": "bit_int_specifier",
+        "named": true
+      },
+      {
         "type": "class_specifier",
         "named": true
       },
@@ -1609,6 +1613,22 @@
           },
           {
             "type": "preproc_defined",
+            "named": true
+          }
+        ]
+      }
+    }
+  },
+  {
+    "type": "bit_int_specifier",
+    "named": true,
+    "fields": {
+      "size": {
+        "multiple": false,
+        "required": true,
+        "types": [
+          {
+            "type": "expression",
             "named": true
           }
         ]
@@ -12581,6 +12601,10 @@
   },
   {
     "type": "_Atomic",
+    "named": false
+  },
+  {
+    "type": "_BitInt",
     "named": false
   },
   {
