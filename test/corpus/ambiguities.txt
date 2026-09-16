@@ -2557,3 +2557,116 @@ int j(int t) { return take(A
               (identifier)
               (argument_list
                 (identifier)))))))))
+
+================================================================================
+A functional cast to a class head with no member, and to an enumeration
+================================================================================
+
+struct A { };
+enum class E : int { a, b };
+int take(A);
+int takeE(E);
+int f() { return take(A()) + takeE(E(1)); }
+// `scan_class_head` reads the LAST name before the brace, so a braced initializer puts the name of
+// the OBJECT in the second record. `t(x)` calls `S::operator()` and the reading below is INCORRECT.
+// The two front ends compile it and read a call. The form has ZERO sites in the 329,387 corpus
+// files, measured with this rule and not with an edit of the source, so the fork takes it.
+struct S { int operator()(int) const; };
+struct S t{};
+int g(int);
+int h(int x) { return g(t(x)); }
+
+--------------------------------------------------------------------------------
+
+(translation_unit
+  (struct_specifier
+    (type_identifier)
+    (field_declaration_list))
+  (enum_specifier
+    (type_identifier)
+    (primitive_type)
+    (enumerator_list
+      (enumerator
+        (identifier))
+      (enumerator
+        (identifier))))
+  (declaration
+    (primitive_type)
+    (function_declarator
+      (identifier)
+      (parameter_list
+        (parameter_declaration
+          (type_identifier)))))
+  (declaration
+    (primitive_type)
+    (function_declarator
+      (identifier)
+      (parameter_list
+        (parameter_declaration
+          (type_identifier)))))
+  (function_definition
+    (primitive_type)
+    (function_declarator
+      (identifier)
+      (parameter_list))
+    (compound_statement
+      (return_statement
+        (binary_expression
+          (call_expression
+            (identifier)
+            (argument_list
+              (call_expression
+                (type_identifier)
+                (argument_list))))
+          (call_expression
+            (identifier)
+            (argument_list
+              (call_expression
+                (type_identifier)
+                (argument_list
+                  (number_literal)))))))))
+  (comment)
+  (comment)
+  (comment)
+  (comment)
+  (struct_specifier
+    (type_identifier)
+    (field_declaration_list
+      (field_declaration
+        (primitive_type)
+        (function_declarator
+          (operator_name)
+          (parameter_list
+            (parameter_declaration
+              (primitive_type)))
+          (type_qualifier)))))
+  (declaration
+    (struct_specifier
+      (type_identifier))
+    (init_declarator
+      (identifier)
+      (initializer_list)))
+  (declaration
+    (primitive_type)
+    (function_declarator
+      (identifier)
+      (parameter_list
+        (parameter_declaration
+          (primitive_type)))))
+  (function_definition
+    (primitive_type)
+    (function_declarator
+      (identifier)
+      (parameter_list
+        (parameter_declaration
+          (primitive_type)
+          (identifier))))
+    (compound_statement
+      (return_statement
+        (call_expression
+          (identifier)
+          (argument_list
+            (call_expression
+              (type_identifier)
+              (argument_list
+                (identifier)))))))))

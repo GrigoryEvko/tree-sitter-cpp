@@ -2337,7 +2337,7 @@ void g(C c) { (void) c.operator struct S(); }
     body: (compound_statement
       (return_statement
         (call_expression
-          function: (identifier)
+          function: (type_identifier)
           arguments: (argument_list)))))
   (function_definition
     type: (primitive_type)

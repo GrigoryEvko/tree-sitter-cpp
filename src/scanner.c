@@ -202,6 +202,11 @@ typedef struct {
     bool preproc_extra_tokens;
     /// The hashes of the names of the last class heads with a body, the most recent last.
     uint32_t classes[MAX_CLASSES];
+    /// MEASUREMENT OF TASK 240. The number of names of the second record.
+    uint8_t loose_count;
+    /// MEASUREMENT OF TASK 240. The hashes of the names of the last class heads, with no condition on
+    /// the body. Only the functional cast reads this record. The constructor rules read `classes`.
+    uint32_t loose[MAX_CLASSES];
 } Scanner;
 
 /// The traits of GCC (gcc/cp/cp-trait.def) and Clang (clang/include/clang/Basic/BuiltinTraits.td)
@@ -1895,6 +1900,40 @@ static bool record_class_name(Scanner *scanner, uint32_t name) {
     return true;
 }
 
+/// MEASUREMENT OF TASK 240. True if the second record holds the name. O(n) in MAX_CLASSES.
+static bool is_loose_name(const Scanner *scanner, uint32_t name) {
+    if (scanner == NULL) {
+        return false;
+    }
+    for (unsigned i = 0; i < scanner->loose_count; i++) {
+        if (scanner->loose[i] == name) {
+            return true;
+        }
+    }
+    return false;
+}
+
+/// MEASUREMENT OF TASK 240. Record a name in the second record. Return false if it already is the most
+/// recent name. O(n) in MAX_CLASSES.
+static bool record_loose_name(Scanner *scanner, uint32_t name) {
+    if (scanner->loose_count > 0 && scanner->loose[scanner->loose_count - 1] == name) {
+        return false;
+    }
+    unsigned kept = 0;
+    for (unsigned i = 0; i < scanner->loose_count; i++) {
+        if (scanner->loose[i] != name) {
+            scanner->loose[kept++] = scanner->loose[i];
+        }
+    }
+    if (kept == MAX_CLASSES) {
+        memmove(scanner->loose, &scanner->loose[1], (MAX_CLASSES - 1) * sizeof(uint32_t));
+        kept--;
+    }
+    scanner->loose[kept++] = name;
+    scanner->loose_count = (uint8_t)kept;
+    return true;
+}
+
 /// Read a template argument list from its `<`, and the gap after it. Return false if the list does not
 /// end before a `;`, `{`, or `}`.
 static bool skip_template_arguments(Reader *reader, Gap *gap) {
@@ -2695,7 +2734,20 @@ static bool scan_class_head(Scanner *scanner, Reader *reader) {
         after_name = true;
         named = true;
     }
-    if (!after_name || !class_body_has_member(reader) || reader->budget == 0 || !record_class_name(scanner, name)) {
+    if (!after_name) {
+        return false;
+    }
+    // MEASUREMENT OF TASK 240. The second record takes the name whatever the body holds. The first
+    // record keeps its condition, because the constructor rules read it.
+    bool member = class_body_has_member(reader);
+    if (reader->budget == 0) {
+        return false;
+    }
+    bool changed = record_loose_name(scanner, name);
+    if (member) {
+        changed = record_class_name(scanner, name) || changed;
+    }
+    if (!changed) {
         return false;
     }
     lexer->result_symbol = CLASS_HEAD_MARK;
@@ -7476,7 +7528,8 @@ static bool scan_word_start(Scanner *scanner, TSLexer *lexer, const bool *valid_
     // measurement, the fork keeps the incorrect form.
     bool cast_name = valid_symbols[FUNCTIONAL_CAST_NAME] && !valid_symbols[TYPE_TRAIT_TYPE_MARKER] &&
                      !valid_symbols[MACRO_TYPE_START] && !valid_symbols[PARAMETER_MACRO_TYPE_START] &&
-                     !is_grammar_keyword(word) && is_class_name(scanner, reader.word_hash);
+                     !is_grammar_keyword(word) &&
+                     (is_class_name(scanner, reader.word_hash) || is_loose_name(scanner, reader.word_hash));
     if (cast_name && next == '(') {
         mark_end(lexer);
         lexer->result_symbol = FUNCTIONAL_CAST_NAME;
@@ -7778,14 +7831,14 @@ static bool scan_token(Scanner *scanner, TSLexer *lexer, const bool *valid_symbo
 /// a scanner with no delimiter, no group, and no class name is empty. A deeper group needs a full array of groups,
 /// so an empty state has no such group.
 unsigned tree_sitter_cpp_external_scanner_serialize(void *payload, char *buffer) {
-    static_assert(1 + MAX_DELIMITER_LENGTH * sizeof(wchar_t) + 1 + MAX_GROUPS + 2 + 1 +
-                          MAX_CLASSES * sizeof(uint32_t) <
+    static_assert(1 + MAX_DELIMITER_LENGTH * sizeof(wchar_t) + 1 + MAX_GROUPS + 2 + 1 + 1 +
+                          2 * MAX_CLASSES * sizeof(uint32_t) <
                       TREE_SITTER_SERIALIZATION_BUFFER_SIZE,
                   "Serialized state is too long!");
 
     Scanner *scanner = (Scanner *)payload;
     if (scanner->delimiter_length == 0 && scanner->group_count == 0 && scanner->class_count == 0 &&
-        !scanner->preproc_extra_tokens) {
+        scanner->loose_count == 0 && !scanner->preproc_extra_tokens) {
         return 0;
     }
     unsigned size = 0;
@@ -7798,6 +7851,11 @@ unsigned tree_sitter_cpp_external_scanner_serialize(void *payload, char *buffer)
     buffer[size++] = (char)(scanner->deep_groups & 0xff);
     buffer[size++] = (char)(scanner->deep_groups >> 8);
     buffer[size++] = (char)scanner->preproc_extra_tokens;
+    // MEASUREMENT OF TASK 240. The second record carries its own count, so the names of the first
+    // record stay the last part of the state and the reader takes them from the remaining length.
+    buffer[size++] = (char)scanner->loose_count;
+    memcpy(&buffer[size], scanner->loose, scanner->loose_count * sizeof(uint32_t));
+    size += scanner->loose_count * sizeof(uint32_t);
     memcpy(&buffer[size], scanner->classes, scanner->class_count * sizeof(uint32_t));
     size += scanner->class_count * sizeof(uint32_t);
     return size;
@@ -7809,6 +7867,7 @@ void tree_sitter_cpp_external_scanner_deserialize(void *payload, const char *buf
     scanner->group_count = 0;
     scanner->deep_groups = 0;
     scanner->class_count = 0;
+    scanner->loose_count = 0;
     scanner->preproc_extra_tokens = false;
     if (length == 0) {
         return;
@@ -7827,6 +7886,11 @@ void tree_sitter_cpp_external_scanner_deserialize(void *payload, const char *buf
         size += 2;
         assert(size < length && "Can't decode the mark of the extra tokens!");
         scanner->preproc_extra_tokens = buffer[size++] != 0;
+        assert(size < length && "Can't decode the count of the second record!");
+        scanner->loose_count = (uint8_t)buffer[size++];
+        assert(scanner->loose_count <= MAX_CLASSES && "Can't decode the names of the second record!");
+        memcpy(scanner->loose, &buffer[size], scanner->loose_count * sizeof(uint32_t));
+        size += scanner->loose_count * sizeof(uint32_t);
     }
     unsigned names = size < length ? (length - size) / sizeof(uint32_t) : 0;
     assert(names <= MAX_CLASSES && "Can't decode serialized class names!");
