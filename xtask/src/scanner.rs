@@ -972,9 +972,31 @@ mod order {
     /// read it include both the correct and the defective. The row says which, so a reader can use
     /// it, and the test does not decide with it.
     ///
-    /// THE QUESTION THAT WOULD DECIDE IS NOT STATIC. For each decline, "can a later branch of this
-    /// function give a token AT THIS POSITION" is a question about `valid_symbols`, which is a fact
-    /// about the parse state and not about the source. A reader of the source cannot answer it.
+    /// THE INVENTORY GREW FROM 10 SITES TO 11 ON THE DAY IT LANDED, and the new row is the
+    /// `ENUMERATOR_MACRO_NAME` branch of a rule that landed the same evening. A list that grows with
+    /// the scanner is what an inventory is for.
+    ///
+    /// AN EXPOSURE COUNT IS NOT A DEFECT COUNT, MEASURED AT 24,347 TO 1. r47's runtime probe counted
+    /// 24,347 declines at the `INITIALIZER_MACRO_START` site where the last statement of
+    /// `scan_word_start` was live and never ran. Making the guard symmetric with its two siblings
+    /// changed ONE clean tree over 329,387 files and added one error byte, so the asymmetry is real
+    /// in the source and inert in the corpus. A GATE ON EXPOSURE WOULD FIRE 24,347 TIMES FOR ONE
+    /// CHANGE THAT POINTS THE WRONG WAY.
+    ///
+    /// THE ONLY INSTRUMENT THAT MEASURES WHETHER A DECLINE COSTS A BETTER TREE IS A DRAFT AND
+    /// `xtask trees`, ONE BUILD FOR EACH SITE. THAT IS A MEASUREMENT AND NOT A GATE, BECAUSE A GATE
+    /// RUNS ON EVERY LANDING. So this stays an inventory that prints rows for a reader, and a reader
+    /// resolves any row in one build.
+    ///
+    /// THE QUESTION IS STATIC AFTER ALL, AND IT IS IN A DIFFERENT FILE. "Can a later branch give a
+    /// token AT THIS POSITION" is a question about `valid_symbols`, which the parser fills from
+    /// `ts_external_scanner_states` of src/parser.c, ONE ROW FOR EACH EXTERNAL LEXER STATE. That
+    /// table is generated source in this repository, so two external tokens are valid together
+    /// exactly when one row holds both.
+    /// THE ANSWER DOES NOT SEPARATE THE SITES. Every branch of this inventory shares a state with
+    /// `_macro_line_start`, including the `CLASS_MACRO_MARK` site that is correct by design. So
+    /// co-validity proves EXPOSURE for every row and decides nothing, which is the same lesson as
+    /// the 24,347 above.
     /// A branch that cannot decide from `next` has no repair here except a rewind of the lexer,
     /// which this fork refused on price. Refer to "THE SCANNER CAN REWIND THE LEXER, AT A PRICE"
     /// of PROTOCOL.txt.
