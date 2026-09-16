@@ -106,6 +106,77 @@ pub fn run(repository: &Path, args: &[String]) -> Result<(), Box<dyn Error>> {
 
 #[cfg(test)]
 mod tests {
+    /// The external tokens of the grammar and the enumerators of the scanner are two hand-written
+    /// lists, in two files, that each reader of `valid_symbols` uses as ONE list. A new token appends
+    /// to both, so two agents that add a token at the same time get a conflict in each file. A REBASE
+    /// THAT KEEPS ONE ORDER IN ONE FILE AND THE OTHER ORDER IN THE OTHER GIVES THE SAME COUNT WITH TWO
+    /// SLOTS EXCHANGED. `tree_sitter_cpp_external_scanner_create` compares the counts only, so it
+    /// passes, and the scanner then answers for a token that the parser did not ask for. That is the
+    /// failure of #272, where one parse of a 20 KB file took 152 GB, with a count that agrees. A GUARD
+    /// THAT COMPARES A SUMMARY OF TWO THINGS PASSES EVERY DEFECT THAT KEEPS THE SUMMARY: a count sees
+    /// an addition and a removal, and it is blind to an exchange. Five conflicts of that shape came
+    /// from one day of work.
+    #[test]
+    fn the_external_tokens_of_the_scanner_agree_with_the_grammar() {
+        let repository = crate::repository();
+        let text = std::fs::read_to_string(repository.join("src").join("grammar.json"))
+            .expect("the repository has src/grammar.json");
+        let grammar: serde_json::Value = serde_json::from_str(&text).expect("src/grammar.json is JSON");
+        let externals = grammar["externals"].as_array().expect("src/grammar.json has externals");
+        let scanner = std::fs::read_to_string(repository.join("src").join("scanner.c"))
+            .expect("the repository has src/scanner.c");
+        let start = scanner.find("enum TokenType {").expect("src/scanner.c has enum TokenType");
+        let end = start + scanner[start..].find("\n};").expect("the enum of src/scanner.c ends");
+        let names: Vec<&str> = scanner[start..end]
+            .lines()
+            .map(str::trim)
+            .filter(|line| !line.starts_with("//"))
+            .map(|line| line.trim_end_matches(','))
+            .filter(|line| {
+                !line.is_empty() && line.bytes().all(|b| b.is_ascii_uppercase() || b.is_ascii_digit() || b == b'_')
+            })
+            .collect();
+        assert_eq!(
+            names.last().copied(),
+            Some("TOKEN_TYPE_COUNT"),
+            "TOKEN_TYPE_COUNT is the last enumerator of `TokenType`, because the check at the load of the \
+             language reads it as the count of the tokens"
+        );
+        let tokens = &names[..names.len() - 1];
+        assert_eq!(
+            tokens.len(),
+            externals.len(),
+            "src/scanner.c holds {} tokens and src/grammar.json holds {} externals. A new token goes into \
+             the enum of src/scanner.c AND into `g.externals` of grammar/src/cpp.rs, in the same place.",
+            tokens.len(),
+            externals.len()
+        );
+        for (slot, (external, name)) in externals.iter().zip(tokens.iter()).enumerate() {
+            match external["name"].as_str() {
+                Some(symbol) => {
+                    let expected = symbol.trim_start_matches('_').to_uppercase();
+                    assert_eq!(
+                        expected.as_str(),
+                        *name,
+                        "slot {slot} holds `{symbol}` in src/grammar.json and `{name}` in src/scanner.c. \
+                         Each token owns one slot in the two lists, and a slot with two names makes the \
+                         scanner answer for a different token."
+                    );
+                }
+                // A string external gives the token of a text, and it takes its name in the scanner
+                // alone. The three values are here, so that a fourth one is a change of this test.
+                None => {
+                    let value = external["value"].as_str().unwrap_or_default();
+                    assert!(
+                        matches!(value, "-" | "+" | "["),
+                        "slot {slot} of src/grammar.json is the string external `{value}`, which this test \
+                         does not know. Write the value here, beside the enumerator `{name}` of the scanner."
+                    );
+                }
+            }
+        }
+    }
+
     /// The generator in vendor/tree-sitter-generate writes the header, the ABI version, and the table
     /// layout that the runtime in vendor/tree-sitter reads.
     #[test]
