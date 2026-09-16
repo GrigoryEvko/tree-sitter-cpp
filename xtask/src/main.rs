@@ -4,6 +4,8 @@
 
 mod allocation;
 mod corpus;
+/// The `dedupe` task, which reads the files whose tree depends on the dedupe of the parse stack.
+mod dedupe;
 mod differ;
 mod directives;
 mod fuzz;
@@ -95,6 +97,13 @@ tasks:
                            project is the first component of its path, and a project with no such
                            file parses with no seed. The report names each project of the two
                            groups. THE GATE RUNS NO SEED, and a seeded run is a second report.
+  dedupe population ROOT LIST [--write PATH]
+                           Parse each file of LIST twice, with each preference of the dedupe of the
+                           parse stack, and report each file whose tree hash differs. Such a file
+                           holds a tree that no rule decides. A file that JOINS the population fails
+                           the check. With --write, also write the rows that the run measured.
+  dedupe population --write-baseline ROOT LIST
+                           Write test/dedupe/population.txt again from a measurement.
   seed collect ROOT LIST (--out FILE | --out-dir DIRECTORY)
                            Write the names that each project of LIST declares as a type or as a
                            template, as `name<TAB>kind` rows that ascend by the bytes of the name.
@@ -156,6 +165,7 @@ fn main() -> ExitCode {
         Some("syntax") => syntax::run(&repository(), &args[1..]),
         Some("parse") => parse::run(&args[1..]),
         Some("corpus") => corpus::run(&args[1..]),
+        Some("dedupe") => dedupe::run(&repository(), &args[1..]),
         Some("directives") => directives::run(&args[1..]),
         Some("trees") => trees::run(&args[1..]),
         Some("differ") => differ::run(&repository(), &args[1..]),

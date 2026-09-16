@@ -181,6 +181,35 @@ static StackNode *stack_node_new(
   return node;
 }
 
+#if defined(_MSC_VER)
+#define TS_STACK_THREAD_LOCAL __declspec(thread)
+#else
+#define TS_STACK_THREAD_LOCAL _Thread_local
+#endif
+
+/// THE PREFERENCE OF THE DEDUPE OF THE STACK, AND A TEST ENTRY POINT ONLY.
+///
+/// `stack_node_add_link` drops one of two links that hold a subtree of the same symbol, the same
+/// size, the same padding and the same child count, AND IT NEVER COMPARES THE CHILDREN. The dynamic
+/// precedence decides, and an equal precedence keeps the link that came first. With this flag the
+/// equal case keeps the link that came LAST, so one binary gives the two readings of a text whose
+/// tree depends on that choice. `cargo xtask dedupe population` reads both and reports each file
+/// that depends on it.
+///
+/// THE DEFAULT IS FALSE AND THE DEFAULT PATH IS THE PATH OF THE UPSTREAM RUNTIME. NO PARSE OUTSIDE
+/// THE INSTRUMENT MAY SET THIS FLAG. It changes what the parser CHOOSES, and the measurement of
+/// #306 says the present choice is correct in 2,021 of the 2,225 files of the largest family. A
+/// reader who finds this switch and uses it to move a number makes the trees worse, not better.
+static TS_STACK_THREAD_LOCAL bool ts_stack_prefer_later_link = false;
+
+void ts_set_dedupe_prefers_later_link(bool prefer_later) {
+  ts_stack_prefer_later_link = prefer_later;
+}
+
+bool ts_dedupe_prefers_later_link(void) {
+  return ts_stack_prefer_later_link;
+}
+
 static bool stack__subtree_is_equivalent(Subtree left, Subtree right) {
   if (left.ptr == right.ptr) return true;
   if (!left.ptr || !right.ptr) return false;
@@ -215,9 +244,13 @@ static void stack_node_add_link(
       // the special case where two links directly connect the same pair of nodes,
       // we can safely remove the ambiguity ahead of time without changing behavior.
       if (existing_link->node == link.node) {
+        // The instrument of #306 keeps the LATER link where the two precedences are equal. The
+        // default is the reading of the upstream runtime, which keeps the earlier one.
+        int32_t existing_precedence = ts_subtree_dynamic_precedence(existing_link->subtree);
+        int32_t new_precedence = ts_subtree_dynamic_precedence(link.subtree);
         if (
-          ts_subtree_dynamic_precedence(link.subtree) >
-          ts_subtree_dynamic_precedence(existing_link->subtree)
+          new_precedence > existing_precedence ||
+          (ts_stack_prefer_later_link && new_precedence == existing_precedence)
         ) {
           ts_subtree_retain(link.subtree);
           ts_subtree_release(subtree_pool, existing_link->subtree);

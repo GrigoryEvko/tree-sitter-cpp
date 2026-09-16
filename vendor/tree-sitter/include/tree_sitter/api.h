@@ -1574,6 +1574,29 @@ uint64_t ts_allocation_peak(void);
 void ts_allocation_label(const char *label);
 void ts_set_allocation_cap(uint64_t bytes);
 
+/**
+ * A TEST ENTRY POINT OF THE FORK, AND NOT A SETTING OF A PARSE.
+ *
+ * `stack_node_add_link` drops one of two links whose subtrees have the same symbol, size, padding
+ * and child count, WITHOUT a comparison of the children. The dynamic precedence decides, and an
+ * equal precedence keeps the link that came first. `ts_set_dedupe_prefers_later_link` makes the
+ * equal case keep the LATER link, so one binary gives the two readings of a text whose tree depends
+ * on that choice, and `cargo xtask dedupe population` reports each such file.
+ *
+ * THE DEFAULT IS false AND IT IS THE READING OF THE UPSTREAM RUNTIME. NO PARSE OUTSIDE THE
+ * INSTRUMENT MAY CALL THIS. The flag changes what the parser CHOOSES, and the measurement of #306
+ * says the present choice is correct in 2,021 of the 2,225 files of the largest family of the
+ * population. A reader who finds this switch and uses it to move a count makes the trees worse.
+ *
+ * The value is thread-local, because the instrument parses in parallel.
+ */
+void ts_set_dedupe_prefers_later_link(bool prefer_later);
+
+/**
+ * True when the dedupe of the stack keeps the later of two equivalent links on this thread.
+ */
+bool ts_dedupe_prefers_later_link(void);
+
 #ifdef __cplusplus
 }
 #endif

@@ -92,14 +92,14 @@ fn name_hash(name: &str) -> u64 {
 }
 
 /// The name hashes of the node kinds and the field names of a language, by symbol and field id.
-struct Names {
+pub(crate) struct Names {
     kinds: Vec<u64>,
     fields: Vec<u64>,
 }
 
 impl Names {
     /// Hash each kind name and each field name of a language. O(n) in the names.
-    fn new(language: &Language) -> Self {
+    pub(crate) fn new(language: &Language) -> Self {
         let kinds = (0..language.node_kind_count())
             .map(|id| {
                 u16::try_from(id)
@@ -135,8 +135,8 @@ impl Names {
 
 /// The hash facts of one full tree.
 #[derive(Debug, PartialEq, Eq)]
-struct TreeFacts {
-    hash: u64,
+pub(crate) struct TreeFacts {
+    pub(crate) hash: u64,
     nodes: u64,
     /// The start byte and the kind of the first ERROR or MISSING node in document order.
     first_error: Option<(usize, String)>,
@@ -159,7 +159,7 @@ fn block_size(bytes: usize) -> usize {
 ///
 /// `bytes` is the length of the source. It sets the blocks: block K covers the bytes from
 /// K * block to (K + 1) * block. O(n) in the nodes of the tree.
-fn tree_facts(tree: &Tree, names: &Names, bytes: usize) -> TreeFacts {
+pub(crate) fn tree_facts(tree: &Tree, names: &Names, bytes: usize) -> TreeFacts {
     let block = block_size(bytes);
     let count = bytes / block + 1;
     let mut blocks = Vec::with_capacity(count);
