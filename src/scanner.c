@@ -160,6 +160,9 @@ enum TokenType {
     /// `BOOST_MPL_AUX_VALUE_WKND(N)::value`. The scan gives it when a balanced group and a `::` come
     /// after the name.
     MACRO_SCOPE_START,
+    /// The name of a macro between the TYPE of a declaration and its declarator:
+    /// `typedef unsigned int CV_DECL_ALIGNED(1) unaligned_uint;`. The token holds the name.
+    TYPE_ATTRIBUTE_MACRO_NAME,
     /// The count of the external tokens, and not a token. `tree_sitter_cpp_external_scanner_create`
     /// compares it with the count of the parser.
     TOKEN_TYPE_COUNT,
@@ -3616,7 +3619,8 @@ static const char *const WORD_OPERATOR_NAMES[] = {
 /// `macro_shaped` tells if the name has the shape of a macro name (`is_macro_name`). A name with a
 /// different shape is a macro by its place only, after the `*` or the `&` of a declarator, and a name
 /// must come after it.
-static bool scan_call_macro_name(TSLexer *lexer, const Scanner *scanner, bool pointer, bool macro_shaped) {
+static bool scan_call_macro_name(TSLexer *lexer, const Scanner *scanner, bool pointer, bool macro_shaped,
+                                 bool type_attribute) {
     lexer->result_symbol = pointer ? POINTER_CALL_MACRO_NAME : CALL_MACRO_NAME;
     mark_end(lexer);
     Reader reader = start_reader(lexer, MACRO_SCAN_LIMIT, scanner);
@@ -3624,6 +3628,73 @@ static bool scan_call_macro_name(TSLexer *lexer, const Scanner *scanner, bool po
     skip_gap(&reader, &gap);
     if (gap.blocked) {
         return false;
+    }
+    // An attribute macro between the type and the declarator can take an argument list:
+    // `typedef unsigned int CV_DECL_ALIGNED(1) unaligned_uint;`. The declarator comes after it.
+    // AN ARGUMENT LIST AFTER THE NAME ENDS THIS SCAN, AND ONLY THE ATTRIBUTE OF A TYPE COMES OUT OF IT.
+    // A calling convention takes no arguments, so this function gave no token for such a name before.
+    // The macro between the type of a declaration and the declarator of an OBJECT does take them:
+    // `typedef unsigned int CV_DECL_ALIGNED(1) unaligned_uint;`.
+    if (lexer->lookahead == '(') {
+        if (!type_attribute || pointer) {
+            return false;
+        }
+        Arguments arguments = {0};
+        if (!skip_group(&reader, &arguments) || arguments.statements) {
+            return false;
+        }
+        gap = (Gap){0};
+        skip_gap(&reader, &gap);
+        if (gap.blocked || gap.newlines > 0) {
+            return false;
+        }
+        // The declarator of an object, with the pointer and reference operators before its name.
+        while (lexer->lookahead == '*' || lexer->lookahead == '&') {
+            LOOP_STEP();
+            step(&reader);
+            skip_gap(&reader, &gap);
+            if (gap.blocked) {
+                return false;
+            }
+        }
+        char name[MACRO_WORD_SIZE];
+        bool name_has_lower = false;
+        if (!is_word_start(lexer->lookahead)) {
+            return false;
+        }
+        read_word(&reader, name, &name_has_lower);
+        if (!name_has_lower || is_grammar_keyword(name) || word_in(name, DECLARATION_START_WORDS)) {
+            return false;
+        }
+        gap = (Gap){0};
+        skip_gap(&reader, &gap);
+        if (gap.blocked) {
+            return false;
+        }
+        if (lexer->lookahead == '[') {
+            Arguments extent = {0};
+            if (!skip_group(&reader, &extent)) {
+                return false;
+            }
+            gap = (Gap){0};
+            skip_gap(&reader, &gap);
+            if (gap.blocked) {
+                return false;
+            }
+        }
+        int32_t end = lexer->lookahead;
+        if (end == '=') {
+            advance(lexer);
+            if (lexer->lookahead == '=') {
+                return false;
+            }
+        } else if (end != ';' && end != ',') {
+            // A `{` after the name also ends the head of a class, where the name is the class and no
+            // declarator stands: `class LIBCPP_ABI LIBCPP_CAPABILITY("mutex") mutex {`.
+            return false;
+        }
+        lexer->result_symbol = TYPE_ATTRIBUTE_MACRO_NAME;
+        return true;
     }
     if (lexer->lookahead == '*') {
         // A `*` of a pointer declarator, and not the operator `*=` in `*L1 *= 2;`. Only a name with the
@@ -7906,8 +7977,16 @@ static bool scan_word_start(Scanner *scanner, TSLexer *lexer, const bool *valid_
         next == '(';
     bool pointer_macro = valid_symbols[POINTER_CALL_MACRO_NAME];
     bool macro_shaped = length >= 2 && is_macro_name(word, has_lower);
-    if ((valid_symbols[CALL_MACRO_NAME] || pointer_macro) && macro_shaped && !call_attribute) {
-        return scan_call_macro_name(lexer, scanner, pointer_macro, true);
+    // A macro between the type of a declaration and the declarator of an OBJECT. The macro cannot be
+    // the type itself here. After one plain name the parser holds a version in which THAT name is the
+    // macro and the type is still open, and a type specifier can start at this word. The marker of a
+    // compiler trait that gives a type is valid exactly where a type specifier can start, and it tells
+    // the two positions apart: `T MACRO x;` and `T MACRO(mu) x;` keep their readings, and
+    // `unsigned int ALIGN16 t[2];` has a complete type before the macro.
+    bool type_attribute = valid_symbols[TYPE_ATTRIBUTE_MACRO_NAME] && !valid_symbols[TYPE_TRAIT_TYPE_MARKER] &&
+                          !valid_symbols[MACRO_TYPE_START] && !valid_symbols[PARAMETER_MACRO_TYPE_START];
+    if ((valid_symbols[CALL_MACRO_NAME] || pointer_macro || type_attribute) && macro_shaped && !call_attribute) {
+        return scan_call_macro_name(lexer, scanner, pointer_macro, true, type_attribute);
     }
     // A macro between the name of a function and its argument list, after a qualified name. The
     // grammar makes the token valid there only. Where a declarator can start after a type, the call
@@ -8038,7 +8117,7 @@ static bool scan_word_start(Scanner *scanner, TSLexer *lexer, const bool *valid_
     bool pointer_name = pointer_macro && !macro_shaped && !call_attribute && !cast_name && !is_sal_name(word) &&
                         !is_grammar_keyword(word) && !word_in(word, POINTER_QUALIFIER_WORDS);
     if (pointer_name) {
-        return scan_call_macro_name(lexer, scanner, true, false);
+        return scan_call_macro_name(lexer, scanner, true, false, false);
     }
     // A macro at the head of an element of a braced list gives several initializers, and an element
     // comes after its arguments with no comma between the two:

@@ -3002,3 +3002,59 @@ void k() { A(b); }
           function: (identifier)
           arguments: (argument_list
             (identifier)))))))
+
+================================================================================
+A macro between the type of a declaration and the declarator of an object
+================================================================================
+
+typedef unsigned int CV_DECL_ALIGNED(1) unaligned_uint;
+struct S {
+  int CV_DECL_ALIGNED(16) ar[2];
+  std::unique_ptr<T> TSA_GUARDED_BY(mutex) info;
+};
+T MACRO(mu) x;
+
+--------------------------------------------------------------------------------
+
+(translation_unit
+  (type_definition
+    type: (sized_type_specifier
+      type: (primitive_type))
+    (attribute_macro
+      name: (identifier)
+      arguments: (argument_list
+        (number_literal)))
+    declarator: (type_identifier))
+  (struct_specifier
+    name: (type_identifier)
+    body: (field_declaration_list
+      (field_declaration
+        type: (primitive_type)
+        (attribute_macro
+          name: (identifier)
+          arguments: (argument_list
+            (number_literal)))
+        declarator: (array_declarator
+          declarator: (field_identifier)
+          size: (number_literal)))
+      (field_declaration
+        type: (qualified_identifier
+          scope: (namespace_identifier)
+          name: (template_type
+            name: (type_identifier)
+            arguments: (template_argument_list
+              (type_descriptor
+                type: (type_identifier)))))
+        (attribute_macro
+          name: (identifier)
+          arguments: (argument_list
+            (identifier)))
+        declarator: (field_identifier))))
+  (declaration
+    (attribute_macro
+      name: (identifier))
+    type: (macro_type_specifier
+      name: (identifier)
+      type: (type_descriptor
+        type: (type_identifier)))
+    declarator: (identifier)))

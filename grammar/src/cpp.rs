@@ -186,6 +186,11 @@ pub fn grammar() -> Grammar {
         // `BOOST_MPL_AUX_VALUE_WKND(N)::value`. The scanner gives it when a balanced group and a
         // `::` come after the name. Refer to `macro_scope_specifier`.
         s!(_macro_scope_start),
+        // The name of a macro between the TYPE of a declaration and its declarator:
+        // `typedef unsigned int CV_DECL_ALIGNED(1) unaligned_uint;`,
+        // `std::unique_ptr<T> TSA_GUARDED_BY(mutex) info;`. The scanner gives the token only where the
+        // macro cannot be the type itself. Refer to `_type_attribute_macro`.
+        s!(_type_attribute_macro_name),
     ];
     // The conflict sets of the grammar. Each set names the rules of one ambiguity, and it tells the
     // generator to keep each reading in a GLR split.
@@ -1957,6 +1962,11 @@ fn types(g: &mut Grammar) {
             ]);
             // A macro can also give the type: `typedef BOOST_CONTAINER_IMPDEF(impl) value_compare;`.
             members[1] = field("type", choice![s!(type_specifier), s!(macro_type_specifier)]);
+            // A macro between the type and the declarator of a typedef, as in a declaration:
+            // `typedef char EASTL_MAY_ALIAS aligned_buffer_char;`,
+            // `typedef unsigned int CV_DECL_ALIGNED(1) unaligned_uint;`. Refer to
+            // `_type_attribute_macro`.
+            members.insert(2, optional(alias(s!(_type_attribute_macro), s!(attribute_macro))));
             members
         })
     });
@@ -2402,6 +2412,28 @@ fn types(g: &mut Grammar) {
             field("arguments", alias(s!(_macro_call_argument_list), s!(argument_list))),
         ],
     );
+    // A macro between the type of a declaration and its declarator. The arguments are an expression
+    // list, as the arguments of a macro call attribute are.
+    //
+    // THE MACRO TAKES ARGUMENTS, AND A BARE NAME IS NOT ONE OF THESE. Two plain names before a
+    // declarator are a macro and a type in either order, and no fact of the construct separates them:
+    // `EXPORT Foo BAR;` reads `EXPORT` as the macro, and `unsigned int ALIGN16 t[2];` needs the
+    // opposite reading. The corpus tests of `attributes.txt` and `vendor.txt` hold the first form. A
+    // table of the macro names of a project decides the second, and 25 corpus files wait for it.
+    // Refer to `declaration_specifiers`.
+    // Right associativity gives a `(` after the name to the arguments of the macro. The scanner gives
+    // the mark only where the declarator of the declaration is an object, so no parameter list can
+    // come there.
+    g.define(
+        "_type_attribute_macro",
+        prec_right(
+            0,
+            seq![
+                field("name", alias(s!(_type_attribute_macro_name), s!(identifier))),
+                field("arguments", alias(s!(_macro_call_argument_list), s!(argument_list))),
+            ],
+        ),
+    );
     // The scanner gives a different token when the arguments are not expressions, and the arguments
     // are then a token tree, as in a macro invocation: `LLVM_PREFERRED_TYPE(bool) unsigned f : 1;`.
     g.define(
@@ -2430,6 +2462,18 @@ fn types(g: &mut Grammar) {
     // specifier. The specifiers of a parameter and of a conversion-type-id take no such prefix,
     // because the front ends read the keyword only before a declaration. Refer to
     // `c::extension_prefix`.
+    // A macro between the TYPE and the DECLARATOR of an object: `double ALIGN16 t[2];` in mongo,
+    // `std::unique_ptr<StreamInfo> TSA_GUARDED_BY(mutex) stream_info;` in ClickHouse. The macro gives
+    // an attribute, and GCC `cp_parser_decl_specifier_seq` and Clang `ParseDeclarationSpecifiers`
+    // read the expansion among the specifiers.
+    //
+    // THE SCANNER GIVES THE MARK ONLY WHERE THE MACRO CANNOT BE THE TYPE ITSELF. A declaration whose
+    // type is one plain name has a second reading in which that NAME is the macro and the macro is the
+    // type: `T MACRO(mu) x;` reads as the attribute macro `T` with the type `macro_type_specifier`.
+    // The token of that reading is valid while the type of the declaration is still open, and this
+    // mark is not given there. The measurement of 2026-09-16 gives 72 corpus files of that shape, and
+    // only a table of the macro names of a project can separate them.
+    let type_attribute_macro = || optional(alias(s!(_type_attribute_macro), s!(attribute_macro)));
     let declaration_specifiers = |types: Rule| {
         prec_right(
             0,
@@ -2437,6 +2481,7 @@ fn types(g: &mut Grammar) {
                 c::extension_prefix(),
                 specifier_prefix(),
                 field("type", types),
+                type_attribute_macro(),
                 repeat(s!(_declaration_modifiers)),
             ],
         )
