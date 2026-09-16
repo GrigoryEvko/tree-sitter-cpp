@@ -6513,11 +6513,19 @@ static bool scan_comparison_name(Reader *reader, const char *name, bool comparis
             // The count of the brackets is exact, so a nested list gives the same answer with one `>>`
             // token and with two `>` tokens: `B<C<int>>(x)` and `B<C<int> >(x)` are both casts.
             //
-            // DO NOT RELAX THE CONDITION OF THE BLANK. It carries two jobs, and only the first one
+            // DO NOT REMOVE THE CONDITION OF THE BLANK. It carries two jobs, and only the first one
             // gives a correct tree:
-            // - It keeps the comparison of `a<b> >(c)`, where the blank divides the two `>` operators.
-            //   Without the condition, that text becomes a cast and the parse gives an ERROR node.
-            //   The corpus has such a form, and a gate with NEW ERROR 0 does not show the loss.
+            // - It keeps ONE comparison in `a<b> >(c)`. The template-id `a<b>` is the left operand.
+            //   The first `>` closes the argument list, and the second `>` is the operator. The text
+            //   has no reading with two comparisons. This program gives that tree, and the two front
+            //   ends accept it:
+            //       template<class T> int a; struct b { }; int c;
+            //       bool f() { return a<b> >(c); }
+            //   With `a`, `b` and `c` as ints the two front ends reject the text. Without the
+            //   condition, that text becomes a cast. The parser then wants an argument list after
+            //   `a<b>`, and the tree gets an ERROR node on a program that the two front ends compile.
+            //   The acceptance rule forbids that at any site count. The count below is no reason to
+            //   remove the condition.
             // - It also declines `B<int> (x)`, which is a correct functional cast, because white space
             //   has no meaning between the two tokens. This is a KNOWN loss and not a defect. In the
             //   329,387 corpus files 3503 sites of a template-id of a recorded class have no blank and

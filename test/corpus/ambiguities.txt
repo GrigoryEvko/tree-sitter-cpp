@@ -788,6 +788,9 @@ void f() {
   arrow::Result<std::unique_ptr<Result>> next();
   std::same_as<C<char>> auto c = ranges::to<C>(r);
   g(std::bit_cast<Pair<u64> (*)(u32)>(p));
+  // Clang builds CXXUnresolvedConstructExpr, a functional cast, so the reading below is
+  // INCORRECT. The file declares no `absl::index_sequence`, and a record of the class heads of
+  // the file cannot hold a name that the file does not declare.
   g(absl::index_sequence<IndexOf<Vs, Ts...>()...>());
   std::bitset<static_cast<unsigned>(Property::Last) + 1> bits;
   g(std::bool_constant<is_plain<M>() || scalar_value<M>>{});
@@ -869,6 +872,9 @@ void f() {
                             (type_identifier))))))))
               (argument_list
                 (identifier))))))
+      (comment)
+      (comment)
+      (comment)
       (expression_statement
         (call_expression
           (identifier)
@@ -1664,14 +1670,38 @@ void unknown() { Unknown(); Unknown(1); }
             (number_literal)))))))
 
 ================================================================================
-A declaration and a type-id keep their tree where the record holds the name
+A declaration and a type-id where the record holds the name, with three incorrect readings
 ================================================================================
 
 struct A { int m; };
 template<class T> struct F { int m; };
+// [stmt.ambig] p1 makes `A(x);` a declaration of `x`, and Clang builds DeclStmt with VarDecl.
+// The reading below is INCORRECT. A repair is not available, because the record holds names and
+// no scopes. This shape has 20 sites, 18 in the 329,387 corpus files and 2 in the 7646 compiler
+// test files, and none at namespace scope. Most of the 20 are calls where this tree is already
+// correct, because a function hides the class. flexbuffers.h holds `class String` and a Builder
+// member function of the same name. In koenig6.C the name `N(p)` finds the function A::N and not
+// the class A::B::N, and the file says so in its first line.
 void f() { A(x); }
+// Clang builds CXXTemporaryObjectExpr, a functional cast, so the reading below is INCORRECT. The
+// guard of `cast_name` in `scan_word_start` stops the token at each position where a declaration
+// can start, and this is the cost of that guard.
 void g() { A(); }
 void h() { int(x); }
+// A namespace scope holds a sequence of declarations and no statement, so the reading below is
+// INCORRECT whatever `A` is. Clang builds VarDecl. [stmt.ambig] does not even apply here, because
+// a namespace scope has no statement.
+//
+// The loss is narrow. Only a plain identifier type with a bare identifier in parentheses gives
+// this reading. `A gx;`, `A (*gx);`, `A (gx)[3];` and `int (gx);` each give a declaration. The
+// name makes no difference: `A (gx);`, `Abc (gx);`, `abc (gx);` and `ABC (gx);` all give the same
+// expression statement, so `is_macro_name` is not the cause. The parse log shows no tie, so the
+// fork has one reading here and not two.
+//
+// The text that gives this reading is the text of a function-like macro invocation, `FOO(x);`,
+// which is frequent at namespace scope. The corpus has ZERO namespace-scope sites where the file
+// declares the name as a class. The fork gives the reading of a macro invocation to a form with
+// no measured site, and it keeps that reading for a form with many.
 A (gx);
 A (*gp)[3];
 A (gy)[3];
@@ -1699,6 +1729,13 @@ F<A(int)> fv;
         (field_declaration
           type: (primitive_type)
           declarator: (field_identifier)))))
+  (comment)
+  (comment)
+  (comment)
+  (comment)
+  (comment)
+  (comment)
+  (comment)
   (function_definition
     type: (primitive_type)
     declarator: (function_declarator
@@ -1710,6 +1747,9 @@ F<A(int)> fv;
           function: (identifier)
           arguments: (argument_list
             (identifier))))))
+  (comment)
+  (comment)
+  (comment)
   (function_definition
     type: (primitive_type)
     declarator: (function_declarator
@@ -1730,6 +1770,20 @@ F<A(int)> fv;
         type: (primitive_type)
         declarator: (parenthesized_declarator
           (identifier)))))
+  (comment)
+  (comment)
+  (comment)
+  (comment)
+  (comment)
+  (comment)
+  (comment)
+  (comment)
+  (comment)
+  (comment)
+  (comment)
+  (comment)
+  (comment)
+  (comment)
   (expression_statement
     (call_expression
       function: (identifier)
@@ -2381,8 +2435,6 @@ int h(int t) { return take(A (t)) + take(A(t)); }
 int i(int t) { return take(B<int> (t).m) + take(B<int>(t).m); }
 int j(int t) { return take(A
 (t)); }
-A (gx);
-void p(A (px));
 
 --------------------------------------------------------------------------------
 
@@ -2504,20 +2556,4 @@ void p(A (px));
             (call_expression
               (identifier)
               (argument_list
-                (identifier))))))))
-  (expression_statement
-    (call_expression
-      (identifier)
-      (argument_list
-        (identifier))))
-  (declaration
-    (primitive_type)
-    (function_declarator
-      (identifier)
-      (parameter_list
-        (parameter_declaration
-          (type_identifier)
-          (abstract_function_declarator
-            (parameter_list
-              (parameter_declaration
-                (type_identifier)))))))))
+                (identifier)))))))))
