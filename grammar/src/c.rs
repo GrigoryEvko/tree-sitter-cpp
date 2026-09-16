@@ -859,12 +859,38 @@ fn declarations(g: &mut Grammar) {
         ],
     );
     g.define("_extension_specifier", Rule::from("__extension__"));
+    // The dynamic precedence of the type reading of the operand of `alignas`. The value is below
+    // the default, so the expression reading wins for a bare name, which is the reading that the
+    // order of the numeric symbol ids gave before this rule.
+    const ALIGNAS_TYPE: i32 = -1;
+    // THE OPERAND OF `alignas` IS A TYPE OR A CONSTANT EXPRESSION, AND A BARE NAME IS BOTH.
+    // `alignas(T)` and `alignas(N)` have one token shape, and only the declaration of the name tells
+    // a type from a constant. The two readings have the same error cost and the same dynamic
+    // precedence, so `ts_subtree_compare` selected one of them by the ORDER OF THE NUMERIC SYMBOL
+    // IDS, which no rule states and which a change of the grammar anywhere renumbers. The
+    // measurement of 2026-09-16: 831 corpus files hold such a site, a sample of 40 of them gives 40
+    // whose tree DIFFERS when the comparison of the runtime is turned around, and the class is the
+    // only one of the 28 classes of test/ties/population.txt that is live in all of it. Refer to
+    // `cargo xtask ties flip`.
+    //
+    // The precedence states the reading that the symbol order gave: the expression. It changes no
+    // tree, and it takes 1,532 sites in 831 files out of a population that each later commit can
+    // flip with no ERROR node.
+    //
+    // THE READING IS INCORRECT FOR ABOUT HALF OF THE SITES, AND NO RULE OF THE GRAMMAR CAN REPAIR
+    // THAT. Of 432 sites of the class, read against the declarations of the file and of the
+    // project: 192 name a constant, and the expression is correct; 205 name a type, and the
+    // expression is incorrect; 35 hold no plain name. Of the 205, the file itself declares 127, as
+    // a class head (35), a template parameter of the same declaration (52), a `using` alias (36) or
+    // a typedef (4), and the project declares the other 78 in a different file. A record of the
+    // names, in the scanner or in the seed of the parse, decides them one group at a time, and each
+    // such step changes trees and states its count. Refer to task 291.
     g.define(
         "alignas_qualifier",
         seq![
             choice!["alignas", "_Alignas"],
             "(",
-            choice![s!(expression), s!(type_descriptor)],
+            choice![s!(expression), prec_dynamic(ALIGNAS_TYPE, s!(type_descriptor))],
             ")",
         ],
     );

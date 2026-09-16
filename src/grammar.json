@@ -13361,8 +13361,12 @@
               "name": "expression"
             },
             {
-              "type": "SYMBOL",
-              "name": "type_descriptor"
+              "type": "PREC_DYNAMIC",
+              "value": -1,
+              "content": {
+                "type": "SYMBOL",
+                "name": "type_descriptor"
+              }
             }
           ]
         },
