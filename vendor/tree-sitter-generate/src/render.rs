@@ -391,16 +391,40 @@ impl Generator {
         add_line!(self, "#endif");
         add_line!(self, "");
 
-        // Compiling large lexer functions can be very slow. Disabling optimizations
-        // is not ideal, but only a very small fraction of overall parse time is
-        // spent lexing, so the performance impact of this is negligible.
+        // Keep the optimizer on for GCC and for clang (tree-sitter-cpp fork).
+        //
+        // `ADVANCE(state)` does `goto next_state`, which enters `switch (state)` again for each
+        // character. With no optimizer the compiler writes that switch as a linear compare chain
+        // and not a jump table. `ts_lex_keywords` of this grammar then holds 1983 compares that
+        // descend from case 992 to case 1. The runtime enters it at state 0, and state 0 is the
+        // last case. Each identifier of each file walks the whole chain before its first character.
+        //
+        // The measurement of 2026-09-16 used the C++ grammar of this fork, with 779 main lex
+        // states, over 329,387 corpus files:
+        //
+        //   parse cycles         0.545 of the cycles with the pragma
+        //   parse instructions   0.426
+        //   corpus CPU time      34m44s with the pragma, and 17m00s without it
+        //   trees --compare      0 changed hashes over 329,387 files and over 7,646 test files
+        //
+        // The price is the compile of src/parser.c, as the minimum of three compiles at -O2 with
+        // no ccache, on one machine of 2026-09-16:
+        //
+        //   gcc 16.2.1     2.76 s and 436 MB with the pragma, and 5.30 s and 599 MB without it
+        //   clang 22.1.8   2.44 s and 659 MB with the pragma, and 7.88 s and 660 MB without it
+        //
+        // The machine code is also smaller: 182,470 bytes to 140,230 for gcc, and 169,725 to
+        // 134,637 for clang.
+        //
+        // THE NUMBERS ABOVE BELONG TO A LEX TABLE OF 779 STATES. A larger table gives a longer
+        // compile, and nothing here warns. Measure the compile again before you make the table
+        // larger.
+        //
+        // MSVC KEEPS THE PRAGMA, BECAUSE THIS FORK MEASURED NO MSVC. Do not remove that branch
+        // without a measurement of your own.
         if self.main_lex_table.states.len() > 300 {
             add_line!(self, "#ifdef _MSC_VER");
             add_line!(self, "#pragma optimize(\"\", off)");
-            add_line!(self, "#elif defined(__clang__)");
-            add_line!(self, "#pragma clang optimize off");
-            add_line!(self, "#elif defined(__GNUC__)");
-            add_line!(self, "#pragma GCC optimize (\"O0\")");
             add_line!(self, "#endif");
             add_line!(self, "");
         }

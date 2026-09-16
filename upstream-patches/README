@@ -95,6 +95,19 @@ The other patches, in the order of the series:
     instruction count by 2.18% and its cycle count by 3.04%. No tree hash changes, and the parse
     operation count reads 1.00000. Risk: low.
 
+14-lexer-optimization.patch
+    Keep the optimizer on for GCC and for clang in a generated parser. The generator writes
+    `#pragma GCC optimize ("O0")` and `#pragma clang optimize off` above 300 main lex states, and
+    the comment beside them says the parse time of the lexer is negligible. For this grammar the
+    two lexer functions are 45.0% of the parse cycles. `ADVANCE(state)` enters the state switch
+    again for each character, and with no optimizer that switch is a linear compare chain of 1983
+    compares that the runtime enters at the last case. The parse then uses 0.545 of the cycles and
+    0.426 of the instructions without the pragmas, and one pass over the 329,387 corpus files
+    decreases from 34m44s to 17m00s of CPU time. No tree hash changes over either population. The
+    compile of src/parser.c goes 2.76 s to 5.30 s with gcc and 2.44 s to 7.88 s with clang, and the
+    machine code becomes 23% smaller. MSVC keeps its pragma, because this fork measured no MSVC.
+    Risk: low for the trees, and medium for upstream, because it contradicts an upstream comment.
+
 WHAT UPSTREAM ALREADY HAS
 
 Upstream v0.27.0 has its own non-recursive S-expression writer, and it replaces the writer of the

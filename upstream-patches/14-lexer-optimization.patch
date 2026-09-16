@@ -1,0 +1,107 @@
+Subject: Keep the optimizer on for GCC and for clang in a generated parser
+
+The generator writes these lines into every parser with more than 300 main lex states:
+
+    #ifdef _MSC_VER
+    #pragma optimize("", off)
+    #elif defined(__clang__)
+    #pragma clang optimize off
+    #elif defined(__GNUC__)
+    #pragma GCC optimize ("O0")
+    #endif
+
+The comment above them in crates/generate/src/render.rs reads:
+
+    // Compiling large lexer functions can be very slow. Disabling optimizations
+    // is not ideal, but only a very small fraction of overall parse time is
+    // spent lexing, so the performance impact of this is negligible.
+
+That premise does not hold for a large grammar. The C++ grammar of the tree-sitter-cpp fork has 779
+main lex states and 1005 keyword lex states. With the pragmas, `ts_lex` and `ts_lex_keywords`
+together are 45.0% of the parse cycles.
+
+WHY THE COST IS SO LARGE. `ADVANCE(state)` does `goto next_state`, which enters `switch (state)`
+again for each character. With no optimizer the compiler writes that switch as a linear compare
+chain and not a jump table. `ts_lex_keywords` then holds 1983 compares that descend from case 992
+to case 1. `ts_parser__call_keyword_lex_fn` enters it at state 0, and state 0 is the last case. Each
+identifier of each file walks all 1983 compares before it reads its first character. Without the
+pragmas the same two functions hold 6 and 9 jump tables.
+
+MEASUREMENTS. 329,387 C++ files for the corpus, and 6000 of them for the profile:
+
+- The parse uses 0.545 of the cycles and 0.426 of the instructions.
+- The CPU time of one pass over the 329,387 files decreases from 34m44s to 17m00s.
+- `ts_lex` goes 28.48% to 4.46%, and `ts_lex_keywords` goes 16.55% to 0.76%.
+- The median of the per-file parse times gives 0.538, and the cycle count gives 0.545. The two
+  instruments are independent, and they agree to 0.007.
+
+CORRECTNESS. The trees do not change. A comparison of the tree hashes gives 0 changed hashes over
+the 329,387 corpus files and over 7,646 compiler test files. The 552 corpus tests and the 1352
+syntax snippets of the fork pass.
+
+THE PRICE. The compile of src/parser.c, as the minimum of three compiles at -O2 with no ccache, on
+one machine of 2026-09-16:
+
+    gcc 16.2.1     2.76 s and 436 MB with the pragma, and 5.30 s and 599 MB without it
+    clang 22.1.8   2.44 s and 659 MB with the pragma, and 7.88 s and 660 MB without it
+
+The machine code is also smaller: 182,470 bytes to 140,230 for gcc, and 169,725 to 134,637 for
+clang.
+
+MSVC KEEPS ITS PRAGMA. This fork measured no MSVC, and the patch does not remove that branch. A
+reader with MSVC must measure it before a removal.
+
+The numbers above belong to a lex table of 779 states. A larger table gives a longer compile.
+
+The comment holds the marker "(tree-sitter-cpp fork)". Remove the marker before you send the patch.
+
+--- a/crates/generate/src/render.rs	2026-09-16 06:28:29.001389654 +0200
++++ b/crates/generate/src/render.rs	2026-09-16 06:28:32.624223433 +0200
+@@ -368,16 +368,40 @@
+         add_line!(self, "#endif");
+         add_line!(self, "");
+ 
+-        // Compiling large lexer functions can be very slow. Disabling optimizations
+-        // is not ideal, but only a very small fraction of overall parse time is
+-        // spent lexing, so the performance impact of this is negligible.
++        // Keep the optimizer on for GCC and for clang (tree-sitter-cpp fork).
++        //
++        // `ADVANCE(state)` does `goto next_state`, which enters `switch (state)` again for each
++        // character. With no optimizer the compiler writes that switch as a linear compare chain
++        // and not a jump table. `ts_lex_keywords` of this grammar then holds 1983 compares that
++        // descend from case 992 to case 1. The runtime enters it at state 0, and state 0 is the
++        // last case. Each identifier of each file walks the whole chain before its first character.
++        //
++        // The measurement of 2026-09-16 used the C++ grammar of this fork, with 779 main lex
++        // states, over 329,387 corpus files:
++        //
++        //   parse cycles         0.545 of the cycles with the pragma
++        //   parse instructions   0.426
++        //   corpus CPU time      34m44s with the pragma, and 17m00s without it
++        //   trees --compare      0 changed hashes over 329,387 files and over 7,646 test files
++        //
++        // The price is the compile of src/parser.c, as the minimum of three compiles at -O2 with
++        // no ccache, on one machine of 2026-09-16:
++        //
++        //   gcc 16.2.1     2.76 s and 436 MB with the pragma, and 5.30 s and 599 MB without it
++        //   clang 22.1.8   2.44 s and 659 MB with the pragma, and 7.88 s and 660 MB without it
++        //
++        // The machine code is also smaller: 182,470 bytes to 140,230 for gcc, and 169,725 to
++        // 134,637 for clang.
++        //
++        // THE NUMBERS ABOVE BELONG TO A LEX TABLE OF 779 STATES. A larger table gives a longer
++        // compile, and nothing here warns. Measure the compile again before you make the table
++        // larger.
++        //
++        // MSVC KEEPS THE PRAGMA, BECAUSE THIS FORK MEASURED NO MSVC. Do not remove that branch
++        // without a measurement of your own.
+         if self.main_lex_table.states.len() > 300 {
+             add_line!(self, "#ifdef _MSC_VER");
+             add_line!(self, "#pragma optimize(\"\", off)");
+-            add_line!(self, "#elif defined(__clang__)");
+-            add_line!(self, "#pragma clang optimize off");
+-            add_line!(self, "#elif defined(__GNUC__)");
+-            add_line!(self, "#pragma GCC optimize (\"O0\")");
+             add_line!(self, "#endif");
+             add_line!(self, "");
+         }
