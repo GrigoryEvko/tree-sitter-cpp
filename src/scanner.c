@@ -457,10 +457,21 @@ static inline void reset(Scanner *scanner) {
     memset(scanner->delimiter, 0, sizeof scanner->delimiter);
 }
 
-/// True for the white space that a line break does not end: a space, a tab, a form feed, a vertical tab,
-/// or a carriage return.
+/// True for a line break: a line feed or a carriage return.
+///
+/// Phase 1 of [lex.phases] gives each line break the same form. libcpp `_cpp_clean_line`
+/// (gcc/libcpp/lex.cc:877) ends a logical line at each of the two characters, and it writes a line feed
+/// there (lex.cc:1042). Clang `Lexer::LexTokenInternal` (clang/lib/Lex/Lexer.cpp:3928) reads a carriage
+/// return as a line break, and it gives the token `eod` of a directive line for each of the two.
+///
+/// A carriage return and a line feed after it are one line break. A scan that counts the line breaks of
+/// its text reads the two characters as one break.
+static inline bool is_line_break(int32_t c) { return c == '\n' || c == '\r'; }
+
+/// True for the white space that a line break does not end: a space, a tab, a form feed, or a vertical
+/// tab.
 static inline bool is_horizontal_space(int32_t c) {
-    return c == ' ' || c == '\t' || c == '\f' || c == '\v' || c == '\r';
+    return c == ' ' || c == '\t' || c == '\f' || c == '\v';
 }
 
 /// True for the white space that can come between the backslash and the line break of a line splice: a space, a
@@ -623,7 +634,7 @@ static bool scan_decay_copy_auto(TSLexer *lexer, const Scanner *scanner) {
         }
         if (quote == '"' || quote == '\'') {
             advance(lexer);
-            while (!lexer->eof(lexer) && lexer->lookahead != quote && lexer->lookahead != '\n') {
+            while (!lexer->eof(lexer) && lexer->lookahead != quote && !is_line_break(lexer->lookahead)) {
                 LOOP_STEP();
                 if (lexer->lookahead == '\\') {
                     skip_literal_backslash(lexer);
@@ -937,7 +948,7 @@ static Backslash step_backslash(Reader *reader) {
 /// comment. The line break stays unread. O(n) in the length of the comment.
 static void step_line_comment(Reader *reader) {
     TSLexer *lexer = reader->lexer;
-    while (readable(reader) && lexer->lookahead != '\n') {
+    while (readable(reader) && !is_line_break(lexer->lookahead)) {
         LOOP_STEP();
         if (lexer->lookahead == '\\') {
             step_backslash(reader);
@@ -957,15 +968,21 @@ static void skip_gap(Reader *reader, Gap *gap) {
     TSLexer *lexer = reader->lexer;
     bool line_is_blank = false;
     bool line_start = false;
+    bool carriage_return = false;
     while (readable(reader)) {
         LOOP_STEP();
         int32_t c = lexer->lookahead;
-        if (c == '\n') {
-            if (gap->newlines > 0 && line_is_blank) {
-                gap->separated = true;
-                gap->blank_line = true;
+        bool after_carriage_return = carriage_return;
+        carriage_return = c == '\r';
+        if (is_line_break(c)) {
+            // A carriage return and the line feed after it are one line break.
+            if (!(after_carriage_return && c == '\n')) {
+                if (gap->newlines > 0 && line_is_blank) {
+                    gap->separated = true;
+                    gap->blank_line = true;
+                }
+                gap->newlines++;
             }
-            gap->newlines++;
             line_is_blank = true;
             line_start = true;
             step(reader);
@@ -980,7 +997,7 @@ static void skip_gap(Reader *reader, Gap *gap) {
             line_is_blank = false;
             line_start = false;
             gap->text = true;
-        } else if (c == ' ' || c == '\t' || c == '\r' || c == '\f' || c == '\v') {
+        } else if (is_horizontal_space(c)) {
             step(reader);
         } else if (c == '\\') {
             if (step_backslash(reader) != BACKSLASH_SPLICE) {
@@ -1000,12 +1017,16 @@ static void skip_gap(Reader *reader, Gap *gap) {
                 line_is_blank = false;
                 step(reader);
                 bool star = false;
+                bool comment_carriage_return = false;
                 while (readable(reader) && !(star && lexer->lookahead == '/')) {
                     LOOP_STEP();
-                    star = lexer->lookahead == '*';
-                    if (lexer->lookahead == '\n') {
+                    int32_t inner = lexer->lookahead;
+                    star = inner == '*';
+                    // A carriage return and the line feed after it are one line break.
+                    if (is_line_break(inner) && !(comment_carriage_return && inner == '\n')) {
                         gap->newlines++;
                     }
+                    comment_carriage_return = inner == '\r';
                     step(reader);
                 }
                 step(reader);
@@ -1025,7 +1046,7 @@ static void skip_quoted(Reader *reader) {
     TSLexer *lexer = reader->lexer;
     int32_t quote = lexer->lookahead;
     step(reader);
-    while (readable(reader) && lexer->lookahead != quote && lexer->lookahead != '\n') {
+    while (readable(reader) && lexer->lookahead != quote && !is_line_break(lexer->lookahead)) {
         LOOP_STEP();
         if (lexer->lookahead != '\\') {
             step(reader);
@@ -3424,7 +3445,7 @@ static Space skip_space_before_token(TSLexer *lexer) {
             }
             continue;
         }
-        if (c == '\n') {
+        if (is_line_break(c)) {
             space.line_break = true;
             space.spaces = 0;
         } else if (is_horizontal_space(c)) {
@@ -3528,7 +3549,7 @@ static bool skip_quoted_literal(TSLexer *lexer) {
     advance(lexer);
     for (;;) {
         LOOP_STEP();
-        if (lexer->eof(lexer) || lexer->lookahead == '\n') {
+        if (lexer->eof(lexer) || is_line_break(lexer->lookahead)) {
             return false;
         }
         if (lexer->lookahead == '\\') {
@@ -3551,7 +3572,7 @@ static bool skip_raw_string_literal(TSLexer *lexer) {
     uint32_t length = 0;
     while (lexer->lookahead != '(') {
         LOOP_STEP();
-        if (lexer->eof(lexer) || length == MAX_DELIMITER_LENGTH || lexer->lookahead == '\n') {
+        if (lexer->eof(lexer) || length == MAX_DELIMITER_LENGTH || is_line_break(lexer->lookahead)) {
             return false;
         }
         delimiter[length++] = lexer->lookahead;
@@ -3613,7 +3634,7 @@ static bool skip_block_comment_text(TSLexer *lexer, bool *line_break) {
         if (lexer->eof(lexer)) {
             return false;
         }
-        if (lexer->lookahead == '\n') {
+        if (is_line_break(lexer->lookahead)) {
             *line_break = true;
         }
         if (lexer->lookahead == '*') {
@@ -3638,7 +3659,7 @@ static bool skip_block_comment(TSLexer *lexer) {
 /// Skip the rest of a line comment. The lookahead is the character after `//`. A line splice continues
 /// the comment on the next line. The line break is not skipped.
 static void skip_line_comment(TSLexer *lexer) {
-    while (!lexer->eof(lexer) && lexer->lookahead != '\n') {
+    while (!lexer->eof(lexer) && !is_line_break(lexer->lookahead)) {
         LOOP_STEP();
         if (lexer->lookahead == '\\') {
             skip_backslash(lexer, false);
@@ -3690,7 +3711,7 @@ static ArgScan scan_preproc_arg(TSLexer *lexer) {
     for (;;) {
         LOOP_STEP();
         int32_t c = lexer->lookahead;
-        if (lexer->eof(lexer) || c == '\n' || c == '\r') {
+        if (lexer->eof(lexer) || is_line_break(c)) {
             break;
         }
         if (is_splice_space(c)) {
@@ -3752,7 +3773,7 @@ static void skip_rest_of_line(TSLexer *lexer, bool skipped_text) {
     for (;;) {
         LOOP_STEP();
         int32_t c = lexer->lookahead;
-        if (lexer->eof(lexer) || c == '\n') {
+        if (lexer->eof(lexer) || is_line_break(c)) {
             return;
         }
         if (c == '\\') {
@@ -3833,7 +3854,7 @@ static bool condition_is_empty(TSLexer *lexer) {
             LOOP_STEP();
             advance(lexer);
         }
-        if (lexer->eof(lexer) || lexer->lookahead == '\r' || lexer->lookahead == '\n') {
+        if (lexer->eof(lexer) || is_line_break(lexer->lookahead)) {
             return true;
         }
         if (lexer->lookahead != '/') {
@@ -3878,7 +3899,7 @@ static bool condition_is_false(TSLexer *lexer) {
             LOOP_STEP();
             advance(lexer);
         }
-        if (lexer->eof(lexer) || lexer->lookahead == '\r' || lexer->lookahead == '\n') {
+        if (lexer->eof(lexer) || is_line_break(lexer->lookahead)) {
             return true;
         }
         if (lexer->lookahead != '/') {
@@ -3903,7 +3924,7 @@ static bool condition_is_false(TSLexer *lexer) {
 /// content. O(n) in the length of the line.
 static void skip_line(Reader *reader, bool skipped_text) {
     TSLexer *lexer = reader->lexer;
-    while (readable(reader) && lexer->lookahead != '\n') {
+    while (readable(reader) && !is_line_break(lexer->lookahead)) {
         LOOP_STEP();
         int32_t c = lexer->lookahead;
         if (c == '\\') {
@@ -4138,7 +4159,7 @@ static bool read_to_next_directive_line(TSLexer *lexer, Name *name, bool *percen
         if (lexer->eof(lexer)) {
             return false;
         }
-        if (lexer->lookahead == '\n') {
+        if (is_line_break(lexer->lookahead)) {
             continue;
         }
         if (after_comment || (lexer->lookahead != '#' && lexer->lookahead != '%')) {
@@ -5002,7 +5023,7 @@ static bool group_is_structured(const Scanner *scanner, TSLexer *lexer, bool enu
             return false;
         }
         int32_t c = lexer->lookahead;
-        if (c == '\n') {
+        if (is_line_break(c)) {
             advance(lexer);
             line_start = true;
             scan.line_break = true;
@@ -5576,7 +5597,7 @@ static bool scan_qt_foreach_marker(TSLexer *lexer, const Scanner *scanner) {
             case '"':
             case '\'':
                 // A comma or a bracket in a quote does not count. A quote stops at the line end.
-                while (!lexer->eof(lexer) && lexer->lookahead != character && lexer->lookahead != '\n' &&
+                while (!lexer->eof(lexer) && lexer->lookahead != character && !is_line_break(lexer->lookahead) &&
                        count < MAX_QT_FOREACH_SCAN) {
                     if (lexer->lookahead == '\\') {
                         skip_literal_backslash(lexer);
@@ -7178,7 +7199,7 @@ static bool scan_ms_asm_code(TSLexer *lexer) {
         } else if (character == '}') {
             --depth;
         } else if (character == ';' || (character == '/' && lexer->lookahead == '/')) {
-            while (!lexer->eof(lexer) && lexer->lookahead != '\n') {
+            while (!lexer->eof(lexer) && !is_line_break(lexer->lookahead)) {
                 LOOP_STEP();
                 advance(lexer);
             }

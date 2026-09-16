@@ -7059,7 +7059,7 @@ fn expressions(g: &mut Grammar) {
             repeat1(choice![
                 s!(escape_sequence),
                 s!(_line_splice),
-                alias(token_immediate(prec(1, re(r"[^\n'\\]"))), s!(character)),
+                alias(token_immediate(prec(1, re(r"[^\r\n'\\]"))), s!(character)),
             ]),
             "'",
         ],

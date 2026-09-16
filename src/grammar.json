@@ -20845,7 +20845,7 @@
                     "value": 1,
                     "content": {
                       "type": "PATTERN",
-                      "value": "[^\\n'\\\\]"
+                      "value": "[^\\r\\n'\\\\]"
                     }
                   }
                 },
@@ -21048,7 +21048,7 @@
                     "value": 1,
                     "content": {
                       "type": "PATTERN",
-                      "value": "[^\\\\\"\\n]+"
+                      "value": "[^\\\\\"\\r\\n]+"
                     }
                   }
                 },
@@ -21163,7 +21163,7 @@
               "members": [
                 {
                   "type": "PATTERN",
-                  "value": "[^>\\n]"
+                  "value": "[^>\\r\\n]"
                 },
                 {
                   "type": "STRING",

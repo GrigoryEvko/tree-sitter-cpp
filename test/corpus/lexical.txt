@@ -40,6 +40,73 @@ char a = '\''; int b = '//'; int c = '/*';
         (character)))))
 
 ================================================================================
+Carriage returns as the line endings of a conditional group
+================================================================================
+
+#if A// cint x;#endifstruct S {#if Bint m;#endif};int y;
+--------------------------------------------------------------------------------
+
+(translation_unit
+  (preproc_if
+    condition: (identifier)
+    (comment)
+    (declaration
+      type: (primitive_type)
+      declarator: (identifier)))
+  (struct_specifier
+    name: (type_identifier)
+    body: (field_declaration_list
+      (preproc_if
+        condition: (identifier)
+        (field_declaration
+          type: (primitive_type)
+          declarator: (field_identifier)))))
+  (declaration
+    type: (primitive_type)
+    declarator: (identifier)))
+
+================================================================================
+Literals on lines that a carriage return ends
+================================================================================
+
+const char *s = "a";char c = 'b';int y;
+--------------------------------------------------------------------------------
+
+(translation_unit
+  (declaration
+    (type_qualifier)
+    type: (primitive_type)
+    declarator: (init_declarator
+      declarator: (pointer_declarator
+        declarator: (identifier))
+      value: (string_literal
+        (string_content))))
+  (declaration
+    type: (primitive_type)
+    declarator: (init_declarator
+      declarator: (identifier)
+      value: (char_literal
+        (character))))
+  (declaration
+    type: (primitive_type)
+    declarator: (identifier)))
+
+================================================================================
+A literal with no end in the value of a macro that a carriage return ends
+================================================================================
+
+#define A "xint y;
+--------------------------------------------------------------------------------
+
+(translation_unit
+  (preproc_def
+    name: (identifier)
+    value: (preproc_arg))
+  (declaration
+    type: (primitive_type)
+    declarator: (identifier)))
+
+================================================================================
 Template arguments of operator functions and literal operators
 ================================================================================
 

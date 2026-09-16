@@ -1575,6 +1575,11 @@ fn literals(g: &mut Grammar) {
             re("[uUlLwWfFbBdD]*"),
         ]),
     );
+    // A character literal and a string literal end at a line break, and a carriage return is also a
+    // line break. libcpp `lex_string` (gcc/libcpp/lex.cc:2867) gives "missing terminating %c
+    // character", because `_cpp_clean_line` (lex.cc:877) wrote a line feed at each of the two.
+    // Clang gives `ext_unterminated_char_or_string` in `LexCharConstant`
+    // (clang/lib/Lex/Lexer.cpp:2578) and in `LexStringLiteral` (:2342).
     g.define(
         "char_literal",
         seq![
@@ -1582,7 +1587,7 @@ fn literals(g: &mut Grammar) {
             repeat1(choice![
                 s!(escape_sequence),
                 s!(_line_splice),
-                alias(token_immediate(re(r"[^\n']")), s!(character))
+                alias(token_immediate(re(r"[^\r\n']")), s!(character))
             ]),
             "'",
         ],
@@ -1608,7 +1613,7 @@ fn literals(g: &mut Grammar) {
         seq![
             choice!["L\"", "u\"", "U\"", "u8\"", "\""],
             repeat(choice![
-                alias(token_immediate(prec(1, re(r#"[^\\"\n]+"#))), s!(string_content)),
+                alias(token_immediate(prec(1, re(r#"[^\\"\r\n]+"#))), s!(string_content)),
                 s!(escape_sequence),
                 s!(_line_splice),
             ]),
@@ -1644,9 +1649,12 @@ fn literals(g: &mut Grammar) {
             ],
         )),
     );
+    // A carriage return ends the line of a header name, as a line feed does. libcpp `lex_string`
+    // (gcc/libcpp/lex.cc:2867) gives `CPP_LESS` for a header name with no `>` on its line, and Clang
+    // `Lexer::LexAngledStringLiteral` (clang/lib/Lex/Lexer.cpp:2485) stops at each vertical white space.
     g.define(
         "system_lib_string",
-        token(seq!["<", repeat(choice![re(r"[^>\n]"), "\\>"]), ">"]),
+        token(seq!["<", repeat(choice![re(r"[^>\r\n]"), "\\>"]), ">"]),
     );
     g.define("true", token(choice!["TRUE", "true"]));
     g.define("false", token(choice!["FALSE", "false"]));
