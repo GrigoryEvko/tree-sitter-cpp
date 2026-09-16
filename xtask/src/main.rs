@@ -4,6 +4,7 @@
 
 mod corpus;
 mod differ;
+mod directives;
 mod fuzz;
 mod generate;
 mod limits;
@@ -55,6 +56,11 @@ tasks:
   parse FILE               Print the syntax tree of FILE. With -, read the standard input.
   corpus ROOT LIST OUT     Parse each file of LIST, a list of paths relative to ROOT. Write the
                            parse errors of each file to OUT, one TSV line for each file.
+  directives ROOT LIST BASELINE
+                           Check that no node outside a directive begins on a line whose first
+                           character that is not a blank is `#`. Such a node holds a token that the
+                           preprocessor discards. Fail on a site that BASELINE does not hold, and
+                           report a site of BASELINE that is gone without a failure.
   trees ROOT LIST OUT      Parse each file of LIST, and write one TSV line for each file to OUT:
                            the path, 1 if the tree has an error, a hash of the full tree that is
                            the same in each build, the node count, the byte and the kind of the
@@ -97,6 +103,7 @@ fn main() -> ExitCode {
         Some("syntax") => syntax::run(&repository(), &args[1..]),
         Some("parse") => parse::run(&args[1..]),
         Some("corpus") => corpus::run(&args[1..]),
+        Some("directives") => directives::run(&args[1..]),
         Some("trees") => trees::run(&args[1..]),
         Some("differ") => differ::run(&repository(), &args[1..]),
         Some("fuzz") => fuzz::run(&repository(), &args[1..]),

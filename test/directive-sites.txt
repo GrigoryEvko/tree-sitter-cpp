@@ -1,0 +1,11 @@
+# The nodes that begin on a directive line and are not part of a directive.
+#
+# THIS FILE IS EMPTY OF SITES, AND THE CHECK IS A HARD ZERO LINE. Each site is a defect, and
+# `cargo xtask directives ROOT LIST test/directive-sites.txt` fails on any one of them.
+#
+# The check does NOT fail when a site of this file is gone, so that a repair is never blocked by
+# the check that measures it. A commit that removes a site removes its line here in the same
+# commit. Fork commit 228aada removed the nine sites that the corpus held, and this file lost
+# their nine lines in the commit that records the zero.
+#
+# The columns of a site are the path, the line, the node kind, and the text of the line.
