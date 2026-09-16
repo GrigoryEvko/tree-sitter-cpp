@@ -12,6 +12,7 @@ mod precedence;
 mod sexp;
 mod syntax;
 mod test;
+mod ties;
 mod trees;
 mod vendor;
 
@@ -34,6 +35,14 @@ tasks:
   precedence [PARSER_C]    Print each dynamic precedence of src/grammar.json and the values of the
                            reduce actions of src/parser.c or PARSER_C. Fail when the parse table
                            holds no reduce action with a value that the grammar declares.
+  ties table               Print each action list of src/parser.c that holds more than one action,
+                           by class and by the rules that the reduce actions reduce.
+  ties corpus ROOT LIST    Parse each file of LIST with the logger of the runtime, and print each
+                           site where the order of the symbol ids selects the tree. Fail for a site
+                           that test/ties/baseline.txt does not hold. With --write-baseline before
+                           ROOT, write the sites to that file and fail for none.
+  ties trace FILE          Print the parse log of FILE. With --state N, print only the rows where
+                           the parser enters the state N.
   test [--update] [NAME]   Run the corpus tests in test/corpus. With --update, write the actual
                            tree of each failed test that has no error into the test file.
   syntax [NAME]            Parse each snippet in test/syntax, and report each parse error.
@@ -79,6 +88,7 @@ fn main() -> ExitCode {
         Some("limits") => limits::run(&repository(), &args[1..]),
         Some("precedence") => precedence::run(&repository(), &args[1..]),
         Some("test") => test::run(&repository(), &args[1..]),
+        Some("ties") => ties::run(&repository(), &args[1..]),
         Some("syntax") => syntax::run(&repository(), &args[1..]),
         Some("parse") => parse::run(&args[1..]),
         Some("corpus") => corpus::run(&args[1..]),
