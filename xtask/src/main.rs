@@ -60,6 +60,15 @@ tasks:
                            order. Fail for a file that test/ties/versions.txt does not hold.
   ties trace FILE          Print the parse log of FILE. With --state N, print only the rows where
                            the parser enters the state N.
+  ties flip ROOT LIST --reference BINARY|none [--target DIRECTORY]
+                           Build a second parser whose tie comparison is turned around, and parse
+                           each file of LIST with this build, with that build, and with the
+                           reference. Print the two answers apart: the files whose tree the commits
+                           changed, and the files whose tree DEPENDS on the order of the symbol
+                           ids. A file of the second group that the commits did not change was
+                           order-dependent before them. With --rose TIES_LOG in the place of LIST,
+                           read the files of the ROSE rows of a tie report. The command needs a
+                           second build of the workspace, and no gate runs it.
   test [--update] [NAME]   Run the corpus tests in test/corpus. With --update, write the actual
                            tree of each failed test that has no error into the test file.
   test --pins [DIRECTORY]  Write the fingerprint of the recorded tree of each example of test/corpus

@@ -106,7 +106,7 @@
 use std::collections::{BTreeMap, BTreeSet};
 use std::error::Error;
 use std::fs;
-use std::path::Path;
+use std::path::{Path, PathBuf};
 use std::sync::{Arc, Mutex};
 
 use rayon::prelude::*;
@@ -1033,9 +1033,11 @@ fn run_population(repository: &Path, args: &[String]) -> Result<(), Box<dyn Erro
         "{} counts of sites where the symbol order selects the tree that the baseline does not \
          hold. Each new site is one more tree that a later change of the grammar can flip with no \
          ERROR node. `cargo xtask ties corpus ROOT LIST` with a list of the file above gives the \
-         row and the column of each site. Repair the tie with a rule, or write the baseline again \
-         with `cargo xtask ties population --write-baseline ROOT LIST` and give the reason in the \
-         commit message.",
+         row and the column of each site, and `cargo xtask ties flip ROOT LIST --reference \
+         CACHE/<base>/target/release/xtask` says whether the tree of that file DEPENDS on the \
+         order and whether these commits changed it. Repair the tie with a rule, or write the \
+         baseline again with `cargo xtask ties population --write-baseline ROOT LIST` and give the \
+         reason in the commit message.",
         comparison.risen.len()
     )
     .into())
@@ -1080,17 +1082,291 @@ fn run_trace(args: &[String]) -> Result<(), Box<dyn Error>> {
     Ok(())
 }
 
-/// Run one of the three reports.
+/// The two rows of `ts_subtree_compare` that the flip turns around, and the rows that replace them.
+///
+/// `ts_subtree_compare` (vendor/tree-sitter/src/subtree.c) compares the numeric symbol ids of two
+/// subtrees, and `ts_parser__select_tree` takes the tree whose first differing node has the smaller
+/// id. A build with the two rows turned around takes the other tree at each tie, and a file whose
+/// tree differs between the two builds is a file that no rule decides.
+const COMPARE_ROWS: &str = "\
+    if (ts_subtree_symbol(left) < ts_subtree_symbol(right)) result = -1;
+    else if (ts_subtree_symbol(right) < ts_subtree_symbol(left)) result = 1;";
+const FLIPPED_ROWS: &str = "\
+    if (ts_subtree_symbol(left) < ts_subtree_symbol(right)) result = 1;
+    else if (ts_subtree_symbol(right) < ts_subtree_symbol(left)) result = -1;";
+
+/// A file that holds its first bytes and writes them again when it goes.
+///
+/// THE RESTORE RUNS ON EACH PATH, ALSO ON A PANIC, because `drop` runs while the panic unwinds. A
+/// build that stops in the middle must leave no changed file in the clone: the next gate reads a
+/// working tree that is not clean, and the agent then looks for a change that it did not make.
+struct Restore {
+    path: PathBuf,
+    text: String,
+}
+
+impl Restore {
+    /// Read a file and hold its bytes.
+    fn new(path: &Path) -> Result<Self, Box<dyn Error>> {
+        Ok(Self {
+            path: path.to_owned(),
+            text: fs::read_to_string(path).map_err(|e| format!("cannot read {}: {e}", path.display()))?,
+        })
+    }
+
+    /// Write a new text into the file. The drop writes the first bytes again.
+    fn write(&self, text: &str) -> Result<(), Box<dyn Error>> {
+        fs::write(&self.path, text).map_err(|e| format!("cannot write {}: {e}", self.path.display()).into())
+    }
+}
+
+impl Drop for Restore {
+    fn drop(&mut self) {
+        if let Err(error) = fs::write(&self.path, &self.text) {
+            eprintln!(
+                "ties flip: cannot write {} again: {error}. The file holds the flipped comparison, and \
+                 `git diff` gives the change. No parse of this run used it.",
+                self.path.display()
+            );
+        }
+    }
+}
+
+/// The tree of one file, as the text that `xtask parse` prints.
+fn parse_with(binary: &Path, file: &Path) -> Result<String, Box<dyn Error>> {
+    let out = std::process::Command::new(binary)
+        .arg("parse")
+        .arg(file)
+        .output()
+        .map_err(|e| format!("cannot run {} for {}: {e}", binary.display(), file.display()))?;
+    if !out.status.success() {
+        return Err(format!(
+            "{} parse {} gave {}: {}",
+            binary.display(),
+            file.display(),
+            out.status,
+            String::from_utf8_lossy(&out.stderr).trim()
+        )
+        .into());
+    }
+    Ok(String::from_utf8_lossy(&out.stdout).into_owned())
+}
+
+/// The first row where two trees differ, as the row number and the two rows.
+///
+/// `xtask parse` writes one node in each row, so the first row that differs names the two node
+/// kinds and their place.
+fn first_difference(a: &str, b: &str) -> Option<(usize, String, String)> {
+    a.lines()
+        .zip(b.lines())
+        .enumerate()
+        .find(|(_, (x, y))| x != y)
+        .map(|(index, (x, y))| (index + 1, x.trim().to_owned(), y.trim().to_owned()))
+        .or_else(|| {
+            let (rows_a, rows_b) = (a.lines().count(), b.lines().count());
+            (rows_a != rows_b).then(|| {
+                (
+                    rows_a.min(rows_b) + 1,
+                    format!("{rows_a} rows"),
+                    format!("{rows_b} rows"),
+                )
+            })
+        })
+}
+
+/// Parse each file with the parser of this build, with a build whose tie comparison is turned
+/// around, and with the parser of the reference. Report the two answers apart.
+///
+/// THE TWO ANSWERS ANSWER TWO QUESTIONS, AND A READER THAT JOINS THEM CHARGES THE WRONG COMMIT.
+/// The reference against this build says whether the commits changed the tree of a file at all.
+/// This build against the flipped build says whether the tree of that file depends on the order of
+/// the numeric symbol ids, which no rule states. A file that is order-dependent and that the
+/// commits did not change was order-dependent before them.
+///
+/// The two builds come from ONE `src/parser.c`, so the only difference between them is the
+/// runtime. Refer to task 284, where r48 ran the procedure by hand twice.
+fn run_flip(repository: &Path, args: &[String]) -> Result<(), Box<dyn Error>> {
+    const USAGE: &str = "usage: cargo xtask ties flip ROOT LIST --reference BINARY|none [--target DIRECTORY]\n       \
+                         cargo xtask ties flip ROOT --rose TIES_LOG --reference BINARY|none [--target DIRECTORY]";
+    let (mut root, mut list, mut rose, mut reference, mut target) = (None, None, None, None, None);
+    let mut rest = args.iter();
+    while let Some(argument) = rest.next() {
+        let mut value = |name: &str| -> Result<String, Box<dyn Error>> {
+            rest.next()
+                .cloned()
+                .ok_or_else(|| format!("{name} takes a value\n\n{USAGE}").into())
+        };
+        match argument.as_str() {
+            "--rose" => rose = Some(value("--rose")?),
+            "--reference" => reference = Some(value("--reference")?),
+            "--target" => target = Some(value("--target")?),
+            text if text.starts_with("--") => return Err(format!("the option {text} is unknown\n\n{USAGE}").into()),
+            text if root.is_none() => root = Some(text.to_owned()),
+            text if list.is_none() => list = Some(text.to_owned()),
+            _ => return Err(USAGE.into()),
+        }
+    }
+    let root = root.ok_or(USAGE)?;
+    // THE REFERENCE IS NOT OPTIONAL BY ACCIDENT. Step 7 of the procedure is the step that a reader
+    // skips, and without it a file that was order-dependent before the commits gets charged to
+    // them. `--reference none` states that the reader accepts that limit.
+    let reference = reference.ok_or_else(|| {
+        format!(
+            "--reference is necessary. Give the xtask of the base of the gate, which is \
+             CACHE/<base commit>/target/release/xtask, or `--reference none` to read the flip alone. \
+             Without the reference, a file that was order-dependent before these commits reads as a \
+             file that they made order-dependent.\n\n{USAGE}"
+        )
+    })?;
+    let paths: Vec<String> = match (&list, &rose) {
+        (Some(list), None) => fs::read_to_string(list)
+            .map_err(|e| format!("cannot read the file list {list}: {e}"))?
+            .lines()
+            .filter(|line| !line.is_empty())
+            .map(str::to_owned)
+            .collect(),
+        (None, Some(log)) => {
+            // The `ROSE` rows of a tie report name the files whose site count rose.
+            let text = fs::read_to_string(log).map_err(|e| format!("cannot read the tie report {log}: {e}"))?;
+            let mut names: Vec<String> = text
+                .lines()
+                .filter_map(|line| line.strip_prefix("ROSE"))
+                .filter_map(|line| line.split_whitespace().next())
+                .map(str::to_owned)
+                .collect();
+            names.sort_unstable();
+            names.dedup();
+            names
+        }
+        _ => return Err(USAGE.into()),
+    };
+    if paths.is_empty() {
+        println!("ties flip: the list holds no file, so this run compares nothing.");
+        return Ok(());
+    }
+    let normal = std::env::current_exe().map_err(|e| format!("cannot find the xtask of this build: {e}"))?;
+    let target = target.map_or_else(|| repository.join("target").join("flip"), PathBuf::from);
+    let flipped = target.join("release").join("xtask");
+
+    // The build of the flipped parser. The guard writes the file again when it goes out of scope,
+    // which is before the first parse and also on a panic.
+    {
+        let subtree = repository.join("vendor").join("tree-sitter").join("src").join("subtree.c");
+        let restore = Restore::new(&subtree)?;
+        let count = restore.text.matches(COMPARE_ROWS).count();
+        if count != 1 {
+            return Err(format!(
+                "{} holds the comparison of the symbols {count} times, and this command writes it one time. \
+                 Read `ts_subtree_compare` and write the rows of `COMPARE_ROWS` again.",
+                subtree.display()
+            )
+            .into());
+        }
+        restore.write(&restore.text.replace(COMPARE_ROWS, FLIPPED_ROWS))?;
+        println!("ties flip: the build with the comparison turned around goes to {}", target.display());
+        let status = std::process::Command::new(std::env::var("CARGO").unwrap_or_else(|_| "cargo".to_owned()))
+            .args(["build", "--release", "--workspace"])
+            .env("CARGO_TARGET_DIR", &target)
+            .current_dir(repository)
+            .status()
+            .map_err(|e| format!("cannot run cargo: {e}"))?;
+        if !status.success() {
+            return Err(format!("the build of the flipped parser gave {status}").into());
+        }
+    }
+    // The clone holds its own files again from here.
+    let dirty = std::process::Command::new("git")
+        .args(["status", "--porcelain", "--", "vendor/tree-sitter/src/subtree.c"])
+        .current_dir(repository)
+        .output()
+        .map_err(|e| format!("cannot run git: {e}"))?;
+    if !dirty.stdout.is_empty() {
+        return Err(format!(
+            "vendor/tree-sitter/src/subtree.c is not the file of the commit after the build: {}",
+            String::from_utf8_lossy(&dirty.stdout).trim()
+        )
+        .into());
+    }
+
+    let root = Path::new(&root);
+    let (mut changed, mut order) = (Vec::new(), Vec::new());
+    for rel in &paths {
+        let file = root.join(rel);
+        let ours = parse_with(&normal, &file)?;
+        let other = parse_with(&flipped, &file)?;
+        if let Some(difference) = first_difference(&ours, &other) {
+            order.push((rel.clone(), difference));
+        }
+        if reference != "none" {
+            let before = parse_with(Path::new(&reference), &file)?;
+            if let Some(difference) = first_difference(&before, &ours) {
+                changed.push((rel.clone(), difference));
+            }
+        }
+    }
+
+    let show = |title: &str, rows: &[(String, (usize, String, String))], left: &str, right: &str| {
+        println!("\n{title}: {} of {} files", rows.len(), paths.len());
+        for (rel, (row, a, b)) in rows {
+            println!("  {rel}");
+            println!("    the first difference is in row {row}");
+            println!("      {left:<10}{a}");
+            println!("      {right:<10}{b}");
+        }
+    };
+    if reference == "none" {
+        println!("\nthe commits against the reference: not measured, because --reference none");
+    } else {
+        show("the commits against the reference", &changed, "reference", "new");
+    }
+    show("the tie order", &order, "new", "flipped");
+
+    // The classes of the sites of each file whose tree depends on the order. A class names the
+    // construct, and the agent reads whether its own commit added that class.
+    for (rel, _) in &order {
+        let run = measure(root, &[rel.as_str()]);
+        let mut counts: BTreeMap<&str, usize> = BTreeMap::new();
+        for site in &run.sites {
+            *counts.entry(site.what.as_str()).or_default() += 1;
+        }
+        let list: Vec<String> = counts.iter().map(|(what, count)| format!("{count} {what}")).collect();
+        let also = changed.iter().any(|(path, _)| path == rel);
+        println!("\n{rel}");
+        println!("  the sites of this file: {}", list.join(", "));
+        if reference == "none" {
+            println!("  the reference is not measured, so this run does not say whether the commits made it so.");
+        } else if also {
+            println!("  the commits changed the tree of this file, and the tree depends on the order.");
+        } else {
+            println!("  the commits did not change the tree of this file, so it was order-dependent before them.");
+        }
+    }
+    println!(
+        "\nties flip: {} files, {} with a tree that depends on the order of the symbol ids, {}.",
+        paths.len(),
+        order.len(),
+        if reference == "none" {
+            "and the reference is not measured".to_owned()
+        } else {
+            format!("{} with a tree that the commits changed", changed.len())
+        }
+    );
+    Ok(())
+}
+
+/// Run one of the reports.
 pub fn run(repository: &Path, args: &[String]) -> Result<(), Box<dyn Error>> {
     match args.first().map(String::as_str) {
         Some("table") => run_table(repository),
+        Some("flip") => run_flip(repository, &args[1..]),
         Some("corpus") => run_corpus(repository, &args[1..]),
         Some("population") => run_population(repository, &args[1..]),
         Some("versions") => run_versions(repository, &args[1..]),
         Some("trace") => run_trace(&args[1..]),
         _ => Err("usage: cargo xtask ties table | corpus [--write-baseline] [ROOT LIST] | \
                     population [--write-baseline] ROOT LIST [--write PATH] | \
-                    versions [--write-baseline] [ROOT LIST] | trace FILE [--state N]"
+                    versions [--write-baseline] [ROOT LIST] | trace FILE [--state N] | \
+                    flip ROOT LIST --reference BINARY|none"
             .into()),
     }
 }
@@ -1230,6 +1506,48 @@ E(2,1),R(2,1,0,0),R(2,1,0,0),E(1,1),S(9),
         let ties = lists.iter().filter(|list| list.class == Class::ReduceTie).count();
         assert!(ties > 0, "the parse table holds no reduce and reduce list of equal precedence");
         assert!(lists.iter().any(|list| list.class == Class::ShiftReduce));
+    }
+
+    /// The report of the flip names the first row where two trees differ, and `xtask parse` writes
+    /// one node in each row, so that row names the two node kinds.
+    #[test]
+    fn the_first_difference_of_two_trees_is_the_first_row_that_differs() {
+        let a = "(translation_unit\n  (declaration\n    (identifier)))\n";
+        let b = "(translation_unit\n  (expression_statement\n    (identifier)))\n";
+        assert_eq!(
+            first_difference(a, b),
+            Some((2, "(declaration".to_owned(), "(expression_statement".to_owned()))
+        );
+        assert_eq!(first_difference(a, a), None);
+        // A tree with more rows differs after the last row that the two hold.
+        let short = "(translation_unit\n  (declaration\n";
+        assert_eq!(
+            first_difference(short, a),
+            Some((3, "2 rows".to_owned(), "3 rows".to_owned()))
+        );
+    }
+
+    /// The rows that the flip writes into the runtime are the rows of the runtime, turned around.
+    ///
+    /// A change of `ts_subtree_compare` that leaves the two rows in a different shape makes the
+    /// command fail with a message, and this test names the file before that happens.
+    #[test]
+    fn the_runtime_holds_the_rows_that_the_flip_turns_around() {
+        let path = repository().join("vendor").join("tree-sitter").join("src").join("subtree.c");
+        let text = fs::read_to_string(&path).expect("the runtime reads");
+        assert_eq!(
+            text.matches(COMPARE_ROWS).count(),
+            1,
+            "{} holds the comparison of the symbols of `ts_subtree_compare` one time, and the flip \
+             of task 284 writes it again",
+            path.display()
+        );
+        assert!(!text.contains(FLIPPED_ROWS), "the runtime holds the rows of the flip");
+        // The flip turns the two results around and leaves the two conditions as they are.
+        assert_eq!(
+            COMPARE_ROWS.replace("result = -1", "result = X").replace("result = 1", "result = -1").replace("result = X", "result = 1"),
+            FLIPPED_ROWS
+        );
     }
 
     fn one_group(path: &str, count: usize, what: &str) -> Group {
