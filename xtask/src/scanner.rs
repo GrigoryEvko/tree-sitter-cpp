@@ -376,6 +376,41 @@ mod seeded {
         assert!(!is_cast(&longer), "a longer name took a seed entry that is only its prefix");
     }
 
+    /// THE SEED REACHES THE OPERAND OF `alignas`, THE THIRD SOURCE OF THAT ONE LOOKUP.
+    ///
+    /// The operand is a type-id or a constant expression and a bare name is both. The construct
+    /// answers when a template head of the same declaration declares the name, and the file answers
+    /// when the scanner recorded a class head of that name. THE PROJECT ANSWERS FOR 102 SITES IN 40
+    /// FILES OF THE CORPUS WHERE THE FILE DECLARES THE NAME NOWHERE, and only a seed reaches those.
+    ///
+    /// THE GATE RUNS NO SEED, so this rule measures zero in every gate. This test is the only
+    /// evidence that it does anything at all.
+    #[test]
+    fn a_seed_reaches_the_operand_of_alignas() {
+        const SOURCE: &str = "struct S { alignas(Widget) char a; };\nstruct T { alignas(Other) char b; };\n";
+        let file = SeedFile::new("Widget\ttype\n");
+        let seed = Seed::read(file.path()).expect("the seed reads");
+
+        let unseeded = bare(SOURCE);
+        assert_eq!(
+            unseeded.root_node().to_sexp().matches("(type_descriptor").count(),
+            0,
+            "with no seed the file declares neither name and both operands are expressions"
+        );
+
+        let mut parser = parser();
+        // SAFETY: `seed` lives to the end of this test.
+        unsafe { parser.set_scanner_context(seed.as_context()) };
+        let seeded = parser.parse(SOURCE, None).expect("the parse ends");
+        let sexp = seeded.root_node().to_sexp();
+        assert_ne!(sexp, unseeded.root_node().to_sexp(), "the seed did not reach the operand");
+        // THE SEED NAMES ONE OF THE TWO. `Widget` becomes a type and `Other` stays an expression,
+        // so the rule reads the seed and does not simply take every name in that position.
+        assert_eq!(sexp.matches("(type_descriptor").count(), 1, "{sexp}");
+        assert!(sexp.contains("(alignas_qualifier (type_descriptor type: (type_identifier)))"), "{sexp}");
+        assert!(sexp.contains("(alignas_qualifier (identifier))"), "{sexp}");
+    }
+
     /// THE CONTEXT SURVIVES A PARSE THAT REUSES A TREE.
     ///
     /// `serialize` and `deserialize` do not carry the context, and they must not. The buffer is 1 KB

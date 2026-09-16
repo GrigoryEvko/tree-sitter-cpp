@@ -2182,6 +2182,8 @@ static uint16_t seed_kinds(const TSCppSeed *seed, const char *name, uint32_t len
     return 0;
 }
 
+static bool is_seed_type_name(const Scanner *scanner, const char *name, const Reader *reader);
+
 /// True when a source of the parse declares the operand of an `alignas` as a type.
 ///
 /// ONE LOOKUP WITH SEVERAL SOURCES AND A STATED ORDER OF AUTHORITY, and not several call sites that
@@ -2201,7 +2203,7 @@ static uint16_t seed_kinds(const TSCppSeed *seed, const char *name, uint32_t len
 /// second half of the order is stated here and no site of the corpus exercises it.
 ///
 /// Task 291 adds the sources one step at a time, and each step states its own count of tree changes.
-static bool is_alignas_type_name(const Scanner *scanner, const Reader *reader) {
+static bool is_alignas_type_name(const Scanner *scanner, const char *full, const Reader *reader) {
     if (scanner == NULL) {
         return false;
     }
@@ -2216,7 +2218,17 @@ static bool is_alignas_type_name(const Scanner *scanner, const Reader *reader) {
     //    that the file decides and the construct does not, a class head declares 119 and the ring
     //    reaches 111 of those. The other 98 rest on a `using` alias or a typedef, and the scanner
     //    records neither. A record of those names is a separate step with a count of its own.
-    return is_class_name(scanner, reader->word_hash) || is_loose_name(scanner, reader->word_hash);
+    if (is_class_name(scanner, reader->word_hash) || is_loose_name(scanner, reader->word_hash)) {
+        return true;
+    }
+    // 3. THE PROJECT, task 291 step 3. The seed of the parse, which holds the names that the whole
+    //    project declares as a type or as a template. 102 sites in 40 files that no source above
+    //    reaches, because the file that uses the name declares it nowhere.
+    //
+    //    THE GATE RUNS NO SEED, so this line measures zero in every gate and the only evidence that
+    //    it does anything is a tree that differs under a seed. Refer to the tests of `seeded` in
+    //    xtask/src/scanner.rs.
+    return is_seed_type_name(scanner, full, reader);
 }
 
 /// True when the seed of the parse names `name` as a type or as a template.
@@ -8418,7 +8430,7 @@ static bool scan_word_start(Scanner *scanner, TSLexer *lexer, const bool *valid_
     // as an expression. The token gives the type reading for a name that a source declares as a
     // type. The parser makes the token valid in that one position, so the validity is the evidence
     // of the position.
-    if (valid_symbols[ALIGNAS_TYPE_NAME] && is_alignas_type_name(scanner, &reader)) {
+    if (valid_symbols[ALIGNAS_TYPE_NAME] && is_alignas_type_name(scanner, full, &reader)) {
         // The end of the token is the end of the name. The scan reads past it to look at the next
         // character, and the mark holds.
         mark_end(lexer);
