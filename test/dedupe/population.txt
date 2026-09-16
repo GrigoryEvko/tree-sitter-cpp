@@ -13,7 +13,7 @@
 # WHAT IT DOES NOT PROMISE: nothing about the SITE. A file that leaves the population at one
 # site and joins it at another keeps its row, and no check here sees that.
 #
-# 2967 files, of the corpus of the fork master.
+# 2830 files, of the corpus of the fork master.
 Cataclysm-DDA/src/debug_console.cpp
 Cataclysm-DDA/src/third-party/flatbuffers/hash.h
 Cataclysm-DDA/src/third-party/fmt/base.h
@@ -98,7 +98,6 @@ Hyprland/src/helpers/MiscFunctions.cpp
 Hyprland/src/plugins/PluginAPI.cpp
 Hyprland/src/render/Renderer.cpp
 MuseScore/src/importexport/musicxml/internal/export/exportmusicxml.cpp
-MuseScore/src/notationscene/widgets/timeline.cpp
 OpenRCT2/src/openrct2/core/FileWatcher.cpp
 OpenRCT2/src/openrct2/drawing/InvalidationGrid.cpp
 OpenRCT2/src/openrct2/platform/Platform.Win32.cpp
@@ -112,7 +111,6 @@ STL/stl/src/regex.cpp
 STL/stl/src/syserror_import_lib.cpp
 STL/stl/src/xwcsxfrm.cpp
 STL/tests/std/tests/GH_001596_adl_proof_algorithms/test.compile.pass.cpp
-STL/tests/std/tests/VSO_0102478_moving_allocators/test.cpp
 STL/tests/tr1/tests/cwchar2/test.cpp
 STL/tests/tr1/tests/fstream2/test.cpp
 STL/tests/tr1/tests/istream2/test.cpp
@@ -158,14 +156,10 @@ Vulkan-Hpp/samples/utils/utils.cpp
 Vulkan-Hpp/tests/UniqueHandle/UniqueHandle.cpp
 Vulkan-Hpp/vulkan/vulkan_shared.hpp
 WebKit/Source/JavaScriptCore/b3/testb3_4.cpp
-WebKit/Source/JavaScriptCore/b3/testb3_6.cpp
 WebKit/Source/JavaScriptCore/bytecode/UnlinkedCodeBlock.cpp
 WebKit/Source/JavaScriptCore/jit/RegisterSet.h
-WebKit/Source/JavaScriptCore/runtime/MathCommon.cpp
-WebKit/Source/JavaScriptCore/runtime/Options.cpp
 WebKit/Source/JavaScriptCore/runtime/SmallStrings.cpp
 WebKit/Source/WTF/wtf/ReferenceWrapperVector.h
-WebKit/Source/WTF/wtf/glib/SocketConnection.cpp
 WebKit/Source/WTF/wtf/simde/arm/neon.h
 WebKit/Source/WTF/wtf/text/win/WCharStringExtras.h
 WebKit/Source/WTF/wtf/win/FileSystemWin.cpp
@@ -197,7 +191,6 @@ arrow/cpp/src/arrow/util/crc32_test.cc
 arrow/cpp/src/arrow/util/decimal_test.cc
 arrow/cpp/src/arrow/vendored/datetime/date.h
 arrow/cpp/src/arrow/vendored/datetime/tz.cpp
-arrow/cpp/src/arrow/vendored/double-conversion/bignum.cc
 arrow/cpp/src/arrow/vendored/whereami/whereami.cc
 arrow/cpp/src/gandiva/function_registry_arithmetic.cc
 arrow/cpp/src/parquet/stream_reader_test.cc
@@ -269,7 +262,6 @@ bde/groups/bsl/bslma/bslma_deallocateobjectproctor.t.cpp
 bde/groups/bsl/bslma/bslma_managedallocator.t.cpp
 bde/groups/bsl/bslma/bslma_managedptr.t.cpp
 bde/groups/bsl/bslma/bslma_polymorphicallocator.t.cpp
-bde/groups/bsl/bslmt/bslmt_threadlocalvariable.t.cpp
 bde/groups/bsl/bsls/bsls_byteorderutil.t.cpp
 bde/groups/bsl/bsls/bsls_byteorderutil_impl.t.cpp
 bde/groups/bsl/bsls/bsls_log.t.cpp
@@ -278,9 +270,7 @@ bde/groups/bsl/bslstl/bslstl_bidirectionaliterator.t.cpp
 bde/groups/bsl/bslstl/bslstl_forwarditerator.t.cpp
 bde/groups/bsl/bslstl/bslstl_function.xt.cpp
 bde/groups/bsl/bslstl/bslstl_hashtable.cpp
-bde/groups/bsl/bslstl/bslstl_list.h
 bde/groups/bsl/bslstl/bslstl_list.xt.cpp
-bde/groups/bsl/bslstl/bslstl_list_cpp03.h
 bde/groups/bsl/bslstl/bslstl_priorityqueue.t.cpp
 bde/groups/bsl/bslstl/bslstl_queue.t.cpp
 bde/groups/bsl/bslstl/bslstl_queue_cpp03.t.cpp
@@ -310,9 +300,6 @@ blender/extern/glog/src/symbolize.cc
 blender/extern/gtest/src/gtest-port.cc
 blender/extern/gtest/src/gtest.cc
 blender/extern/json/include/json.hpp
-blender/extern/mantaflow/preprocessed/plugin/kepsilon.cpp
-blender/extern/mantaflow/preprocessed/plugin/pressure.cpp
-blender/extern/mantaflow/preprocessed/plugin/viscosity.cpp
 blender/extern/mantaflow/preprocessed/vortexpart.cpp
 blender/extern/quadriflow/3rd/lemon-1.3.1/test/heap_test.cc
 blender/extern/quadriflow/3rd/lemon-1.3.1/test/random_test.cc
@@ -323,7 +310,6 @@ blender/intern/cycles/util/simd.h
 blender/intern/ghost/intern/GHOST_ImeWin32.cc
 blender/intern/ghost/intern/GHOST_SystemWin32.cc
 blender/intern/ghost/intern/GHOST_XrControllerModel.cc
-blender/intern/libmv/libmv/numeric/numeric.cc
 blender/intern/utfconv/utfconv.cc
 blender/source/blender/blenkernel/intern/customdata.cc
 blender/source/blender/blenkernel/intern/gpencil_geom_legacy.cc
@@ -336,9 +322,7 @@ blender/source/blender/blenlib/intern/BLI_kdopbvh.cc
 blender/source/blender/blenlib/intern/math_color_blend_inline.cc
 blender/source/blender/blenlib/intern/mesh_intersect.cc
 blender/source/blender/blenlib/intern/system_win32.cc
-blender/source/blender/bmesh/tools/bmesh_bisect_plane.cc
 blender/source/blender/bmesh/tools/bmesh_path.cc
-blender/source/blender/editors/armature/armature_utils.cc
 blender/source/blender/editors/curve/editcurve.cc
 blender/source/blender/editors/curves/intern/curves_undo.cc
 blender/source/blender/editors/grease_pencil/intern/grease_pencil_undo.cc
@@ -351,7 +335,6 @@ blender/source/blender/editors/space_view3d/view3d_gizmo_navigate_type.cc
 blender/source/blender/freestyle/intern/geometry/FitCurve.cpp
 blender/source/blender/freestyle/intern/scene_graph/SceneHash.cpp
 blender/source/blender/freestyle/intern/view_map/ViewMapBuilder.cpp
-blender/source/blender/gpu/opengl/gl_immediate.cc
 blender/source/blender/gpu/shader_tool/lexit/identifier.hh
 blender/source/blender/imbuf/intern/format_jp2.cc
 blender/source/blender/makesrna/intern/rna_access.cc
@@ -367,7 +350,6 @@ boost/libs/algorithm/test/transform_exclusive_scan_test.cpp
 boost/libs/algorithm/test/transform_inclusive_scan_test.cpp
 boost/libs/algorithm/test/transform_reduce_test.cpp
 boost/libs/asio/include/boost/asio/detail/impl/handler_tracking.ipp
-boost/libs/asio/include/boost/asio/detail/op_queue.hpp
 boost/libs/assign/test/ptr_list_inserter.cpp
 boost/libs/atomic/include/boost/atomic/detail/core_arch_ops_gcc_ppc.hpp
 boost/libs/atomic/include/boost/atomic/detail/extra_ops_gcc_ppc.hpp
@@ -407,7 +389,6 @@ boost/libs/convert/test/lcast_converter.cpp
 boost/libs/convert/test/strtol_converter.cpp
 boost/libs/core/include/boost/core/type_name.hpp
 boost/libs/core/test/lightweight_test_all_eq_test.cpp
-boost/libs/core/test/swap/swap_test_class.hpp
 boost/libs/crc/test/crc_test.cpp
 boost/libs/crc/test/crc_test2.cpp
 boost/libs/decimal/include/boost/decimal/detail/fenv_rounding.hpp
@@ -426,11 +407,7 @@ boost/libs/geometry/include/boost/geometry/srs/projections/impl/pj_datums.hpp
 boost/libs/geometry/include/boost/geometry/srs/projections/impl/pj_ellps.hpp
 boost/libs/geometry/include/boost/geometry/srs/projections/impl/pj_init.hpp
 boost/libs/geometry/include/boost/geometry/srs/projections/proj/healpix.hpp
-boost/libs/geometry/include/boost/geometry/strategies/transform/map_transformer.hpp
-boost/libs/geometry/index/test/rtree/exceptions/test_throwing.hpp
-boost/libs/geometry/index/test/rtree/exceptions/test_throwing_node.hpp
 boost/libs/geometry/test/algorithms/buffer/buffer_linestring_aimes.cpp
-boost/libs/geometry/test/strategies/matrix_transformer.cpp
 boost/libs/graph/example/edge_coloring.cpp
 boost/libs/graph/example/quick_tour.cpp
 boost/libs/graph/test/dominator_tree_test.cpp
@@ -466,12 +443,9 @@ boost/libs/intrusive/include/boost/intrusive/pointer_traits.hpp
 boost/libs/intrusive/include/boost/intrusive/treap.hpp
 boost/libs/intrusive/test/unordered_test.hpp
 boost/libs/iostreams/include/boost/iostreams/detail/streambuf/chainbuf.hpp
-boost/libs/iostreams/include/boost/iostreams/filter/newline.hpp
-boost/libs/iostreams/include/boost/iostreams/filter/symmetric.hpp
 boost/libs/iostreams/test/detail/utf8_codecvt_facet.cpp
 boost/libs/iostreams/test/gzip_test.cpp
 boost/libs/json/doc/javadoc.hpp
-boost/libs/json/include/boost/json/impl/string.ipp
 boost/libs/locale/src/encoding/wconv_converter.hpp
 boost/libs/locale/src/std/collate.cpp
 boost/libs/locale/src/win32/collate.cpp
@@ -488,7 +462,6 @@ boost/libs/math/doc/graphs/sf_graphs.cpp
 boost/libs/math/example/binomial_confidence_limits.cpp
 boost/libs/math/example/binomial_sample_sizes.cpp
 boost/libs/math/example/chi_square_std_dev_test.cpp
-boost/libs/math/example/daubechies_wavelets/daubechies_scaling_integer_grid.cpp
 boost/libs/math/example/dot_net_example/boost_math/boost_math.cpp
 boost/libs/math/example/neg_binom_confidence_limits.cpp
 boost/libs/math/example/neg_binomial_sample_sizes.cpp
@@ -513,7 +486,6 @@ boost/libs/math/test/test_next_decimal.cpp
 boost/libs/math/test/test_spherical_harmonic.hpp
 boost/libs/math/tools/lanczos_generator.cpp
 boost/libs/mp11/include/boost/mp11/integer_sequence.hpp
-boost/libs/mqtt5/test/unit/reconnect_op.cpp
 boost/libs/msm/include/boost/msm/back/state_machine.hpp
 boost/libs/msm/include/boost/msm/back11/state_machine.hpp
 boost/libs/multi_index/example/non_default_ctor.cpp
@@ -522,7 +494,6 @@ boost/libs/multi_index/include/boost/multi_index/detail/bucket_array.hpp
 boost/libs/multi_index/include/boost/multi_index/detail/seq_index_ops.hpp
 boost/libs/multi_index/test/test_copy_assignment.cpp
 boost/libs/multi_index/test/test_rank_ops.cpp
-boost/libs/multiprecision/include/boost/multiprecision/cpp_bin_float/io.hpp
 boost/libs/multiprecision/include/boost/multiprecision/cpp_int/bitwise.hpp
 boost/libs/multiprecision/include/boost/multiprecision/miller_rabin.hpp
 boost/libs/multiprecision/test/test_cpp_int_deserial.cpp
@@ -531,9 +502,6 @@ boost/libs/nowide/test/test.hpp
 boost/libs/nowide/test/test_codecvt.cpp
 boost/libs/nowide/test/test_sets.hpp
 boost/libs/nowide/test/test_traits.cpp
-boost/libs/numeric/odeint/test/diagnostic_state_type.hpp
-boost/libs/numeric/ublas/benchmarks/reference/mm_prod.cpp
-boost/libs/numeric/ublas/benchmarks/reference/mv_prod.cpp
 boost/libs/parameter/include/boost/parameter/aux_/arg_list.hpp
 boost/libs/parameter/include/boost/parameter/parameters.hpp
 boost/libs/phoenix/include/boost/phoenix/scope/detail/local_variable.hpp
@@ -562,7 +530,6 @@ boost/libs/phoenix/test/container/container_tests8b.cpp
 boost/libs/phoenix/test/container/container_tests9a.cpp
 boost/libs/phoenix/test/container/container_tests9b.cpp
 boost/libs/phoenix/test/regression/from_array.cpp
-boost/libs/pool/include/boost/pool/pool.hpp
 boost/libs/preprocessor/test/stringize.cxx
 boost/libs/process/src/detail/utf8.cpp
 boost/libs/program_options/test/cmdline_test.cpp
@@ -572,12 +539,8 @@ boost/libs/property_tree/include/boost/property_tree/json_parser/detail/wide_enc
 boost/libs/proto/include/boost/proto/detail/traits.hpp
 boost/libs/proto/include/boost/proto/detail/unpack_expr_.hpp
 boost/libs/proto/include/boost/proto/transform/detail/fold_impl.hpp
-boost/libs/ptr_container/include/boost/ptr_container/detail/static_move_ptr.hpp
 boost/libs/python/include/boost/python/signature.hpp
 boost/libs/python/src/converter/builtin_converters.cpp
-boost/libs/qvm/test/access_m_test.cpp
-boost/libs/qvm/test/access_v_test.cpp
-boost/libs/qvm/test/cross_test.cpp
 boost/libs/random/test/test_generator.ipp
 boost/libs/regex/include/boost/regex/v5/c_regex_traits.hpp
 boost/libs/regex/include/boost/regex/v5/cpp_regex_traits.hpp
@@ -613,7 +576,6 @@ boost/libs/sort/example/sample.cpp
 boost/libs/sort/example/shiftfloatsample.cpp
 boost/libs/sort/include/boost/sort/spreadsort/detail/string_sort.hpp
 boost/libs/sort/include/boost/sort/spreadsort/spreadsort.hpp
-boost/libs/spirit/example/x3/roman.cpp
 boost/libs/spirit/include/boost/spirit/home/support/char_encoding/standard_wide.hpp
 boost/libs/spirit/test/lex/auto_switch_lexerstate.cpp
 boost/libs/spirit/test/lex/bol_reset.cpp
@@ -632,14 +594,6 @@ boost/libs/test/include/boost/test/tree/test_case_template.hpp
 boost/libs/test/test/framework-ts/check-streams-on-exit.cpp
 boost/libs/test/test/framework-ts/log-formatter-test.cpp
 boost/libs/test/test/framework-ts/logger-for-tests.hpp
-boost/libs/test/test/test-organization-ts/datasets-test/array-test.cpp
-boost/libs/test/test/test-organization-ts/datasets-test/collection-test.cpp
-boost/libs/test/test/test-organization-ts/datasets-test/implicit-test.cpp
-boost/libs/test/test/test-organization-ts/datasets-test/initializer_list-test.cpp
-boost/libs/test/test/test-organization-ts/datasets-test/mono-grid-test.cpp
-boost/libs/test/test/test-organization-ts/datasets-test/mono-join-test.cpp
-boost/libs/test/test/test-organization-ts/datasets-test/mono-zip-test.cpp
-boost/libs/test/test/test-organization-ts/datasets-test/singleton-test.cpp
 boost/libs/test/test/test-organization-ts/test_unit-nested-suite-dependency.cpp
 boost/libs/test/test/utils-ts/algorithm-test.cpp
 boost/libs/test/test/writing-test-ts/assertion-construction-test.cpp
@@ -687,7 +641,6 @@ ceph/src/crimson/osd/main_config_bootstrap_helpers.cc
 ceph/src/crimson/osd/osd_operation.h
 ceph/src/crimson/osd/scheduler/scheduler.cc
 ceph/src/crimson/tools/store_bench/store-bench.cc
-ceph/src/dmclock/support/src/intrusive_heap.h
 ceph/src/erasure-code/shec/ErasureCodeShec.cc
 ceph/src/kv/rocksdb_cache/BinnedLRUCache.cc
 ceph/src/mds/CInode.cc
@@ -705,17 +658,13 @@ ceph/src/test/objectstore/test_bluefs.cc
 cgal/BGL/include/CGAL/boost/graph/IO/STL.h
 cgal/BGL/test/BGL/test_Prefix.h
 cgal/Bounding_volumes/include/CGAL/Min_annulus_d.h
-cgal/CGAL_Core/include/CGAL/CORE/ExprRep.h
-cgal/CGAL_Core/include/CGAL/CORE/Expr_impl.h
 cgal/Kernel_23/test/Kernel_23/include/CGAL/_test_fct_point_3.h
 cgal/Kernel_23/test/Kernel_23/include/CGAL/_test_further_fct_point_2.h
 cgal/Kinetic_surface_reconstruction/include/CGAL/Kinetic_surface_reconstruction_3.h
 cgal/Lab/demo/Lab/include/CGAL/IO/read_surf_trianglemesh.h
-cgal/NewKernel_d/include/CGAL/NewKernel_d/function_objects_cartesian.h
 cgal/Stream_support/include/CGAL/IO/STL.h
 cgal/Stream_support/include/CGAL/IO/STL/STL_reader.h
 cgal/Surface_mesh_deformation/test/Surface_mesh_deformation/Cactus_deformation_session_OpenMesh.cpp
-chromium/base/allocator/partition_allocator/src/partition_alloc/partition_alloc_unittest.cc
 chromium/base/allocator/partition_allocator/src/partition_alloc/shim/allocator_shim_override_ucrt_symbols_win.h
 chromium/base/debug/debugger_posix.cc
 chromium/base/debug/stack_trace_win.cc
@@ -725,14 +674,11 @@ chromium/base/logging_win.cc
 chromium/base/profiler/stack_buffer_unittest.cc
 chromium/base/profiler/stack_copier_signal_unittest.cc
 chromium/base/profiler/stack_copier_suspend_unittest.cc
-chromium/base/rand_util_unittest.cc
 chromium/base/strings/safe_sprintf_unittest.cc
 chromium/base/strings/string_util_unittest.cc
-chromium/base/strings/stringprintf_unittest.cc
 chromium/base/strings/utf_string_conversions_fuzzer.cc
 chromium/base/system/sys_info_win.cc
 chromium/base/test/file_path_reparse_point_win.cc
-chromium/base/third_party/double_conversion/double-conversion/bignum.cc
 chromium/base/third_party/symbolize/symbolize.cc
 chromium/base/win/event_trace_controller.cc
 chromium/base/win/event_trace_controller.h
@@ -747,7 +693,6 @@ chromium/base/win/win_util.cc
 chromium/cc/paint/paint_op_reader.cc
 chromium/content/browser/file_system_access/file_path_watcher/file_path_watcher_win.cc
 chromium/content/browser/renderer_host/media/media_devices_dispatcher_host.cc
-chromium/third_party/blink/renderer/core/dom/weak_identifier_map.h
 chromium/ui/views/layout/layout_types.h
 cppfront/passthrough-tests/clang-12-libstdc++-e.cpp
 cppfront/passthrough-tests/gcc-10-libstdc++-e.cpp
@@ -763,7 +708,6 @@ dolphin/Source/Core/Common/StringUtil.cpp
 dolphin/Source/Core/Core/DSP/Jit/x64/DSPEmitter.cpp
 dolphin/Source/Core/Core/IOS/USB/USB_VEN/VEN.cpp
 dolphin/Source/Core/Core/MemTools.cpp
-dolphin/Source/Core/Core/PowerPC/PowerPC.cpp
 dolphin/Source/Core/UICommon/UICommon.cpp
 dolphin/Source/Core/VideoCommon/TextureDecoder_x64.cpp
 dolphin/Source/Core/VideoCommon/VertexShaderGen.h
@@ -796,7 +740,6 @@ duckdb/third_party/zstd/compress/zstd_compress_superblock.cpp
 duckdb/third_party/zstd/compress/zstd_opt.cpp
 eigen/Eigen/src/Core/NoAlias.h
 eigen/Eigen/src/Geometry/Rotation2D.h
-eigen/Eigen/src/IterativeLinearSolvers/IncompleteLUT.h
 eigen/test/array_cwise.cpp
 eigen/test/cholesky.cpp
 eigen/test/integer_types.cpp
@@ -812,7 +755,6 @@ envoy/compat/openssl/source/SSL_get_curve_name.cc
 envoy/compat/openssl/test/test_ssl.cc
 envoy/contrib/hyperscan/matching/input_matchers/test/hyperscan_speed_test.cc
 envoy/source/common/api/posix/os_sys_calls_impl.cc
-envoy/test/common/common/log_macros_test.cc
 envoy/test/extensions/filters/udp/dns_filter/dns_filter_test.cc
 eve/include/eve/detail/function/simd/common/to_logical.hpp
 eve/include/eve/module/math/detail/generic/atan_kernel.hpp
@@ -829,10 +771,8 @@ firefox/js/src/jit/arm64/vixl/Simulator-vixl.h
 firefox/js/src/vm/CharacterEncoding.cpp
 firefox/js/src/vm/Compression.h
 firefox/layout/generic/TextDrawTarget.h
-firefox/layout/generic/WritingModes.h
 firefox/mfbt/Casting.h
 firefox/mfbt/Char16.h
-firefox/mfbt/double-conversion/double-conversion/bignum.cc
 firefox/xpcom/base/AppShutdown.cpp
 firefox/xpcom/base/nsDebugImpl.cpp
 firefox/xpcom/base/nsMemoryReporterManager.cpp
@@ -853,7 +793,6 @@ fmt/test/module-test.cc
 fmt/test/xchar-test.cc
 folly/folly/FileUtil.h
 folly/folly/algorithm/simd/detail/ContainsImpl.h
-folly/folly/container/test/TrackingTypes.h
 folly/folly/debugging/exception_tracer/ExceptionCounterLib.cpp
 folly/folly/debugging/symbolizer/SignalHandlerWindows.cpp
 folly/folly/executors/ThreadPoolExecutor.h
@@ -942,7 +881,6 @@ grpc/test/core/surface/byte_buffer_reader_test.cc
 grpc/test/core/util/gpr_time_test.cc
 grpc/third_party/upb/upb/io/tokenizer_test.cc
 grpc/third_party/upb/upb/mem/arena_test.cc
-hhvm/hphp/runtime/base/execution-context.cpp
 hhvm/hphp/runtime/base/ini-parser/zend-ini.tab.cpp
 hhvm/hphp/runtime/base/tv-refcount.h
 hhvm/hphp/runtime/ext/fileinfo/libmagic/cdf_time.cpp
@@ -954,7 +892,6 @@ hhvm/hphp/runtime/ext/imagick/imagickpixel.cpp
 hhvm/hphp/runtime/ext/mbstring/ext_mbstring.cpp
 hhvm/hphp/runtime/ext/pdo/ext_pdo.cpp
 hhvm/hphp/runtime/ext/pdo_mysql/pdo_mysql.cpp
-hhvm/hphp/runtime/ext/soap/encoding.cpp
 hhvm/hphp/runtime/ext/vsdebug/completions_command.cpp
 hhvm/hphp/runtime/vm/class.cpp
 hhvm/hphp/runtime/vm/func-inl.h
@@ -973,7 +910,6 @@ hhvm/hphp/vixl/compiler-intrinsics-vixl.cc
 hhvm/hphp/vixl/test/aarch64/test-assembler-aarch64.cc
 hhvm/hphp/vixl/test/aarch64/test-disasm-aarch64.cc
 hhvm/hphp/zend/php-crypt_r.cpp
-hhvm/hphp/zend/zend-strtod.cpp
 hhvm/third-party/fb-mysql/8.0.20/client/mysqltest.cc
 hhvm/third-party/fb-mysql/8.0.20/extra/icu/source/common/icuplug.cpp
 hhvm/third-party/fb-mysql/8.0.20/extra/icu/source/common/uloc.cpp
@@ -1037,10 +973,8 @@ hhvm/third-party/watchman/src/watchman/watcher/kqueue.cpp
 hhvm/third-party/watchman/src/watchman/watcher/portfs.cpp
 hpx/cmake/tests/cxx20_experimental_simd.cpp
 hpx/examples/performance_counters/sine/sine.cpp
-hpx/libs/core/algorithms/include/hpx/parallel/util/detail/chunk_size_iterator.hpp
 hpx/libs/core/datastructures/tests/unit/dynamic_bitset1.cpp
 hpx/libs/core/datastructures/tests/unit/dynamic_bitset4.cpp
-hpx/libs/core/iostream/include/hpx/iostream/filter/symmetric.hpp
 hpx/libs/core/lci_base/src/lci_environment.cpp
 hpx/libs/core/lcw_base/src/lcw_environment.cpp
 hpx/libs/core/prefix/src/find_prefix.cpp
@@ -1049,25 +983,13 @@ hpx/libs/core/program_options/tests/unit/cmdline.cpp
 hpx/libs/core/program_options/tests/unit/parsers.cpp
 hpx/libs/core/program_options/tests/unit/required.cpp
 hpx/libs/core/program_options/tests/unit/unicode.cpp
-hpx/libs/core/runtime_local/src/runtime_local.cpp
 hpx/libs/core/tracy/src/tracy_tls.cpp
 hpx/libs/full/performance_counters/include/hpx/performance_counters/agas_namespace_action_code.hpp
 hpx/libs/full/performance_counters/src/agas_counter_types.cpp
 hpx/libs/full/performance_counters/src/threadmanager_counter_types.cpp
 hpx/tools/inspect/length_check.cpp
-kokkos/containers/src/Kokkos_UnorderedMap.hpp
-kokkos/containers/unit_tests/TestDynViewAPI.hpp
-kokkos/core/perf_test/test_atomic.cpp
 kokkos/core/src/SYCL/Kokkos_SYCL_Instance.cpp
 kokkos/core/src/impl/Kokkos_EBO.hpp
-kokkos/core/unit_test/TestAtomics.hpp
-kokkos/core/unit_test/TestCustomScalarParallelScan.hpp
-kokkos/core/unit_test/TestMemoryPool.hpp
-kokkos/core/unit_test/TestReduce.hpp
-kokkos/core/unit_test/TestReduceCombinatorical.hpp
-kokkos/core/unit_test/TestTeamVector.hpp
-kokkos/core/unit_test/TestTeamVectorRange.hpp
-kokkos/core/unit_test/incremental/Test17_CompleteAtomic.hpp
 kokkos/tpls/googletest-1.14.0/googletest/src/gtest-port.cc
 kokkos/tpls/googletest-1.14.0/googletest/src/gtest.cc
 kokkos/tpls/mdspan/include/experimental/__p0009_bits/compressed_pair.hpp
@@ -1079,14 +1001,12 @@ libstdcxx/libstdc++-v3/include/bits/fs_path.h
 libstdcxx/libstdc++-v3/include/bits/simd_details.h
 libstdcxx/libstdc++-v3/include/experimental/bits/fs_path.h
 libstdcxx/libstdc++-v3/include/experimental/bits/simd.h
-libstdcxx/libstdc++-v3/include/ext/throw_allocator.h
 libstdcxx/libstdc++-v3/include/ext/vstring.h
 libstdcxx/libstdc++-v3/src/c++11/codecvt.cc
 libstdcxx/libstdc++-v3/src/c++11/compatibility-c++0x.cc
 libstdcxx/libstdc++-v3/src/c++11/cxx11-hash_tr1.cc
 libstdcxx/libstdc++-v3/src/c++17/fs_ops.cc
 libstdcxx/libstdc++-v3/src/c++98/hash_tr1.cc
-libunifex/test/let_value_with_stop_token_test.cpp
 llvm-project/bolt/lib/Passes/ProfileQualityStats.cpp
 llvm-project/bolt/lib/Profile/Heatmap.cpp
 llvm-project/bolt/runtime/hugify.cpp
@@ -1541,12 +1461,6 @@ llvm-project/libcxx/test/std/containers/unord/unord.set/unord.set.cnstr/iter_ite
 llvm-project/libcxx/test/std/containers/unord/unord.set/unord.set.cnstr/iter_iter_size_hash_equal_allocator.pass.cpp
 llvm-project/libcxx/test/std/containers/unord/unord.set/unord.set.cnstr/move.pass.cpp
 llvm-project/libcxx/test/std/containers/unord/unord.set/unord.set.cnstr/move_alloc.pass.cpp
-llvm-project/libcxx/test/std/containers/views/mdspan/mdspan/ctor.dh_array.pass.cpp
-llvm-project/libcxx/test/std/containers/views/mdspan/mdspan/ctor.dh_extents.pass.cpp
-llvm-project/libcxx/test/std/containers/views/mdspan/mdspan/ctor.dh_integers.pass.cpp
-llvm-project/libcxx/test/std/containers/views/mdspan/mdspan/ctor.dh_map.pass.cpp
-llvm-project/libcxx/test/std/containers/views/mdspan/mdspan/ctor.dh_map_acc.pass.cpp
-llvm-project/libcxx/test/std/containers/views/mdspan/mdspan/ctor.dh_span.pass.cpp
 llvm-project/libcxx/test/std/experimental/simd/simd.class/simd_copy.pass.cpp
 llvm-project/libcxx/test/std/experimental/simd/simd.class/simd_ctor_load.pass.cpp
 llvm-project/libcxx/test/std/experimental/simd/simd.mask.class/simd_mask_ctor_load.pass.cpp
@@ -1561,7 +1475,6 @@ llvm-project/libcxx/test/std/input.output/stream.buffers/streambuf/streambuf.pro
 llvm-project/libcxx/test/std/input.output/stream.buffers/streambuf/streambuf.protected/streambuf.put.area/setp.pass.cpp
 llvm-project/libcxx/test/std/language.support/support.limits/limits/numeric.limits.members/digits.pass.cpp
 llvm-project/libcxx/test/std/language.support/support.limits/limits/numeric.limits.members/digits10.pass.cpp
-llvm-project/libcxx/test/std/language.support/support.limits/limits/numeric.limits.members/max.pass.cpp
 llvm-project/libcxx/test/std/localization/locale.categories/category.collate/locale.collate/locale.collate.members/compare.pass.cpp
 llvm-project/libcxx/test/std/localization/locale.categories/category.monetary/locale.money.get/locale.money.get.members/get_long_double_overlong.pass.cpp
 llvm-project/libcxx/test/std/localization/locale.categories/category.time/locale.time.get.byname/get_date.pass.cpp
@@ -1823,7 +1736,6 @@ llvm-project/libcxx/test/std/utilities/function.objects/func.search/func.search.
 llvm-project/libcxx/test/std/utilities/function.objects/func.search/func.search.default/default.pred.pass.cpp
 llvm-project/libcxx/test/std/utilities/meta/meta.trans/meta.trans.sign/make_signed.pass.cpp
 llvm-project/libcxx/test/std/utilities/meta/meta.trans/meta.trans.sign/make_unsigned.pass.cpp
-llvm-project/libcxx/test/std/utilities/tuple/tuple.tuple/tuple.creation/make_tuple.pass.cpp
 llvm-project/libcxx/test/support/concat_macros.h
 llvm-project/libcxxabi/src/demangle/ItaniumDemangle.h
 llvm-project/libcxxabi/test/test_demangle.pass.cpp
@@ -1879,7 +1791,6 @@ llvm-project/llvm/lib/Support/DeltaTree.cpp
 llvm-project/llvm/lib/Support/RewriteRope.cpp
 llvm-project/llvm/lib/Support/zOSLibFunctions.cpp
 llvm-project/llvm/lib/Target/AArch64/AArch64RegisterInfo.cpp
-llvm-project/llvm/lib/Target/AArch64/GISel/AArch64PreLegalizerCombiner.cpp
 llvm-project/llvm/lib/Target/BPF/BPFISelLowering.cpp
 llvm-project/llvm/lib/Target/M68k/AsmParser/M68kAsmParser.cpp
 llvm-project/llvm/lib/Target/X86/X86ISelLoweringCall.cpp
@@ -1920,7 +1831,6 @@ mold/src/output-chunks.cc
 mold/third-party/tbb/examples/common/utility/fast_random.hpp
 mold/third-party/tbb/src/tbb/arena.cpp
 mold/third-party/tbb/src/tbb/tcm_adaptor.cpp
-mold/third-party/tbb/test/common/concurrency_tracker.h
 mold/third-party/tbb/test/conformance/conformance_limiter_node.cpp
 mold/third-party/tbb/test/tbb/test_arena_priorities.cpp
 mold/third-party/tbb/test/tbb/test_dynamic_link.cpp
@@ -1942,7 +1852,6 @@ mongo/src/mongo/db/query/stage_builder/sbe/tests/abt_unit_test_literals.h
 mongo/src/mongo/db/server_options_helpers.cpp
 mongo/src/mongo/db/shard_role/lock_manager/lock_manager.cpp
 mongo/src/mongo/db/shard_role/lock_manager/lock_manager_defs.h
-mongo/src/mongo/db/shard_role/shard_catalog/shard_filtering_metadata_refresh_test.cpp
 mongo/src/mongo/db/sorter/sorter_test.cpp
 mongo/src/mongo/shell/program_runner.cpp
 mongo/src/mongo/util/dns_query_test.cpp
@@ -1967,8 +1876,6 @@ mongo/src/third_party/abseil-cpp/dist/absl/time/duration_benchmark.cc
 mongo/src/third_party/abseil-cpp/dist/absl/time/format_benchmark.cc
 mongo/src/third_party/abseil-cpp/dist/absl/time/internal/cctz/src/cctz_benchmark.cc
 mongo/src/third_party/asio/dist/asio/include/asio/detail/impl/handler_tracking.ipp
-mongo/src/third_party/asio/dist/asio/include/asio/detail/object_pool.hpp
-mongo/src/third_party/asio/dist/asio/include/asio/detail/op_queue.hpp
 mongo/src/third_party/boost/boost/atomic/detail/core_arch_ops_gcc_ppc.hpp
 mongo/src/third_party/boost/boost/atomic/detail/extra_ops_gcc_ppc.hpp
 mongo/src/third_party/boost/boost/container/allocator_traits.hpp
@@ -1991,8 +1898,6 @@ mongo/src/third_party/boost/boost/regex/v5/regex_traits_defaults.hpp
 mongo/src/third_party/boost/boost/regex/v5/w32_regex_traits.hpp
 mongo/src/third_party/boost/boost/type_traits/type_with_alignment.hpp
 mongo/src/third_party/boost/libs/asio/include/boost/asio/detail/impl/handler_tracking.ipp
-mongo/src/third_party/boost/libs/asio/include/boost/asio/detail/object_pool.hpp
-mongo/src/third_party/boost/libs/asio/include/boost/asio/detail/op_queue.hpp
 mongo/src/third_party/boost/libs/chrono/include/boost/chrono/io/duration_units.hpp
 mongo/src/third_party/boost/libs/chrono/include/boost/chrono/io/time_point_io.hpp
 mongo/src/third_party/boost/libs/chrono/include/boost/chrono/io/time_point_units.hpp
@@ -2010,8 +1915,6 @@ mongo/src/third_party/boost/libs/intrusive/include/boost/intrusive/hashtable.hpp
 mongo/src/third_party/boost/libs/intrusive/include/boost/intrusive/pointer_traits.hpp
 mongo/src/third_party/boost/libs/intrusive/include/boost/intrusive/treap.hpp
 mongo/src/third_party/boost/libs/iostreams/include/boost/iostreams/detail/streambuf/chainbuf.hpp
-mongo/src/third_party/boost/libs/iostreams/include/boost/iostreams/filter/newline.hpp
-mongo/src/third_party/boost/libs/iostreams/include/boost/iostreams/filter/symmetric.hpp
 mongo/src/third_party/boost/libs/locale/src/encoding/wconv_converter.hpp
 mongo/src/third_party/boost/libs/locale/src/std/collate.cpp
 mongo/src/third_party/boost/libs/locale/src/win32/collate.cpp
@@ -2027,11 +1930,8 @@ mongo/src/third_party/boost/libs/math/include/boost/math/special_functions/zeta.
 mongo/src/third_party/boost/libs/math/tools/lanczos_generator.cpp
 mongo/src/third_party/boost/libs/multi_index/include/boost/multi_index/detail/bucket_array.hpp
 mongo/src/third_party/boost/libs/multi_index/include/boost/multi_index/detail/seq_index_ops.hpp
-mongo/src/third_party/boost/libs/multiprecision/include/boost/multiprecision/cpp_bin_float/io.hpp
 mongo/src/third_party/boost/libs/multiprecision/include/boost/multiprecision/cpp_int/bitwise.hpp
 mongo/src/third_party/boost/libs/multiprecision/include/boost/multiprecision/miller_rabin.hpp
-mongo/src/third_party/boost/libs/numeric/ublas/benchmarks/reference/mm_prod.cpp
-mongo/src/third_party/boost/libs/numeric/ublas/benchmarks/reference/mv_prod.cpp
 mongo/src/third_party/boost/libs/parameter/include/boost/parameter/aux_/arg_list.hpp
 mongo/src/third_party/boost/libs/parameter/include/boost/parameter/parameters.hpp
 mongo/src/third_party/boost/libs/phoenix/include/boost/phoenix/scope/detail/local_variable.hpp
@@ -2088,7 +1988,6 @@ mongo/src/third_party/icu4c-57.1/source/i18n/reldtfmt.cpp
 mongo/src/third_party/icu4c-57.1/source/i18n/unesctrn.cpp
 mongo/src/third_party/mozjs/extract/js/src/frontend/NameFunctions.cpp
 mongo/src/third_party/mozjs/extract/js/src/frontend/TokenStream.cpp
-mongo/src/third_party/mozjs/extract/js/src/gc/Heap-inl.h
 mongo/src/third_party/mozjs/extract/js/src/jit/CacheIRAOT.cpp
 mongo/src/third_party/mozjs/extract/js/src/jit/MacroAssembler.cpp
 mongo/src/third_party/mozjs/extract/js/src/jit/PerfSpewer.cpp
@@ -2105,7 +2004,6 @@ mongo/src/third_party/mozjs/extract/js/src/vm/Compression.h
 mongo/src/third_party/mozjs/extract/js/src/wasm/WasmGC.h
 mongo/src/third_party/mozjs/extract/mfbt/Casting.h
 mongo/src/third_party/mozjs/extract/mfbt/Char16.h
-mongo/src/third_party/mozjs/extract/mfbt/double-conversion/double-conversion/bignum.cc
 mongo/src/third_party/mozjs/extract/mozglue/misc/PreXULSkeletonUI.cpp
 mongo/src/third_party/mozjs/extract/mozglue/misc/TimeStamp_darwin.cpp
 mongo/src/third_party/mozjs/extract/mozglue/misc/TimeStamp_posix.cpp
@@ -2155,7 +2053,6 @@ nlohmann-json/tests/thirdparty/Fuzzer/afl/afl_driver.cpp
 oneTBB/examples/common/utility/fast_random.hpp
 oneTBB/src/tbb/arena.cpp
 oneTBB/src/tbb/tcm_adaptor.cpp
-oneTBB/test/common/concurrency_tracker.h
 oneTBB/test/conformance/conformance_limiter_node.cpp
 oneTBB/test/tbb/test_arena_priorities.cpp
 oneTBB/test/tbb/test_dynamic_link.cpp
@@ -2308,7 +2205,6 @@ opencv/modules/imgproc/src/color_rgb.simd.hpp
 opencv/modules/imgproc/src/deriv.cpp
 opencv/modules/imgproc/src/distransform.cpp
 opencv/modules/imgproc/src/drawing_text.cpp
-opencv/modules/imgproc/src/emd_new.cpp
 opencv/modules/imgproc/src/filter.dispatch.cpp
 opencv/modules/imgproc/src/filter.simd.hpp
 opencv/modules/imgproc/src/histogram.cpp
@@ -2342,13 +2238,11 @@ opencv/modules/objdetect/test/test_chesscorners.cpp
 opencv/modules/objdetect/test/test_qrcode.cpp
 opencv/modules/objdetect/test/test_qrcode_encode.cpp
 opencv/modules/photo/src/fast_nlmeans_denoising_opencl.hpp
-opencv/modules/photo/src/intelligent_scissors.cpp
 opencv/modules/stereo/src/stereobm.cpp
 opencv/modules/stereo/src/stereosgbm.cpp
 opencv/modules/ts/src/ts_gtest.cpp
 opencv/modules/video/src/optflowgf.cpp
 opencv/modules/video/src/tracking/tracker_nano.cpp
-opencv/modules/video/test/test_ecc.cpp
 opencv/modules/videoio/src/cap_dshow.cpp
 opencv/modules/videoio/src/cap_mjpeg_encoder.cpp
 opencv/modules/videoio/src/videoio_registry.cpp
@@ -2429,7 +2323,6 @@ qtbase/qmake/property.cpp
 qtbase/qmake/qmakelibraryinfo.cpp
 qtbase/src/3rdparty/D3D12MemoryAllocator/D3D12MemAlloc.cpp
 qtbase/src/3rdparty/VulkanMemoryAllocator/vk_mem_alloc.h
-qtbase/src/3rdparty/double-conversion/double-conversion/bignum.cc
 qtbase/src/3rdparty/harfbuzz-ng/src/OT/Color/CPAL/CPAL.hh
 qtbase/src/3rdparty/harfbuzz-ng/src/hb-aat-layout-morx-table.hh
 qtbase/src/3rdparty/harfbuzz-ng/src/hb-algs.hh
@@ -2469,7 +2362,6 @@ qtbase/src/corelib/io/qstandardpaths_win.cpp
 qtbase/src/corelib/io/qstorageinfo_win.cpp
 qtbase/src/corelib/kernel/qcoreapplication_win.cpp
 qtbase/src/corelib/kernel/qjnihelpers.cpp
-qtbase/src/corelib/kernel/qproperty.cpp
 qtbase/src/corelib/kernel/qwinregistry.cpp
 qtbase/src/corelib/text/qanystringview.h
 qtbase/src/corelib/text/qchar.h
@@ -2487,7 +2379,6 @@ qtbase/src/gui/painting/qpagesize.cpp
 qtbase/src/gui/rhi/qrhigles2.cpp
 qtbase/src/gui/rhi/qrhivulkan.cpp
 qtbase/src/gui/text/qfontdatabase.cpp
-qtbase/src/gui/text/qfontengine.cpp
 qtbase/src/gui/text/qfontsubset_agl.cpp
 qtbase/src/gui/text/qharfbuzzng.cpp
 qtbase/src/gui/text/qtexthtmlparser.cpp
@@ -2582,7 +2473,6 @@ range-v3/include/range/v3/detail/variant.hpp
 range-v3/include/range/v3/utility/compressed_pair.hpp
 range-v3/include/range/v3/utility/tagged_tuple.hpp
 range-v3/include/range/v3/utility/tuple_algorithm.hpp
-range-v3/include/range/v3/view/chunk.hpp
 range-v3/include/range/v3/view/concat.hpp
 range-v3/include/range/v3/view/split.hpp
 range-v3/test/algorithm/includes.cpp
@@ -2633,10 +2523,7 @@ root/gui/guihtml/src/TGHtmlDraw.cxx
 root/gui/guihtml/src/TGHtmlForm.cxx
 root/gui/guihtml/src/TGHtmlImage.cxx
 root/gui/guihtml/src/TGHtmlParse.cxx
-root/gui/guihtml/src/TGHtmlTable.cxx
 root/hist/hist/src/TConfidenceLevel.cxx
-root/hist/hist/src/TMultiDimFit.cxx
-root/hist/hist/src/TVirtualFitter.cxx
 root/interpreter/cling/lib/Interpreter/ValuePrinter.cpp
 root/interpreter/cling/lib/Utils/PlatformWin.cpp
 root/interpreter/cling/lib/Utils/UTF8.cpp
@@ -2659,7 +2546,6 @@ root/interpreter/llvm-project/llvm/lib/Support/DeltaTree.cpp
 root/interpreter/llvm-project/llvm/lib/Support/RewriteRope.cpp
 root/interpreter/llvm-project/llvm/lib/Support/zOSLibFunctions.cpp
 root/interpreter/llvm-project/llvm/lib/Target/AArch64/AArch64RegisterInfo.cpp
-root/interpreter/llvm-project/llvm/lib/Target/AArch64/GISel/AArch64PreLegalizerCombiner.cpp
 root/interpreter/llvm-project/llvm/lib/Target/BPF/BPFISelLowering.cpp
 root/interpreter/llvm-project/llvm/lib/Target/M68k/AsmParser/M68kAsmParser.cpp
 root/interpreter/llvm-project/llvm/lib/Target/X86/X86ISelLoweringCall.cpp
@@ -2667,27 +2553,18 @@ root/interpreter/llvm-project/llvm/lib/Transforms/Scalar/CallSiteSplitting.cpp
 root/interpreter/llvm-project/llvm/lib/WindowsDriver/MSVCPaths.cpp
 root/io/io/src/TMakeProject.cxx
 root/math/genvector/test/vectorOperation.cxx
-root/math/minuit/src/TLinearFitter.cxx
-root/math/minuit2/src/BFGSErrorUpdator.cxx
 root/math/minuit2/test/MnSim/GaussianModelFunction.h
-root/math/physics/src/TRobustEstimator.cxx
 root/roofit/roofit/test/vectorisedPDFs/VectorisedPDFTests.cxx
-root/roofit/xroofit/src/xRooNode.cxx
 root/roottest/root/core/assertHumanReadable.cxx
 root/roottest/root/io/datamodelevolution/00/DataModelV1.h
 root/roottest/root/io/datamodelevolution/00/DataModelV2.h
 root/roottest/root/io/datamodelevolution/00/DataModelV3.h
 root/roottest/root/meta/genreflex/iorules/DataModelV2genreflex.h
-root/test/Tetris.cxx
 root/test/stressGraphics.cxx
 root/test/stressLinear.cxx
 root/tmva/sofie/inc/TMVA/RModel.hxx
 root/tmva/sofie/inc/TMVA/ROperator_Shape.hxx
 root/tmva/tmva/inc/TMVA/DNN/DeepNet.h
-root/tmva/tmva/src/DNN/Architectures/Cpu/Propagation.hxx
-root/tmva/tmva/src/DNN/Architectures/Reference/DenoisePropagation.hxx
-root/tmva/tmva/src/DNN/Architectures/Reference/Propagation.hxx
-root/tmva/tmva/src/DataSetFactory.cxx
 root/tmva/tmva/src/OptimizeConfigParameters.cxx
 root/tmva/tmva/test/DNN/TestMinimization.h
 root/tree/dataframe/src/RDFActionHelpers.cxx
@@ -2702,7 +2579,6 @@ rpcs3/rpcs3/Emu/Cell/SPUThread.cpp
 rpcs3/rpcs3/Emu/Cell/lv2/sys_net.cpp
 rpcs3/rpcs3/Emu/Cell/lv2/sys_prx.cpp
 rpcs3/rpcs3/Emu/Io/usb_microphone.cpp
-rpcs3/rpcs3/Emu/NP/signaling_handler.cpp
 rpcs3/rpcs3/Emu/RSX/Common/texture_cache.h
 rpcs3/rpcs3/Emu/RSX/GL/upscalers/fsr1/fsr_pass.cpp
 rpcs3/rpcs3/Emu/RSX/Overlays/overlay_controls.cpp
@@ -2824,19 +2700,12 @@ tensorflow/tensorflow/compiler/tf2tensorrt/convert/convert_nodes.cc
 tensorflow/tensorflow/compiler/tf2tensorrt/convert/convert_nodes_test.cc
 tensorflow/tensorflow/core/distributed_runtime/rpc/grpc_master_service_impl.cc
 tensorflow/tensorflow/core/framework/tensor.h
-tensorflow/tensorflow/core/kernels/concat_op.cc
 tensorflow/tensorflow/core/kernels/fact_op.cc
-tensorflow/tensorflow/core/kernels/fill_empty_rows_functor.h
-tensorflow/tensorflow/core/kernels/fuzzing/scatter_nd_fuzz.cc
-tensorflow/tensorflow/core/kernels/image/scale_and_translate_op.cc
 tensorflow/tensorflow/core/kernels/mkl/mkl_pooling_ops_common.cc
 tensorflow/tensorflow/core/kernels/ops_util_test.cc
 tensorflow/tensorflow/core/kernels/spectrogram_test_utils.cc
 tensorflow/tensorflow/core/profiler/internal/tfprof_tensor.h
 tensorflow/tensorflow/core/util/example_proto_fast_parsing_test.cc
-tensorflow/tensorflow/core/util/example_proto_helper_test.cc
-tensorflow/tensorflow/examples/adding_an_op/zero_out_op_kernel_1.cc
-tensorflow/tensorflow/examples/adding_an_op/zero_out_op_kernel_3.cc
 tensorflow/tensorflow/lite/core/subgraph.cc
 tensorflow/tensorflow/lite/delegates/gpu/common/model_builder_helper_test.cc
 tensorflow/tensorflow/lite/delegates/gpu/common/model_builder_test.cc
@@ -2864,14 +2733,11 @@ tensorflow/tensorflow/lite/kernels/internal/optimized/integer_ops/depthwise_conv
 tensorflow/tensorflow/lite/kernels/internal/optimized/integer_ops/pooling.h
 tensorflow/tensorflow/lite/kernels/internal/optimized/optimized_ops.h
 tensorflow/tensorflow/lite/python/interpreter_wrapper/interpreter_wrapper.cc
-tensorflow/tensorflow/lite/testing/tf_driver.cc
 tensorflow/tensorflow/lite/toco/tooling_util.cc
 tensorflow/tensorflow/lite/tools/versioning/op_signature_test.cc
 tensorflow/tensorflow/tools/android/test/jni/object_tracking/flow_cache.h
 tensorflow/tensorflow/tools/android/test/jni/object_tracking/image.h
-tensorflow/tensorflow/tools/ci_build/builds/user_ops/zero_out_op_kernel_1.cc
 tensorflow/third_party/xla/third_party/tsl/tsl/platform/ctstring_test.cc
-tensorflow/third_party/xla/xla/backends/gpu/transforms/scatter_determinism_expander.cc
 tensorflow/third_party/xla/xla/pjrt/gpu/se_gpu_pjrt_client_test.cc
 tensorflow/third_party/xla/xla/printer.cc
 tensorflow/third_party/xla/xla/stream_executor/cuda/cuda_dnn.cc
@@ -2911,9 +2777,6 @@ terminal/src/propslib/DelegationConfig.cpp
 terminal/src/server/ApiDispatchers.cpp
 terminal/src/server/DeviceHandle.cpp
 terminal/src/server/IoDispatchers.cpp
-terminal/src/terminal/adapter/SixelParser.cpp
-terminal/src/terminal/adapter/ut_adapter/inputTest.cpp
-terminal/src/terminal/input/terminalInput.cpp
 terminal/src/tools/ConsoleBench/conhost.cpp
 terminal/src/tools/ConsoleBench/utils.cpp
 terminal/src/tools/U8U16Test/main.cpp
