@@ -168,7 +168,14 @@ tasks:
                            vendor/upstream as the base, and it writes the conflict markers of
                            `git merge-file` into each file with a conflict.
   vendor --check           Compare the pristine sources in vendor/upstream with the hashes of the
-                           last update.";
+                           last update.
+  identity                 Print the identity of the parser that this binary links: the CRC-32 and
+                           the length of src/parser.c and of src/scanner.c, the identity of the whole
+                           src directory of its build, and the ABI
+                           version of the language. A measurement compares the two values with the
+                           files of the tree that it means to measure. A binary that a build did not
+                           relink keeps the parser of its last link, and a scan with it measures a
+                           different commit.";
 
 /// The directory of the repository: the parent directory of the xtask crate.
 fn repository() -> PathBuf {
@@ -176,6 +183,22 @@ fn repository() -> PathBuf {
         .parent()
         .expect("the xtask crate is in a directory of the repository")
         .to_owned()
+}
+
+/// Print the identity of the parser that this binary links.
+///
+/// The build script of the crate writes the CRC-32 and the length of `src/parser.c` and of
+/// `src/scanner.c` into each binary that links the parser. `cargo build --release` in the tree
+/// builds the root package only, so a binary of another package keeps the parser of its last link.
+/// A scan with that binary gives whole tables with no error, and it measures a different commit.
+/// `bin/identity.py check` compares these values with the files of a tree.
+fn identity() -> Result<(), Box<dyn Error>> {
+    println!("parser_c {}", tree_sitter_cpp::PARSER_C_IDENTITY);
+    println!("scanner_c {}", tree_sitter_cpp::SCANNER_C_IDENTITY);
+    println!("src_tree {}", tree_sitter_cpp::SRC_IDENTITY);
+    let language = tree_sitter::Language::from(tree_sitter_cpp::LANGUAGE);
+    println!("abi_version {}", language.abi_version());
+    Ok(())
 }
 
 fn main() -> ExitCode {
@@ -196,6 +219,7 @@ fn main() -> ExitCode {
         Some("fuzz") => fuzz::run(&repository(), &args[1..]),
         Some("seed") => seedcollect::run(&args[1..]),
         Some("vendor") => vendor::run(&repository(), &args[1..]),
+        Some("identity") => identity(),
         // The child process of `fuzz`. The usage does not show it.
         Some("fuzz-worker") => fuzz::worker(),
         _ => Err(USAGE.into()),
@@ -206,5 +230,87 @@ fn main() -> ExitCode {
             eprintln!("{error}");
             ExitCode::FAILURE
         }
+    }
+}
+
+#[cfg(test)]
+mod identity_tests {
+    use std::path::Path;
+
+    /// The table of the CRC-32 of each byte value, for the polynomial of IEEE 802.3.
+    fn crc_table() -> [u32; 256] {
+        let mut table = [0u32; 256];
+        for (index, slot) in table.iter_mut().enumerate() {
+            let mut value = index as u32;
+            for _ in 0..8 {
+                let mask = (value & 1).wrapping_neg();
+                value = (value >> 1) ^ (0xEDB8_8320 & mask);
+            }
+            *slot = value;
+        }
+        table
+    }
+
+    /// Add the bytes to a running CRC-32.
+    fn crc_bytes(crc: u32, bytes: &[u8], table: &[u32; 256]) -> u32 {
+        let mut value = crc;
+        for byte in bytes {
+            value = (value >> 8) ^ table[((value ^ u32::from(*byte)) & 0xFF) as usize];
+        }
+        value
+    }
+
+    /// The identity of one file: the CRC-32 of its bytes and its length, as `CRC:LENGTH`.
+    ///
+    /// The function is a second implementation of the one in `bindings/rust/build.rs`. The test
+    /// below compares the two over the real sources, so a change of one of them fails the test.
+    /// The complexity is O(n) in the size of the file.
+    fn identity(path: &Path) -> String {
+        let bytes = std::fs::read(path).unwrap_or_else(|error| panic!("cannot read {}: {error}", path.display()));
+        let crc = crc_bytes(0xFFFF_FFFF, &bytes, &crc_table());
+        format!("{:08x}:{}", !crc, bytes.len())
+    }
+
+    /// The identity of a directory of sources, as `bindings/rust/build.rs` writes it.
+    ///
+    /// The files come in the order of their relative paths, and each one adds its path, a zero byte
+    /// and its bytes to the running value. The complexity is O(n) in the bytes of the directory.
+    fn directory_identity(root: &Path) -> String {
+        let mut files = Vec::new();
+        let mut stack = vec![root.to_owned()];
+        while let Some(directory) = stack.pop() {
+            for entry in std::fs::read_dir(&directory).expect("the directory must be readable") {
+                let path = entry.expect("the entry must be readable").path();
+                if path.is_dir() {
+                    stack.push(path);
+                } else {
+                    let relative = path.strip_prefix(root).expect("each file is under the root").to_string_lossy().replace('\\', "/");
+                    files.push((relative, path));
+                }
+            }
+        }
+        files.sort();
+        let table = crc_table();
+        let mut crc = 0xFFFF_FFFFu32;
+        for (relative, path) in &files {
+            let bytes = std::fs::read(path).expect("the file must be readable");
+            crc = crc_bytes(crc, relative.as_bytes(), &table);
+            crc = crc_bytes(crc, b" ", &table);
+            crc = crc_bytes(crc, &bytes, &table);
+        }
+        format!("{:08x}:{}", !crc, files.len())
+    }
+
+    /// The identity of the build is the identity of the two C sources of the tree.
+    ///
+    /// A build that does not relink a binary keeps the parser of its last link, and a scan with that
+    /// binary measures a different commit. The check of a measurement compares the value that this
+    /// crate holds with the file of a tree, so the value must be the value of the file.
+    #[test]
+    fn the_identity_of_the_build_is_the_identity_of_the_sources() {
+        let root = super::repository();
+        assert_eq!(identity(&root.join("src/parser.c")), tree_sitter_cpp::PARSER_C_IDENTITY);
+        assert_eq!(identity(&root.join("src/scanner.c")), tree_sitter_cpp::SCANNER_C_IDENTITY);
+        assert_eq!(directory_identity(&root.join("src")), tree_sitter_cpp::SRC_IDENTITY);
     }
 }

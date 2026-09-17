@@ -45,6 +45,26 @@ pub fn seed_version() -> u32 {
     unsafe { tree_sitter_cpp_seed_version() }
 }
 
+/// The identity of `src/parser.c` that this build links: the CRC-32 of the file and its length, as
+/// `CRC:LENGTH`.
+///
+/// `cargo build --release` in the tree builds the root package only, so it does not relink a binary
+/// of another package, and that binary keeps the parser of its last link. A scan with it gives whole
+/// tables with no error, and it measures a different commit. A measurement compares this value with
+/// the file of the tree that it means to measure, and `xtask identity` prints it.
+pub const PARSER_C_IDENTITY: &str = env!("TS_CPP_PARSER_C_IDENTITY");
+
+/// The identity of `src/scanner.c` that this build links. Refer to [`PARSER_C_IDENTITY`].
+pub const SCANNER_C_IDENTITY: &str = env!("TS_CPP_SCANNER_C_IDENTITY");
+
+/// The identity of the whole `src` directory of this build: the CRC-32 over the relative path and
+/// the bytes of each file, and the number of files, as `CRC:COUNT`.
+///
+/// THE IDENTITY OF A BUILD DEPENDS ON EVERY SOURCE THAT THE BUILD READS. A build script that listed
+/// the two C files only kept the library of the version before a change of `src/seed.h`, and the
+/// reader then refused every seed with a message that named two trees that are in fact one.
+pub const SRC_IDENTITY: &str = env!("TS_CPP_SRC_IDENTITY");
+
 /// The content of the [`node-types.json`][] file for this grammar.
 ///
 /// [`node-types.json`]: https://tree-sitter.github.io/tree-sitter/using-parsers#static-node-types
