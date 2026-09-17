@@ -130,6 +130,9 @@ struct Generator {
     abi_version: usize,
     metadata: Option<Metadata>,
     str_pool: StrPool,
+    // True when the external scanner defines `<name>_external_scanner_set_context`, from the key
+    // `external_scanner_set_context` of grammar.json (tree-sitter-cpp fork).
+    external_scanner_set_context: bool,
 }
 
 struct LargeCharacterSetInfo {
@@ -1796,11 +1799,14 @@ impl Generator {
                 self,
                 "void {external_scanner_name}_deserialize(void *, const char *, unsigned);",
             );
-            // The entry point that takes the context of the parser (tree-sitter-cpp fork).
-            add_line!(
-                self,
-                "void {external_scanner_name}_set_context(void *, const void *);",
-            );
+            // The entry point that takes the context of the parser, only for a grammar that declares
+            // it, because a scanner that does not define it gives a link error (tree-sitter-cpp fork).
+            if self.external_scanner_set_context {
+                add_line!(
+                    self,
+                    "void {external_scanner_name}_set_context(void *, const void *);",
+                );
+            }
             add_line!(self, "");
         }
 
@@ -1932,9 +1938,9 @@ impl Generator {
         add_line!(self, ".state_value_offset = ts_state_value_offset,");
         add_line!(self, ".state_values = ts_state_values,");
         // The entry point of the external scanner that takes the context of the parser, the last
-        // field of TSLanguage (tree-sitter-cpp fork, ABI 1017). A grammar with no external scanner
-        // keeps it null.
-        if !self.syntax_grammar.external_tokens.is_empty() {
+        // field of TSLanguage (tree-sitter-cpp fork, ABI 1017). A grammar with no external scanner,
+        // or with a scanner that does not declare the entry point in grammar.json, keeps it null.
+        if !self.syntax_grammar.external_tokens.is_empty() && self.external_scanner_set_context {
             add_line!(
                 self,
                 ".external_scanner_set_context = {external_scanner_name}_set_context,"
@@ -2235,6 +2241,7 @@ pub fn render_c_code(
     abi_version: usize,
     semantic_version: Option<(u8, u8, u8)>,
     supertype_symbol_map: BTreeMap<Symbol, Vec<ChildType>>,
+    external_scanner_set_context: bool,
 ) -> RenderResult<String> {
     if !(ABI_VERSION_MIN..=ABI_VERSION_MAX).contains(&abi_version) {
         Err(RenderError::ABI(abi_version))?;
@@ -2258,6 +2265,7 @@ pub fn render_c_code(
         }),
         supertype_symbol_map,
         str_pool,
+        external_scanner_set_context,
         ..Default::default()
     }
     .generate()

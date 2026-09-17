@@ -211,4 +211,50 @@ mod tests {
         assert!(tree_sitter::is_supported_language_version(1017));
         assert!(!tree_sitter::is_supported_language_version(1019));
     }
+
+    /// The generator writes the entry point `<name>_external_scanner_set_context` only for a grammar
+    /// whose grammar.json sets `external_scanner_set_context`. The scanner of an upstream grammar
+    /// does not define the function, and a parser that names it does not link: 209 of 308 tests of the
+    /// tree-sitter CLI failed with the fixtures that the generator of the fork wrote. This grammar sets
+    /// the key, so its parser keeps the entry point.
+    #[test]
+    fn the_generator_names_the_scanner_context_entry_point_only_for_a_grammar_that_declares_it() {
+        let grammar = |key: &str| {
+            format!(
+                r#"{{"name": "probe", "rules": {{"source": {{"type": "SYMBOL", "name": "token"}}}},
+                "externals": [{{"type": "SYMBOL", "name": "token"}}]{key}}}"#
+            )
+        };
+        let render = |json: &str| {
+            let mut diagnostics = Vec::new();
+            let (name, code) =
+                tree_sitter_generate::generate_parser_for_grammar(
+                    json,
+                    None,
+                    tree_sitter_generate::OptLevel::default(),
+                    &mut diagnostics,
+                )
+                    .expect("the probe grammar generates");
+            assert_eq!(name, "probe");
+            code
+        };
+        let undeclared = render(&grammar(""));
+        assert!(undeclared.contains("tree_sitter_probe_external_scanner_scan"), "the probe has a scanner");
+        assert!(
+            !undeclared.contains("_set_context"),
+            "a grammar that does not declare the entry point must not name it"
+        );
+        let declared = render(&grammar(r#", "external_scanner_set_context": true"#));
+        assert!(declared.contains("void tree_sitter_probe_external_scanner_set_context(void *, const void *);"));
+        assert!(declared.contains(".external_scanner_set_context = tree_sitter_probe_external_scanner_set_context,"));
+
+        let repository = crate::repository();
+        let text = std::fs::read_to_string(repository.join("src").join("grammar.json"))
+            .expect("the repository has src/grammar.json");
+        let json: serde_json::Value = serde_json::from_str(&text).expect("src/grammar.json is JSON");
+        assert_eq!(json["external_scanner_set_context"], serde_json::Value::Bool(true));
+        let parser = std::fs::read_to_string(repository.join("src").join("parser.c"))
+            .expect("the repository has src/parser.c");
+        assert!(parser.contains(".external_scanner_set_context = tree_sitter_cpp_external_scanner_set_context,"));
+    }
 }

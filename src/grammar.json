@@ -47426,6 +47426,7 @@
       "name": "_macro_item_start"
     }
   ],
+  "external_scanner_set_context": true,
   "inline": [
     "_type_identifier",
     "_field_identifier",

@@ -410,6 +410,12 @@ pub struct Grammar {
     pub inline: Vec<String>,
     pub supertypes: Vec<String>,
     pub reserved: IndexMap<String, Vec<Rule>>,
+    /// True when the external scanner defines `tree_sitter_<name>_external_scanner_set_context`, the
+    /// entry point that takes the context of the parser. `grammar.json` then holds the key
+    /// `external_scanner_set_context`, and the generator of the fork writes the entry point into the
+    /// language struct. A grammar without the key gets a null entry point, so a scanner that does not
+    /// define the function still links.
+    pub external_scanner_set_context: bool,
 }
 
 impl Grammar {
@@ -427,6 +433,7 @@ impl Grammar {
             inline: Vec::new(),
             supertypes: Vec::new(),
             reserved: IndexMap::new(),
+            external_scanner_set_context: false,
         }
     }
 
@@ -524,6 +531,9 @@ impl Grammar {
             self.precedences.iter().map(|list| rules(list)).collect(),
         );
         map.insert("externals".into(), rules(&self.externals));
+        if self.external_scanner_set_context {
+            map.insert("external_scanner_set_context".into(), true.into());
+        }
         map.insert("inline".into(), strings(&self.inline));
         map.insert("supertypes".into(), strings(&self.supertypes));
         map.insert(

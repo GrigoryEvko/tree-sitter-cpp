@@ -398,6 +398,7 @@ where
     }
 
     // If our job is only to generate `grammar.json` and not `parser.c`, stop here.
+    let external_scanner_set_context = read_external_scanner_set_context(&grammar_json)?;
     let input_grammar = parse_grammar(&grammar_json, diagnostics)?;
 
     if !generate_parser {
@@ -419,6 +420,7 @@ where
         semantic_version.map(|v| (v.major as u8, v.minor as u8, v.patch as u8)),
         report_symbol_name,
         optimizations,
+        external_scanner_set_context,
         diagnostics,
     )?;
 
@@ -439,6 +441,7 @@ pub fn generate_parser_for_grammar(
     optimizations: OptLevel,
     diagnostics: &mut Vec<Diagnostic>,
 ) -> GenerateResult<(String, String)> {
+    let external_scanner_set_context = read_external_scanner_set_context(grammar_json)?;
     let input_grammar = parse_grammar(grammar_json, diagnostics)?;
     let name = input_grammar.pool.resolve(input_grammar.name).to_string();
     let parser = generate_parser_for_grammar_with_opts(
@@ -447,6 +450,7 @@ pub fn generate_parser_for_grammar(
         semantic_version,
         None,
         optimizations,
+        external_scanner_set_context,
         diagnostics,
     )?;
     Ok((name, parser.c_code))
@@ -490,12 +494,34 @@ fn generate_node_types_from_grammar(
     })
 }
 
+/// The key of `grammar.json` that tells the generator that the external scanner of the grammar defines
+/// `<name>_external_scanner_set_context` (tree-sitter-cpp fork).
+///
+/// The generated parser names that function in the language struct, so a scanner that does not
+/// define it gives a link error. The scanners of upstream grammars do not define it. A grammar
+/// that wants the context of the parser sets the key to `true`, and every other grammar leaves it
+/// out and gets a null entry point. The runtime calls the entry point only when it is not null.
+#[derive(Deserialize)]
+struct ExternalScannerEntryPoints {
+    #[serde(default)]
+    external_scanner_set_context: bool,
+}
+
+/// Read the `external_scanner_set_context` key of a `grammar.json` text. O(n) in the length of the
+/// text, one more pass of serde over it (tree-sitter-cpp fork).
+fn read_external_scanner_set_context(grammar_json: &str) -> GenerateResult<bool> {
+    let entry_points: ExternalScannerEntryPoints = serde_json::from_str(grammar_json)
+        .map_err(|e| GenerateError::ParseGrammar(ParseGrammarError::from(e)))?;
+    Ok(entry_points.external_scanner_set_context)
+}
+
 fn generate_parser_for_grammar_with_opts(
     input_grammar: InputGrammar,
     abi_version: usize,
     semantic_version: Option<(u8, u8, u8)>,
     report_symbol_name: Option<&str>,
     optimizations: OptLevel,
+    external_scanner_set_context: bool,
     diagnostics: &mut Vec<Diagnostic>,
 ) -> GenerateResult<GeneratedParser> {
     let grammar_name = input_grammar.name;
@@ -532,6 +558,7 @@ fn generate_parser_for_grammar_with_opts(
         abi_version,
         semantic_version,
         supertype_symbol_map,
+        external_scanner_set_context,
     )?;
     Ok(GeneratedParser {
         c_code,

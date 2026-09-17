@@ -70,6 +70,9 @@ const ASSIGNMENT_OPERATORS: [&str; 14] = [
 /// The C++ grammar.
 pub fn grammar() -> Grammar {
     let mut g = Grammar::extend_from(&c::grammar(), "cpp");
+    // src/scanner.c defines `tree_sitter_cpp_external_scanner_set_context`, which takes the seed of a
+    // project.
+    g.external_scanner_set_context = true;
     // The order of the external tokens is the order of `enum TokenType` in `src/scanner.c`.
     g.externals = vec![
         s!(raw_string_delimiter),
