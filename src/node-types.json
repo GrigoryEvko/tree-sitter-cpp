@@ -4016,6 +4016,10 @@
           "named": true
         },
         {
+          "type": "macro_invocation",
+          "named": true
+        },
+        {
           "type": "ms_if_exists",
           "named": true
         },

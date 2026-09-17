@@ -1493,11 +1493,10 @@ int (x) = 1;
 --------------------------------------------------------------------------------
 
 (translation_unit
-  (expression_statement
-    (call_expression
-      function: (identifier)
-      arguments: (argument_list
-        (identifier))))
+  (macro_invocation
+    name: (identifier)
+    arguments: (token_tree
+      (identifier)))
   (expression_statement
     (call_expression
       function: (field_expression
@@ -1530,11 +1529,10 @@ int (x) = 1;
   (namespace_definition
     name: (namespace_identifier)
     body: (declaration_list
-      (expression_statement
-        (call_expression
-          function: (identifier)
-          arguments: (argument_list
-            (identifier))))))
+      (macro_invocation
+        name: (identifier)
+        arguments: (token_tree
+          (identifier)))))
   (declaration
     type: (primitive_type)
     declarator: (init_declarator

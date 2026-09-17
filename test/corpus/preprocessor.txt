@@ -2980,18 +2980,17 @@ DEFINE_THING(
             (identifier)
             (preproc_call
               directive: (preproc_directive)))))))
-  (expression_statement
-    (call_expression
-      function: (identifier)
-      arguments: (argument_list
-        (identifier)
-        (preproc_call
-          directive: (preproc_directive)
-          argument: (preproc_arg))
-        (identifier)
-        (preproc_skipped)
-        (preproc_call
-          directive: (preproc_directive)))))
+  (macro_invocation
+    name: (identifier)
+    arguments: (token_tree
+      (identifier)
+      (preproc_call
+        directive: (preproc_directive)
+        argument: (preproc_arg))
+      (identifier)
+      (preproc_skipped)
+      (preproc_call
+        directive: (preproc_directive))))
   (macro_invocation
     name: (identifier)
     arguments: (token_tree

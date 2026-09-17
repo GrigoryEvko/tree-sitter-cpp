@@ -153,6 +153,15 @@
         {
           "type": "SYMBOL",
           "name": "_extension_empty_declaration"
+        },
+        {
+          "type": "ALIAS",
+          "content": {
+            "type": "SYMBOL",
+            "name": "_macro_item"
+          },
+          "named": true,
+          "value": "macro_invocation"
         }
       ]
     },
@@ -412,6 +421,15 @@
         {
           "type": "SYMBOL",
           "name": "asm_declaration"
+        },
+        {
+          "type": "ALIAS",
+          "content": {
+            "type": "SYMBOL",
+            "name": "_macro_item"
+          },
+          "named": true,
+          "value": "macro_invocation"
         }
       ]
     },
@@ -555,6 +573,15 @@
         {
           "type": "SYMBOL",
           "name": "asm_declaration"
+        },
+        {
+          "type": "ALIAS",
+          "content": {
+            "type": "SYMBOL",
+            "name": "_macro_item"
+          },
+          "named": true,
+          "value": "macro_invocation"
         }
       ]
     },
@@ -45138,6 +45165,40 @@
         }
       ]
     },
+    "_macro_item": {
+      "type": "SEQ",
+      "members": [
+        {
+          "type": "SYMBOL",
+          "name": "_macro_item_start"
+        },
+        {
+          "type": "FIELD",
+          "name": "name",
+          "content": {
+            "type": "SYMBOL",
+            "name": "identifier"
+          }
+        },
+        {
+          "type": "FIELD",
+          "name": "arguments",
+          "content": {
+            "type": "ALIAS",
+            "content": {
+              "type": "SYMBOL",
+              "name": "_macro_arguments"
+            },
+            "named": true,
+            "value": "token_tree"
+          }
+        },
+        {
+          "type": "STRING",
+          "value": ";"
+        }
+      ]
+    },
     "_macro_statement": {
       "type": "PREC_RIGHT",
       "value": 0,
@@ -46920,6 +46981,10 @@
     {
       "type": "SYMBOL",
       "name": "_template_parameter_declarator_type"
+    },
+    {
+      "type": "SYMBOL",
+      "name": "_macro_item_start"
     }
   ],
   "inline": [

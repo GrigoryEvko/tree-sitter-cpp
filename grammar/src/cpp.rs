@@ -222,6 +222,9 @@ pub fn grammar() -> Grammar {
         // attribute macro of that declarator. Refer to `_template_parameter_declarator_type` and to
         // task 276.
         s!(_template_parameter_declarator_type),
+        // An empty token before a macro name with an argument list and a `;` where an item of a
+        // translation unit or of a namespace body starts. Refer to `_macro_item`.
+        s!(_macro_item_start),
     ];
     // The conflict sets of the grammar. Each set names the rules of one ambiguity, and it tells the
     // generator to keep each reading in a GLR split.
@@ -1149,6 +1152,22 @@ fn macros(g: &mut Grammar) {
             ";"
         ],
     );
+    // A macro name with an argument list and a `;` where an item of a translation unit or of a
+    // namespace body starts: `DECLARE_HANDLE(foo);`, `BENCHMARK(BM_Run);`, `STATIC_ASSERT(x == 1);`.
+    // A translation unit and a namespace body hold declarations and no statement (GCC
+    // `cp_parser_toplevel_declaration`, Clang `ParseExternalDeclaration`), so the text is no call
+    // there, and both front ends refuse it with the name declared as a function. The external
+    // scanner emits `_macro_item_start` before the name, and it withholds the token where a class
+    // head of the file or the seed declares the name as a type, because `T (x);` then declares
+    // `x`. The token is valid in `_top_level_item` and in `_declaration_list_item` and nowhere
+    // else, so in a block `MAX(a, b);` keeps its call expression, and in a class body the member
+    // form of `macro_invocation` decides. The `;` is a child of the invocation, as it is in the
+    // call form of a block. Over the corpus, 81,664 such items stand in 16,175 files with no
+    // error, and a project of the corpus defines the name of 81,055 of them as a macro.
+    g.define(
+        "_macro_item",
+        seq![s!(_macro_item_start), field("name", s!(identifier)), arguments(), ";"],
+    );
     // A pragma operator stands where a declaration or a statement starts. `_top_level_statement` gives
     // it file scope, `_non_case_statement` gives it a block, and a namespace body takes it because
     // `_declaration_list_item` holds a statement. Refer to `pragma_operator`.
@@ -1568,6 +1587,7 @@ fn items(g: &mut Grammar) {
         members.push(s!(asm_declaration));
         members.push(s!(ms_if_exists));
         members.push(s!(_extension_empty_declaration));
+        members.push(alias(s!(_macro_item), s!(macro_invocation)));
         Rule::Choice(members)
     });
     g.redefine("_block_item", |original| {
@@ -1628,6 +1648,7 @@ fn items(g: &mut Grammar) {
         .chain([s!(linkage_specification), s!(concept_definition), s!(export_declaration)])
         .chain(conversion_functions())
         .chain([deduction_guide(), s!(_extension_empty_declaration), s!(asm_declaration)])
+        .chain([alias(s!(_macro_item), s!(macro_invocation))])
         .collect();
     // `export` takes an item of a declaration list. Its braces start only a declaration list, and the
     // only statement after it is an expression statement: `export MACRO(x);`.

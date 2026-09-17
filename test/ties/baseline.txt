@@ -65,7 +65,6 @@ llvm-project/libcxx/include/__ranges/concat_view.h	225	96	select_earlier symbol:
 llvm-project/libcxx/include/__ranges/concat_view.h	568	81	select_earlier symbol:binary_expression, over_symbol:binary_expression
 llvm-project/llvm/lib/CodeGen/MachineBlockPlacement.cpp	3547	53	select_earlier symbol:binary_expression, over_symbol:binary_expression
 llvm-project/mlir/include/mlir/IR/Attributes.h	347	74	select_earlier symbol:template_argument_list_repeat1, over_symbol:template_argument_list_repeat1
-mp-units/src/systems/include/mp-units/systems/isq/mechanics.h	101	86	select_earlier symbol:binary_expression, over_symbol:binary_expression
 protobuf/src/google/protobuf/wire_format_lite.cc	64	46	select_earlier symbol:binary_expression, over_symbol:binary_expression
 protobuf/src/google/protobuf/wire_format_lite.cc	66	46	select_earlier symbol:binary_expression, over_symbol:binary_expression
 protobuf/src/google/protobuf/wire_format_lite.cc	66	46	select_earlier symbol:binary_expression, over_symbol:binary_expression

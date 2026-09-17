@@ -195,6 +195,9 @@ enum TokenType {
     /// `is_declared_type_name`. The token of `TEMPLATE_PARAMETER_TYPE_NAME` covers the shape where
     /// the SECOND name is the macro, and the template head is its only source.
     TEMPLATE_PARAMETER_DECLARATOR_TYPE,
+    /// An empty token before a macro name with an argument list and a `;` where an item of a translation
+    /// unit or of a namespace body starts: `DECLARE_HANDLE(foo);`.
+    MACRO_ITEM_START,
     /// The count of the external tokens, and not a token. `tree_sitter_cpp_external_scanner_create`
     /// compares it with the count of the parser.
     TOKEN_TYPE_COUNT,
@@ -3677,15 +3680,22 @@ typedef enum {
 /// statement, the call form includes the `;`. In a member, the line form takes the call when its
 /// arguments also cannot be a parameter list, and the `;` stays after it.
 ///
+/// The item form is an uppercase name with an argument list of any shape, before `;`, where an item
+/// of a translation unit or of a namespace body starts: `DECLARE_HANDLE(foo);`. The arguments need no
+/// shape, because no call stands at that position in C++. A name that a class head of the file or the
+/// seed declares as a type keeps its declaration, and so does a group with the shape of a
+/// parenthesized declarator.
+///
 /// `name` is the name, and `length` is its length. `same_line` tells if no line break comes between the
 /// name and its arguments. `call` tells if the name has arguments, and `args` holds their facts. `gap`
 /// is the space after the name and its arguments. `classes` holds the recorded class names, or it is
 /// NULL where a member cannot start. `member_macro_name` tells if a member starts at the name, the
 /// name has the shape of a macro name with two characters or more, and no class head of the file
-/// recorded the name.
+/// recorded the name. `declared_type` tells if a class head of the file or the seed of the project
+/// declares the name as a type.
 static Invocation scan_macro_invocation(Reader *reader, const char *name, size_t length, bool same_line, bool call,
                                         const Arguments *args, const Gap *gap, const bool *valid_symbols,
-                                        const Scanner *classes, bool member_macro_name) {
+                                        const Scanner *classes, bool member_macro_name, bool declared_type) {
     TSLexer *lexer = reader->lexer;
     // After a directive that ends a branch of a structured group, the lookahead is not a token of the line.
     int32_t c = gap->directive ? 0 : lexer->lookahead;
@@ -3715,6 +3725,37 @@ static Invocation scan_macro_invocation(Reader *reader, const char *name, size_t
     }
 
     if (call && c == ';') {
+        // A NAME WITH A GROUP AND A `;` WHERE AN ITEM STARTS IS A MACRO. A translation unit and a
+        // namespace body hold declarations and no statement ([basic.link] p1, [namespace.def] p1;
+        // GCC `cp_parser_toplevel_declaration`, Clang `ParseExternalDeclaration`), so `FOO(x);`
+        // there is no call. Its one reading in C++ is a declaration of the object `x` with the type
+        // `FOO` and a parenthesized declarator, and that reading needs `FOO` to name a type. With
+        // `FOO` declared as nothing or as a function, GCC gives "expected constructor, destructor,
+        // or type conversion before '(' token" and Clang "unknown type name 'FOO'". So
+        // `DECLARE_HANDLE(foo);`, `BENCHMARK(BM_Run);`,
+        // `INSTANTIATE_TEST_SUITE_P(a, b, c);`, `STATIC_ASSERT(x == 1);`, `Q_ENUM_NS(Mode);`,
+        // `FOO();` and `TEST_SPECIALIZATION(unsigned int);` are macro invocations, and the group
+        // needs no shape. Over the corpus at f97fe26, 81,664 such items stand in 16,175 files with
+        // no error, a project of the corpus defines the name of 81,055 of them as a macro, and a
+        // random sixty of them are sixty macros whose expansion is a declaration or a definition.
+        //
+        // `MACRO_ITEM_START` IS THE EVIDENCE OF THE POSITION. The grammar makes it valid where an
+        // item of a translation unit or of a namespace body starts, and nowhere else. In a block the
+        // call form keeps `MAX(a, b);` an expression, and in a class body the member form decides.
+        //
+        // THE TWO LOOKUPS OF A DECLARED TYPE GUARD THE ONE C++ READING. `T (x);` after
+        // `struct T {};` declares `x`, and the base reads a call there, which is wrong in the other
+        // direction. A class head of the file or a seed type keeps the reading of the base, so the
+        // rule replaces no wrong reading with another. Each lookup reads no character. The one-
+        // character names of the corpus at this position are X-macro lists, `X(KindOfBoolean, bool);`
+        // of hhvm, so the shape of the name is no filter here. A group with the shape of a
+        // parenthesized declarator, `FOO(*p);`, keeps its declaration, which is the reading of the
+        // base and the one C++ reading of that text. No such site stands in a clean file of the
+        // corpus.
+        if (valid_symbols[MACRO_ITEM_START] && !declared_type && !args->pointer_declarator) {
+            lexer->result_symbol = MACRO_ITEM_START;
+            return INVOCATION_TOKEN;
+        }
         // A statement accepts the call form. A member has no call form, and it takes the call as a
         // macro invocation when the arguments cannot be a parameter list.
         if (valid_symbols[MACRO_CALL_START]) {
@@ -3964,8 +4005,8 @@ static Invocation scan_macro_invocation(Reader *reader, const char *name, size_t
 ///
 /// The scan starts after the name, which `read_word` read. `reader` holds the number of characters
 /// that the scan can still read, and the token ends before the name.
-static bool scan_macro_start(Reader reader, const char *name, bool has_lower, const bool *valid_symbols,
-                             const Scanner *scanner) {
+static bool scan_macro_start(Reader reader, const char *name, const char *full, bool has_lower,
+                             const bool *valid_symbols, const Scanner *scanner) {
     TSLexer *lexer = reader.lexer;
     size_t length = strlen(name);
     // TRUE, FALSE, and NULL are tokens of the grammar. Q_EMIT, Q_FOREACH, and Q_FOREVER start Qt
@@ -3977,6 +4018,9 @@ static bool scan_macro_start(Reader reader, const char *name, bool has_lower, co
     bool member_start = valid_symbols[MACRO_LINE_START] && !valid_symbols[MACRO_CALL_START];
     // A class name before a constructor is a type, not a macro.
     bool class_name = is_class_name(scanner, reader.word_hash);
+    // A name that a class head of the file or the seed declares as a type keeps a declaration with a
+    // parenthesized declarator where an item starts: `T (x);`. Refer to `is_declared_type_name`.
+    bool declared_type = class_name || is_seed_type_name(scanner, full, &reader);
     // Where a member starts, a name with an argument list and no type before it is a macro
     // invocation, and the shape of the name has no effect: `ClassDefOverride(A,0)` of ROOT. A member
     // declaration with no type is a constructor, a destructor, or a conversion function. The two
@@ -4093,7 +4137,7 @@ static bool scan_macro_start(Reader reader, const char *name, bool has_lower, co
     if (invocation && (macro_name || (call && !args.pointer_declarator))) {
         Invocation result =
             scan_macro_invocation(&reader, name, length, same_line, call, &args, &gap, valid_symbols, classes,
-                                  member_start && macro_name && length >= 2 && !class_name);
+                                  member_start && macro_name && length >= 2 && !class_name, declared_type);
         if (result == INVOCATION_TOKEN || result == INVOCATION_STOP) {
             return result == INVOCATION_TOKEN;
         }
@@ -9301,7 +9345,7 @@ static bool scan_word_start(Scanner *scanner, TSLexer *lexer, const bool *valid_
         }
         return false;
     }
-    return macro && scan_macro_start(reader, word, has_lower, valid_symbols, scanner);
+    return macro && scan_macro_start(reader, word, full, has_lower, valid_symbols, scanner);
 }
 
 /// Read the assembly code of an MS `__asm { ... }` block, up to the brace that closes the block.
@@ -9433,6 +9477,7 @@ static bool can_be_empty(TSSymbol symbol) {
         case CONCATENATED_MACRO_START:
         case INITIALIZER_MACRO_START:
         case TEMPLATE_PARAMETER_MACRO_START:
+        case MACRO_ITEM_START:
         case RAW_STRING_CONTENT:
             return true;
         default:

@@ -238,19 +238,17 @@ DEFINE_SOMETHING(THING_B, "this is a thing b", "thanks");
 --------------------------------------------------------------------------------
 
 (translation_unit
-  (expression_statement
-    (call_expression
+  (macro_invocation
+    (identifier)
+    (token_tree
       (identifier)
-      (argument_list
-        (identifier)
-        (string_literal
-          (string_content)))))
-  (expression_statement
-    (call_expression
+      (string_literal
+        (string_content))))
+  (macro_invocation
+    (identifier)
+    (token_tree
       (identifier)
-      (argument_list
-        (identifier)
-        (string_literal
-          (string_content))
-        (string_literal
-          (string_content))))))
+      (string_literal
+        (string_content))
+      (string_literal
+        (string_content)))))

@@ -111,6 +111,18 @@ class MultiMeshInstance2D : public Node2D {
 	GDCLASS(MultiMeshInstance2D, Node2D);
 	Ref<MultiMesh> multimesh;
 };
+### item_macro_with_a_semicolon
+STATIC_ASSERT(sizeof(int) == 4);
+INSTANTIATE_TEST_SUITE_P(Suite, Test, ::testing::Values(1, 2));
+BENCHMARK(BM_Run);
+namespace JS {
+GC_DEFINE_ALLOCATOR(GeneratorPrototype);
+Q_ENUM_NS(LayoutMode);
+}
+X(KindOfBoolean, bool);
+#if BUILDFLAG(IS_CHROMEOS)
+BASE_FEATURE(kName, "Name", FEATURE_ENABLED_BY_DEFAULT);
+#endif
 ### macro_before_constructor
 AUD_NAMESPACE_BEGIN
 HRTF::HRTF() : m_empty(true)
