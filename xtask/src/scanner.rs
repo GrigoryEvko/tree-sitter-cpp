@@ -459,6 +459,68 @@ mod seeded {
         );
     }
 
+    /// A FUNCTION-MACRO ROW READS A NAME WITH A LOWERCASE LETTER AS A MACRO WHERE AN ITEM STARTS.
+    ///
+    /// A translation unit and a namespace body hold declarations and no statement, so `name(args);` there is
+    /// no call. 00e3c7a reads the name with no lowercase letter as a macro, and the shape of the name is its
+    /// evidence. `PyDoc_STRVAR(doc, "text");` and `TF_CALL_half(REGISTER);` hold a lowercase letter, and the
+    /// row of the seed is the evidence in their place. Refer to `scan_macro_invocation` in src/scanner.c.
+    ///
+    /// EACH LINE OF THE SOURCE NAMES AN INPUT THAT ONE TEST OF THE RULE DECIDES:
+    /// - The four lines with `PyDoc_STRVAR` and `TF_CALL_half` take the reading, at file scope, in a
+    ///   namespace body, in a linkage body and in a conditional group. In the group, a first version of this
+    ///   rule gave no token, because the branch of a call before the directive that ends a branch read the
+    ///   group and returned false. That branch now keeps its read and lets this rule run.
+    /// - `common();` keeps its call, because no row of the seed holds `common`. The corpus holds 38 such
+    ///   sites in the boost type-traits tests, where `TT_TEST_BEGIN(...)` opens a function body in its
+    ///   expansion and the call stands in that body.
+    /// - `printf("good");` keeps its call, because the row is object-like and an object-like macro takes no
+    ///   arguments ([cpp.replace] p10). The corpus holds 7 such sites, in the Clang interpreter tests.
+    /// - `Widget(x);` keeps the reading of the base, because a class head of the file declares `Widget`.
+    ///   The two lookups of 00e3c7a give that guard, and the one C++ reading of that text is a declaration
+    ///   of `x`, which no commit reads yet.
+    /// - `TF_CALL_half(*p);` keeps its declaration, because the group has the shape of a parenthesized
+    ///   declarator.
+    /// - `TF_CALL_half(REGISTER);` in a function body keeps its call, because no item starts there.
+    ///
+    /// THE GATE RUNS NO SEED, so this rule measures zero in the plain steps of the gate, and this test and a
+    /// seeded run of `xtask trees --seeds` are the evidence.
+    #[test]
+    fn a_function_macro_row_reads_a_name_with_a_lowercase_letter_as_a_macro_where_an_item_starts() {
+        const SOURCE: &str = "PyDoc_STRVAR(doc, \"text\");\nnamespace ns { TF_CALL_half(REGISTER); }\n\
+                              extern \"C\" { TF_CALL_half(REGISTER); }\n#if GOOGLE_CUDA\n\
+                              TF_CALL_half(REGISTER);\n#endif\n";
+        // Each line here keeps the tree of a parse with no seed.
+        const KEPT: &str = "common();\nprintf(\"good\");\nclass Widget { int m; };\nWidget(x);\n\
+                            TF_CALL_half(*p);\nvoid f() { TF_CALL_half(REGISTER); }\n";
+        // The rows of a seed ascend by the bytes of the name.
+        let file = SeedFile::new(
+            "PyDoc_STRVAR\tfunction-macro\nTF_CALL_half\tfunction-macro\nWidget\tfunction-macro\nprintf\tobject-macro\n",
+        );
+        let seed = Seed::read(file.path()).expect("the seed reads");
+        let unseeded = bare(SOURCE).root_node().to_sexp();
+        assert_eq!(unseeded.matches("(macro_invocation").count(), 0, "{unseeded}");
+
+        let mut parser = parser();
+        // SAFETY: `seed` lives to the end of this test.
+        unsafe { parser.set_scanner_context(seed.as_context()) };
+        let seeded = parser.parse(SOURCE, None).expect("the parse ends");
+        let sexp = seeded.root_node().to_sexp();
+        assert!(!seeded.root_node().has_error(), "{sexp}");
+        // The four sites with a function row take the reading, and no call expression stays.
+        assert_eq!(sexp.matches("(macro_invocation").count(), 4, "{sexp}");
+        assert_eq!(sexp.matches("(call_expression").count(), 0, "{sexp}");
+        // Each line of KEPT gives the tree of a parse with no seed.
+        let kept = parser.parse(KEPT, None).expect("the parse ends").root_node().to_sexp();
+        assert_eq!(kept, bare(KEPT).root_node().to_sexp(), "a line of KEPT changed with the seed");
+        assert_eq!(kept.matches("(expression_statement (call_expression").count(), 4, "{kept}");
+        // `TF_CALL_half(*p);` keeps its declaration with a parenthesized declarator.
+        assert!(
+            kept.contains("(declaration type: (type_identifier) declarator: (parenthesized_declarator (pointer_declarator declarator: (identifier))))"),
+            "{kept}"
+        );
+    }
+
     /// A MACRO ROW REACHES THE TYPE BEFORE A DECLARATOR AND A MACRO WHEN NO SOURCE DECLARES THE TYPE.
     ///
     /// `Mutex mu MOZ_UNANNOTATED;` reads as the attribute macro `Mutex`, the type `mu` and the

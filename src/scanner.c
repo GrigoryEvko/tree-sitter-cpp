@@ -2479,6 +2479,15 @@ static bool is_seed_macro_name(const Scanner *scanner, const char *name, const R
     return (kinds & TS_CPP_SEED_MACRO) != 0;
 }
 
+/// True when the seed of the project declares the name as a function-like macro. It reads no character.
+static bool is_seed_function_macro_name(const Scanner *scanner, const char *name, const Reader *reader) {
+    if (scanner == NULL || reader->word_cut) {
+        return false;
+    }
+    uint16_t kinds = seed_kinds((const TSCppSeed *)scanner->context, name, (uint32_t)strlen(name));
+    return (kinds & TS_CPP_SEED_FUNCTION_MACRO) != 0;
+}
+
 /// True when a class head of the file or the seed of the project declares the name as a type.
 ///
 /// ONE LOOKUP WITH TWO SOURCES, AND EACH SOURCE READS NO CHARACTER. `is_class_name` compares the
@@ -3840,8 +3849,16 @@ typedef enum {
 /// declares the name as a type.
 static Invocation scan_macro_invocation(Reader *reader, const char *name, size_t length, bool same_line, bool call,
                                         const Arguments *args, const Gap *gap, const bool *valid_symbols,
-                                        const Scanner *classes, bool member_macro_name, bool declared_type) {
+                                        const Scanner *classes, bool member_macro_name, bool declared_type,
+                                        bool item_only) {
     TSLexer *lexer = reader->lexer;
+    // A name that is no macro by its shape reads as a macro only where an item starts and a `;` ends it.
+    // A decline gives INVOCATION_NONE, so that the paths after this scan keep their readings: a SAL
+    // annotation with arguments, `_Pre_satisfies_(n >= sizeof(T)) static DWORD CALLBACK f(...)` of dolphin,
+    // takes the line token there, and a stop gave that file a MISSING `;`.
+    if (item_only && !(call && !gap->directive && lexer->lookahead == ';')) {
+        return INVOCATION_NONE;
+    }
     // After a directive that ends a branch of a structured group, the lookahead is not a token of the line.
     int32_t c = gap->directive ? 0 : lexer->lookahead;
     // A storage class specifier can come before a macro invocation line, and that line has its own
@@ -3900,6 +3917,9 @@ static Invocation scan_macro_invocation(Reader *reader, const char *name, size_t
         if (valid_symbols[MACRO_ITEM_START] && !declared_type && !args->pointer_declarator) {
             lexer->result_symbol = MACRO_ITEM_START;
             return INVOCATION_TOKEN;
+        }
+        if (item_only) {
+            return INVOCATION_NONE;
         }
         // A statement accepts the call form. A member has no call form, and it takes the call as a
         // macro invocation when the arguments cannot be a parameter list.
@@ -4179,7 +4199,15 @@ static bool scan_macro_start(Reader reader, const char *name, const char *full, 
     // `Foo(x);` can hold a parameter list, and they stay declarations.
     bool member_name = member_start && !class_name && !sal && !word_in(name, GRAMMAR_WORDS) &&
                        !is_grammar_keyword(name);
-    bool invocation = (macro_name || member_name) &&
+    // A NAME WITH A FUNCTION-MACRO ROW OF THE SEED IS A MACRO WHERE AN ITEM STARTS, WHATEVER ITS SHAPE.
+    // `PyDoc_STRVAR(doc, "text");` and `TF_CALL_half(REGISTER);` hold a lowercase letter, so the shape
+    // test of a macro name declines them, and the row of the seed is the evidence in their place. The row
+    // must be the function-like one, because an object-like macro takes no arguments ([cpp.replace] p10):
+    // `printf("good");` of the Clang interpreter tests has an object row, and the file is a REPL input
+    // where a statement at file scope is the reading of Clang itself. Refer to `_macro_item`.
+    bool item_name = valid_symbols[MACRO_ITEM_START] && !macro_name && !is_grammar_keyword(name) && !class_name &&
+                     !word_in(name, GRAMMAR_WORDS) && is_seed_function_macro_name(scanner, full, &reader);
+    bool invocation = (macro_name || member_name || item_name) &&
                       (valid_symbols[MACRO_LINE_START] || valid_symbols[MACRO_BLOCK_START] ||
                        valid_symbols[MACRO_CALL_START] || valid_symbols[MACRO_ENUMERATOR_START] ||
                        valid_symbols[MACRO_LINE_AFTER_SPECIFIERS]);
@@ -4230,23 +4258,27 @@ static bool scan_macro_start(Reader reader, const char *name, const char *full, 
     // THE BRANCH READS THE GROUP, AND A DECLINE GIVES THE RESULT OF THE OLD PATH. The other paths for such a name
     // are the macros before a constructor, and `scan_constructor_after_macro` gives false at the `(`. So a decline
     // after the read gives no token, as that path did.
-    if (branch_end_call && same_line) {
-        Arguments arguments = {0};
-        if (!skip_group(&reader, &arguments)) {
-            return false;
-        }
-        Gap after = {0};
-        skip_gap(&reader, &after);
-        if (!after.directive || after.newlines == 0) {
-            return false;
-        }
-        lexer->result_symbol = MACRO_LINE_START;
-        return true;
-    }
     Arguments args = {0};
     bool call = false;
-    if ((macro_name || sal || member_name || template_parameter_macro) && !gap.directive && lexer->lookahead == '(' &&
-        (same_line || length >= MACRO_MIN_BARE_LENGTH)) {
+    if (branch_end_call && same_line) {
+        if (!skip_group(&reader, &args)) {
+            return false;
+        }
+        call = true;
+        gap = (Gap){0};
+        skip_gap(&reader, &gap);
+        if (gap.directive && gap.newlines > 0) {
+            lexer->result_symbol = MACRO_LINE_START;
+            return true;
+        }
+        // THE READ OF THE GROUP STAYS, AND THE SCAN GOES ON. A `return false` here gave no token at all,
+        // and the item form after it never ran: `TF_CALL_half(DECLARE_GPU_SPECS);` in a `#if` group of
+        // tensorflow kept its call, while the same line outside the group became a macro invocation.
+        if (!item_name) {
+            return false;
+        }
+    } else if ((macro_name || sal || member_name || template_parameter_macro || item_name) && !gap.directive &&
+               lexer->lookahead == '(' && (same_line || length >= MACRO_MIN_BARE_LENGTH)) {
         if (!skip_group(&reader, &args)) {
             return false;
         }
@@ -4312,7 +4344,7 @@ static bool scan_macro_start(Reader reader, const char *name, const char *full, 
     if (invocation && (macro_name || (call && !args.pointer_declarator))) {
         Invocation result =
             scan_macro_invocation(&reader, name, length, same_line, call, &args, &gap, valid_symbols, classes,
-                                  member_start && macro_name && length >= 2 && !class_name, declared_type);
+                                  member_start && macro_name && length >= 2 && !class_name, declared_type, item_name);
         if (result == INVOCATION_TOKEN || result == INVOCATION_STOP) {
             return result == INVOCATION_TOKEN;
         }
