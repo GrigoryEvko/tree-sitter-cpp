@@ -3390,3 +3390,117 @@ void f(int* prog, int* obj) { bpf_object__for_each_program(prog, obj) { g(prog);
               function: (identifier)
               arguments: (argument_list
                 (identifier)))))))))
+================================================================================
+A local at a cast, at a template-id and in an alignas is a value
+================================================================================
+
+struct A { int m; };
+struct B { int m; };
+struct C { int m; };
+struct D { int m; };
+
+void g() {
+  int A = 0;
+  int y = A(1);
+  int z = A<int>(2);
+  alignas(A) char buf[8];
+  int p = B(1);
+  int q = C<int>(2);
+  alignas(D) char other[8];
+}
+
+--------------------------------------------------------------------------------
+
+(translation_unit
+  (struct_specifier
+    (type_identifier)
+    (field_declaration_list
+      (field_declaration
+        (primitive_type)
+        (field_identifier))))
+  (struct_specifier
+    (type_identifier)
+    (field_declaration_list
+      (field_declaration
+        (primitive_type)
+        (field_identifier))))
+  (struct_specifier
+    (type_identifier)
+    (field_declaration_list
+      (field_declaration
+        (primitive_type)
+        (field_identifier))))
+  (struct_specifier
+    (type_identifier)
+    (field_declaration_list
+      (field_declaration
+        (primitive_type)
+        (field_identifier))))
+  (function_definition
+    (primitive_type)
+    (function_declarator
+      (identifier)
+      (parameter_list))
+    (compound_statement
+      (declaration
+        (primitive_type)
+        (init_declarator
+          (identifier)
+          (number_literal)))
+      (declaration
+        (primitive_type)
+        (init_declarator
+          (identifier)
+          (call_expression
+            (identifier)
+            (argument_list
+              (number_literal)))))
+      (declaration
+        (primitive_type)
+        (init_declarator
+          (identifier)
+          (call_expression
+            (template_function
+              (identifier)
+              (template_argument_list
+                (type_descriptor
+                  (primitive_type))))
+            (argument_list
+              (number_literal)))))
+      (declaration
+        (type_qualifier
+          (alignas_qualifier
+            (identifier)))
+        (primitive_type)
+        (array_declarator
+          (identifier)
+          (number_literal)))
+      (declaration
+        (primitive_type)
+        (init_declarator
+          (identifier)
+          (call_expression
+            (type_identifier)
+            (argument_list
+              (number_literal)))))
+      (declaration
+        (primitive_type)
+        (init_declarator
+          (identifier)
+          (call_expression
+            (template_type
+              (type_identifier)
+              (template_argument_list
+                (type_descriptor
+                  (primitive_type))))
+            (argument_list
+              (number_literal)))))
+      (declaration
+        (type_qualifier
+          (alignas_qualifier
+            (type_descriptor
+              (type_identifier))))
+        (primitive_type)
+        (array_declarator
+          (identifier)
+          (number_literal))))))

@@ -1838,6 +1838,7 @@ static bool skip_angles(Reader *reader) {
 
 static bool scan_constructor_parameters(Reader *reader);
 static bool is_class_name(const Scanner *scanner, uint32_t name);
+static bool is_local_name(const Scanner *scanner, uint32_t name);
 
 /// Classify the line after a macro invocation, from its first tokens.
 ///
@@ -2402,6 +2403,15 @@ static bool is_alignas_type_name(const Scanner *scanner, const char *full, const
     if (is_template_parameter(scanner, reader->word_hash)) {
         return true;
     }
+    // 1b. THE BLOCK, task 389. A name that the record of locals holds is a variable of the block, and
+    //     the operand is then the constant expression of that variable. `constexpr int N = 8;` and
+    //     `alignas(N) char buf[16];` after `struct N { char c; };` give `alignof(buf) == 8` in
+    //     Clang 22 and GCC 16, and the same input with no local gives 1. The block comes after the
+    //     construct, because no declaration can take the name of a type parameter of its own head.
+    //     The corpus holds 0 such sites with no seed, and a seed can give them.
+    if (is_local_name(scanner, reader->word_hash)) {
+        return false;
+    }
     // 2. THE FILE, task 291 step 2b. The class heads that `scan_class_head` recorded, which is what
     //    the functional cast reads at its own position.
     //
@@ -2499,6 +2509,14 @@ static bool is_seed_function_macro_name(const Scanner *scanner, const char *name
 /// zero in every gate, and the test `a_seed_reaches_the_type_before_a_declarator_and_a_macro` in
 /// xtask/src/scanner.rs is the evidence that it does anything.
 static bool is_declared_type_name(const Scanner *scanner, const char *full, const Reader *reader) {
+    // A NAME THAT THE RECORD OF LOCALS HOLDS IS A VARIABLE, AND A VARIABLE IS NO TYPE. `is_bool &&
+    // s.empty()` after `const bool is_bool = ...;` in the utility header of TBB read as the type
+    // `is_bool` with the macro `&&`, and the two front ends read the two names as one expression.
+    // The record holds a new name as pending until the `;` of its declaration, so it claims no local
+    // before the point of declaration of [basic.scope.pdecl]. Refer to task 389.
+    if (is_local_name(scanner, reader->word_hash)) {
+        return false;
+    }
     return is_class_name(scanner, reader->word_hash) || is_seed_type_name(scanner, full, reader);
 }
 
@@ -10896,7 +10914,14 @@ static bool scan_word_start(Scanner *scanner, TSLexer *lexer, const bool *valid_
                      !valid_symbols[MACRO_TYPE_START] && !valid_symbols[PARAMETER_MACRO_TYPE_START] &&
                      !is_grammar_keyword(word) &&
                      (is_class_name(scanner, reader.word_hash) || is_loose_name(scanner, reader.word_hash) ||
-                      is_seed_type_name(scanner, full, &reader));
+                      is_seed_type_name(scanner, full, &reader)) &&
+                     // A LOCAL HIDES THE CLASS AT A FUNCTIONAL CAST. `int A = 0;` and then `A(1)` is a
+                     // call of the variable, which Clang 22 and GCC 16 accept for a callable local and
+                     // reject for the class. `eval(program)` after `ast_eval eval;` in the calculator
+                     // examples of boost read as a cast. The test comes last, because the record scan
+                     // then runs only where a source of the parse already called the name a type.
+                     // Refer to task 389.
+                     !is_local_name(scanner, reader.word_hash);
     bool invocation = valid_symbols[MACRO_LINE_START] || valid_symbols[MACRO_BLOCK_START] ||
                       valid_symbols[MACRO_CALL_START] || valid_symbols[MACRO_ENUMERATOR_START];
     bool macro = invocation || valid_symbols[CONSTRUCTOR_MACRO_START] || valid_symbols[MACRO_CALL_ATTRIBUTE_START] ||
