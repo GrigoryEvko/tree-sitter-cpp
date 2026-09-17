@@ -3337,8 +3337,9 @@ iterator insert(const_iterator position, InputIterator first, InputIterator last
 template <typename T> void m(T typename NAME);
 template <typename T> void n(T struct NAME);
 template <typename T> void p(T class NAME);
-// THE CHARACTER AFTER THE MACRO MUST END A PARAMETER. A `,` and a `)` end one. The two lines
-// below hold a different character there, and each one gets an ERROR node without that test.
+// THE TEXT AFTER THE MACRO MUST END A PARAMETER. A `,`, a `)` and the `=` of a default argument
+// end one. The line of `q` holds a name there, and it gets an ERROR node without that test. The
+// line of `r` is an optional_parameter_declaration with the macro in its declarator.
 template <typename T> void q(T value MACRO x);
 template <typename T> void r(T value MACRO = 1);
 // TWO WORDS OF ONE TYPE ARE NOT A DECLARATOR AND A MACRO. A version of this rule with no gate
@@ -3529,6 +3530,7 @@ typedef long double NT;
               name: (type_identifier)))))))
   (comment)
   (comment)
+  (comment)
   (template_declaration
     parameters: (template_parameter_list
       (type_parameter_declaration
@@ -3555,10 +3557,11 @@ typedef long double NT;
         declarator: (identifier)
         parameters: (parameter_list
           (optional_parameter_declaration
-            (attribute_macro
-              name: (identifier))
             type: (type_identifier)
-            declarator: (identifier)
+            declarator: (attributed_declarator
+              (identifier)
+              (attribute_macro
+                name: (identifier)))
             default_value: (number_literal))))))
   (comment)
   (comment)
@@ -3673,9 +3676,11 @@ void k() {
 // and a commit of its own measures the 6,518 sites of the corpus with a plain first name and a
 // macro-shaped second name, most of them SAL annotations where the first name IS the macro.
 Mutex MOZ_UNANNOTATED mu5;
-// A QUALIFIER AFTER THE PARAMETER LIST KEEPS THE READING OF TODAY, because the scan of the macro
-// after a declarator gives no token before a `const` there. 168 sites of the corpus at 3977e59
-// have this shape, and a commit that teaches that scan the qualifier takes them.
+// A QUALIFIER AFTER AN EMPTY PARAMETER LIST ENDS THE DECLARATOR, so the macro sits between the name
+// of the function and its parameter list, as in the lines of `max` and `min`. A group of expressions
+// before the qualifier is the arguments of the macro, and the test
+// `a_qualifier_ends_the_declarator_before_a_macro_only_after_a_parameter_list` of xtask/src/scanner.rs
+// reads that line.
 struct T2 { Mutex z BOOST_PREVENT_MACRO_SUBSTITUTION () const; };
 
 --------------------------------------------------------------------------------
@@ -3900,14 +3905,16 @@ struct T2 { Mutex z BOOST_PREVENT_MACRO_SUBSTITUTION () const; };
   (comment)
   (comment)
   (comment)
+  (comment)
+  (comment)
   (struct_specifier
     (type_identifier)
     (field_declaration_list
       (field_declaration
-        (attribute_macro
-          (identifier))
         (type_identifier)
         (function_declarator
           (field_identifier)
+          (attribute_macro
+            (identifier))
           (parameter_list)
           (type_qualifier))))))

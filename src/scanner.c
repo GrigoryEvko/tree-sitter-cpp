@@ -10400,12 +10400,20 @@ static bool starts_initializer_element(Reader *reader) {
     return !word_in(word, CONTINUATION_KEYWORDS);
 }
 
+/// The words after the parameter list of a member function that end its declarator: the cv-qualifiers
+/// and the noexcept-specifier of parameters-and-qualifiers ([dcl.decl]), the dynamic exception
+/// specification `throw()`, and the virt-specifiers ([class.mem]). The ref-qualifiers `&` and `&&` are
+/// characters, and `scan_template_parameter_declarator` reads them apart.
+static const char *const FUNCTION_QUALIFIER_WORDS[] = {
+    "const", "volatile", "noexcept", "throw", "override", "final", NULL,
+};
+
 /// Select `TEMPLATE_PARAMETER_DECLARATOR_TYPE` for a type that a template head declares, where the
 /// declarator follows the type and a macro follows the declarator: `T value LIFETIME_BOUND`.
 ///
 /// The caller read the first name and the second name. `declarator` is the second name. The reader
-/// is at the end of it. The scan reads the gap, the macro, an optional argument list of the macro,
-/// and the character after them. It gives no token when one of these tests fails.
+/// is at the end of it. The scan reads the gap, each macro with an optional argument list, and the
+/// text after the last macro. It gives no token when one of these tests fails.
 ///
 /// EACH TEST BELOW NAMES AN INPUT THAT IT DECIDES, and a reader can parse that input with the test
 /// and without it. A comment that names an input which a later test stops anyway is a record of an
@@ -10434,16 +10442,28 @@ static bool starts_initializer_element(Reader *reader) {
 /// difference between the two tests makes a declaration that has the type token and no macro token,
 /// and such a declaration gets an ERROR node. For this reason the tests here are the stricter ones.
 ///
-/// THE CHARACTER AFTER THE MACRO MUST END THE DECLARATOR. A `,` or a `)` ends a parameter, and each
-/// of the 81 sites of the template head is a parameter. A `;` ends a declaration or a field:
-/// `Mutex mu MOZ_UNANNOTATED;` in firefox and `hb_locale_t oldlocale HB_UNUSED;` in harfbuzz. A `{`
-/// starts the braced initializer of a declaration or of a field: `atomic_uintptr_t XRayArgLogger
-/// SANITIZER_INTERFACE_ATTRIBUTE{0};` in compiler-rt. `void b(T value MACRO x)` and `void c(T value
-/// MACRO = 1)` have a different character there, and without this test each of the two gets an
-/// ERROR node. A `=` is not in the test, because `optional_parameter_declaration` takes no attributed
-/// declarator, and `void c(T value MACRO = 1)` shows the ERROR node that the token gives there. The
-/// population of 3977e59 holds 5 declarations with a `=` after the macro, all in mongo, and they keep
-/// the reading of today.
+/// THE TEXT AFTER THE MACROS MUST END THE DECLARATOR. A `,` or a `)` ends a parameter, and each of the
+/// 81 sites of the template head is a parameter. A `;` ends a declaration or a field: `Mutex mu
+/// MOZ_UNANNOTATED;` in firefox and `hb_locale_t oldlocale HB_UNUSED;` in harfbuzz. A `{` starts the
+/// braced initializer of a declaration or of a field: `atomic_uintptr_t XRayArgLogger
+/// SANITIZER_INTERFACE_ATTRIBUTE{0};` in compiler-rt. A `=` starts the initializer of a declaration
+/// or the default argument of a parameter: `Agg good1 ABSL_ATTRIBUTE_UNUSED = {1, 2};` in abseil and
+/// `const_pointer hint MY_ATTRIBUTE((unused)) = nullptr` in hhvm, where `optional_parameter_declaration`
+/// reads the macro in the declarator. `void b(T value MACRO x)` has a different word there, and
+/// without this test it gets an ERROR node.
+///
+/// A SECOND MACRO CAN COME AFTER THE FIRST MACRO AND ITS GROUP, AND THE TEST READS THE TEXT AFTER THE
+/// LAST MACRO: `static __thread ThreadLocalData threadlocal_data_ CACHELINE_ALIGNED ATTR_INITIAL_EXEC;`
+/// in gperftools. Each macro gets the tests of the first macro, and only the first macro needs the
+/// macro row of `seed_macro`.
+///
+/// A QUALIFIER OF A MEMBER FUNCTION ENDS THE DECLARATOR ONLY AFTER A PARAMETER LIST, WHICH IS A GROUP
+/// THAT HOLDS NO EXPRESSION: `static MyInt min BOOST_PREVENT_MACRO_SUBSTITUTION () throw() {` in
+/// boost. Of the 175 clean sites of this shape that a census of 2026-09-17 found, the scan reaches 144
+/// before `const`, 8 before `throw` and 6 before `noexcept`, with the seeds of the corpus.
+/// A group of expressions before `const` is the arguments of the macro and not a parameter list:
+/// `T f PREVENT (x) const { return 1; }` keeps the tree of today with this test, and it gets an ERROR
+/// node without it. The ref-qualifier has the same test: `T f PREVENT (x) & { return 1; }`.
 ///
 /// WITH `seed_macro`, THE MACRO MUST HAVE A MACRO ROW IN THE SEED OF THE PROJECT. The caller sets it
 /// when no source declares the first name as a type, so the macro row is then the evidence of the
@@ -10466,47 +10486,72 @@ static bool scan_template_parameter_declarator(Reader *reader, const char *decla
     char macro[TS_CPP_SEED_WORD_SIZE];
     bool macro_has_lower = false;
     read_word_sized(reader, macro, TS_CPP_SEED_WORD_SIZE, &macro_has_lower);
-    if (strlen(macro) < 2 || strlen(macro) >= MACRO_WORD_SIZE || reader->word_cut ||
-        !is_macro_name(macro, macro_has_lower) || is_grammar_keyword(macro) || strchr(macro, '\\') != NULL) {
-        return false;
-    }
-    if (seed_macro && !is_seed_macro_name(reader->scanner, macro, reader)) {
-        return false;
-    }
-    Gap after_macro = {0};
-    skip_gap(reader, &after_macro);
-    if (after_macro.blocked || !readable(reader)) {
-        return false;
-    }
-    // The argument list of the macro comes between the macro and the end of the parameter:
-    // `CentralityMap centrality BOOST_GRAPH_ENABLE_IF_MODELS_PARM(Graph, vertex_list_graph_tag)`.
-    if (lexer->lookahead == '(') {
-        Arguments arguments = {0};
-        if (!skip_group(reader, &arguments) || reader->budget == 0) {
+    for (bool first = true;; first = false) {
+        LOOP_STEP();
+        if (strlen(macro) < 2 || strlen(macro) >= MACRO_WORD_SIZE || reader->word_cut ||
+            !is_macro_name(macro, macro_has_lower) || is_grammar_keyword(macro) || strchr(macro, '\\') != NULL) {
             return false;
         }
-        // THE GROUP IS THE ARGUMENTS OF THE MACRO OR THE PARAMETER LIST OF THE DECLARATOR, AND THIS
-        // TEST IS THE TEST OF `scan_trailing_macro_name`, WHICH READS THE GROUP LATER. A group of
-        // expressions is the arguments of the macro. An empty group, or a group with a token that no
-        // expression holds, is the parameter list of a function, and the macro sits between the name
-        // of the function and that list: `Rep max BOOST_PREVENT_MACRO_SUBSTITUTION () {` in
-        // boost/chrono. A group that is neither gets no macro token from that scan, and the type
-        // token alone then gives an ERROR node in the place of the wrong tree of today:
-        // `AnyGlobalsTypeInternal Any_globals_ PROTOBUF_MESSAGE_GLOBALS_SECTION(.data.rel.ro)` in
-        // 37 sites of protobuf, 14 files that hold an error with this test and without it. A draft
-        // without this test gave those 14 files a different wrong tree, and this test keeps the
-        // tree that they have today.
-        if ((arguments.empty || arguments.not_expressions || arguments.statements) && arguments.not_parameters) {
+        if (first && seed_macro && !is_seed_macro_name(reader->scanner, macro, reader)) {
             return false;
         }
-        Gap after_arguments = {0};
-        skip_gap(reader, &after_arguments);
-        if (after_arguments.blocked || !readable(reader)) {
+        Gap after_macro = {0};
+        skip_gap(reader, &after_macro);
+        if (after_macro.blocked || !readable(reader)) {
             return false;
         }
-    }
-    if (lexer->lookahead != ',' && lexer->lookahead != ')' && lexer->lookahead != ';' && lexer->lookahead != '{') {
-        return false;
+        // A group that holds no expression comes directly after this macro, so the group is the parameter
+        // list of a function.
+        bool parameters = false;
+        // The argument list of the macro comes between the macro and the end of the parameter:
+        // `CentralityMap centrality BOOST_GRAPH_ENABLE_IF_MODELS_PARM(Graph, vertex_list_graph_tag)`.
+        if (lexer->lookahead == '(') {
+            Arguments arguments = {0};
+            if (!skip_group(reader, &arguments) || reader->budget == 0) {
+                return false;
+            }
+            bool no_expression = arguments.empty || arguments.not_expressions || arguments.statements;
+            // THE GROUP IS THE ARGUMENTS OF THE MACRO OR THE PARAMETER LIST OF THE DECLARATOR, AND THIS
+            // TEST IS THE TEST OF `scan_trailing_macro_name`, WHICH READS THE GROUP LATER. A group of
+            // expressions is the arguments of the macro. An empty group, or a group with a token that no
+            // expression holds, is the parameter list of a function, and the macro sits between the name
+            // of the function and that list: `Rep max BOOST_PREVENT_MACRO_SUBSTITUTION () {` in
+            // boost/chrono. A group that is neither gets no macro token from that scan, and the type
+            // token alone then gives an ERROR node in the place of the wrong tree of today:
+            // `AnyGlobalsTypeInternal Any_globals_ PROTOBUF_MESSAGE_GLOBALS_SECTION(.data.rel.ro)` in
+            // 37 sites of protobuf, 14 files that hold an error with this test and without it. A draft
+            // without this test gave those 14 files a different wrong tree, and this test keeps the
+            // tree that they have today.
+            if (no_expression && arguments.not_parameters) {
+                return false;
+            }
+            parameters = no_expression;
+            Gap after_arguments = {0};
+            skip_gap(reader, &after_arguments);
+            if (after_arguments.blocked || !readable(reader)) {
+                return false;
+            }
+        }
+        int32_t end = lexer->lookahead;
+        if (end == ',' || end == ')' || end == ';' || end == '{' || end == '=') {
+            break;
+        }
+        if (end == '&') {
+            if (!parameters) {
+                return false;
+            }
+            break;
+        }
+        if (!is_word_start(end)) {
+            return false;
+        }
+        read_word_sized(reader, macro, TS_CPP_SEED_WORD_SIZE, &macro_has_lower);
+        if (word_in(macro, FUNCTION_QUALIFIER_WORDS)) {
+            if (!parameters) {
+                return false;
+            }
+            break;
+        }
     }
     lexer->result_symbol = TEMPLATE_PARAMETER_DECLARATOR_TYPE;
     return true;

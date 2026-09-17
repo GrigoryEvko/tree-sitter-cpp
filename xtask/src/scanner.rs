@@ -506,6 +506,69 @@ mod seeded {
         }
     }
 
+    /// THE TEXT AFTER THE MACROS ENDS THE DECLARATOR, AND A QUALIFIER ENDS IT ONLY AFTER A PARAMETER LIST.
+    ///
+    /// For each line with the reading, the tree with the macro rows is the tree of the same line with the
+    /// macro names deleted, plus the macro nodes and the `attributed_declarator` of a variable. Refer to
+    /// `scan_template_parameter_declarator` in src/scanner.c:
+    /// - `static I min PREVENT () const` and `I f PREVENT (int x) noexcept`: a qualifier after a group
+    ///   that holds no expression.
+    /// - `I f PREVENT () &` and `virtual I f PREVENT () = 0;`: a ref-qualifier and a pure specifier.
+    /// - `Agg good1 ABSL_ATTRIBUTE_UNUSED = {1, 2};` and `void c(T value ABSL_ATTRIBUTE_UNUSED = 1);`: a
+    ///   `=` after the macro.
+    /// - `Agg threadlocal_data_ CACHELINE_ALIGNED ATTR_INITIAL_EXEC;`: a second macro.
+    ///
+    /// EACH LINE WITHOUT THE READING NAMES AN INPUT THAT ONE TEST DECIDES, and it keeps the tree of a parse
+    /// with no seed:
+    /// - `T f PREVENT (x) const`: a group of expressions before `const` is the arguments of the macro and
+    ///   no parameter list. Without the test, the line gets an ERROR node.
+    /// - `T f PREVENT (x) &`: the same test for the ref-qualifier.
+    /// - `void b(T value PREVENT x);`: a name after the macro ends no declarator.
+    #[test]
+    fn a_qualifier_ends_the_declarator_before_a_macro_only_after_a_parameter_list() {
+        let file = SeedFile::new(
+            "ABSL_ATTRIBUTE_UNUSED\tobject-macro\nATTR_INITIAL_EXEC\tobject-macro\nCACHELINE_ALIGNED\tobject-macro\n\
+             PREVENT\tobject-macro\n",
+        );
+        let seed = Seed::read(file.path()).expect("the seed reads");
+        let mut parser = parser();
+        // SAFETY: `seed` lives to the end of this test.
+        unsafe { parser.set_scanner_context(seed.as_context()) };
+        let macros = [" PREVENT", " ABSL_ATTRIBUTE_UNUSED", " CACHELINE_ALIGNED", " ATTR_INITIAL_EXEC"];
+        for source in [
+            "class A { static I min PREVENT () const { return 1; } };\n",
+            "class A { I f PREVENT (int x) noexcept { return x; } };\n",
+            "class A { I f PREVENT () & { return 1; } };\n",
+            "class A { virtual I f PREVENT () = 0; };\n",
+            "Agg good1 ABSL_ATTRIBUTE_UNUSED = {1, 2};\n",
+            "void c(T value ABSL_ATTRIBUTE_UNUSED = 1);\n",
+            "Agg threadlocal_data_ CACHELINE_ALIGNED ATTR_INITIAL_EXEC;\n",
+        ] {
+            let seeded = parser.parse(source, None).expect("the parse ends");
+            let mut sexp = seeded.root_node().to_sexp();
+            assert!(!seeded.root_node().has_error(), "{source}{sexp}");
+            let deleted = macros.iter().fold(source.to_owned(), |text, name| text.replace(name, ""));
+            let deleted = parser.parse(&deleted, None).expect("the parse ends").root_node().to_sexp();
+            let count = macros.iter().filter(|name| source.contains(*name)).count();
+            let markers = " (attribute_macro name: (identifier))".repeat(count);
+            assert_eq!(sexp.matches(&markers).count(), 1, "{source}{sexp}");
+            for name in ["identifier", "field_identifier"] {
+                sexp = sexp.replace(&format!("(attributed_declarator ({name}){markers})"), &format!("({name})"));
+            }
+            // The macro of a function is a child of its `function_declarator`.
+            assert_eq!(sexp.replace(&markers, ""), deleted, "{source}");
+        }
+        for source in [
+            "class A { T f PREVENT (x) const { return 1; } };\n",
+            "class A { T f PREVENT (x) & { return 1; } };\n",
+            "void b(T value PREVENT x);\n",
+        ] {
+            let seeded = parser.parse(source, None).expect("the parse ends");
+            assert!(!seeded.root_node().has_error(), "{source}{}", seeded.root_node().to_sexp());
+            assert_eq!(seeded.root_node().to_sexp(), bare(source).root_node().to_sexp(), "{source}");
+        }
+    }
+
     /// A FIRST NAME WITH A MACRO ROW DOES NOT ENTER, SO ITS INVOCATION AND ITS CONSTRUCTOR MACRO STAY.
     ///
     /// The scan reads the blank after the first name before it can see the `(` of an invocation or
