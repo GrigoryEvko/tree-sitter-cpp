@@ -8681,8 +8681,13 @@ typedef enum {
 } LocalDeclarationKind;
 
 /// True for a token that can end a declarator of a declaration of `kind`. A `(` is the direct
-/// initializer of `T x(args)`, and not the parenthesized declarator of `R (*f)(int)`, whose name is
-/// inside the group. O(1).
+/// initializer of `T x(args)`, and not the parenthesized declarator of `int WINAPI (*f)(int)`, whose name
+/// is inside the group.
+///
+/// A GROUP THAT STARTS LIKE A DECLARATOR IS A DECLARATOR ONLY BEFORE A PARAMETER LIST OR AN ARRAY BOUND. A
+/// group that starts with `&`, `&&`, `*`, `^`, or a word and `*`, and that a `(` or a `[` follows, is a
+/// declarator: `int WINAPI (*f)(int)`, `T x(*p)[3]`. With any other token after it, the group is an
+/// initializer: `T x(&y);`, `T x(*p), z;`. O(n) in the tokens of the group.
 static bool local_declarator_end(const LocalItem *item, unsigned i, unsigned end, LocalDeclarationKind kind) {
     if (local_range_out(item, end)) {
         return false;
@@ -8710,7 +8715,15 @@ static bool local_declarator_end(const LocalItem *item, unsigned i, unsigned end
         bool pointer = inner != NULL && (local_mark_is(inner, "*") || local_mark_is(inner, "&") ||
                                          local_mark_is(inner, "&&") || local_mark_is(inner, "^"));
         bool convention = inner != NULL && inner->kind == TOKEN_WORD && second != NULL && local_mark_is(second, "*");
-        return !pointer && !convention;
+        if (!pointer && !convention) {
+            return true;
+        }
+        unsigned close = local_match(item, i, end);
+        if (close == LOCAL_NO_TOKEN) {
+            return false;
+        }
+        const LocalToken *next = close + 1 < end ? &item->tokens[close + 1] : NULL;
+        return next == NULL || !(local_mark_is(next, "(") || local_mark_is(next, "["));
     }
     return token->kind == TOKEN_COMMA || local_mark_is(token, ":") || local_mark_is(token, ")");
 }
