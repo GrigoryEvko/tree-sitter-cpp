@@ -113,7 +113,6 @@ pub fn grammar() -> Grammar {
         s!(_preproc_if_in_case),
         s!(_preproc_ifdef_in_case),
         s!(_preproc_ifndef_in_case),
-        s!(_class_head_mark),
         s!(_constructor_macro_start),
         s!(_unreachable_token),
         s!(_macro_call_attribute_start),
@@ -2380,18 +2379,18 @@ fn types(g: &mut Grammar) {
     // scanner uses the names to find a constructor after a macro: `LLVM_ABI A();`. Refer to
     // `_constructor_macro_start`.
     //
-    // The scanner gives `_class_head_mark` before a class key when a class head with a body follows it,
-    // and a name that it did not record as the last name. The token is an empty extra. The parser
-    // shifts it in each state, and the parse states and the trees do not change.
-    g.extras.push(s!(_class_head_mark));
+    // The scanner records the name at a class key with no token: the scan gives
+    // TREE_SITTER_EXTERNAL_STATE_ONLY, and the runtime of ABI 1018 stores the state on the class key.
+    // An empty extra for the record was a lookahead of its own, and it changed trees with no rule that
+    // read it. Refer to `scan_class_head` in src/scanner.c and to task 379.
     // The scanner records the names that a template head declares as type parameters, and it gives
-    // `_template_head_mark` before the word `template` to do it. The token is an empty extra, as the
-    // class head mark is: the parser shifts it in each state, and the parse states and the trees do
-    // not change. Refer to `scan_template_head` in src/scanner.c and to task 291.
+    // `_template_head_mark` before the word `template` to do it. The token is an empty extra: the
+    // parser shifts it in each state, and the parse states do not change. Refer to
+    // `scan_template_head` in src/scanner.c and to task 291.
     g.extras.push(s!(_template_head_mark));
     // The scanner records the name that a `using` alias declaration of the file declares, and it
     // gives `_using_alias_mark` before the word `using` to do it. The token is an empty extra, as
-    // the class head mark and the template head mark are. Refer to `scan_using_alias`.
+    // the template head mark is. Refer to `scan_using_alias`.
     g.extras.push(s!(_using_alias_mark));
     // THE OPERAND OF `alignas` IS A TYPE OR A CONSTANT EXPRESSION, AND A BARE NAME IS BOTH. c4e81d4
     // states the expression reading as a rule, because only the declaration of the name tells the
@@ -3944,7 +3943,7 @@ fn declarations(g: &mut Grammar) {
     // macro would fork the parse at each call `f(x)`.
     //
     // The external scanner emits `_constructor_macro_start` before the first macro when the name
-    // after the macros is the name of a class head that it recorded (refer to `_class_head_mark`), or
+    // after the macros is the name of a class head that it recorded (refer to `scan_class_head`), or
     // when the name is `A::A` or `A::~A`. The parser then does not fork, and a macro before a
     // constructor is not a return type: `LLVM_ABI A();`, `simdjson_inline A::A() {}`.
     let named_declarator = || {

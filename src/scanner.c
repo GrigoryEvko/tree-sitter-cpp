@@ -55,9 +55,6 @@ enum TokenType {
     PREPROC_IF_IN_CASE,
     PREPROC_IFDEF_IN_CASE,
     PREPROC_IFNDEF_IN_CASE,
-    /// An empty extra before the class key of a class head with a body. The scanner records the name of
-    /// the class.
-    CLASS_HEAD_MARK,
     /// An empty token before the macros of a constructor or a destructor.
     CONSTRUCTOR_MACRO_START,
     /// A token that the scanner never gives. It comes after a `>=` where a template argument list can end.
@@ -3349,8 +3346,14 @@ static bool class_body_has_member(Reader *reader) {
 }
 
 /// Scan the head of a class after its class key. When a base clause, a virt-specifier, or a body comes
-/// after the head, and the body has a member, record the name of the class. Return true if the recorded
-/// names change. The token is the empty extra CLASS_HEAD_MARK before the class key.
+/// after the head, and the body has a member, record the name of the class. Return false: the scan gives
+/// no token. When the recorded names change, the result symbol is TREE_SITTER_EXTERNAL_STATE_ONLY, and the
+/// runtime of ABI 1018 stores the state on the class key that its internal lexer reads next.
+///
+/// AN EMPTY EXTRA FOR THE CHANGE WAS A LOOKAHEAD OF ITS OWN. The mark `_class_head_mark` changed trees
+/// with no rule that read it: in error recovery, in the order of the versions, and in ties. The record
+/// of locals has the same history (5255191). At a class key each path of `scan_word_start` after this
+/// scan gives no token, so no token of the parser changes.
 ///
 /// The name of the class is the last name before these tokens. A name can be qualified, and template
 /// arguments can come after it: `ns::A<int> {`. The names and the macro calls before it are macros:
@@ -3477,20 +3480,19 @@ static bool scan_class_head(Scanner *scanner, Reader *reader) {
     if (member) {
         changed = record_class_name(scanner, name) || changed;
     }
-    if (!changed) {
-        return false;
+    if (changed) {
+        lexer->result_symbol = TREE_SITTER_EXTERNAL_STATE_ONLY;
     }
-    lexer->result_symbol = CLASS_HEAD_MARK;
-    return true;
+    return false;
 }
 
 /// Scan a template head after the word `template`, and record the names that it declares as TYPE
 /// parameters. Return true if the recorded names change. The token is the empty extra
 /// TEMPLATE_HEAD_MARK before the word.
 ///
-/// THE TOKEN IS GIVEN ONLY WHEN THE RECORD CHANGES, as `scan_class_head` does. An empty token that a
-/// scan gives again at the same position is a token with no width that the parser reads forever: one
-/// such loop of 2026-09-16 took 152 GB for a file of 20 KB.
+/// THE TOKEN IS GIVEN ONLY WHEN THE RECORD CHANGES. An empty token that a scan gives again at the same
+/// position is a token with no width that the parser reads forever: one such loop of 2026-09-16 took
+/// 152 GB for a file of 20 KB.
 ///
 /// ONLY `typename` AND `class` GIVE A NAME. A constrained parameter, `template <std::integral T>`,
 /// and a non-type parameter, `template <int N>`, have the SAME SHAPE, a name and then a name, and
@@ -3591,8 +3593,8 @@ static bool scan_template_head(Scanner *scanner, Reader *reader) {
 /// scan reads one word and then requires an `=`, which tells the three apart with no list of
 /// keywords. `template <class T> using V = W<T>;` has the same shape after its head.
 ///
-/// THE TOKEN IS GIVEN ONLY WHEN THE RECORD CHANGES, as `scan_class_head` and `scan_template_head`
-/// do. An empty token that a scan gives again at the same position never ends.
+/// THE TOKEN IS GIVEN ONLY WHEN THE RECORD CHANGES, as `scan_template_head` does. An empty token that a
+/// scan gives again at the same position never ends.
 ///
 /// A TYPEDEF DECLARES A TYPE NAME TOO AND THIS SCAN DOES NOT READ IT. The name of a typedef is its
 /// declarator and it comes last, `typedef int (*fn)(void);`, so reading it needs a declarator scan
@@ -3635,8 +3637,8 @@ static bool is_class_key(const char *word) {
            strcmp(word, "__interface") == 0;
 }
 
-/// Read a word, and scan the head of a class after it when the word is a class key. The token is the
-/// empty CLASS_HEAD_MARK before the word.
+/// Read a word, and scan the head of a class after it when the word is a class key. The scan gives no
+/// token. Refer to `scan_class_head`.
 static bool scan_class_key(Scanner *scanner, TSLexer *lexer) {
     mark_end(lexer);
     Reader reader = start_reader(lexer, MACRO_SCAN_LIMIT, scanner);
@@ -10693,8 +10695,10 @@ static bool scan_word_start(Scanner *scanner, TSLexer *lexer, const bool *valid_
         lexer->result_symbol = TYPE_TRAIT_TYPE_MARKER;
         return scan_parenthesis_after_word(lexer, scanner);
     }
+    // A class key writes the record of class heads with no token. The scan runs in each state where the
+    // parser calls this scanner, as the mark of the record ran: that extra was valid in each of them.
     if (is_class_key(word)) {
-        return valid_symbols[CLASS_HEAD_MARK] && scan_class_head(scanner, &reader);
+        return scan_class_head(scanner, &reader);
     }
     // A macro in the head of a class that has no member. The parser takes the mark after a class key
     // only, and the validity of the token is the evidence of that position.
@@ -11145,7 +11149,7 @@ void *tree_sitter_cpp_external_scanner_create() {
 /// True for a token that can be empty by design. Each other token holds at least one character.
 ///
 /// - The macro invocation tokens, the macro call attribute tokens, and the constructor macro token come before a
-///   name. The class head mark comes before a class key.
+///   name.
 /// - The Qt markers, the `va_arg` marker, and the trait marker come before their word. The start of a member
 ///   pointer comes before its scope.
 /// - The end of a directive line is empty at the end of the input.
@@ -11168,7 +11172,6 @@ static bool can_be_empty(TSSymbol symbol) {
         case STATEMENT_ATTRIBUTE_MACRO_START:
         case STATEMENT_ATTRIBUTE_MACRO_TOKENS_START:
         case CONSTRUCTOR_MACRO_START:
-        case CLASS_HEAD_MARK:
         case CLASS_MACRO_MARK:
         case QT_EMIT_MARKER:
         case QT_FOREACH_MARKER:
@@ -11298,8 +11301,9 @@ static bool scan_token(Scanner *scanner, TSLexer *lexer, const bool *valid_symbo
     if (lexer->lookahead == '{' || lexer->lookahead == '}' || lexer->lookahead == ';') {
         return scan_local_boundary(scanner, lexer);
     }
-    // In error recovery, the mark of a class head is the only token of this scanner. The versions in
-    // recovery then read the mark in the same place as the other versions, as they read a comment.
+    // In error recovery, the scan of a class head is the only scan of this scanner, and it gives no token.
+    // A version in recovery then writes the record of class heads at the same class key as the other
+    // versions.
     if (error_recovery) {
         return is_word_start(lexer->lookahead) && scan_class_key(scanner, lexer);
     }
