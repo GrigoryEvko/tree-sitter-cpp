@@ -3304,6 +3304,13 @@ static const char *const CLASS_ATTRIBUTE_WORDS[] = {
 /// A member declaration ends with `;`, and a member function definition has a body. An enumerator list
 /// has neither: `enum class E : int { A, B };`. A braced initializer has neither in most code:
 /// `struct timespec t{1, 0};`. O(n) in the length of the text that the scan reads.
+///
+/// A `/` that starts no comment is the operator `/` or `/=`, and the scan goes past it as a token: `static
+/// constexpr size_t kMaxLength = TypedArray::kMaxByteLength / sizeof(uint8_t);` of v8, `struct APValue::LV :
+/// LVBase { static const unsigned InlinePathSpace = (DataSize - sizeof(LVBase)) / sizeof(LValuePathEntry);` of
+/// clang, `: public B<N / 2>`, and `T operator/(double) const;`. `skip_gap` reads the `/` and stops there, as
+/// `read_text_token` reads it. The scan stopped at that `/` before, and the record held no name for 282 heads of
+/// the corpus.
 static bool class_body_has_member(Reader *reader) {
     TSLexer *lexer = reader->lexer;
     char word[MACRO_WORD_SIZE];
@@ -3312,6 +3319,9 @@ static bool class_body_has_member(Reader *reader) {
         LOOP_STEP();
         Gap gap = {0};
         skip_gap(reader, &gap);
+        if (gap.slash) {
+            continue;
+        }
         if (gap.blocked || !readable(reader)) {
             return false;
         }

@@ -2907,6 +2907,121 @@ struct [[nodiscard]] EXPORT_MACRO Before {
               declarator: (identifier))))))))
 
 ================================================================================
+The class record of a head whose body has a division before its first member
+================================================================================
+
+class V8_EXPORT Uint8Array : public TypedArray {
+ public:
+  static constexpr size_t kMaxLength = TypedArray::kMaxByteLength / sizeof(uint8_t);
+  V8_INLINE Uint8Array(int length);
+  WTF_MAKE_NONCOPYABLE(Uint8Array);
+};
+class bitset {
+  static const int k_BITS = 8 / 2;
+  BSLS_KEYWORD_CONSTEXPR bitset() BSLS_KEYWORD_NOEXCEPT;
+};
+struct Base : public Holder<N / 2> {
+  Base(const Base &other);
+};
+struct Vec {
+  Vec operator/(double d) const;
+  DISALLOW_COPY(Vec);
+};
+
+--------------------------------------------------------------------------------
+
+(translation_unit
+  (class_specifier
+    (attribute_macro
+      name: (identifier))
+    name: (type_identifier)
+    (base_class_clause
+      (access_specifier)
+      (type_identifier))
+    body: (field_declaration_list
+      (access_specifier)
+      (field_declaration
+        (storage_class_specifier)
+        (type_qualifier)
+        type: (primitive_type)
+        declarator: (field_identifier)
+        default_value: (binary_expression
+          left: (qualified_identifier
+            scope: (namespace_identifier)
+            name: (identifier))
+          right: (sizeof_expression
+            type: (type_descriptor
+              type: (primitive_type)))))
+      (declaration
+        (attribute_macro
+          name: (identifier))
+        declarator: (function_declarator
+          declarator: (identifier)
+          parameters: (parameter_list
+            (parameter_declaration
+              type: (primitive_type)
+              declarator: (identifier)))))
+      (macro_invocation
+        name: (identifier)
+        arguments: (token_tree
+          (identifier)))))
+  (class_specifier
+    name: (type_identifier)
+    body: (field_declaration_list
+      (field_declaration
+        (storage_class_specifier)
+        (type_qualifier)
+        type: (primitive_type)
+        declarator: (field_identifier)
+        default_value: (binary_expression
+          left: (number_literal)
+          right: (number_literal)))
+      (declaration
+        (attribute_macro
+          name: (identifier))
+        declarator: (function_declarator
+          declarator: (identifier)
+          parameters: (parameter_list)
+          (attribute_macro
+            name: (identifier))))))
+  (struct_specifier
+    name: (type_identifier)
+    (base_class_clause
+      (access_specifier)
+      (template_type
+        name: (type_identifier)
+        arguments: (template_argument_list
+          (binary_expression
+            left: (identifier)
+            right: (number_literal)))))
+    body: (field_declaration_list
+      (declaration
+        declarator: (function_declarator
+          declarator: (identifier)
+          parameters: (parameter_list
+            (parameter_declaration
+              (type_qualifier)
+              type: (type_identifier)
+              declarator: (reference_declarator
+                (identifier))))))))
+  (struct_specifier
+    name: (type_identifier)
+    body: (field_declaration_list
+      (field_declaration
+        type: (type_identifier)
+        declarator: (function_declarator
+          declarator: (operator_name)
+          parameters: (parameter_list
+            (parameter_declaration
+              type: (primitive_type)
+              declarator: (identifier)))
+          (type_qualifier)))
+      (macro_invocation
+        name: (identifier)
+        arguments: (token_tree
+          (identifier))))))
+
+================================================================================
 White space between the brackets of an attribute
 ================================================================================
 

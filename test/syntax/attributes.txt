@@ -182,3 +182,17 @@ public:
   Cleanup(Cleanup &&) {}
   Cleanup() = default;
 };
+### class_record_division_before_first_member
+class V8_EXPORT Uint8Array : public TypedArray {
+ public:
+  static constexpr size_t kMaxLength = TypedArray::kMaxByteLength / sizeof(uint8_t);
+  V8_INLINE static Local<Uint8Array> New(Local<ArrayBuffer> array_buffer, size_t byte_offset, size_t length);
+ private:
+  Uint8Array();
+};
+struct APValue::LV : LVBase {
+  static const unsigned InlinePathSpace =
+      (DataSize - sizeof(LVBase)) / sizeof(LValuePathEntry);
+  LV() { PathLength = (unsigned)-1; }
+  ~LV() { resizePath(0); }
+};
