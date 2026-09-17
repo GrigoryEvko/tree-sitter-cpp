@@ -162,7 +162,7 @@ enum TokenType {
     TYPE_ATTRIBUTE_MACRO_NAME,
     /// The operand of `alignas`, where a source of the parse declares the name as a type:
     /// `template <typename T> struct S { alignas(T) char storage[sizeof(T)]; };`. The token covers
-    /// the name and the grammar reads it as a `type_descriptor`. Refer to `is_alignas_type_name`.
+    /// the name and the grammar reads it as a `type_descriptor`. Refer to `is_recorded_type_name`.
     ALIGNAS_TYPE_NAME,
     /// An empty token before the name of a macro call that is a part of a concatenation:
     /// `"arena." STRINGIFY(MALLCTL_ARENAS_ALL) ".purge"`. The scan gives it when a balanced group
@@ -312,7 +312,8 @@ typedef struct {
     /// The number of recorded template type parameter names.
     uint8_t template_count;
     /// The hashes of the names that the last template heads declare as TYPE parameters, the most
-    /// recent last. Two readers: `is_alignas_type_name` for `alignas(T)`, and `scan_word_start` for
+    /// recent last. Two readers: `is_recorded_type_name` for `alignas(T)` and for a whole template
+    /// parameter, and `scan_word_start` for
     /// the token `TEMPLATE_PARAMETER_TYPE_NAME`, which reads a type parameter before a macro-shaped
     /// name (`T HPX_RESTRICT dest`). An earlier form of this comment named `alignas` alone, and the
     /// second reader has read the record since the token was added.
@@ -2374,7 +2375,10 @@ static uint16_t seed_kinds(const TSCppSeed *seed, const char *name, uint32_t len
 
 static bool is_seed_type_name(const Scanner *scanner, const char *name, const Reader *reader);
 
-/// True when a source of the parse declares the operand of an `alignas` as a type.
+/// True when a source of the parse declares the name as a type.
+///
+/// TWO READERS: the operand of an `alignas`, and a whole template parameter of a template head.
+/// Each position holds a name that is a type or is no type, and the sources of that fact are the same.
 ///
 /// ONE LOOKUP WITH SEVERAL SOURCES AND A STATED ORDER OF AUTHORITY, and not several call sites that
 /// can disagree. The construct, the file and the project are three sources of ONE fact, and a
@@ -2395,7 +2399,7 @@ static bool is_seed_type_name(const Scanner *scanner, const char *name, const Re
 /// second half of the order is stated here and no site of the corpus exercises it.
 ///
 /// Task 291 adds the sources one step at a time, and each step states its own count of tree changes.
-static bool is_alignas_type_name(const Scanner *scanner, const char *full, const Reader *reader) {
+static bool is_recorded_type_name(const Scanner *scanner, const char *full, const Reader *reader) {
     if (scanner == NULL) {
         return false;
     }
@@ -2502,7 +2506,8 @@ static bool is_seed_function_macro_name(const Scanner *scanner, const char *name
 /// compares the bytes of the name with the entries of the seed. The template head of the same
 /// declaration is the third source of the same fact, and `scan_word_start` reads it on a path of
 /// its own, because that path was there first and its declines are measured. Refer to
-/// `is_alignas_type_name`, which reads the same sources for the operand of `alignas`.
+/// `is_recorded_type_name`, which reads the same sources for the operand of `alignas` and for a
+/// whole template parameter.
 ///
 /// THE RECORD OF THE CLASS HEADS HOLDS THE LAST MAX_CLASSES NAMES OF THE FILE, so a class that the
 /// file declares far above the site is not in it. THE GATE RUNS NO SEED, so the seed source measures
@@ -4253,6 +4258,13 @@ static bool scan_macro_start(Reader reader, const char *name, const char *full, 
     // group after the name decides it. Refer to the reading of `template_parameter_macro` below.
     bool template_parameter_macro = valid_symbols[TEMPLATE_PARAMETER_MACRO_START] && !is_grammar_keyword(name) &&
                                     !word_in(name, TYPE_WORDS);
+    // EVERY RECORD OF THE PARSE DECIDES A WHOLE TEMPLATE PARAMETER, AND THE LOOKUP COMES BEFORE THE SCAN
+    // OF A GROUP. `skip_group` reads each word of the group with `read_word`, and each read writes
+    // `reader.word_hash`. The same lookup after the group holds the hash of the last word of the group,
+    // and it gives a miss for the name of the macro: `template<typename FT, FT(T::*mem)>` of
+    // g++.dg/cpp0x/pr52744.C became a macro invocation although the head declares `FT` as a type
+    // parameter. The rule below reads this name after the group, so the result comes from here.
+    bool recorded_type = template_parameter_macro && is_recorded_type_name(scanner, full, &reader);
     // A call of a name with a lowercase letter where a declaration or a statement starts, with its `(` immediately
     // after the name. Refer to the branch below.
     bool branch_end_call = lexer->lookahead == '(' && !is_macro_name(name, has_lower) && !member_start &&
@@ -4358,6 +4370,40 @@ static bool scan_macro_start(Reader reader, const char *name, const char *full, 
     // tell two texts apart must take the reading that holds for both. Refer to the macro table.
     //
     // The scan of the group is the one above, because the lexer cannot read the same group twice.
+    // A MACRO-SHAPED NAME THAT IS A WHOLE TEMPLATE PARAMETER IS A MACRO, AND A DECLARED NAME DECLINES.
+    // `template <UNDIRECTED_GRAPH_PARAMS> class undirected_graph` of boost graph and
+    // `template <class S, FMT_ENABLE_IF(...)>` of fmt hold a macro where one parameter stands, and the tree
+    // states a parameter whose type is the macro. The rule fires on the position and the shape, so a parse
+    // with no seed reads them too, and the two lookups of a declared type decline a real parameter.
+    //
+    // THE CHARACTER AFTER THE NAME, OR AFTER ITS GROUP, ENDS THE PARAMETER. `FILE *BufType::FileMemberPtr`
+    // of fmt ostream.h is a real type with a declarator, and a form with no such test gave 467 files a new
+    // error.
+    //
+    // A NON-TYPE PARAMETER OF CLASS TYPE HAS THE SAME SHAPE, AND A RECORD OF THE TYPE SEPARATES IT.
+    // `struct BR { const int &r; };` and then `template<BR> void f() {}` of clang mangle-class-nttp.cpp is
+    // valid C++. 19 such sites of the corpus take no token, 15 in that file and 4 in a documented head of
+    // cgal, and without this test each of those trees becomes a macro invocation with no ERROR node.
+    // `is_recorded_type_name` reads every record of the parse, and each source decides a site of its own:
+    // - The class heads with a member decide `BR` and 9 more names of the clang file.
+    // - The loose record, which holds a head with an empty body, decides `union H1 {};` at line 270 of the
+    //   same file. `H2`, `H3` and `H4` there hold a member.
+    // - The record of type parameters decides `template<typename CT, CT> struct member_helper;` of
+    //   g++.dg/cpp0x/pr52744.C and `template <typename T1, typename T2, template <T2> class Comp>` of
+    //   g++.dg/template/pr30044.C, where the name is a type parameter of the same head.
+    // - The `using` aliases of the file decide a name that an alias declares.
+    // - The type rows of the seed decide the 4 sites of cgal, where `ET` is a type of the project.
+    // The five sources cost one repair of the corpus, and that repair is `H1`.
+    //
+    // AN ENUM AND A TYPEDEF KEEP THE WRONG READING IN A PARSE WITH NO SEED, because no record holds
+    // either name. `enum E2 : int { x2 };` and then `template<E2> struct A2 {};` of g++.dg/cpp0x/enum30.C
+    // is such a site. A parse with the seed of the project declines it through the type row, and a record
+    // of the enum heads and of the typedef names is a task of its own.
+    if (template_parameter_macro && !gap.directive && is_macro_name(name, has_lower) && length >= 2 &&
+        !recorded_type && (lexer->lookahead == ',' || lexer->lookahead == '>')) {
+        lexer->result_symbol = TEMPLATE_PARAMETER_MACRO_START;
+        return true;
+    }
     if (call && template_parameter_macro && !gap.directive && args.not_parameters && !args.empty &&
         !args.pointer_first && !args.group_first && !args.one_type_id) {
         lexer->result_symbol = TEMPLATE_PARAMETER_MACRO_START;
@@ -11125,7 +11171,7 @@ static bool scan_word_start(Scanner *scanner, TSLexer *lexer, const bool *valid_
     // as an expression. The token gives the type reading for a name that a source declares as a
     // type. The parser makes the token valid in that one position, so the validity is the evidence
     // of the position.
-    if (valid_symbols[ALIGNAS_TYPE_NAME] && is_alignas_type_name(scanner, full, &reader)) {
+    if (valid_symbols[ALIGNAS_TYPE_NAME] && is_recorded_type_name(scanner, full, &reader)) {
         // The end of the token is the end of the name. The scan reads past it to look at the next
         // character, and the mark holds.
         mark_end(lexer);

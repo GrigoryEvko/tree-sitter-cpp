@@ -194,7 +194,7 @@ pub fn grammar() -> Grammar {
         // macro cannot be the type itself. Refer to `_type_attribute_macro`.
         s!(_type_attribute_macro_name),
         // The operand of `alignas`, where a source of the parse declares the name as a type and the
-        // name is the whole operand. Refer to `is_alignas_type_name`.
+        // name is the whole operand. Refer to `is_recorded_type_name`.
         s!(_alignas_type_name),
         // An empty token before the name of a macro call that is a part of a concatenation:
         // `"arena." STRINGIFY(ALL) ".purge"`. The scanner gives it when a balanced group and a
@@ -2424,7 +2424,7 @@ fn types(g: &mut Grammar) {
     // name and the internal lexer then gives the identifier.
     //
     // The alias gives the tree that `alignas(int)` gives, a `type_descriptor` with a `type` field,
-    // so the two readings of a type have one shape. Refer to `is_alignas_type_name` in
+    // so the two readings of a type have one shape. Refer to `is_recorded_type_name` in
     // src/scanner.c and to task 291.
     g.define("_alignas_type", field("type", alias(s!(_alignas_type_name), s!(type_identifier))));
     g.redefine("alignas_qualifier", |original| {
@@ -3349,7 +3349,7 @@ fn declarations(g: &mut Grammar) {
         seq![
             s!(_template_parameter_macro_start),
             field("name", s!(identifier)),
-            field("arguments", alias(s!(_macro_arguments), s!(token_tree))),
+            optional(field("arguments", alias(s!(_macro_arguments), s!(token_tree)))),
         ],
     );
     let template_parameters = || {

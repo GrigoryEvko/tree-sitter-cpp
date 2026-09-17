@@ -27708,17 +27708,25 @@
           }
         },
         {
-          "type": "FIELD",
-          "name": "arguments",
-          "content": {
-            "type": "ALIAS",
-            "content": {
-              "type": "SYMBOL",
-              "name": "_macro_arguments"
+          "type": "CHOICE",
+          "members": [
+            {
+              "type": "FIELD",
+              "name": "arguments",
+              "content": {
+                "type": "ALIAS",
+                "content": {
+                  "type": "SYMBOL",
+                  "name": "_macro_arguments"
+                },
+                "named": true,
+                "value": "token_tree"
+              }
             },
-            "named": true,
-            "value": "token_tree"
-          }
+            {
+              "type": "BLANK"
+            }
+          ]
         }
       ]
     },

@@ -3578,6 +3578,78 @@ template <class T, U((V))> void keeps_the_group_in_a_group();
         parameters: (parameter_list)))))
 
 ================================================================================
+A macro with no arguments that gives a whole template parameter
+================================================================================
+
+template <UNDIRECTED_GRAPH_PARAMS> class undirected_graph {};
+
+template <typename Char, MACRO_TAG> void write(Char c);
+
+template <typename Tag, typename BufType, FILE* BufType::* FileMemberPtr>
+struct file_access;
+
+struct BR { const int &r; };
+
+template <BR> void keeps_the_parameter() {}
+
+--------------------------------------------------------------------------------
+
+(translation_unit
+  (template_declaration
+    parameters: (template_parameter_list
+      (macro_invocation
+        name: (identifier)))
+    (class_specifier
+      name: (type_identifier)
+      body: (field_declaration_list)))
+  (template_declaration
+    parameters: (template_parameter_list
+      (type_parameter_declaration
+        (type_identifier))
+      (macro_invocation
+        name: (identifier)))
+    (declaration
+      type: (primitive_type)
+      declarator: (function_declarator
+        declarator: (identifier)
+        parameters: (parameter_list
+          (parameter_declaration
+            type: (type_identifier)
+            declarator: (identifier))))))
+  (template_declaration
+    parameters: (template_parameter_list
+      (type_parameter_declaration
+        (type_identifier))
+      (type_parameter_declaration
+        (type_identifier))
+      (parameter_declaration
+        type: (type_identifier)
+        declarator: (pointer_declarator
+          declarator: (member_pointer_declarator
+            scope: (namespace_identifier)
+            declarator: (identifier)))))
+    (struct_specifier
+      name: (type_identifier)))
+  (struct_specifier
+    name: (type_identifier)
+    body: (field_declaration_list
+      (field_declaration
+        (type_qualifier)
+        type: (primitive_type)
+        declarator: (reference_declarator
+          declarator: (field_identifier)))))
+  (template_declaration
+    parameters: (template_parameter_list
+      (parameter_declaration
+        type: (type_identifier)))
+    (function_definition
+      type: (primitive_type)
+      declarator: (function_declarator
+        declarator: (identifier)
+        parameters: (parameter_list))
+      body: (compound_statement))))
+
+================================================================================
 A macro call before a statement that starts with a call
 ================================================================================
 

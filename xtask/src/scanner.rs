@@ -810,6 +810,60 @@ mod seeded {
              anywhere to show it."
         );
     }
+
+    /// A MACRO-SHAPED NAME THAT IS A WHOLE TEMPLATE PARAMETER READS AS A MACRO.
+    ///
+    /// `template <UNDIRECTED_GRAPH_PARAMS> class undirected_graph` of boost graph holds a macro where
+    /// one parameter stands. The rule fires on the position and the shape of the name, so a parse with
+    /// no seed reads it too, and it declines on the evidence of a declared type.
+    ///
+    /// EACH LINE OF THE SOURCE NAMES AN INPUT THAT ONE TEST OF THE RULE DECIDES:
+    /// - `template <UNDIRECTED_GRAPH_PARAMS> class g {};` takes the reading, and the name stands alone.
+    /// - `template <typename T, MACRO_TAG> struct S;` takes it after a parameter of the same list.
+    /// - `FILE* BufType::* FileMemberPtr` of fmt ostream.h keeps its parameter, because the character
+    ///   after the name is not `,` and not `>`.
+    /// - `struct BR { const int &r; };` then `template <BR>` keeps its parameter, because a class head
+    ///   of the file with a member declares the name. This is a non-type parameter of class type.
+    /// - `template <T> void i() {}` keeps its parameter, because the name has one letter.
+    /// - `template <ET> void h() {}` keeps its parameter when a type row of the seed holds `ET`.
+    ///
+    /// Refer to `scan_macro_start` in src/scanner.c.
+    #[test]
+    fn a_macro_shaped_name_that_is_a_whole_template_parameter_reads_as_a_macro() {
+        const SOURCE: &str = "template <UNDIRECTED_GRAPH_PARAMS> class g {};\n\
+                              template <typename T, MACRO_TAG> struct S;\n";
+        // Each line here keeps the tree of a parse before this rule.
+        const KEPT: &str = "template <typename Tag, typename BufType, FILE* BufType::* FileMemberPtr>\n\
+                            struct a;\nstruct BR { const int &r; };\ntemplate <BR> void f() {}\n\
+                            template <T> void i() {}\n";
+        let tree = bare(SOURCE);
+        let sexp = tree.root_node().to_sexp();
+        assert!(!tree.root_node().has_error(), "{sexp}");
+        assert_eq!(sexp.matches("(macro_invocation").count(), 2, "{sexp}");
+        // A macro that gives a whole parameter with no arguments holds its name only.
+        assert!(
+            sexp.contains("(template_parameter_list (macro_invocation name: (identifier)))"),
+            "{sexp}"
+        );
+
+        let kept = bare(KEPT);
+        let kept_sexp = kept.root_node().to_sexp();
+        assert!(!kept.root_node().has_error(), "{kept_sexp}");
+        assert_eq!(kept_sexp.matches("(macro_invocation").count(), 0, "{kept_sexp}");
+        assert_eq!(kept_sexp.matches("(parameter_declaration").count(), 3, "{kept_sexp}");
+
+        // A type row of the seed declines the name, as a class head of the file does.
+        const SEEDED: &str = "template <ET> void h() {}\n";
+        let plain = bare(SEEDED).root_node().to_sexp();
+        assert_eq!(plain.matches("(macro_invocation").count(), 1, "{plain}");
+        let file = SeedFile::new("ET\ttype\n");
+        let seed = Seed::read(file.path()).expect("the seed reads");
+        let mut parser = parser();
+        // SAFETY: `seed` lives to the end of this test.
+        unsafe { parser.set_scanner_context(seed.as_context()) };
+        let seeded = parser.parse(SEEDED, None).expect("the parse ends").root_node().to_sexp();
+        assert_eq!(seeded.matches("(macro_invocation").count(), 0, "{seeded}");
+    }
 }
 
 /// THE ORDER OF THE SCANS OF A FUNCTION THAT TRIES MORE THAN ONE TOKEN.
