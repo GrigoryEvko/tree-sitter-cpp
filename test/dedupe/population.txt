@@ -22,7 +22,7 @@
 # and also when a reading is REMOVED. The two look the same here, and only the commit that
 # caused the fall knows which one it made.
 #
-# 2827 files, of the corpus of the fork master.
+# 2815 files, of the corpus of the fork master.
 Cataclysm-DDA/src/debug_console.cpp
 Cataclysm-DDA/src/third-party/flatbuffers/hash.h
 Cataclysm-DDA/src/third-party/fmt/base.h
@@ -84,25 +84,17 @@ ClickHouse/src/Interpreters/sortBlock.cpp
 ClickHouse/src/Processors/Formats/Impl/Parquet/Write.cpp
 ClickHouse/src/Processors/QueryPlan/RuntimeFilterLookup.cpp
 ClickHouse/src/Storages/System/StorageSystemUnicode.cpp
-EASTL/include/EASTL/array.h
-EASTL/include/EASTL/bonus/list_map.h
-EASTL/include/EASTL/bonus/overloaded.h
 EASTL/include/EASTL/bonus/ring_buffer.h
 EASTL/include/EASTL/bonus/tuple_vector.h
-EASTL/include/EASTL/functional.h
 EASTL/include/EASTL/internal/char_traits.h
-EASTL/include/EASTL/internal/generic_iterator.h
 EASTL/include/EASTL/internal/integer_sequence.h
 EASTL/include/EASTL/internal/intrusive_hashtable.h
 EASTL/include/EASTL/internal/type_transformations.h
-EASTL/include/EASTL/priority_queue.h
 EASTL/include/EASTL/sort.h
 EASTL/source/hashtable.cpp
 EASTL/test/source/TestFixedList.cpp
-EASTL/test/source/TestFunctional.cpp
 EASTL/test/source/TestRandom.cpp
 EASTL/test/source/TestTypeTraits.cpp
-EASTL/test/source/TestVariant.cpp
 Hyprland/src/helpers/MiscFunctions.cpp
 Hyprland/src/plugins/PluginAPI.cpp
 Hyprland/src/render/Renderer.cpp
@@ -239,7 +231,6 @@ bde/groups/bdl/bdld/bdld_datum.h
 bde/groups/bdl/bdld/bdld_datumarraybuilder.t.cpp
 bde/groups/bdl/bdld/bdld_datumbinaryref.t.cpp
 bde/groups/bdl/bdld/bdld_datumudt.t.cpp
-bde/groups/bdl/bdlde/bdlde_charconvertutf16.cpp
 bde/groups/bdl/bdlde/bdlde_charconvertutf16.t.cpp
 bde/groups/bdl/bdldfp/bdldfp_decimal.cpp
 bde/groups/bdl/bdldfp/bdldfp_decimal.h
@@ -1858,8 +1849,6 @@ mongo/src/mongo/db/extension/test_examples/fail_to_load/null_mongo_extension.cpp
 mongo/src/mongo/db/op_observer/op_observer_impl_test.cpp
 mongo/src/mongo/db/query/stage_builder/sbe/tests/abt_unit_test_literals.h
 mongo/src/mongo/db/server_options_helpers.cpp
-mongo/src/mongo/db/shard_role/lock_manager/lock_manager.cpp
-mongo/src/mongo/db/shard_role/lock_manager/lock_manager_defs.h
 mongo/src/mongo/db/sorter/sorter_test.cpp
 mongo/src/mongo/shell/program_runner.cpp
 mongo/src/mongo/util/dns_query_test.cpp
@@ -2596,7 +2585,6 @@ rpcs3/rpcs3/rpcs3.cpp
 rpcs3/rpcs3/rpcs3qt/steam_utils.cpp
 rpcs3/rpcs3/util/serialization.hpp
 rpcs3/rpcs3/util/types.hpp
-rpcs3/rpcs3/util/vm_native.cpp
 seastar/src/core/reactor.cc
 serenity/AK/StdLibExtraDetails.h
 serenity/Kernel/Arch/DeferredCallPool.cpp
