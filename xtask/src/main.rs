@@ -123,13 +123,17 @@ tasks:
                            character that is not a blank is `#`. Such a node holds a token that the
                            preprocessor discards. Fail on a site that BASELINE does not hold, and
                            report a site of BASELINE that is gone without a failure.
-  trees ROOT LIST OUT [--directives BASELINE]
+  trees ROOT LIST OUT [--directives BASELINE] [--seeds DIRECTORY]
                            Parse each file of LIST, and write one TSV line for each file to OUT:
                            the path, 1 if the tree has an error, a hash of the full tree that is
                            the same in each build, the node count, the byte and the kind of the
                            first error, and the hashes of the blocks of the file.
                            With --directives, the same pass also runs the check of `directives` on
                            the tree that it already holds, so the check costs no second parse.
+                           With --seeds, each file takes DIRECTORY/<project>.seed as `corpus
+                           --seeds` gives it, and each line ends with the id of that seed, or `-`.
+                           THE GATE RUNS NO SEED, so a rule that reads a seed changes no tree there,
+                           and a seeded base against a seeded head measures the reach of the rule.
   trees --compare A B      Compare two outputs of `trees`. Print the count of files, of files
                            whose hash changed with no error in A, and of files whose hash changed
                            with an error in A. Then print the first 60 paths of the first group,

@@ -403,21 +403,11 @@ pub fn run(args: &[String]) -> Result<(), Box<dyn Error>> {
         Some((_, directory)) => Seeds::by_project(Path::new(directory), &paths)?,
     };
     // A directory that holds no seed for any project of the list is a directory that the caller
-    // named incorrectly. A run of that kind gives the rows of a parser with no seed, and each row
-    // then says so, but the caller asked for a seed and gets no message. So the run stops here.
+    // named incorrectly. Refer to `Seeds::none_found`.
     if let Some((_, given)) = seed
         && seeds.is_none()
     {
-        return Err(format!(
-            "{given} holds no seed file for any of the {} projects of {list_path}. A seed file of a project is \
-             <project>.seed, and the project is the first component of the path of a file.",
-            paths
-                .iter()
-                .filter_map(|rel| rel.split('/').next())
-                .collect::<std::collections::BTreeSet<_>>()
-                .len(),
-        )
-        .into());
+        return Err(Seeds::none_found(given, list_path, &paths).into());
     }
     // The report comes before the run, so that a run of one project never reads as a run of all
     // of them, and so that a report of the rows names the seed that made them.

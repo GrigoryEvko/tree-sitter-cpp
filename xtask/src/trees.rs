@@ -13,6 +13,13 @@
 //! 7. The block hashes: the block size in bytes, a colon, and one hash for each block. The hash of
 //!    block K is the high 32 bits of the tree hash after all the nodes that start before the end of
 //!    block K.
+//! 8. With `--seeds DIRECTORY` only: the id of the seed of the file, or `-` for a file with no seed.
+//!    The column and the layout of DIRECTORY are those of `xtask corpus --seeds`.
+//!
+//! THE GATE PARSES WITH NO SEED, so a rule that reads a seed changes no tree of the gate. A run with
+//! `--seeds` gives the trees of the seeded parse, and a compare of a seeded base with a seeded head
+//! measures the reach of such a rule. A row with no seed option keeps its 7 columns, so each reader
+//! of an output of an earlier build reads the output of this one.
 //!
 //! The tree hash is FNV-1a. For each node in document order, it mixes the depth, the kind name, the
 //! named, MISSING, and extra flags, the field name, the start byte, and the end byte. The hash does
@@ -38,8 +45,10 @@ use rayon::prelude::*;
 use tree_sitter::{Language, Node, Tree};
 
 use crate::corpus::{new_parser, parse_with_limit};
+use crate::seed::Seeds;
 
-const USAGE: &str = "usage: cargo xtask trees ROOT LIST OUT [--directives BASELINE] | cargo xtask trees --compare A.tsv B.tsv";
+const USAGE: &str =
+    "usage: cargo xtask trees ROOT LIST OUT [--directives BASELINE] [--seeds DIRECTORY] | cargo xtask trees --compare A.tsv B.tsv";
 /// The offset basis of the 64-bit FNV-1a hash.
 const FNV_OFFSET: u64 = 0xcbf2_9ce4_8422_2325;
 /// The prime of the 64-bit FNV-1a hash.
@@ -266,10 +275,23 @@ fn tree_line(
 ///
 /// With a baseline, the same pass also collects the directive sites of each tree and reports them.
 /// Refer to `directives::report`.
-fn write_trees(root: &str, list: &str, out: &str, baseline: Option<&str>) -> Result<(), Box<dyn Error>> {
+fn write_trees(root: &str, list: &str, out: &str, baseline: Option<&str>, seeds: Option<&str>) -> Result<(), Box<dyn Error>> {
     let root = Path::new(root);
+    let list_path = list;
     let list = fs::read_to_string(list).map_err(|e| format!("cannot read the file list {list}: {e}"))?;
     let paths: Vec<&str> = list.lines().filter(|line| !line.is_empty()).collect();
+    let seeded = seeds.is_some();
+    let seeds = match seeds {
+        None => Seeds::None,
+        Some(directory) => {
+            let seeds = Seeds::by_project(Path::new(directory), &paths)?;
+            if seeds.is_none() {
+                return Err(Seeds::none_found(directory, list_path, &paths).into());
+            }
+            println!("{}", seeds.report(&paths));
+            seeds
+        }
+    };
     let language = Language::new(tree_sitter_cpp::LANGUAGE);
     let names = Names::new(&language);
     let done = AtomicUsize::new(0);
@@ -280,7 +302,16 @@ fn write_trees(root: &str, list: &str, out: &str, baseline: Option<&str>) -> Res
         .map_init(
             || new_parser(&language),
             |parser, rel| {
-                let line = tree_line(parser, &names, root, rel, want_sites);
+                // The parser of a thread reads more than one project, so the context comes before
+                // each file. SAFETY: `seeds` lives until the end of this function, and each parse
+                // of this closure is inside it.
+                unsafe { parser.set_scanner_context(seeds.context(rel)) };
+                let (mut line, sites) = tree_line(parser, &names, root, rel, want_sites);
+                if seeded {
+                    line.push('\t');
+                    line.push_str(&seeds.id(rel));
+                }
+                let line = (line, sites);
                 let count = done.fetch_add(1, Ordering::Relaxed) + 1;
                 if count.is_multiple_of(100_000) {
                     eprintln!("{count} files in {:.0} s", started.elapsed().as_secs_f64());
@@ -333,9 +364,12 @@ fn read_rows<'a>(name: &str, text: &'a str) -> Result<Vec<Row<'a>>, Box<dyn Erro
         .filter(|(_, line)| !line.is_empty())
         .map(|(index, line)| {
             let columns: Vec<&str> = line.split('\t').collect();
-            let [path, error, hash, _nodes, _byte, _kind, blocks] = columns[..] else {
+            // The eighth column is the id of the seed of a run with `--seeds`.
+            let ([path, error, hash, _nodes, _byte, _kind, blocks] | [path, error, hash, _nodes, _byte, _kind, blocks, _]) =
+                columns[..]
+            else {
                 return Err(format!(
-                    "{name}:{}: the line has {} columns, and an output of `xtask trees` has 7",
+                    "{name}:{}: the line has {} columns, and an output of `xtask trees` has 7, or 8 with a seed",
                     index + 1,
                     columns.len()
                 )
@@ -416,9 +450,17 @@ fn compare(path_a: &str, path_b: &str) -> Result<(), Box<dyn Error>> {
 pub fn run(args: &[String]) -> Result<(), Box<dyn Error>> {
     match args {
         [flag, a, b] if flag == "--compare" => compare(a, b),
-        [root, list, out] if !root.starts_with("--") => write_trees(root, list, out, None),
-        [root, list, out, flag, baseline] if !root.starts_with("--") && flag == "--directives" => {
-            write_trees(root, list, out, Some(baseline))
+        [root, list, out, options @ ..] if !root.starts_with("--") => {
+            let mut baseline = None;
+            let mut seeds = None;
+            for pair in options.chunks(2) {
+                match pair {
+                    [flag, value] if flag == "--directives" && baseline.is_none() => baseline = Some(value.as_str()),
+                    [flag, value] if flag == "--seeds" && seeds.is_none() => seeds = Some(value.as_str()),
+                    _ => return Err(USAGE.into()),
+                }
+            }
+            write_trees(root, list, out, baseline, seeds)
         }
         _ => Err(USAGE.into()),
     }

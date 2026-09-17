@@ -247,6 +247,18 @@ impl Seeds {
         Ok(Self::ByProject(seeds))
     }
 
+    /// The message of a run that names a seed directory with no seed for any project of its list.
+    ///
+    /// A run of that kind gives the rows of a parser with no seed, and each row says so, but the
+    /// caller asked for a seed and gets no message. So the run stops with this message.
+    pub fn none_found(directory: &str, list: &str, paths: &[&str]) -> String {
+        format!(
+            "{directory} holds no seed file for any of the {} projects of {list}. A seed file of a project is \
+             <project>.seed, and the project is the first component of the path of a file.",
+            projects(paths).len(),
+        )
+    }
+
     /// The seed of a file, by the first component of its path.
     pub fn of(&self, rel: &str) -> Option<&Seed> {
         match self {
