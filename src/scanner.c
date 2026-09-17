@@ -3291,7 +3291,8 @@ static bool scan_constructor_after_macro(Reader *reader, const Scanner *classes,
     }
 }
 
-/// The words of the attributes that can come after a class key, before the name of the class.
+/// The words of the attributes that can come after a class key, before the name of the class, and after a macro
+/// name or a macro call in that position.
 static const char *const CLASS_ATTRIBUTE_WORDS[] = {
     "__attribute__", "__attribute", "alignas", "_Alignas", "__declspec", NULL,
 };
@@ -3344,8 +3345,11 @@ static bool class_body_has_member(Reader *reader) {
 /// The name of the class is the last name before these tokens. A name can be qualified, and template
 /// arguments can come after it: `ns::A<int> {`. The names and the macro calls before it are macros:
 /// `class LLVM_ABI A final {`, `struct TSA_CAPABILITY("mutex") M {`. Attributes can come before the
-/// first name. A head with no name, `struct {`, records no name. Other text, as in `class T>` of a
-/// template parameter, or in `struct stat *p;`, records no name. The key of `enum class E {` gives the
+/// first name, and after a macro name or a macro call: `class GTEST_API_ [[nodiscard]] RE {`,
+/// `class LLVM_MOVABLE_POLYMORPHIC_TYPE alignas(uint64_t) Cleanup {`. An attribute after a name ends that
+/// name, as the group of a macro call does, so the name after the attribute is the name of the class. A
+/// head with no name, `struct {`, records no name. Other text, as in `class T>` of a template parameter,
+/// or in `struct stat *p;`, records no name. The key of `enum class E {` gives the
 /// same scan, and `class_body_has_member` rejects its body. O(n) in the length of the text that the scan
 /// reads.
 static bool scan_class_head(Scanner *scanner, Reader *reader) {
@@ -3382,6 +3386,30 @@ static bool scan_class_head(Scanner *scanner, Reader *reader) {
             }
             continue;
         }
+        // AN ATTRIBUTE-SPECIFIER CAN COME AFTER A MACRO NAME. [class.pre] p1 puts the attribute-specifier-seq
+        // after the class key, and an export macro that expands to nothing or to `__attribute__((...))`
+        // comes before it: `class GTEST_API_ [[nodiscard]] RE {` of googletest, `class
+        // BASE_EXPORT [[nodiscard]] ScopedBlockingCall` of chromium. GCC and Clang accept each such
+        // head with the macro defined as nothing. The scan read a `[` after a name as the end of the head, so
+        // the record held no name for 73 heads of the corpus, and each rule that reads the record missed
+        // those classes: a62d1cb read `RE(const RE& other);` as a macro. Only `[[` starts an attribute here.
+        // A single `[` after a name is no class head, as in `struct S x[3];`, and the scan stops.
+        if (c == '[') {
+            step(reader);
+            skip_gap(reader, &gap);
+            Arguments attribute = {0};
+            if (gap.blocked || lexer->lookahead != '[' || !skip_group(reader, &attribute)) {
+                return false;
+            }
+            skip_gap(reader, &gap);
+            if (gap.blocked || lexer->lookahead != ']') {
+                return false;
+            }
+            step(reader);
+            name = 0;
+            after_name = false;
+            continue;
+        }
         if (c == '<' && after_name) {
             if (!skip_angles(reader)) {
                 return false;
@@ -3405,12 +3433,18 @@ static bool scan_class_head(Scanner *scanner, Reader *reader) {
         if (after_name && word_in(word, CLASS_VIRT_SPECIFIER_WORDS)) {
             break;
         }
-        if (!named && word_in(word, CLASS_ATTRIBUTE_WORDS)) {
+        // An attribute word after a name ends that name, as a `[[` does: `class LLVM_MOVABLE_POLYMORPHIC_TYPE
+        // alignas(uint64_t) Cleanup {` of clang. The scan read `alignas` after a name as a reserved word and
+        // stopped, and the record held no name for 4 heads of the corpus. `__attribute__` and `__declspec` after
+        // a name gave the same result before, through the group of a macro call.
+        if (word_in(word, CLASS_ATTRIBUTE_WORDS)) {
             skip_gap(reader, &gap);
             Arguments attribute = {0};
             if (gap.blocked || lexer->lookahead != '(' || !skip_group(reader, &attribute)) {
                 return false;
             }
+            name = 0;
+            after_name = false;
             continue;
         }
         if (word_in(word, RESERVED_WORDS)) {

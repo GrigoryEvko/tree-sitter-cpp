@@ -2748,6 +2748,165 @@ struct BASE_EXPORT alignas(sizeof(void*)) InlineValue {
           size: (number_literal))))))
 
 ================================================================================
+The class record of a head with an attribute after a macro
+================================================================================
+
+class GTEST_API_ [[nodiscard]] RE {
+ public:
+  RE(const RE& other);
+  RE(const char* regex) { Init(regex); }
+  static RE Make() { return RE("x"); }
+};
+class ARROW_EXPORT [[nodiscard]] Status {
+ public:
+  static Status OK() { return Status(); }
+};
+struct LLVM_ABI alignas(8) Cleanup {
+  Cleanup() {}
+  Cleanup(Cleanup &&) {}
+  static Cleanup make() { return Cleanup(); }
+};
+struct DECL_MACRO(x) [[deprecated]] Grouped {
+  Grouped(int y);
+};
+struct [[nodiscard]] EXPORT_MACRO Before {
+  Before(int y);
+};
+
+--------------------------------------------------------------------------------
+
+(translation_unit
+  (class_specifier
+    (attribute_macro
+      name: (identifier))
+    (attribute_declaration
+      (attribute
+        name: (identifier)))
+    name: (type_identifier)
+    body: (field_declaration_list
+      (access_specifier)
+      (declaration
+        declarator: (function_declarator
+          declarator: (identifier)
+          parameters: (parameter_list
+            (parameter_declaration
+              (type_qualifier)
+              type: (type_identifier)
+              declarator: (reference_declarator
+                (identifier))))))
+      (function_definition
+        declarator: (function_declarator
+          declarator: (identifier)
+          parameters: (parameter_list
+            (parameter_declaration
+              (type_qualifier)
+              type: (primitive_type)
+              declarator: (pointer_declarator
+                declarator: (identifier)))))
+        body: (compound_statement
+          (expression_statement
+            (call_expression
+              function: (identifier)
+              arguments: (argument_list
+                (identifier))))))
+      (function_definition
+        (storage_class_specifier)
+        type: (type_identifier)
+        declarator: (function_declarator
+          declarator: (field_identifier)
+          parameters: (parameter_list))
+        body: (compound_statement
+          (return_statement
+            (call_expression
+              function: (type_identifier)
+              arguments: (argument_list
+                (string_literal
+                  (string_content)))))))))
+  (class_specifier
+    (attribute_macro
+      name: (identifier))
+    (attribute_declaration
+      (attribute
+        name: (identifier)))
+    name: (type_identifier)
+    body: (field_declaration_list
+      (access_specifier)
+      (function_definition
+        (storage_class_specifier)
+        type: (type_identifier)
+        declarator: (function_declarator
+          declarator: (field_identifier)
+          parameters: (parameter_list))
+        body: (compound_statement
+          (return_statement
+            (call_expression
+              function: (type_identifier)
+              arguments: (argument_list)))))))
+  (struct_specifier
+    (attribute_macro
+      name: (identifier))
+    (alignas_qualifier
+      (number_literal))
+    name: (type_identifier)
+    body: (field_declaration_list
+      (function_definition
+        declarator: (function_declarator
+          declarator: (identifier)
+          parameters: (parameter_list))
+        body: (compound_statement))
+      (function_definition
+        declarator: (function_declarator
+          declarator: (identifier)
+          parameters: (parameter_list
+            (parameter_declaration
+              type: (type_identifier)
+              declarator: (abstract_reference_declarator))))
+        body: (compound_statement))
+      (function_definition
+        (storage_class_specifier)
+        type: (type_identifier)
+        declarator: (function_declarator
+          declarator: (field_identifier)
+          parameters: (parameter_list))
+        body: (compound_statement
+          (return_statement
+            (call_expression
+              function: (type_identifier)
+              arguments: (argument_list)))))))
+  (struct_specifier
+    (attribute_macro
+      name: (identifier)
+      arguments: (argument_list
+        (identifier)))
+    (attribute_declaration
+      (attribute
+        name: (identifier)))
+    name: (type_identifier)
+    body: (field_declaration_list
+      (declaration
+        declarator: (function_declarator
+          declarator: (identifier)
+          parameters: (parameter_list
+            (parameter_declaration
+              type: (primitive_type)
+              declarator: (identifier)))))))
+  (struct_specifier
+    (attribute_declaration
+      (attribute
+        name: (identifier)))
+    (attribute_macro
+      name: (identifier))
+    name: (type_identifier)
+    body: (field_declaration_list
+      (declaration
+        declarator: (function_declarator
+          declarator: (identifier)
+          parameters: (parameter_list
+            (parameter_declaration
+              type: (primitive_type)
+              declarator: (identifier))))))))
+
+================================================================================
 White space between the brackets of an attribute
 ================================================================================
 

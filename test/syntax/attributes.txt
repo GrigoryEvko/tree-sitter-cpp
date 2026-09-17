@@ -165,3 +165,20 @@ static int g_count ABSL_GUARDED_BY(g_mu) = 0;
 [
 #pragma probe
 [deprecated]] int h();
+### class_head_attribute_after_macro
+class GTEST_API_ [[nodiscard]] RE {
+ public:
+  RE(const RE& other);
+  RE(const char* regex) { Init(regex); }
+};
+class BASE_EXPORT [[nodiscard]] ScopedBlockingCall
+    : public internal::UncheckedScopedBlockingCall {
+ public:
+  ScopedBlockingCall(const Location& from_here, BlockingType blocking_type);
+};
+class LLVM_MOVABLE_POLYMORPHIC_TYPE alignas(uint64_t) Cleanup {
+public:
+  Cleanup(const Cleanup &) = default;
+  Cleanup(Cleanup &&) {}
+  Cleanup() = default;
+};
