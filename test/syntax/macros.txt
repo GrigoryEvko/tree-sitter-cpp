@@ -26,6 +26,21 @@ class TApplication : public TObject {
    int x;
    ClassDefOverride(TApplication,0)  //GUI application singleton
 };
+### macro_member_with_a_body
+class TextBufferTests {
+    TEST_METHOD(TestReflow)
+    {
+        VERIFY(1);
+    }
+    TEST_CLASS_SETUP(ClassSetup) { return true; }
+    TextBufferTests(int x) : _y(x) { }
+    int _y;
+};
+### macro_member_with_a_body_and_two_arguments
+struct AddrInfo {
+    SERIALIZE_METHODS(AddrInfo, obj) { READWRITE(obj.source); }
+    DENC(bufferlist::const_iterator& p) { decode(v, p); }
+};
 ### macro_pointer_lowercase_name
 void f(char* absl_nonnull error, std::string* absl_nullable out);
 ### macro_call_top_level

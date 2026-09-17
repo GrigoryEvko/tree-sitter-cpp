@@ -4023,7 +4023,7 @@ static Invocation scan_macro_invocation(Reader *reader, const char *name, size_t
             // A call in an argument gives a body to the macro, and no function definition starts:
             // `MATCHER_P(IsNode, height, absl::StrCat("height ", height)) {`.
             block = lexer->lookahead == '{';
-        } else if (call && valid_symbols[MACRO_CALL_START] && lexer->lookahead == '{') {
+        } else if (call && (valid_symbols[MACRO_CALL_START] || member_macro_name) && lexer->lookahead == '{') {
             // A NAME WITH A GROUP AND A BODY IS A MACRO WHERE A CALL STATEMENT CAN START. The other
             // reading of that text is a constructor definition, which has no decl-specifier-seq. At
             // namespace scope C++ takes that definition only with a QUALIFIED name, and GCC gives
@@ -4034,6 +4034,18 @@ static Invocation scan_macro_invocation(Reader *reader, const char *name, size_t
             // statement can start, which is namespace scope and no class body. In a class body an
             // unqualified constructor IS correct, the token is not valid, and `S(int x) { }` keeps
             // its reading.
+            //
+            // IN A CLASS BODY THE NAME IS THE EVIDENCE, AS IT IS FOR THE MEMBER BEFORE A `;`. A
+            // member with no decl-specifier-seq has three readings, a constructor, a destructor and
+            // a conversion function ([class.mem]), and a constructor takes the name of its class. A
+            // member with a body whose name is not the name of its class is a macro:
+            // `TEST_METHOD(TestReflow) { ... }` of the TAEF header of terminal,
+            // `SERIALIZE_METHODS(AddrInfo, obj) { ... }` of bitcoin, and
+            // `DENC(bufferlist::const_iterator& p) { ... }` of ceph. `member_macro_name` holds the
+            // same guard as the member form before a `;`: a macro-shaped name of two characters or
+            // more that no class head of the file recorded. The record gives up the oldest name
+            // after MAX_CLASSES names and misses a head that holds an error, and a name with a
+            // lowercase letter keeps its constructor until the record is right.
             //
             // THE ARGUMENTS GIVE NO EVIDENCE HERE, SO THE BRACE MUST. An enumerator list and a
             // braced initializer hold a list of expressions: no `;`, no statement keyword, and no

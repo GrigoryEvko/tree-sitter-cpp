@@ -149,6 +149,87 @@ struct S {
           (number_literal))))))
 
 ================================================================================
+A member macro with a body in a class body
+================================================================================
+
+class TextBufferTests
+{
+    TEST_METHOD(TestReflow)
+    {
+        VERIFY(1);
+    }
+
+    TEST_CLASS_SETUP(ClassSetup)
+    {
+        return true;
+    }
+
+    TextBufferTests(int x) : _y(x)
+    {
+    }
+
+    int _y;
+};
+
+class DENC
+{
+    DENC(int x)
+    {
+    }
+};
+
+--------------------------------------------------------------------------------
+
+(translation_unit
+  (class_specifier
+    name: (type_identifier)
+    body: (field_declaration_list
+      (macro_invocation
+        name: (identifier)
+        arguments: (token_tree
+          (identifier))
+        body: (compound_statement
+          (expression_statement
+            (call_expression
+              function: (identifier)
+              arguments: (argument_list
+                (number_literal))))))
+      (macro_invocation
+        name: (identifier)
+        arguments: (token_tree
+          (identifier))
+        body: (compound_statement
+          (return_statement
+            (true))))
+      (function_definition
+        declarator: (function_declarator
+          declarator: (identifier)
+          parameters: (parameter_list
+            (parameter_declaration
+              type: (primitive_type)
+              declarator: (identifier))))
+        (field_initializer_list
+          (field_initializer
+            (field_identifier)
+            (argument_list
+              (identifier))))
+        body: (compound_statement))
+      (field_declaration
+        type: (primitive_type)
+        declarator: (field_identifier))))
+  (class_specifier
+    name: (type_identifier)
+    body: (field_declaration_list
+      (function_definition
+        declarator: (function_declarator
+          declarator: (identifier)
+          parameters: (parameter_list
+            (parameter_declaration
+              type: (primitive_type)
+              declarator: (identifier))))
+        body: (compound_statement)))))
+
+================================================================================
 A constructor and a parenthesized declarator beside a member macro
 ================================================================================
 
