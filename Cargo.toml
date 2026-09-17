@@ -40,6 +40,9 @@ tree-sitter = "0.27.0"
 # reads them next to this grammar.
 tree-sitter-c = "=0.24.2"
 tree-sitter-typescript = "=0.23.2"
+# A grammar of ABI 15 whose tree depends on the limit of links of the parse stack, for the test that the
+# runtime keeps the upstream limit for an upstream grammar.
+tree-sitter-bash = "=0.25.1"
 
 [workspace]
 members = ["grammar", "xtask"]

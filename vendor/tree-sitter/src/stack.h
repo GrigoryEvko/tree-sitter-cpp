@@ -33,6 +33,12 @@ Stack *ts_stack_new(SubtreePool *subtree_pool);
 // Release the memory reserved for a given stack.
 void ts_stack_delete(Stack *self);
 
+// Select the limits of the stack for the language of a parse: the limits of the tree-sitter-cpp fork
+// when `fork_limits` is true, and the upstream limits when it is false. A new stack has the upstream
+// limits. The parser calls this function when it gets a language, with the result of
+// `ts_language_version_is_fork` for the ABI version of the language (tree-sitter-cpp fork).
+void ts_stack_set_fork_limits(Stack *self, bool fork_limits);
+
 // Get the stack's current number of versions.
 uint32_t ts_stack_version_count(const Stack *self);
 

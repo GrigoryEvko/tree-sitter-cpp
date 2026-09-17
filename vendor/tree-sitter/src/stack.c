@@ -10,7 +10,16 @@
 
 // The links of one stack node to the nodes before it, and the paths of one pop. The merged versions
 // of a deep C++ template argument list need more than 8 links and 64 paths (tree-sitter-cpp fork).
+//
+// MAX_LINK_COUNT is the capacity of a node. The limit of a parse is `Stack.link_limit`: 32 for a
+// language of a fork ABI, and the upstream 8 for a language of an upstream ABI. A merge past the
+// limit drops the link, and the reading of the link goes with it. So the limit selects the tree
+// wherever a node gets more links than it keeps. With 32 links, tree-sitter-bash 0.25.1 keeps the
+// reading that takes the newline after a redirect as a space and the next lines as its destinations,
+// and its dynamic precedence of -1 for each redirected_statement then selects that reading. Refer to
+// `ts_stack_set_fork_limits`.
 #define MAX_LINK_COUNT 32
+#define UPSTREAM_MAX_LINK_COUNT 8
 #define MAX_NODE_POOL_SIZE 50
 #define MAX_ITERATOR_COUNT 512
 
@@ -70,6 +79,9 @@ struct Stack {
   StackNodeArray node_pool;
   StackNode *base_node;
   SubtreePool *subtree_pool;
+  // The most links that one node keeps in this parse, UPSTREAM_MAX_LINK_COUNT or MAX_LINK_COUNT
+  // (tree-sitter-cpp fork).
+  uint16_t link_limit;
 };
 
 typedef unsigned StackAction;
@@ -229,10 +241,13 @@ static bool stack__subtree_is_equivalent(Subtree left, Subtree right) {
   );
 }
 
+// Add `link` to the links of `self`, or merge it into an equivalent link. A node that holds
+// `link_limit` links drops the link (tree-sitter-cpp fork: the limit comes from the stack).
 static void stack_node_add_link(
   StackNode *self,
   StackLink link,
-  SubtreePool *subtree_pool
+  SubtreePool *subtree_pool,
+  uint16_t link_limit
 ) {
   if (link.node == self) return;
 
@@ -268,7 +283,7 @@ static void stack_node_add_link(
         existing_link->node->error_cost == link.node->error_cost
       ) {
         for (int j = 0; j < link.node->link_count; j++) {
-          stack_node_add_link(existing_link->node, link.node->links[j], subtree_pool);
+          stack_node_add_link(existing_link->node, link.node->links[j], subtree_pool, link_limit);
         }
         int32_t dynamic_precedence = link.node->dynamic_precedence;
         if (link.subtree.ptr) {
@@ -282,7 +297,7 @@ static void stack_node_add_link(
     }
   }
 
-  if (self->link_count == MAX_LINK_COUNT) return;
+  if (self->link_count >= link_limit) return;
 
   stack_node_retain(link.node);
   unsigned node_count = link.node->node_count;
@@ -467,6 +482,7 @@ Stack *ts_stack_new(SubtreePool *subtree_pool) {
   array_reserve(&self->node_pool, MAX_NODE_POOL_SIZE);
 
   self->subtree_pool = subtree_pool;
+  self->link_limit = UPSTREAM_MAX_LINK_COUNT;
   self->base_node = stack_node_new(NULL, NULL_SUBTREE, false, 1, &self->node_pool);
   ts_stack_clear(self);
 
@@ -490,6 +506,10 @@ void ts_stack_delete(Stack *self) {
   }
   array_delete(&self->heads);
   ts_free(self);
+}
+
+void ts_stack_set_fork_limits(Stack *self, bool fork_limits) {
+  self->link_limit = fork_limits ? MAX_LINK_COUNT : UPSTREAM_MAX_LINK_COUNT;
 }
 
 uint32_t ts_stack_version_count(const Stack *self) {
@@ -760,7 +780,7 @@ bool ts_stack_merge(Stack *self, StackVersion version1, StackVersion version2) {
   StackHead *head1 = array_get(&self->heads, version1);
   StackHead *head2 = array_get(&self->heads, version2);
   for (uint32_t i = 0; i < head2->node->link_count; i++) {
-    stack_node_add_link(head1->node, head2->node->links[i], self->subtree_pool);
+    stack_node_add_link(head1->node, head2->node->links[i], self->subtree_pool, self->link_limit);
   }
   if (head1->node->state == ERROR_STATE) {
     head1->node_count_at_last_error = head1->node->node_count;

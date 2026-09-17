@@ -46,6 +46,21 @@ static inline bool ts_language_has_state_only_scan(const TSLanguage *self) {
   return self->abi_version >= LANGUAGE_VERSION_WITH_STATE_ONLY_SCAN;
 }
 
+// True when the ABI version is a version of the tree-sitter-cpp fork, and false for an upstream
+// version (tree-sitter-cpp fork).
+//
+// The fork raised limits and changed rules of the parse for its C++ grammar. The same change can
+// select a different reading in a grammar that the upstream generator wrote, with no ERROR node,
+// because upstream tuned each such grammar under the upstream limits. So each limit that differs
+// between the two runtimes reads this predicate, and a language of an upstream ABI parses with the
+// upstream value.
+//
+// The test compares numbers and does not list versions, so a later fork ABI is a fork ABI with no
+// change here. Every fork ABI is above LANGUAGE_VERSION_UPSTREAM_MAX, and 1015 is the first one.
+static inline bool ts_language_version_is_fork(uint32_t version) {
+  return version >= LANGUAGE_VERSION_WITH_WIDE_TABLES;
+}
+
 // The entry point of the external scanner that takes the context of the parser.
 typedef void (*TSScannerSetContext)(void *payload, const void *context);
 

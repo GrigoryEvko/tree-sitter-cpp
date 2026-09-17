@@ -161,6 +161,58 @@ mod tests {
         }
     }
 
+    /// A language of an upstream ABI keeps the upstream limit of 8 links for one node of the parse stack,
+    /// and this grammar keeps 32. The limit selects a tree with no ERROR node wherever a node gets more
+    /// links than it keeps.
+    ///
+    /// tree-sitter-bash 0.25.1 reads the input below as three statements, as bash does, when the stack
+    /// drops the links past 8. With 32 links, the reading that takes the newline after `> $DIFF_B` as a
+    /// space also survives, and the grammar selects it by its dynamic precedence of -1 for each
+    /// redirected_statement: `if`, `[`, `then`, `echo`, `fi` and the second pipeline become
+    /// destinations of the redirect. The input is a reduction of
+    /// llvm-project/compiler-rt/lib/dfsan/scripts/check_custom_wrappers.sh, and `bash -n` accepts it.
+    /// One parser reads the bash grammar before and after this grammar, so the limit follows each
+    /// change of the language.
+    #[test]
+    fn test_an_upstream_grammar_keeps_the_upstream_link_limit() {
+        let bash: Language = tree_sitter_bash::LANGUAGE.into();
+        let cpp: Language = super::LANGUAGE.into();
+        assert!(bash.abi_version() <= 15, "tree-sitter-bash has an upstream ABI");
+        let script = concat!(
+            "grep -E \"^fun:.*=custom\" ${DFSAN_ABI_LIST} \\\n",
+            "  | grep -v \"dfsan_get_label\\|dfsan_get_origin\\|__sanitizer_cov_trace\" \\\n",
+            "  | grep -v \"__sanitizer_cov_trace\" \\\n",
+            "  | sed \"s/.*__dfsw_\\(.*\\)(.*/\\1/\" | sort | uniq > $DIFF_B\n",
+            "if [ $? -ne 0 ]\n",
+            "then\n",
+            "  echo failed\n",
+            "fi\n",
+            "grep -E __dfsw_ ${DFSAN_CUSTOM_WRAPPERS} \\\n",
+            "  | grep -v \"__sanitizer_cov_trace\" \\\n",
+            "  | sed \"s/.*__dfsw_\\([^(]*\\).*/\\1/\" | sort | uniq > $DIFF_A\n",
+        );
+        let mut parser = Parser::new();
+        for language in [&bash, &cpp, &bash] {
+            parser.set_language(language).expect("the grammar loads");
+            if language.abi_version() > 15 {
+                let tree = parser.parse("int x = f(1);\n", None).expect("the parse ends");
+                assert!(!tree.root_node().has_error(), "{}", tree.root_node().to_sexp());
+                continue;
+            }
+            let tree = parser.parse(script, None).expect("the parse ends");
+            let root = tree.root_node();
+            assert!(!root.has_error(), "{}", root.to_sexp());
+            let mut cursor = root.walk();
+            let kinds: Vec<&str> = root.named_children(&mut cursor).map(|node| node.kind()).collect();
+            assert_eq!(
+                kinds,
+                ["redirected_statement", "if_statement", "redirected_statement"],
+                "{}",
+                root.to_sexp()
+            );
+        }
+    }
+
     /// The parse tables of this grammar are in the shape layout of ABI 1016, and the shape of a state
     /// keeps its symbols in the order in which the runtime reads them. A large state keeps ascending
     /// symbol order, and a small state keeps group order. The order decides which reduction survives

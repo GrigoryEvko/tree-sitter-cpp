@@ -2415,6 +2415,9 @@ bool ts_parser_set_language(TSParser *self, const TSLanguage *language) {
   }
 
   self->language = ts_language_copy(language);
+  // A language of an upstream ABI parses with the upstream limits (tree-sitter-cpp fork). Refer to
+  // `ts_language_version_is_fork`.
+  ts_stack_set_fork_limits(self->stack, language && ts_language_version_is_fork(language->abi_version));
   return true;
 }
 
