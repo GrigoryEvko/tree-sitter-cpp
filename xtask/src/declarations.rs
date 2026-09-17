@@ -1920,6 +1920,17 @@ impl Reader<'_> {
             None if self.word_is(follow_at, b"const") || self.word_is(follow_at, b"volatile") => Follow::Pointer,
             _ => Follow::Other,
         };
+        // `struct BOOST_PP_CAT(or_, N)<true, Expr> : mpl::true_ {`: a macro call names the class, and a template
+        // argument list, a base clause or a body follows its group. The head names no type, and its braces are
+        // a class body.
+        let macro_named = follow == Follow::Call
+            && words.len() == 1
+            && is_macro_shaped(self.text(words[0]))
+            && self.macro_class_brace(follow_at).is_some_and(|brace| {
+                j = brace;
+                true
+            });
+        let follow = if macro_named { Follow::Body } else { follow };
         let after = if follow == Follow::Body {
             let brace = if self.is(j, u16::from(b'{')) { j } else { follow_at };
             self.partner_of(brace).map_or(brace + 1, |close| close + 1)
@@ -1939,6 +1950,11 @@ impl Reader<'_> {
         }
         let template = self.under_template(i);
         let names: Vec<String> = words.iter().map(|&w| self.string(w)).collect();
+        if macro_named {
+            self.class_bodies.insert(j, Vec::new());
+            self.class_braces[j] = true;
+            return after;
+        }
         if follow == Follow::Body {
             let brace = if self.is(j, u16::from(b'{')) { j } else { follow_at };
             self.class_bodies.insert(brace, names.clone());
@@ -2067,6 +2083,37 @@ impl Reader<'_> {
         }
         parts.push((start, to));
         parts
+    }
+
+    /// The `{` of the class body after the group at `open` of a class head that a macro call names: the group,
+    /// then a template argument list, a base clause, or both, then the body. None when no body follows.
+    fn macro_class_brace(&self, open: usize) -> Option<usize> {
+        let mut k = self.partner_of(open)? + 1;
+        if self.is(k, 0x3c) {
+            k = self.template_arguments_close(k)? + 1;
+        }
+        if self.is(k, 0x7b) {
+            return Some(k);
+        }
+        if !self.is(k, 0x3a) || self.is(k + 1, 0x3a) {
+            return None;
+        }
+        k += 1;
+        while k < self.t.len() {
+            match self.punct(k) {
+                Some(0x7b) => return Some(k),
+                Some(0x3b | 0x7d) => return None,
+                Some(0x28 | 0x5b) => k = self.partner_of(k)?,
+                Some(0x3c) if self.is_name(k - 1) => {
+                    if let Some(close) = self.template_arguments_close(k) {
+                        k = close;
+                    }
+                }
+                _ => {}
+            }
+            k += 1;
+        }
+        None
     }
 
     /// True when the tokens `[from, to)` start a declarator group: `*`, `&`, `^`, a calling convention
@@ -2593,11 +2640,14 @@ impl Reader<'_> {
                         // A name before a declarator group is a type: `static base::TimeTicks (*Now)();`. After a
                         // strong type the name is the declarator, unless a suffix follows the group:
                         // `void get(FT& lb) {` declares `get`, and `FT` is a type that has the shape of a macro.
+                        // A parenthesized name before a parameter list is the declarator, which a function-like
+                        // macro does not expand: `static constexpr ns::uint128 (min)() { return 0; }`.
                         let ends = self.ends_declarator(next, end, context)
                             && !(self.is(next, 0x28)
                                 && self.partner_of(next).is_some_and(|close| {
-                                    (!strong || matches!(self.punct(close + 1), Some(0x28 | 0x5b)))
-                                        && self.starts_declarator_group(next + 1, close)
+                                    ((!strong || matches!(self.punct(close + 1), Some(0x28 | 0x5b)))
+                                        && self.starts_declarator_group(next + 1, close))
+                                        || (close == next + 2 && self.is_name(next + 1) && self.is(close + 1, 0x28))
                                 }));
                         let constructor = self.is(next, 0x28)
                             && ((chain.parts >= 2
@@ -2914,7 +2964,18 @@ impl Reader<'_> {
                     k += 1;
                 }
                 Some(0x28 | 0x5b | 0x7b) => k = self.partner_of(k)? + 1,
-                Some(0x3c) if k > 0 && self.is_name(k - 1) => k = self.angle_close(k).map_or(k + 1, |close| close + 1),
+                // `std::conditional_t<sizeof...(Env) == 0, A<X>, B>{}`: when a comparison ends the match of an
+                // expression, a type match that a brace, a group, `::`, `;`, `,` or `)` follows holds the list.
+                Some(0x3c) if k > 0 && self.is_name(k - 1) => {
+                    k = self
+                        .angle_close(k)
+                        .or_else(|| {
+                            self.type_arguments_close(k).filter(|close| {
+                                matches!(self.punct(close + 1), Some(0x7b | 0x28 | 0x3b | 0x2c | 0x29 | SCOPE))
+                            })
+                        })
+                        .map_or(k + 1, |close| close + 1)
+                }
                 _ => {
                     if self.word_is(k, b"try") {
                         return None;
@@ -3758,6 +3819,29 @@ mod tests {
                 ("d", "object"),
                 ("fp", "object")
             ])
+        );
+    }
+
+    /// Three shapes gave a value to a type name of boost and stdexec: a class that a macro call names with
+    /// template arguments, the `(min)` declarator idiom, and a comparison in the template arguments of an
+    /// initializer.
+    #[test]
+    fn a_macro_named_class_the_min_idiom_and_a_comparison_give_no_value() {
+        assert_eq!(
+            facts(
+                "template<typename Expr, typename BasicExpr>\nstruct BOOST_PP_CAT(or_, N)<true, Expr, BasicExpr, BOOST_PP_ENUM_PARAMS(N, G)>\n  : mpl::true_\n{\n    typedef G0 which;\n    int member;\n};"
+            ),
+            pairs(&[("BasicExpr", "type-parameter"), ("Expr", "type-parameter"), ("member", "object"), ("which", "type")])
+        );
+        assert_eq!(
+            facts("struct uint128 {\n  BOOST_ATTRIBUTE_UNUSED static constexpr boost::charconv::detail::uint128 (min)() { return 0; }\n};"),
+            pairs(&[("uint128", "type")])
+        );
+        assert_eq!(
+            facts(
+                "template <class Q, class... Env>\ninline constexpr auto check_v = std::conditional_t<sizeof...(Env) == 0,\n    __mexception<dependent_sender_error>,\n    no_query_error_t<Q, Env...>>{};\nint a = x < y, b = 2;"
+            ),
+            pairs(&[("Env", "type-parameter"), ("Q", "type-parameter"), ("a", "object"), ("b", "object"), ("check_v", "object")])
         );
     }
 
