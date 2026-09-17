@@ -279,6 +279,12 @@ typedef struct {
     uint8_t frames;
     /// 0, or the lowest frame of an entry that did not fit.
     uint8_t saturated;
+    /// The frames that are the body of a class, a union or an enum, as bits: bit n - 1 for frame n. A
+    /// frame deeper than 32 has no bit. The declarators after the `}` of such a body have its type:
+    /// `struct { int a; } s = {1};`.
+    uint32_t class_bodies;
+    /// 1 from the scan of a class head to the `{` of its body, and 0 otherwise.
+    uint8_t class_head;
     LocalEntry entries[MAX_LOCALS];
 } LocalRecord;
 
@@ -8811,15 +8817,16 @@ static unsigned local_next_declarator(const LocalItem *item, unsigned start, uns
 ///
 /// O(n) in the tokens.
 static unsigned read_local_declaration(const LocalItem *item, unsigned start, unsigned end, LocalRecord *record,
-                                       uint8_t frame, LocalDeclarationKind kind) {
+                                       uint8_t frame, LocalDeclarationKind kind, bool typed) {
     if (local_range_out(item, end)) {
         return 0;
     }
     bool parameter = kind != LOCAL_STATEMENT;
     unsigned declared = 0;
-    // The tokens of the type, the types among them, and the plain types that are not macro-shaped.
-    unsigned units = 0;
-    unsigned types = 0;
+    // The tokens of the type, the types among them, and the plain types that are not macro-shaped. A
+    // declaration after the body of a class has the type of that body before its first token.
+    unsigned units = typed ? 1 : 0;
+    unsigned types = typed ? 1 : 0;
     unsigned plain_types = 0;
     // The index of a plain word that can be the declarator before a macro-shaped word, or LOCAL_NO_TOKEN.
     unsigned candidate = LOCAL_NO_TOKEN;
@@ -8997,7 +9004,7 @@ static unsigned read_local_parameters(const LocalItem *item, unsigned open, unsi
                     return 0;
                 }
                 if (pass == 1) {
-                    declared += read_local_declaration(item, start, i, record, frame, LOCAL_PARAMETER);
+                    declared += read_local_declaration(item, start, i, record, frame, LOCAL_PARAMETER, false);
                 }
                 start = i + 1;
                 angles = 0;
@@ -9260,6 +9267,47 @@ static unsigned count_initializer_boundaries(Reader *reader) {
     return 0;
 }
 
+/// True when an item that ends at a `{` is the head of a class, a union or an enum, from token `start`:
+/// `struct S {`, `static const struct {`, `class [[nodiscard]] awaitable {`, `enum class E : int {`. A
+/// `=` outside brackets makes the item a declaration with an initializer in braces: `struct S s = {`.
+/// O(n) in the tokens.
+static bool local_class_head(const LocalItem *item, unsigned start) {
+    unsigned n = item->count;
+    if (item->end != '{' || local_range_out(item, n)) {
+        return false;
+    }
+    unsigned i = start;
+    for (unsigned steps = 0; i < n && steps < LOCAL_MAX_STEPS; steps++) {
+        const LocalToken *token = &item->tokens[i];
+        if (token->kind == TOKEN_WORD && word_in(token->text, LOCAL_QUALIFIER_WORDS)) {
+            i++;
+        } else if (local_mark_is(token, "[") && i + 1 < n && local_mark_is(&item->tokens[i + 1], "[")) {
+            unsigned close = local_match(item, i, n);
+            if (close == LOCAL_NO_TOKEN) {
+                return false;
+            }
+            i = close + 1;
+        } else {
+            break;
+        }
+    }
+    if (i >= n || item->tokens[i].kind != TOKEN_WORD ||
+        !(is_class_key(item->tokens[i].text) || strcmp(item->tokens[i].text, "enum") == 0)) {
+        return false;
+    }
+    for (unsigned j = i; j < n; j++) {
+        if (item->tokens[j].kind == TOKEN_OPEN) {
+            j = local_match(item, j, n);
+            if (j == LOCAL_NO_TOKEN) {
+                return false;
+            }
+        } else if (local_mark_is(&item->tokens[j], "=")) {
+            return false;
+        }
+    }
+    return true;
+}
+
 /// The index of the `[` of a lambda whose captures, parameter list and trailers reach token `end`, or
 /// LOCAL_NO_TOKEN. `*open` and `*close` get its parameter list, or LOCAL_NO_TOKEN for a lambda with none
 /// and for no lambda. The last such `[` wins. A `[` after a name, a `)`, a `]` or a literal is a
@@ -9428,8 +9476,13 @@ static bool read_local_head(const LocalItem *item, LocalRecord *record, Reader *
 /// head of a `for` ends the item at its first `;`, and with a reader the scan reads the rest of the head
 /// to that body. A statement with no body in braces gives no entry for its condition. O(n) in the
 /// tokens.
-static void read_local_statement(const LocalItem *item, LocalRecord *record, Reader *reader) {
+static void read_local_statement(const LocalItem *item, LocalRecord *record, Reader *reader, bool after_class_body) {
     if (local_range_out(item, item->count)) {
+        return;
+    }
+    if (after_class_body) {
+        // The declarators after the `}` of a class body have the type of that body: `} s = {1};`, `} *p, a[2];`.
+        read_local_declaration(item, 0, item->count, record, record->frames, LOCAL_STATEMENT, true);
         return;
     }
     unsigned n = item->count;
@@ -9469,8 +9522,10 @@ static void read_local_statement(const LocalItem *item, LocalRecord *record, Rea
     const LocalToken *first = &item->tokens[i];
     uint8_t body = record->frames + 1;
     // The head of a class, whose body ends the item, declares a type and no local:
-    // `struct ABSL_ATTRIBUTE_TRIVIAL_ABI Probe {`, `class [[nodiscard]] awaitable {`.
-    if (item->end == '{' && first->kind == TOKEN_WORD && (is_class_key(first->text) || strcmp(first->text, "enum") == 0)) {
+    // `struct ABSL_ATTRIBUTE_TRIVIAL_ABI Probe {`, `class [[nodiscard]] awaitable {`. Its body is a frame
+    // whose `}` the declarators of that type follow.
+    if (local_class_head(item, i)) {
+        record->class_head = 1;
         return;
     }
     // A declaration of a condition, of a `for` head, or of a `catch` is in scope in the body of its
@@ -9507,13 +9562,13 @@ static void read_local_statement(const LocalItem *item, LocalRecord *record, Rea
         } else if (local_word_is(first, "for") && close == LOCAL_NO_TOKEN) {
             kind = LOCAL_FOR_INIT;
         }
-        read_local_declaration(item, i + 2, end, record, body, kind);
+        read_local_declaration(item, i + 2, end, record, body, kind, false);
         for (unsigned entry = first_entry; entry < local_entry_count(record); entry++) {
             record->entries[entry].pending = (uint8_t)wait;
         }
         return;
     }
-    read_local_declaration(item, i, n, record, record->frames, LOCAL_STATEMENT);
+    read_local_declaration(item, i, n, record, record->frames, LOCAL_STATEMENT, false);
 }
 
 /// Apply a boundary to a record: each pending entry comes one boundary nearer to scope, a `{` opens a
@@ -9524,8 +9579,12 @@ static void read_local_statement(const LocalItem *item, LocalRecord *record, Rea
 /// and the entries of a head whose body did not come at the boundary that the head scan counted. A
 /// pending entry stays across a `}`, because the braces of a constructor initializer list come before
 /// the body of its head: `A() : m{1} {`.
-static void apply_local_boundary(LocalRecord *record, int32_t boundary) {
+///
+/// A `{` after the scan of a class head opens a frame that is a class body. Return true when the
+/// boundary is the `}` of such a frame.
+static bool apply_local_boundary(LocalRecord *record, int32_t boundary) {
     bool body = false;
+    bool class_body = false;
     unsigned count = local_entry_count(record);
     for (unsigned i = 0; i < count; i++) {
         LocalEntry *entry = &record->entries[i];
@@ -9533,16 +9592,23 @@ static void apply_local_boundary(LocalRecord *record, int32_t boundary) {
             body |= entry->frame > record->frames;
         }
     }
+    bool class_head = record->class_head != 0;
+    record->class_head = 0;
     if (boundary == '{' && (record->frames > 0 || body)) {
         if (record->frames == UINT8_MAX) {
             saturate_locals(record, 1);
         } else {
             record->frames++;
+            uint32_t bit = record->frames <= 32 ? (uint32_t)1 << (record->frames - 1) : 0;
+            record->class_bodies = class_head ? (record->class_bodies | bit) : (record->class_bodies & ~bit);
         }
     } else if (boundary == '}' && record->frames > 0) {
         if (record->saturated >= record->frames) {
             record->saturated = 0;
         }
+        uint32_t bit = record->frames <= 32 ? (uint32_t)1 << (record->frames - 1) : 0;
+        class_body = (record->class_bodies & bit) != 0;
+        record->class_bodies &= ~bit;
         record->frames--;
     } else if (boundary == '}') {
         record->saturated = 0;
@@ -9555,11 +9621,13 @@ static void apply_local_boundary(LocalRecord *record, int32_t boundary) {
         }
     }
     record->count = (uint8_t)kept;
+    return class_body;
 }
 
-/// True when two records hold the same entries, frames and saturation. O(n) in the entries.
+/// True when two records hold the same entries, frames, saturation and class bodies. O(n) in the entries.
 static bool local_record_same(const LocalRecord *a, const LocalRecord *b) {
-    if (a->count != b->count || a->frames != b->frames || a->saturated != b->saturated) {
+    if (a->count != b->count || a->frames != b->frames || a->saturated != b->saturated ||
+        a->class_bodies != b->class_bodies || a->class_head != b->class_head) {
         return false;
     }
     for (unsigned i = 0; i < local_entry_count(a); i++) {
@@ -9643,11 +9711,11 @@ static bool scan_local_boundary(Scanner *scanner, TSLexer *lexer) {
     LocalItem item;
     read_local_item(&reader, &item);
     LocalRecord next = *record;
-    apply_local_boundary(&next, boundary);
+    bool after_class_body = apply_local_boundary(&next, boundary);
     // The head of a definition declares no local of the frame: `S(int val) : val_(val) {` is a
     // constructor, and `S` is a type. So a head that matches skips the statement.
     if (item.end != 0 && !read_local_head(&item, &next, &reader) && next.frames > 0) {
-        read_local_statement(&item, &next, &reader);
+        read_local_statement(&item, &next, &reader, after_class_body);
     }
     if (local_record_same(record, &next)) {
         return false;
@@ -9688,11 +9756,11 @@ static void scan_local_after_directive(Scanner *scanner, TSLexer *lexer) {
         return;
     }
     if (!read_local_head(&item, &next, &reader) && next.frames > 0) {
-        read_local_statement(&item, &next, &reader);
+        read_local_statement(&item, &next, &reader, false);
     }
     unsigned after = local_entry_count(&next);
     unsigned added = after > before ? after - before : 0;
-    if (added == 0 && next.saturated == saturated) {
+    if (added == 0 && next.saturated == saturated && next.class_head == scanner->locals.class_head) {
         return;
     }
     if (added > 0 && before >= added) {
@@ -11429,15 +11497,16 @@ static bool scan_token(Scanner *scanner, TSLexer *lexer, const bool *valid_symbo
 /// a scanner with no delimiter, no group, and no class name is empty. A deeper group needs a full array of groups,
 /// so an empty state has no such group.
 unsigned tree_sitter_cpp_external_scanner_serialize(void *payload, char *buffer) {
-    // The record of locals takes 3 bytes and 6 bytes for each entry.
+    // The record of locals takes 8 bytes and 6 bytes for each entry.
     static_assert(1 + MAX_DELIMITER_LENGTH * sizeof(wchar_t) + 1 + MAX_GROUPS + 2 + 1 + 1 +
-                          2 + 4 * MAX_CLASSES * sizeof(uint32_t) + 3 + 6 * MAX_LOCALS <
+                          2 + 4 * MAX_CLASSES * sizeof(uint32_t) + 8 + 6 * MAX_LOCALS <
                       TREE_SITTER_SERIALIZATION_BUFFER_SIZE,
                   "Serialized state is too long!");
 
     Scanner *scanner = (Scanner *)payload;
     const LocalRecord *locals = &scanner->locals;
-    bool no_locals = locals->count == 0 && locals->frames == 0 && locals->saturated == 0;
+    bool no_locals = locals->count == 0 && locals->frames == 0 && locals->saturated == 0 && locals->class_bodies == 0 &&
+                     locals->class_head == 0;
     if (scanner->delimiter_length == 0 && scanner->group_count == 0 && scanner->class_count == 0 &&
         scanner->loose_count == 0 && scanner->template_count == 0 && scanner->alias_count == 0 && !scanner->preproc_extra_tokens &&
         no_locals) {
@@ -11473,6 +11542,9 @@ unsigned tree_sitter_cpp_external_scanner_serialize(void *payload, char *buffer)
     buffer[size++] = (char)entry_count;
     buffer[size++] = (char)locals->frames;
     buffer[size++] = (char)locals->saturated;
+    memcpy(&buffer[size], &locals->class_bodies, sizeof(uint32_t));
+    size += sizeof(uint32_t);
+    buffer[size++] = (char)locals->class_head;
     for (unsigned i = 0; i < entry_count; i++) {
         memcpy(&buffer[size], &locals->entries[i].name, sizeof(uint32_t));
         size += sizeof(uint32_t);
@@ -11497,6 +11569,8 @@ void tree_sitter_cpp_external_scanner_deserialize(void *payload, const char *buf
     scanner->locals.count = 0;
     scanner->locals.frames = 0;
     scanner->locals.saturated = 0;
+    scanner->locals.class_bodies = 0;
+    scanner->locals.class_head = 0;
     if (length == 0) {
         return;
     }
@@ -11532,17 +11606,20 @@ void tree_sitter_cpp_external_scanner_deserialize(void *payload, const char *buf
         // The record of locals fails closed. A header or entries that do not fit in the state, or more
         // entries than MAX_LOCALS, give an empty record and no class names, because the class names come
         // after the entries. Refer to "EACH RANGE OF THE RECORD FAILS CLOSED".
-        if (size + 3 > length) {
+        if (size + 8 > length) {
             return;
         }
         unsigned entry_count = (uint8_t)buffer[size];
-        if (entry_count > MAX_LOCALS || size + 3 + 6 * entry_count > length) {
+        if (entry_count > MAX_LOCALS || size + 8 + 6 * entry_count > length) {
             return;
         }
         LocalRecord *locals = &scanner->locals;
         locals->count = (uint8_t)buffer[size++];
         locals->frames = (uint8_t)buffer[size++];
         locals->saturated = (uint8_t)buffer[size++];
+        memcpy(&locals->class_bodies, &buffer[size], sizeof(uint32_t));
+        size += sizeof(uint32_t);
+        locals->class_head = (uint8_t)buffer[size++];
         for (unsigned i = 0; i < entry_count; i++) {
             memcpy(&locals->entries[i].name, &buffer[size], sizeof(uint32_t));
             size += sizeof(uint32_t);
