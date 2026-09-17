@@ -459,6 +459,98 @@ mod seeded {
         );
     }
 
+    /// A MACRO ROW REACHES THE TYPE BEFORE A DECLARATOR AND A MACRO WHEN NO SOURCE DECLARES THE TYPE.
+    ///
+    /// `Mutex mu MOZ_UNANNOTATED;` reads as the attribute macro `Mutex`, the type `mu` and the
+    /// declarator `MOZ_UNANNOTATED` when no source declares `Mutex`. The type rows of firefox hold no
+    /// `Mutex`, because a template parameter of that name removes it. The macro row of
+    /// `MOZ_UNANNOTATED` is the evidence at the position of the macro. Refer to
+    /// `scan_template_parameter_declarator` in src/scanner.c.
+    ///
+    /// EACH LINE OF THE SOURCE NAMES AN INPUT THAT ONE TEST OF THE RULE DECIDES:
+    /// - The field, the declaration and the parameter with `MOZ_UNANNOTATED` take the reading.
+    /// - `Other o NOT_DEFINED;` keeps the reading of today, because `NOT_DEFINED` has no row.
+    /// - `Kind k AS_TYPE;` keeps the reading of today, because a type row is no macro row.
+    ///
+    /// THE GATE RUNS NO SEED, so this rule measures zero in the plain steps of the gate, and this test
+    /// and a seeded run of `xtask trees --seeds` are the evidence.
+    #[test]
+    fn a_macro_row_reaches_the_type_before_a_declarator_and_a_macro() {
+        const SOURCE: &str = "class A {\n  Mutex mu MOZ_UNANNOTATED;\n  Other o NOT_DEFINED;\n  Kind k AS_TYPE;\n};\n\
+                              Mutex global MOZ_UNANNOTATED;\n\
+                              void f(Mutex m MOZ_UNANNOTATED);\n";
+        let file = SeedFile::new("AS_TYPE\ttype\nMOZ_UNANNOTATED\tobject-macro\n");
+        let seed = Seed::read(file.path()).expect("the seed reads");
+
+        let unseeded = bare(SOURCE);
+        let before = unseeded.root_node().to_sexp();
+        assert_eq!(before.matches("(attributed_declarator").count(), 0, "{before}");
+
+        let mut parser = parser();
+        // SAFETY: `seed` lives to the end of this test.
+        unsafe { parser.set_scanner_context(seed.as_context()) };
+        let seeded = parser.parse(SOURCE, None).expect("the parse ends");
+        let sexp = seeded.root_node().to_sexp();
+        assert!(!seeded.root_node().has_error(), "{sexp}");
+        // Three sites with the macro row take the reading, and the two other fields do not.
+        assert_eq!(sexp.matches("(attributed_declarator").count(), 3, "{sexp}");
+        for kind in ["field_declaration", "declaration", "parameter_declaration"] {
+            let name = if kind == "field_declaration" { "field_identifier" } else { "identifier" };
+            assert!(
+                sexp.contains(&format!(
+                    "({kind} type: (type_identifier) declarator: (attributed_declarator ({name}) \
+                     (attribute_macro name: (identifier))))"
+                )),
+                "{kind}: {sexp}"
+            );
+        }
+    }
+
+    /// A FIRST NAME WITH A MACRO ROW DOES NOT ENTER, SO ITS INVOCATION AND ITS CONSTRUCTOR MACRO STAY.
+    ///
+    /// The scan reads the blank after the first name before it can see the `(` of an invocation or
+    /// the `::` of a constructor. A decline after that blank stops `scan_macro_start`, and no branch
+    /// can give its empty token after the scan of a comparison marked the end after the name. So a
+    /// first name with a macro row does not enter on the macro rows. `ClassDef (A, 1)` in a class body
+    /// and `api Widget::Widget() {}` keep their macro with a seed that holds a row for `ClassDef` and
+    /// for `api`. Without the test, 46 corpus files lost such a macro and 10 got an ERROR node.
+    #[test]
+    fn a_first_name_with_a_macro_row_keeps_its_invocation_and_its_constructor_macro() {
+        const SOURCE: &str = "class A {\n  int x;\n  ClassDef (A, 1)\n};\napi Widget::Widget() {}\n";
+        let file = SeedFile::new("ClassDef\tfunction-macro\nMOZ_UNANNOTATED\tobject-macro\napi\tobject-macro\n");
+        let seed = Seed::read(file.path()).expect("the seed reads");
+        let unseeded = bare(SOURCE).root_node().to_sexp();
+        assert!(unseeded.contains("(macro_invocation"), "{unseeded}");
+        assert_eq!(unseeded.matches("(attribute_macro name: (identifier))").count(), 1, "{unseeded}");
+
+        let mut parser = parser();
+        // SAFETY: `seed` lives to the end of this test.
+        unsafe { parser.set_scanner_context(seed.as_context()) };
+        let seeded = parser.parse(SOURCE, None).expect("the parse ends");
+        assert_eq!(seeded.root_node().to_sexp(), unseeded, "the seed changed the tree of a name with a macro row");
+    }
+
+    /// WITH NO MACRO ROW FOR ANY NAME, A SEED CHANGES NO TREE OF THIS CONSTRUCT, AND WITH NO SEED THE RULE
+    /// DOES NOT ENTER.
+    ///
+    /// `has_seed` comes before the scan reads a character. Without it, the decline of each plain type
+    /// name that a blank follows would stop the later scans of a parse with no seed.
+    #[test]
+    fn the_rule_of_the_macro_rows_reads_no_character_with_no_seed() {
+        const SOURCE: &str = "class A {\n  Mutex mu MOZ_UNANNOTATED;\n  ClassDef (A, 1)\n};\napi Widget::Widget() {}\n";
+        let unseeded = bare(SOURCE).root_node().to_sexp();
+        assert!(unseeded.contains("(macro_invocation"), "{unseeded}");
+        assert_eq!(unseeded.matches("(attributed_declarator").count(), 0, "{unseeded}");
+        // A context that is no seed, as `test_a_scanner_context_does_not_reach_an_upstream_grammar`
+        // gives it, reads as no seed.
+        let marker = 42u32;
+        let mut parser = parser();
+        // SAFETY: `marker` lives to the end of this test, and the scanner reads its magic and stops.
+        unsafe { parser.set_scanner_context(std::ptr::addr_of!(marker).cast()) };
+        let other = parser.parse(SOURCE, None).expect("the parse ends").root_node().to_sexp();
+        assert_eq!(other, unseeded);
+    }
+
     /// THE CONTEXT SURVIVES A PARSE THAT REUSES A TREE.
     ///
     /// `serialize` and `deserialize` do not carry the context, and they must not. The buffer is 1 KB

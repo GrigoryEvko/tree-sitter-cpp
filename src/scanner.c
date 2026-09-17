@@ -191,8 +191,9 @@ enum TokenType {
     /// line or after a line break: `T value ABSL_ATTRIBUTE_LIFETIME_BOUND`, `Mutex mu MOZ_UNANNOTATED;`.
     /// The token makes the first name the type. The second name is then the declarator, and the third
     /// name is the attribute macro of that declarator. The sources are the template head of the same
-    /// declaration, the class heads of the file, and the seed of the project. Refer to
-    /// `is_declared_type_name`. The token of `TEMPLATE_PARAMETER_TYPE_NAME` covers the shape where
+    /// declaration, the class heads of the file, and the type rows of the seed of the project. Refer to
+    /// `is_declared_type_name`. When no source declares the first name, a macro row of the third name
+    /// in the seed is the source, and `scan_template_parameter_declarator` reads it. The token of `TEMPLATE_PARAMETER_TYPE_NAME` covers the shape where
     /// the SECOND name is the macro, and the template head is its only source.
     TEMPLATE_PARAMETER_DECLARATOR_TYPE,
     /// An empty token before a macro name with an argument list and a `;` where an item of a translation
@@ -2380,6 +2381,36 @@ static bool is_seed_type_name(const Scanner *scanner, const char *name, const Re
     }
     uint16_t kinds = seed_kinds((const TSCppSeed *)scanner->context, name, (uint32_t)strlen(name));
     return (kinds & (TS_CPP_SEED_TYPE | TS_CPP_SEED_TEMPLATE)) != 0;
+}
+
+/// True when the parse has a seed that this scanner reads: a context with the magic and the version
+/// of src/seed.h. O(1).
+///
+/// A RULE THAT A MACRO ROW DECIDES READS THIS BEFORE IT READS A CHARACTER. With no seed, no name has
+/// a macro row, so such a rule can give no token. The rule then must not enter at all, because a scan
+/// that reads characters and declines stops each later scan of `scan_word_start`. The parse with no
+/// seed then keeps each tree that it has.
+static bool has_seed(const Scanner *scanner) {
+    const TSCppSeed *seed = scanner == NULL ? NULL : (const TSCppSeed *)scanner->context;
+    return seed != NULL && seed->magic == TS_CPP_SEED_MAGIC && seed->version == TS_CPP_SEED_VERSION;
+}
+
+/// True when the seed of the parse names `name` as a macro that a `#define` of the project defines,
+/// with either shape.
+///
+/// A MACRO ROW SAYS THAT A FILE OF THE PROJECT DEFINES THE NAME, AND NOT THAT THE NAME IS A MACRO AT
+/// THIS SITE. The collector reads every branch of a conditional and every file, test fixtures too, and
+/// qtbase defines `QString()` in a test of moc. A reader asks this at a position where the text of the
+/// construct already allows only a macro, and never as the only evidence of a reading.
+///
+/// A CUT WORD GIVES FALSE, for the reason that `is_seed_type_name` gives. A macro row and a type row
+/// of one name are independent, so a name can give true here and in `is_seed_type_name`.
+static bool is_seed_macro_name(const Scanner *scanner, const char *name, const Reader *reader) {
+    if (scanner == NULL || reader->word_cut) {
+        return false;
+    }
+    uint16_t kinds = seed_kinds((const TSCppSeed *)scanner->context, name, (uint32_t)strlen(name));
+    return (kinds & TS_CPP_SEED_MACRO) != 0;
 }
 
 /// True when a class head of the file or the seed of the project declares the name as a type.
@@ -8775,7 +8806,12 @@ static bool starts_initializer_element(Reader *reader) {
 /// declarator, and `void c(T value MACRO = 1)` shows the ERROR node that the token gives there. The
 /// population of 3977e59 holds 5 declarations with a `=` after the macro, all in mongo, and they keep
 /// the reading of today.
-static bool scan_template_parameter_declarator(Reader *reader, const char *declarator,
+///
+/// WITH `seed_macro`, THE MACRO MUST HAVE A MACRO ROW IN THE SEED OF THE PROJECT. The caller sets it
+/// when no source declares the first name as a type, so the macro row is then the evidence of the
+/// construct. The name shape stays a filter and is never the evidence, because the scan of
+/// `DECLARATOR_MACRO_NAME` that reads the macro later takes the shape only.
+static bool scan_template_parameter_declarator(Reader *reader, const char *declarator, bool seed_macro,
                                                const bool *valid_symbols) {
     TSLexer *lexer = reader->lexer;
     if (!valid_symbols[TEMPLATE_PARAMETER_DECLARATOR_TYPE] || declarator[0] == '\0' ||
@@ -8787,11 +8823,16 @@ static bool scan_template_parameter_declarator(Reader *reader, const char *decla
     if (after_declarator.blocked || !readable(reader) || !is_word_start(lexer->lookahead)) {
         return false;
     }
-    char macro[MACRO_WORD_SIZE];
+    // The buffer holds the length of a seed name. A name of `MACRO_WORD_SIZE` characters or more is
+    // the name that a buffer of that size cuts, and the shape test declines it as before.
+    char macro[TS_CPP_SEED_WORD_SIZE];
     bool macro_has_lower = false;
-    read_word(reader, macro, &macro_has_lower);
-    if (strlen(macro) < 2 || reader->word_cut || !is_macro_name(macro, macro_has_lower) ||
-        is_grammar_keyword(macro) || strchr(macro, '\\') != NULL) {
+    read_word_sized(reader, macro, TS_CPP_SEED_WORD_SIZE, &macro_has_lower);
+    if (strlen(macro) < 2 || strlen(macro) >= MACRO_WORD_SIZE || reader->word_cut ||
+        !is_macro_name(macro, macro_has_lower) || is_grammar_keyword(macro) || strchr(macro, '\\') != NULL) {
+        return false;
+    }
+    if (seed_macro && !is_seed_macro_name(reader->scanner, macro, reader)) {
         return false;
     }
     Gap after_macro = {0};
@@ -8857,7 +8898,8 @@ static bool scan_template_parameter_declarator(Reader *reader, const char *decla
 /// `zfac < 1.e-6f && zfac > -1.e-6f` in blender.
 ///
 /// THE SCANS OF A MACRO INVOCATION GIVE NO TOKEN FOR A NAME OF THESE TWO SOURCES, so no hand-off to
-/// `scan_macro_start` is necessary. The caller admits no macro-shaped name, and `scan_macro_start`
+/// `scan_macro_start` is necessary. A name that enters on the macro rows of the seed is a name of
+/// neither source, and the caller keeps a name with a macro row out for this reason. The caller admits no macro-shaped name, and `scan_macro_start`
 /// gives its tokens to a macro-shaped name, to a SAL name, to a name where a member starts that is
 /// not a recorded class name, or to a name before a constructor that is not a recorded class name.
 /// A recorded class name reaches none of those. A seed name that is not a recorded class name can
@@ -8873,7 +8915,7 @@ static bool scan_template_parameter_declarator(Reader *reader, const char *decla
 /// macro-shaped, most of them SAL annotations where the first name IS the macro. A commit that takes
 /// the ones with a declared first name measures that table.
 static bool scan_declared_type_declarator(Reader *reader, const char *word, bool comparison, bool cast_name,
-                                          const bool *valid_symbols) {
+                                          bool seed_macro, const bool *valid_symbols) {
     TSLexer *lexer = reader->lexer;
     uint32_t before = reader->budget;
     bool after_blanks = false;
@@ -8910,7 +8952,7 @@ static bool scan_declared_type_declarator(Reader *reader, const char *word, bool
     if (strlen(second) >= 2 && is_macro_name(second, second_has_lower) && !is_grammar_keyword(second)) {
         return false;
     }
-    return scan_template_parameter_declarator(reader, second, valid_symbols);
+    return scan_template_parameter_declarator(reader, second, seed_macro, valid_symbols);
 }
 
 static bool scan_word_start(Scanner *scanner, TSLexer *lexer, const bool *valid_symbols) {
@@ -9125,6 +9167,29 @@ static bool scan_word_start(Scanner *scanner, TSLexer *lexer, const bool *valid_
     // `scan_declared_type_declarator`, which reads the blanks after the name with the scan of a
     // comparison, so that a `<` after the blanks keeps the token that it has today.
     //
+    // A FOURTH SOURCE SAYS THAT THE THIRD NAME IS A MACRO: THE MACRO ROWS OF THE SEED. A name that no
+    // source declares as a type enters the same path when the parse has a seed, and the macro must
+    // then have a macro row. `Mutex mu MOZ_UNANNOTATED;` of firefox needs it, because a template
+    // parameter named `Mutex` removes that name from the type rows. Over the 652 sites of this
+    // construct at 6e1adae, the macro rows repair 316 sites in 117 files that no type source reaches.
+    //
+    // A FIRST NAME WITH A MACRO ROW DOES NOT ENTER ON THAT SOURCE, BECAUSE A DECLINE AFTER THE BLANK
+    // STOPS THE SCAN OF AN INVOCATION. The scan of a comparison marks the end of the token after the
+    // first name, and each token of `scan_macro_start` is empty and ends before the name, so no
+    // branch can give that token after the scan read the blank. With no such test, 46 files of the
+    // corpus lost a macro and 10 of them got an ERROR node: `ClassDef (TFileInfo, 1)` in a class
+    // body of ROOT, `P (TYPE_ALLOC)` in a block of bde, `simdjson_inline simdjson_result(...)` before
+    // a constructor of simdjson. Each of those names has a macro row. A build that calls
+    // `scan_macro_start` after that decline gave `ClassDef (TFileInfo, 1)` 2 ERROR nodes, and the
+    // bde and ROOT files twice the ERROR nodes of the decline. The test costs 13 sites of `hb_locale_t oldlocale HB_UNUSED;`, because harfbuzz
+    // defines `hb_locale_t` as a macro of a type and declares no typedef.
+    //
+    // THE TEST CANNOT SEE A MACRO WITH NO ROW, AND THE DECLINE STILL STOPS ITS INVOCATION. A macro of
+    // another project or of a system header gives no row. Such a name before `(` with a blank, where
+    // a member, a constructor or an item starts, loses its macro when the parse has a seed. The corpus
+    // holds no such site under the seeds of 2026-09-17. A rewind of the lexer, or a type token that is
+    // an empty mark before the name, removes the loss for every name.
+    //
     // EACH TEST OF THIS CONDITION NAMES AN INPUT THAT IT DECIDES.
     // A MACRO-SHAPED NAME DOES NOT ENTER. `class FOO { int x; };` and then `FOO (y)` on a line of
     // its own is a macro invocation with the name of the class, and the scan would read the blank
@@ -9140,8 +9205,12 @@ static bool scan_word_start(Scanner *scanner, TSLexer *lexer, const bool *valid_
     bool type_parameter = is_template_parameter(scanner, reader.word_hash);
     if (valid_symbols[TEMPLATE_PARAMETER_TYPE_NAME] && (next == ' ' || next == '\t' || next == '\n')
         && !type_parameter && !macro_shaped && !is_grammar_keyword(word) &&
-        !valid_symbols[TEMPLATE_PARAMETER_MACRO_START] && is_declared_type_name(scanner, full, &reader)) {
-        return scan_declared_type_declarator(&reader, word, comparison, cast_name, valid_symbols);
+        !valid_symbols[TEMPLATE_PARAMETER_MACRO_START]) {
+        bool declared = is_declared_type_name(scanner, full, &reader);
+        bool macro_evidence = !declared && has_seed(scanner) && !is_seed_macro_name(scanner, full, &reader);
+        if (declared || macro_evidence) {
+            return scan_declared_type_declarator(&reader, word, comparison, cast_name, !declared, valid_symbols);
+        }
     }
     if (valid_symbols[TEMPLATE_PARAMETER_TYPE_NAME] && (next == ' ' || next == '\t' || next == '\n')
         && type_parameter) {
@@ -9169,7 +9238,7 @@ static bool scan_word_start(Scanner *scanner, TSLexer *lexer, const bool *valid_
             // nothing, because `scan_token` gives `false` and the runtime resets the lexer. The
             // measurement of 2026-09-16 proves it: a build that reads exactly this text on exactly
             // this path gives 0 changed tree hashes over the 329,387 files of the corpus.
-            return scan_template_parameter_declarator(&reader, second, valid_symbols);
+            return scan_template_parameter_declarator(&reader, second, false, valid_symbols);
         }
         // A DECLARATOR MUST FOLLOW THE MACRO, AND THAT IS WHAT SEPARATES A MACRO FROM A NAME. An
         // ALL-CAPS name is macro-shaped whether it is a macro or an object, and `const TYPE TYPE_MAX
