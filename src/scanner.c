@@ -8928,7 +8928,13 @@ static unsigned read_local_declaration(const LocalItem *item, unsigned start, un
             }
             return declared;
         }
-        if (token->kind != TOKEN_WORD || word_in(token->text, LOCAL_STOP_WORDS)) {
+        // `module` and `import` are keywords of a module unit only, and they are ordinary names
+        // everywhere else: `int ViewMap_Init(PyObject *module)` of blender and
+        // `void testImport(A *import)` of clang. The two words keep their stop at the first token of
+        // an item, where `module foo;` declares a module and no local. Refer to task 394.
+        bool module_word = strcmp(token->text, "module") == 0 || strcmp(token->text, "import") == 0;
+        bool stop = word_in(token->text, LOCAL_STOP_WORDS) && (i == start || !module_word);
+        if (token->kind != TOKEN_WORD || stop) {
             return declared;
         }
         if (continuation && (local_word_is(token, "const") || local_word_is(token, "volatile"))) {
