@@ -9722,10 +9722,7 @@ static LocalAnswer local_name_answer(const Scanner *scanner, uint32_t name) {
     return record->saturated != 0 ? LOCAL_UNKNOWN : LOCAL_NO;
 }
 
-/// True when a live entry of the record of locals has the name of the hash. No consumer reads it yet.
-#if defined(__GNUC__) || defined(__clang__)
-__attribute__((unused))
-#endif
+/// True when a live entry of the record of locals has the name of the hash.
 static bool is_local_name(const Scanner *scanner, uint32_t name) {
     return local_name_answer(scanner, name) == LOCAL_YES;
 }
@@ -9802,9 +9799,11 @@ static bool read_paren_group(Reader *reader, GroupFacts *facts) {
 
 /// Read a name and the `)` after it, from the character after the `(`. The name is an identifier, or
 /// identifiers and template argument lists that `::` connects. A group that is not a declarator can come
-/// after the name, as in `(f(x))`. Give the form of the name, and the text and the shape of its last
-/// identifier. Return false for a different text, and for a keyword. O(n) in the characters that it reads.
-static bool read_parenthesized_name(Reader *reader, NameForm *form, NameShape *shape, char text[NAME_WORD_SIZE]) {
+/// after the name, as in `(f(x))`. Give the form of the name, and the text, the shape and the hash of its
+/// last identifier. The hash is the hash of `read_word`. Return false for a different text, and for a
+/// keyword. O(n) in the characters that it reads.
+static bool read_parenthesized_name(Reader *reader, NameForm *form, NameShape *shape, char text[NAME_WORD_SIZE],
+                                    uint32_t *hash) {
     TSLexer *lexer = reader->lexer;
     TextToken token;
     Gap gap = {0};
@@ -9826,14 +9825,17 @@ static bool read_parenthesized_name(Reader *reader, NameForm *form, NameShape *s
             return false;
         }
         size_t length = 0;
+        *hash = HASH_START;
         while (readable(reader) && is_word_char(lexer->lookahead)) {
             LOOP_STEP();
             if (length < NAME_WORD_SIZE - 1) {
                 text[length] = lexer->lookahead < 0x80 ? (char)lexer->lookahead : '?';
             }
+            *hash = hash_character(*hash, lexer->lookahead);
             length++;
             step(reader);
         }
+        *hash = finish_hash(*hash);
         if (length >= NAME_WORD_SIZE) {
             return false;
         }
@@ -9946,6 +9948,9 @@ static bool starts_operand_only(const TextToken *token) {
 ///   between them, also keeps a cast: `(uptr)&x`, `(u64)-1`. The measurement found 380 casts and 35
 ///   expressions in these forms.
 /// - A `*` or a `&` before a number keeps the expression: `(Imm)&0xFFF`.
+/// - A plain name that the record of locals holds keeps the expression before `(x)`, `*`, `&`, `+`, and
+///   `-`, whatever its shape. A local is a variable, and a variable is no type: in opencv
+///   `(const uchar*)(S) + step`, `S` is a parameter.
 /// - For `()`, for a group before a token of `starts_operand_only`, for `...` after the operator of a fold,
 ///   and for each other token, only one reading continues, and the scan gives no token.
 ///
@@ -9958,9 +9963,11 @@ static bool scan_parenthesized_name(TSLexer *lexer, const Scanner *scanner, cons
     NameForm form = NAME_PLAIN;
     NameShape shape = SHAPE_VALUE;
     char name[NAME_WORD_SIZE];
-    if (!read_parenthesized_name(&reader, &form, &shape, name)) {
+    uint32_t hash = 0;
+    if (!read_parenthesized_name(&reader, &form, &shape, name, &hash)) {
         return false;
     }
+    bool local = form == NAME_PLAIN && is_local_name(scanner, hash);
     bool alignof_operand = valid_symbols[ALIGNOF_TYPE_PAREN];
     bool operand = valid_symbols[OPERAND_TYPE_PAREN];
     bool type = false;
@@ -9995,7 +10002,7 @@ static bool scan_parenthesized_name(TSLexer *lexer, const Scanner *scanner, cons
                     return false;
                 }
             } while (token.kind == TOKEN_OPEN && token.text[0] == '(' && read_paren_group(&reader, &next));
-            type = group.operands == 1 && type_shape;
+            type = group.operands == 1 && type_shape && !local;
         } else if (strcmp(t, "*") == 0 || strcmp(t, "&") == 0 || strcmp(t, "+") == 0 || strcmp(t, "-") == 0) {
             char op = t[0];
             bool space_after = iswspace(lexer->lookahead) || lexer->lookahead == '/';
@@ -10009,7 +10016,7 @@ static bool scan_parenthesized_name(TSLexer *lexer, const Scanner *scanner, cons
             // `(u64)-1`. A binary `&` or `-` has spaces: `(size) & mask`.
             bool tight_cast = form == NAME_PLAIN &&
                               ((op == '&' && !space_before && !space_after) || (op == '-' && !space_after && token.number));
-            type = !binary_only && (type_shape || tight_cast);
+            type = !binary_only && !local && (type_shape || tight_cast);
         } else if (strcmp(t, "&&") != 0) {
             return false;
         }
