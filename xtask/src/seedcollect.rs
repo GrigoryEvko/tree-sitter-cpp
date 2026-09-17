@@ -5,12 +5,21 @@
 //! hold a name from a header, because no header is parsed. The reader of the file this task writes
 //! is `crate::seed`, and the format is `src/seed.h`.
 //!
-//! THE TYPE ROWS HAVE TWO READERS, AND `--types` SELECTS ONE. `tree` reads the tree of each file, and
-//! it is the reader of every committed seed. `text` reads the declaration positions of the text of each
-//! file with `crate::declarations`, and it never parses. A misparse writes a wrong type row or drops a
-//! correct one with the tree reader: the fork read `inline StringBuilder::operator StringView() const`
-//! as a function named `StringView`, and WebKit lost `StringView` from its seed. The two readers give
-//! the same kinds, so one rule (`resolve`, `type_word` and `rows`) writes the rows of both.
+//! THE TYPE ROWS HAVE TWO READERS, AND `--types` SELECTS ONE. `text` reads the declaration positions of
+//! the text of each file with `crate::declarations`, it never parses, and it is the default and the
+//! reader of every committed seed. `tree` reads the tree of each file. A misparse writes a wrong type
+//! row or drops a correct one with the tree reader: the fork read
+//! `inline StringBuilder::operator StringView() const` as a function named `StringView`, and WebKit
+//! lost `StringView` from its seed. The two readers give the same kinds, so one rule (`resolve`,
+//! `type_word` and `rows`) writes the rows of both.
+//!
+//! A VALUE AT NAMESPACE SCOPE AND A MEMBER FUNCTION REMOVE A TYPE ROW OF THE TEXT READER, AND A VALUE WITH A
+//! SMALLER SCOPE DOES NOT. A seed has no scope, and C++ scopes a parameter, a local and a data member to its
+//! function or its class: `void remove(const HostAndPort& HostAndPort)` hides the type `HostAndPort` in one
+//! function only. A member function stays a conflict, because a member body calls it with no `this->`.
+//! Clang verdicts of the changed sites of 21 projects gave this policy 19,030 repairs and 1,475
+//! regressions, `outer` 13,735 and 1,232, `namespace` 22,249 and 3,975, and `all` 159 and 3,287.
+//! `--conflicts namespace|outer|all` selects another policy.
 //!
 //! THE MACRO ROWS READ THE TEXT OF THE `#define` LINES with `crate::defines`, and they never read a
 //! tree. No grammar change can move a macro row.
@@ -571,13 +580,14 @@ enum Conflicts {
     Namespace,
     /// Each object and function at namespace scope, and each member function. A member function is a
     /// value in each member function of its class, where a call needs no `this->`: `request().getDbName()`.
+    /// The default.
     Methods,
 }
 
 impl Options {
     /// The options at the end of the arguments, and the arguments before them.
     fn parse(args: &[String]) -> Result<(Vec<&String>, Self), String> {
-        let mut options = Self { types: Types::Tree, scope: Scope::List, conflicts: Conflicts::All };
+        let mut options = Self { types: Types::Text, scope: Scope::List, conflicts: Conflicts::Methods };
         let mut positional = Vec::new();
         let mut iter = args.iter();
         while let Some(arg) = iter.next() {
@@ -1224,11 +1234,13 @@ mod tests {
                       struct AsMacro {};\n\
                       #define AsMacro(x) (x)\n";
         let tree = Tree::new(source);
-        let text = tree.collect();
+        let text = tree.collect_with(&["--conflicts", "all"]);
         assert_eq!(type_names(&text), ["Keep"], "only the class whose other declarations are constructors keeps its type");
         // The macro keeps its own row with no type word, because a macro row and a type row are two
         // facts. The function-like macro of the tree still removes the type word, as before.
         assert_eq!(rows(&text), [("AsMacro", "function-macro"), ("Keep", "type")]);
+        // The default takes no parameter: the parameter keeps its type.
+        assert_eq!(type_names(&tree.collect()), ["AsParameter", "Keep"]);
     }
 
     /// THE MACRO ROWS READ THE TEXT OF EVERY SOURCE FILE OF THE PROJECT, AND NO TREE.
@@ -1318,6 +1330,10 @@ mod tests {
     /// The grammar reads every one of them as a forward declaration of `NAME` with an attribute
     /// macro, because the three are the same text and a file cannot tell them apart. A project can.
     /// The corpus gives 88 such names over its 64 projects, and the rule keeps 38 and drops 50.
+    ///
+    /// This test reads the tree reader. The text reader reads `class META_TEMPLATE_VIS basic_string;`
+    /// as a forward declaration only when the project defines the macro, and
+    /// `the_text_collector_gives_the_rows_of_the_tree_collector` holds that rule.
     #[test]
     fn the_project_decides_a_forward_declaration_from_an_object_and_a_macro() {
         let source = "\
@@ -1327,7 +1343,7 @@ struct CALL_CENTER_TBL g_w_call_center;\n\
 #define ABSL_ATTRIBUTE_TRIVIAL_ABI\n\
 class ABSL_MUST_USE_RESULT ABSL_ATTRIBUTE_TRIVIAL_ABI Ptr;\n";
         let tree = Tree::new(source);
-        let text = tree.collect();
+        let text = tree.collect_with(&["--types", "tree"]);
         let names = type_names(&text);
         assert!(names.contains(&"basic_string"), "a forward declaration with a visibility macro is a type: {names:?}");
         assert!(!names.contains(&"g_w_call_center"), "an object of a type the project declares is no type: {names:?}");
@@ -1342,11 +1358,12 @@ class ABSL_MUST_USE_RESULT ABSL_ATTRIBUTE_TRIVIAL_ABI Ptr;\n";
     /// The fork reads it as an object `A` of the type `struct LLVM_ABI`, and both front ends read a
     /// forward declaration with an attribute. Without this rule the name reads as a conflict and
     /// falls out. libc++ loses `vector`, `pair`, `array`, `shared_ptr` and `basic_string` to it, and
-    /// the corpus holds 925 file and name pairs of the shape.
+    /// the corpus holds 925 file and name pairs of the shape. This test reads the tree reader, and the
+    /// fixture of the text reader defines `LLVM_ABI`.
     #[test]
     fn a_macro_before_a_forward_declaration_leaves_a_type() {
         let tree = Tree::new("struct LLVM_ABI Shape;\n");
-        let text = tree.collect();
+        let text = tree.collect_with(&["--types", "tree"]);
         let rows: Vec<(&str, &str)> =
             text.lines().filter(|line| !line.starts_with('#')).filter_map(|line| line.split_once('\t')).collect();
         assert_eq!(rows, [("Shape", "type")]);
@@ -1369,7 +1386,7 @@ class ABSL_MUST_USE_RESULT ABSL_ATTRIBUTE_TRIVIAL_ABI Ptr;\n";
                          struct AsMacro {};\n\
                          #define AsMacro(x) (x)\n";
         let tree = Tree::new(conflicts);
-        let text = tree.collect_with(&["--types", "text"]);
+        let text = tree.collect_with(&["--types", "text", "--conflicts", "all"]);
         assert_eq!(rows(&text), [("AsMacro", "function-macro"), ("Keep", "type")]);
         // The header names the reader, and the tree reader of the list keeps its earlier header.
         assert!(text.contains("# defines as a macro. The type rows read the declaration positions of the text of each file of the\n"));
@@ -1410,13 +1427,14 @@ class ABSL_MUST_USE_RESULT ABSL_ATTRIBUTE_TRIVIAL_ABI Ptr;\n";
                       template <typename T, int Mutex> class Tracker {};\n\
                       class Monitor { Mutex* Mutex(); };\n";
         let tree = Tree::new(source);
-        assert_eq!(type_names(&tree.collect_with(&["--types", "text"])), ["Monitor", "Tracker"]);
+        assert_eq!(type_names(&tree.collect_with(&["--types", "text", "--conflicts", "all"])), ["Monitor", "Tracker"]);
         let outer = tree.collect_with(&["--types", "text", "--conflicts", "outer"]);
         assert_eq!(type_names(&outer), ["HostAndPort", "Monitor", "Tracker"]);
         // With `namespace`, the member function `Mutex()` has the scope of its class.
         let namespace = tree.collect_with(&["--types", "text", "--conflicts", "namespace"]);
         assert_eq!(type_names(&namespace), ["HostAndPort", "Monitor", "Mutex", "Tracker"]);
-        // With `methods`, the member function `Mutex()` removes the type, and the parameter does not.
+        // With `methods`, the default, the member function `Mutex()` removes the type, and the parameter does not.
         assert_eq!(type_names(&tree.collect_with(&["--types", "text", "--conflicts", "methods"])), ["HostAndPort", "Monitor", "Tracker"]);
+        assert_eq!(type_names(&tree.collect()), ["HostAndPort", "Monitor", "Tracker"]);
     }
 }

@@ -1,6 +1,7 @@
 # seed format 2
 # The names that this project declares as a type or as a template, and the names that it
-# defines as a macro. The type rows read the tree of each file of the list of the collection.
+# defines as a macro. The type rows read the declaration positions of the text of each file of the
+# list of the collection.
 # The macro rows read the text of the `#define` lines of every source file of the project.
 # `cargo xtask seed collect` writes this file. The reader is xtask/src/seed.rs.
 # The rows ascend by the bytes of the name, and a reader binary searches them.
@@ -20,6 +21,7 @@ ASSERT_SUCCESS	function-macro
 ASSERT_TRUE	function-macro
 Address	type
 Allocator	template
+Args	type
 Array	type
 ArrayIndex	type
 BADARG	object-macro
@@ -30,7 +32,7 @@ BEST_TIME	function-macro
 BEST_TIME_NOCHECK	function-macro
 BIGINT_NUMBER	function-macro
 BadPlayer	type
-BaseType	template
+BaseType	type
 BenchmarkStage	type
 Buffer	type
 BuiltStyledStreamWriter	type
@@ -49,7 +51,6 @@ Char	type
 CharReader	type
 CharReaderBuilder	type
 CharReaderPtr	type
-CharT	type
 ChildValues	type
 CitmCatalog	type
 Class	type
@@ -202,6 +203,7 @@ PADDING_FILLED_WITH_NUMBERS	object-macro
 PATH_MAX	object-macro
 PRINT_ERROR	object-macro
 Package	type
+Path	type
 PathArgument	type
 Person	type
 Player	type
@@ -675,7 +677,7 @@ S_IXOTH	object-macro
 S_IXUSR	object-macro
 Sax	type
 SecureAllocator	template
-Selector	template
+Selector	type
 SelfType	type
 SimpleUser	type
 SkippedField	type
@@ -689,11 +691,12 @@ StreamWriter	type
 StreamWriterBuilder	type
 StreamWriterPtr	type
 StringStorage	type
-StringType	template
+StringType	type
 StringTypes	type
 StructuredError	type
 StyledStreamWriter	type
 StyledWriter	type
+T	type
 TEST_CAST_ERROR	function-macro
 TEST_EMBED_SUPPORTED	object-macro
 TEST_FAIL	function-macro
@@ -715,7 +718,7 @@ U	type
 UInt	type
 UInt64	type
 UIntToStringBuffer	type
-UnsignedUC	template
+UnsignedUC	type
 User	type
 UserWithEmail	type
 Value	type
@@ -748,33 +751,37 @@ __GETOPT_LONG_H__	object-macro
 __m128i	type
 __progname	object-macro
 _blsr_u64	function-macro
-accessor	template
+accessor	type
 adjusted_mantissa	type
 anagrams	type
 array_range	type
 array_range_iterator	type
+array_type	type
 atomic_ptr	template
 auto_parser	template
 autodetect_address	type
 autodetect_person	type
 available_implementation_list	type
 backslash_and_quote	type
+base	template
 base8	template
 base8_numeric	template
 base_formatter	template
 base_u8	template
+basic_string_view	template
 benchmarker	type
 big	type
 big_sel	type
+bigint	type
 binary_format	template
 binary_format_lookup_tables	template
 bit_indexer	type
-bitmask2_t	template
-bitmask_t	template
+bitmask2_t	type
+bitmask_t	type
 boostjson	type
 boostjson2msgpack	type
 brand	type
-bucket_info	template
+bucket_info	type
 buf_block_reader	template
 byte_span	type
 car_type	type
@@ -788,8 +795,8 @@ complicated_weather_data	type
 compute_mul_parity_result	type
 compute_mul_result	type
 const_iterator	type
-const_pointer	template
-const_reference	template
+const_pointer	type
+const_reference	type
 const_reverse_iterator	type
 constcharstar	type
 constructed_type	type
@@ -799,24 +806,31 @@ depth_t	type
 deserialize_tag	type
 detect_best_supported_implementation_on_first_use	type
 diff_flags	type
-difference_type	template
+difference_type	type
 dirent	type
+document	type
 document_reference	type
 document_reference_type	type
+document_stream	type
 document_type	type
 dom_parser_implementation	type
+element	type
 element_metrics	type
-element_type	template
-equiv_uint	template
+element_type	type
+equiv_uint	type
 equiv_uint_t	template
+error_code	type
 error_code_info	type
-error_type	template
+error_type	type
 escape_json_string	type
 escape_sequence	type
 escape_vector	type
 escaped_and_escape	type
+escaping	type
 extract_element_type	template
 feature_benchmarker	type
+field	type
+fields	type
 file_runner	template
 fixed_json_string	template
 fixed_string	template
@@ -824,7 +838,7 @@ for_each_result	type
 fractured_formatter	type
 fractured_json_options	type
 fractured_string_builder	type
-frame	template
+frame	type
 from_chars_advanced_caller	template
 from_chars_caller	template
 from_chars_result	type
@@ -832,6 +846,7 @@ from_chars_result_t	template
 has_custom_serialization	template
 hash	template
 id_sel	type
+implementation	type
 implementation_simdjson_result_base	template
 instruction_set	type
 int_luts	template
@@ -844,7 +859,7 @@ is_supported_integer_type	template
 isfinite	object-macro,function-macro
 isnan	object-macro,function-macro
 iterator	type
-iterator_category	template
+iterator_category	type
 iterator_concept	type
 jo_sel	type
 json_block	type
@@ -868,7 +883,7 @@ layout_mode	type
 lconv	type
 limb	type
 limb_span	type
-limits	template
+limits	type
 log_level	type
 map_type	type
 mini_formatter	type
@@ -954,7 +969,7 @@ nssv_constexpr14	object-macro
 nssv_explicit	object-macro
 nssv_inline_ns	object-macro
 nssv_nodiscard	object-macro
-nssv_noexcept	type,object-macro
+nssv_noexcept	object-macro
 nssv_nullptr	object-macro
 number_dataset	type
 number_length	type
@@ -967,11 +982,13 @@ only_sel	type
 open_container	type
 option_struct	type
 optreset	object-macro
+other	type
 padded_input	type
 padded_memory_map	type
 padded_string	type
 padded_string_builder	type
 padded_string_view	type
+pair	type
 parse_options	type
 parse_options_t	template
 parse_result	type
@@ -983,9 +1000,12 @@ pclose	object-macro
 phf_data	template
 phf_result	template
 phf_sel	type
+point	type
+pointer	type
 pointer_accessor	template
 popen	object-macro
 pow5_tables	template
+powers	type
 powers_template	template
 pretty_formatter	type
 progress_bar	type
@@ -997,10 +1017,12 @@ rapidjson_insitu	type
 rapidjson_sax	type
 raw_json_string	type
 rebind	template
+reference	type
 rename_t	template
 result_differ	template
 result_type	type
 reverse_iterator	type
+rng	type
 runner	template
 runner_base	template
 runtime_at_path_deep	type
@@ -1060,8 +1082,7 @@ simdjsondom2msgpack	type
 simdutf_vrgather_u8m1x2	function-macro
 simdutf_vrgather_u8m1x4	function-macro
 single_access_runner	template
-size_t	type
-size_type	template
+size_type	type
 skip_tag	type
 small_sel	type
 space_lut	template
@@ -1073,6 +1094,7 @@ stage1_worker	type
 stat	type
 stat_s	type
 stat_t	type
+state	type
 step_type	type
 stream_case	type
 stream_dataset	type
@@ -1087,16 +1109,19 @@ string_view_lite_PATCH	object-macro
 string_view_lite_VERSION	object-macro
 structural_scanner	type
 structure_analyzer	type
-sym_t	template
+sym_t	type
 tape_builder	type
 tape_builder_impl	template
 tape_ref	type
+tape_type	type
 tape_writer	type
 to_adaptor	template
+token	type
 token_iterator	type
 token_position	type
 top_tweet_result	template
 traits_type	type
+tweet	template
 tweet_sel	type
 tweet_sel_t	type
 twitter_user	template
@@ -1109,7 +1134,8 @@ unsupported_implementation	type
 user_sel_t	type
 utf8_checker	type
 value128	type
-value_type	template
+value_iterator	type
+value_type	type
 vbitmask_t	type
 vbool_t	type
 vboolx64_t	type
@@ -1124,6 +1150,7 @@ window_data	template
 wopendir	object-macro
 wreaddir	object-macro
 wrewinddir	object-macro
+writer	type
 wstring_view	type
 xorshift64	type
 yyjson	type

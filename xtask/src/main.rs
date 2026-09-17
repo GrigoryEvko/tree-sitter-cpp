@@ -115,11 +115,14 @@ tasks:
                            [--conflicts all|outer|namespace|methods]
                            Write the names that each project of LIST declares as a type or as a
                            template, and the names that it defines as a macro, as `name<TAB>kinds`
-                           rows that ascend by the bytes of the name. The type rows read the tree of
-                           each file of LIST, or with --types text the declaration positions of its
-                           text, with no parse. With --scope project, the type rows read every source
-                           file of each project. The macro rows read the text of the `#define` lines of
-                           every source file under ROOT/<project>, and no tree.
+                           rows that ascend by the bytes of the name. The type rows read the
+                           declaration positions of the text of each file of LIST, with no parse, or
+                           with --types tree the tree of each file. With --scope project, the type
+                           rows read every source file of each project. The macro rows read the text
+                           of the `#define` lines of every source file under ROOT/<project>, and no
+                           tree. A value at namespace scope and a member function remove a type row
+                           of the text reader. With --conflicts namespace only a value at namespace
+                           scope does, with outer also a data member, and with all each value.
                            With --out-dir, write one <project>.seed for each project. The task reads
                            back what it wrote with the reader of `seed`, and it reports the names
                            that it dropped for passing TS_CPP_SEED_WORD_SIZE - 1 bytes.
