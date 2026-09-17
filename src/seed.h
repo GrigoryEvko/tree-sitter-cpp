@@ -46,9 +46,10 @@
 
 /// The version of the structs below. A reader that meets a different value gives no name.
 ///
-/// Version 2 gives the macro bits below. In version 1, the bit 4 meant a macro of either shape, and
-/// no file and no reader used it.
-#define TS_CPP_SEED_VERSION 2u
+/// Version 3 gives the body bits below, which say what the replacement list of an object-like macro
+/// looks like. Version 2 gave the macro bits. In version 1, the bit 4 meant a macro of either shape,
+/// and no file and no reader used it.
+#define TS_CPP_SEED_VERSION 3u
 
 /// The name gives a type.
 #define TS_CPP_SEED_TYPE 1u
@@ -68,6 +69,49 @@
 /// A MACRO BIT SAYS THAT A FILE OF THE PROJECT DEFINES THE NAME, AND NOT THAT THE NAME IS A MACRO AT A
 /// SITE. The collector takes every branch of a conditional and every file, test fixtures included.
 #define TS_CPP_SEED_MACRO (TS_CPP_SEED_OBJECT_MACRO | TS_CPP_SEED_FUNCTION_MACRO)
+
+/// THE BODY BITS SAY WHAT THE REPLACEMENT LIST OF AN OBJECT-LIKE `#define` LOOKS LIKE.
+///
+/// A macro row says that a file of the project defines the name, and a position of the text then holds
+/// a macro of any expansion. `#define __ masm->` of v8 makes `__ Mov(x29, sp);` a call of a member,
+/// and the grammar reads it as a declaration of `Mov` with the type `__`. The body bits give the shape
+/// of the expansion, so a rule can refuse the reading that the expansion forbids.
+///
+/// A NAME HAS ONE ROW AND MANY DEFINITIONS, SO THE BITS ARE THE UNION OF ITS DEFINITIONS. harfbuzz
+/// defines `hb_locale_t` as `locale_t`, as `_locale_t` and as `void *` in three branches of one file.
+/// A reader that needs one answer asks for one bit beside `TS_CPP_SEED_BODY_EMPTY`, because an empty
+/// branch and a branch of the shape give the same answer at a position that the shape decides.
+///
+/// A BODY BIT SAYS WHAT THE BODY LOOKS LIKE, AND NEVER WHAT IT MEANS. blender writes
+/// `#define ccl_private thread` for the address space of Metal, and `thread` is also a class of
+/// blender. A reader asks at a position where the grammar already forbids each other reading.
+///
+/// A name with no object-like `#define` has no body bit.
+
+/// Each object-like `#define` of the name has no token: `#define NDEBUG`.
+#define TS_CPP_SEED_BODY_EMPTY 16u
+/// The body is one identifier that is no keyword: `#define hb_locale_t locale_t`.
+#define TS_CPP_SEED_BODY_NAME 32u
+/// The body holds specifier keywords, reserved names in lowercase and attribute groups only:
+/// `#define nssv_noexcept noexcept`, `#define MY_API __declspec(dllexport)`.
+#define TS_CPP_SEED_BODY_SPECIFIER 64u
+/// The body is a type expression of keywords and punctuators: `#define DWORD unsigned long`.
+#define TS_CPP_SEED_BODY_TYPE 128u
+/// The body ends in `::`: `#define _STD ::std::`.
+#define TS_CPP_SEED_BODY_SCOPE 256u
+/// The body ends in `->` or `.`: `#define __ masm->`.
+#define TS_CPP_SEED_BODY_MEMBER 512u
+/// The body starts with `=` or `{`: `#define _ZERO_OR_NO_INIT = 0`.
+#define TS_CPP_SEED_BODY_INITIALIZER 1024u
+/// The body is a call of a macro, or it ends with the name of a function-like macro of the project.
+#define TS_CPP_SEED_BODY_CALL 2048u
+/// Each other body: `#define PI 3.14`.
+#define TS_CPP_SEED_BODY_OTHER 4096u
+/// The bits of the body of an object-like macro.
+#define TS_CPP_SEED_BODY                                                                                     \
+    (TS_CPP_SEED_BODY_EMPTY | TS_CPP_SEED_BODY_NAME | TS_CPP_SEED_BODY_SPECIFIER | TS_CPP_SEED_BODY_TYPE |    \
+     TS_CPP_SEED_BODY_SCOPE | TS_CPP_SEED_BODY_MEMBER | TS_CPP_SEED_BODY_INITIALIZER |                        \
+     TS_CPP_SEED_BODY_CALL | TS_CPP_SEED_BODY_OTHER)
 
 /// One name of a seed.
 typedef struct {

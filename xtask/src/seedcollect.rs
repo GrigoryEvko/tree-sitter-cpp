@@ -105,6 +105,12 @@ struct Names {
     /// body of `crate::declarations::macro_bodies` names. The text reader resolves its heads with them.
     bodies: BTreeMap<String, u8>,
     body_aliases: BTreeMap<String, BTreeSet<String>>,
+    /// The shapes of the replacement lists of the object-like `#define` lines of each name, which the
+    /// body words of a row give. Refer to `defines::BodyShape` and to `body_bits`.
+    shapes: BTreeMap<String, BTreeSet<defines::BodyShape>>,
+    /// The shapes of the replacement lists of the function-like `#define` lines. A call body resolves
+    /// through them, because `#define __ ACCESS_MASM(masm)` expands to the body of `ACCESS_MASM`.
+    call_shapes: BTreeMap<String, BTreeSet<defines::BodyShape>>,
 }
 
 /// A `#define` of the name has a tag body.
@@ -144,6 +150,12 @@ impl Names {
         for (name, targets) in other.aliases {
             self.aliases.entry(name).or_default().extend(targets);
         }
+        for (name, shapes) in other.shapes {
+            self.shapes.entry(name).or_default().extend(shapes);
+        }
+        for (name, shapes) in other.call_shapes {
+            self.call_shapes.entry(name).or_default().extend(shapes);
+        }
     }
 
     /// Add the `#define` lines of the text of one source.
@@ -163,6 +175,11 @@ impl Names {
             let bit = match define.shape {
                 Shape::Object => KIND_WORDS[2].1,
                 Shape::Function => KIND_WORDS[3].1,
+            };
+            let shape = defines::body_shape(&define);
+            match define.shape {
+                Shape::Object => self.shapes.entry(define.name.clone()).or_default().insert(shape),
+                Shape::Function => self.call_shapes.entry(define.name.clone()).or_default().insert(shape),
             };
             if let Some(target) = define.alias {
                 self.aliases.entry(define.name.clone()).or_default().insert(target);
@@ -254,6 +271,56 @@ impl Names {
         }
     }
 
+    /// The body bits of one name, as the union of the shapes of its object-like `#define` lines.
+    ///
+    /// A CALL BODY TAKES THE SHAPE OF THE BODY OF THE MACRO THAT IT CALLS. v8 writes
+    /// `#define __ ACCESS_MASM(masm)` in 29 files and `#define ACCESS_MASM(masm) masm->` in each
+    /// architecture, so the expansion of `__` ends in `->`. The resolution takes four steps, as the
+    /// alias chain of the macro words takes four, and a chain that ends in no macro of the project
+    /// gives the call bit. A chain that comes back to a name it already met stops there.
+    ///
+    /// A BODY THAT ENDS WITH THE NAME OF A FUNCTION-LIKE MACRO ALSO GIVES THE CALL BIT, because the
+    /// group after the name of such a macro is its argument list ([cpp.rescan] p1).
+    ///
+    /// O(n * 4) in the names with a call body.
+    fn body_bits(&self, name: &str) -> u16 {
+        let mut bits = 0;
+        for shape in self.shapes.get(name).into_iter().flatten() {
+            bits |= self.bit_of(shape, 0);
+        }
+        bits
+    }
+
+    /// The bit of one shape, with the call resolution at `depth`. The words of the shapes follow the
+    /// macro words of `KIND_WORDS`, in the order of `defines::BodyShape`.
+    fn bit_of(&self, shape: &defines::BodyShape, depth: usize) -> u16 {
+        use defines::BodyShape;
+        let word = |index: usize| KIND_WORDS[crate::seed::BODY_WORDS + index].1;
+        match shape {
+            BodyShape::Empty => word(0),
+            BodyShape::OneName => word(1),
+            BodyShape::Specifier => word(2),
+            BodyShape::TypeExpression => word(3),
+            BodyShape::ScopePrefix => word(4),
+            BodyShape::MemberPrefix => word(5),
+            BodyShape::Initializer => word(6),
+            BodyShape::Call(target) => {
+                let called = (depth < 4).then(|| self.call_shapes.get(target)).flatten();
+                match called {
+                    Some(shapes) => {
+                        shapes.iter().map(|shape| self.bit_of(shape, depth + 1)).fold(0, |all, bit| all | bit)
+                    }
+                    None => word(7),
+                }
+            }
+            BodyShape::EndsWithName(target) => {
+                let function = self.macros.get(target).is_some_and(|bits| bits & KIND_WORDS[3].1 != 0);
+                if function { word(7) } else { word(8) }
+            }
+            BodyShape::Other => word(8),
+        }
+    }
+
     /// The rows of the seed file, as the name and the kinds cell, and the names that the length
     /// dropped. O(n log n) in the names.
     ///
@@ -275,7 +342,7 @@ impl Names {
         let mut dropped = Vec::new();
         for name in names {
             let mut words: Vec<&str> = self.type_word(name).into_iter().collect();
-            let bits = macros.get(name).copied().unwrap_or(0);
+            let bits = macros.get(name).copied().unwrap_or(0) | self.body_bits(name);
             words.extend(KIND_WORDS[2..].iter().filter(|(_, bit)| bits & bit != 0).map(|(word, _)| *word));
             if words.is_empty() {
                 continue;
@@ -1256,6 +1323,9 @@ mod tests {
     /// - `Bytef` is a typedef of the listed file and a macro of the header, and its row holds the
     ///   two kinds. A function-like macro of the header does not remove the type word of `Both`,
     ///   because the type rows read the tree of the listed files only.
+    ///
+    /// THE BODY WORDS ARE THE UNION OF THE SHAPES OF THE DEFINITIONS OF THE NAME. Refer to
+    /// `the_body_words_hold_every_shape_of_the_name`.
     #[test]
     fn the_macro_rows_read_the_text_of_every_source_file_of_the_project() {
         let tree = Tree::new(
@@ -1278,13 +1348,57 @@ mod tests {
         assert_eq!(rows(&text), [
             ("BSLIM_TESTUTIL_P_", "function-macro"),
             ("Both", "type,function-macro"),
-            ("Bytef", "type,object-macro"),
+            ("Bytef", "type,object-macro,body-name"),
             ("GUARDED_BY", "function-macro"),
             ("IN_DEAD", "function-macro"),
-            ("MOZ_UNANNOTATED", "object-macro"),
-            ("P_", "object-macro,function-macro"),
-            ("_GLIBCXX20_CONSTEXPR", "object-macro"),
+            ("MOZ_UNANNOTATED", "object-macro,body-empty"),
+            ("P_", "object-macro,function-macro,body-name"),
+            ("_GLIBCXX20_CONSTEXPR", "object-macro,body-specifier"),
         ]);
+    }
+
+    /// THE BODY WORDS OF A ROW HOLD EVERY SHAPE OF THE DEFINITIONS OF THE NAME.
+    ///
+    /// A project defines one name in many branches and many files, and a row answers for each of them.
+    /// harfbuzz defines `hb_locale_t` as `locale_t`, as `_locale_t` and as `void *` in three branches of
+    /// one file, so its row holds `body-name` and `body-type`. A reader that needs one answer asks for
+    /// one word beside `body-empty`.
+    ///
+    /// A CALL BODY TAKES THE SHAPE OF THE BODY OF THE MACRO THAT IT CALLS. v8 writes
+    /// `#define __ ACCESS_MASM(masm)` in 29 files and `#define ACCESS_MASM(masm) masm->` in each
+    /// architecture, and `__ Mov(x29, sp);` is a call of a member. The row of `__` of v8 holds
+    /// `body-member` alone, because the resolution takes the call to the body that it expands to.
+    #[test]
+    fn the_body_words_hold_every_shape_of_the_name() {
+        let tree = Tree::new("int x;\n");
+        tree.add(
+            "include/hb.hh",
+            b"#if defined(_WIN32)\n#define hb_locale_t _locale_t\n#elif defined(HAVE_NEWLOCALE)\n              #define hb_locale_t locale_t\n#else\n#define hb_locale_t void *\n#endif\n",
+        );
+        tree.add("include/macro-assembler.h", b"#define ACCESS_MASM(masm) masm->\n");
+        tree.add("src/codegen.cc", b"#define __ ACCESS_MASM(masm)\n#undef __\n#define __ masm_->\n");
+        tree.add("include/chain.h", b"#define OUTER MIDDLE(x)\n#define MIDDLE(x) INNER(x)\n#define INNER(x) x->\n");
+        tree.add(
+            "include/deep.h",
+            b"#define TOO_DEEP L1(x)\n#define L1(x) L2(x)\n#define L2(x) L3(x)\n#define L3(x) L4(x)\n              #define L4(x) L5(x)\n#define L5(x) x->\n",
+        );
+        tree.add("include/specifier.h", b"#define MY_API __declspec(dllexport)\n#define NSSV_NOEXCEPT noexcept\n");
+        tree.add("include/other.h", b"#define PI 3.14\n#define ZERO_INIT = 0\n#define QUAL ::std::\n");
+        let text = tree.collect();
+        let rows = rows(&text);
+        let row = |name: &str| rows.iter().find(|(key, _)| *key == name).map(|(_, kinds)| *kinds).unwrap_or("");
+        assert_eq!(row("hb_locale_t"), "object-macro,body-name,body-type");
+        assert_eq!(row("__"), "object-macro,body-member");
+        assert_eq!(row("ACCESS_MASM"), "function-macro");
+        // A chain of calls resolves to the body at its end, and a chain of more than four steps keeps
+        // the call word.
+        assert_eq!(row("OUTER"), "object-macro,body-member");
+        assert_eq!(row("TOO_DEEP"), "object-macro,body-call");
+        assert_eq!(row("MY_API"), "object-macro,body-specifier");
+        assert_eq!(row("NSSV_NOEXCEPT"), "object-macro,body-specifier");
+        assert_eq!(row("PI"), "object-macro,body-other");
+        assert_eq!(row("ZERO_INIT"), "object-macro,body-initializer");
+        assert_eq!(row("QUAL"), "object-macro,body-scope");
     }
 
     /// EVERY SEED OF test/seed IS ONE THAT THE READER TAKES.
@@ -1404,14 +1518,14 @@ class ABSL_MUST_USE_RESULT ABSL_ATTRIBUTE_TRIVIAL_ABI Ptr;\n";
         );
         assert_eq!(
             rows(&tree.collect_with(&["--types", "text"])),
-            [("LLVM_ABI", "object-macro"), ("Mine", "type"), ("SS", "type"), ("Shape", "type")]
+            [("LLVM_ABI", "object-macro,body-empty"), ("Mine", "type"), ("SS", "type"), ("Shape", "type")]
         );
 
         // A header of the project defines a type name as a macro of the compiler. The name before a
         // declarator stays, so the function `Hash` is a value and `Hash` gives no row.
         let tree = Tree::new("struct Hash {};\ninline uint64_t Hash(int x) { return 0; }\n");
         tree.add("lib/Headers/wrapper.h", b"#define uint64_t __UINT64_TYPE__\n");
-        assert_eq!(rows(&tree.collect_with(&["--types", "text"])), [("uint64_t", "object-macro")]);
+        assert_eq!(rows(&tree.collect_with(&["--types", "text"])), [("uint64_t", "object-macro,body-name")]);
     }
 
     /// WITH `--conflicts outer`, ONLY A VALUE AT NAMESPACE SCOPE OR CLASS SCOPE REMOVES A TYPE ROW.

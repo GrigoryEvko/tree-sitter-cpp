@@ -53,7 +53,7 @@ const MAX_NAME: usize = 64;
 /// value of a little-endian machine is 0x44535354.
 const MAGIC: u32 = u32::from_le_bytes(*b"TSSD");
 /// The version of the seed struct, `TS_CPP_SEED_VERSION` of src/seed.h.
-const VERSION: u32 = 2;
+const VERSION: u32 = 3;
 /// The bit of a name that gives a type, `TS_CPP_SEED_TYPE`.
 const KIND_TYPE: u16 = 1;
 /// The bit of a name that gives a template, `TS_CPP_SEED_TEMPLATE`. A template name is also a type
@@ -63,6 +63,18 @@ const KIND_TEMPLATE: u16 = 2;
 const KIND_OBJECT_MACRO: u16 = 4;
 /// The bit of a name that a `#define` with a parameter list defines, `TS_CPP_SEED_FUNCTION_MACRO`.
 const KIND_FUNCTION_MACRO: u16 = 8;
+/// The bits of the shape of the body of an object-like macro, `TS_CPP_SEED_BODY_*` of src/seed.h. The
+/// bits of one name are the union of the shapes of its definitions, and a name with no object-like
+/// `#define` has none of them.
+const KIND_BODY_EMPTY: u16 = 16;
+const KIND_BODY_NAME: u16 = 32;
+const KIND_BODY_SPECIFIER: u16 = 64;
+const KIND_BODY_TYPE: u16 = 128;
+const KIND_BODY_SCOPE: u16 = 256;
+const KIND_BODY_MEMBER: u16 = 512;
+const KIND_BODY_INITIALIZER: u16 = 1024;
+const KIND_BODY_CALL: u16 = 2048;
+const KIND_BODY_OTHER: u16 = 4096;
 
 /// The first row of a seed file of this version. `cargo xtask seed collect` writes it, and the reader
 /// refuses a file whose first row differs.
@@ -73,12 +85,25 @@ pub fn format_row() -> String {
 /// The words of the kinds cell of a row, in the order that a row writes them, with their bits. The
 /// collector writes the words in this order, and the reader refuses a cell in a different order, so
 /// one set of kinds has one text and one id.
-pub const KIND_WORDS: [(&str, u16); 4] = [
+pub const KIND_WORDS: [(&str, u16); 13] = [
     ("type", KIND_TYPE),
     ("template", KIND_TYPE | KIND_TEMPLATE),
     ("object-macro", KIND_OBJECT_MACRO),
     ("function-macro", KIND_FUNCTION_MACRO),
+    ("body-empty", KIND_BODY_EMPTY),
+    ("body-name", KIND_BODY_NAME),
+    ("body-specifier", KIND_BODY_SPECIFIER),
+    ("body-type", KIND_BODY_TYPE),
+    ("body-scope", KIND_BODY_SCOPE),
+    ("body-member", KIND_BODY_MEMBER),
+    ("body-initializer", KIND_BODY_INITIALIZER),
+    ("body-call", KIND_BODY_CALL),
+    ("body-other", KIND_BODY_OTHER),
 ];
+
+/// The index of the first body word of `KIND_WORDS`. The collector writes the type words, then the
+/// macro words, then the body words.
+pub const BODY_WORDS: usize = 4;
 
 /// One name of the seed, the layout of `TSCppSeedEntry`.
 #[repr(C)]
@@ -619,8 +644,8 @@ mod tests {
         };
         // A file of version 1 has no format row, and a file of a different version names it.
         assert!(raw("version1", "# The names that this project declares as a type or as a template.\nAaa\ttype\n").contains("version 1 wrote no such row"));
-        assert!(raw("version3", "# seed format 3\nAaa\ttype\n").contains("the format `3`"));
-        assert!(raw("late", "# a comment\n# seed format 2\nAaa\ttype\n").contains("first row"));
+        assert!(raw("version2", "# seed format 2\nAaa\ttype\n").contains("the format `2`"));
+        assert!(raw("late", "# a comment\n# seed format 3\nAaa\ttype\n").contains("first row"));
         assert!(raw("empty", "").contains("first row"));
         assert!(message("order", "Bbb\ttype\nAaa\ttype\n").contains("ascend"));
         assert!(message("twice", "Aaa\ttype\nAaa\ttype\n").contains("ascend"));
