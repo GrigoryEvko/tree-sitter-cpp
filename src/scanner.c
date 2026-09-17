@@ -176,9 +176,6 @@ enum TokenType {
     /// after the name CANNOT be a parameter list, because a group that can be one keeps the reading
     /// of a parameter declaration that it has today.
     TEMPLATE_PARAMETER_MACRO_START,
-    /// An empty token before the word `using`. The scan reads an alias declaration and records the
-    /// name that it declares. Refer to `scan_using_alias`.
-    USING_ALIAS_MARK,
     /// The type of a declaration, where the template head of the same declaration declares the name
     /// as a TYPE PARAMETER and a macro-shaped name follows it: `T HPX_RESTRICT dest`. The token
     /// makes the first name the type, and the bare name after it is then the attribute macro.
@@ -3585,16 +3582,16 @@ static bool scan_template_head(Scanner *scanner, Reader *reader) {
 }
 
 /// Scan an alias declaration after the word `using`, and record the name that it declares. Return
-/// true if the recorded names change. The token is the empty extra USING_ALIAS_MARK before the word.
+/// false: the scan gives no token. When the recorded names change, the result symbol is
+/// TREE_SITTER_EXTERNAL_STATE_ONLY, and the runtime of ABI 1018 stores the state on the word `using`
+/// that its internal lexer reads next. Refer to `scan_class_head` for the empty extra that this
+/// replaces.
 ///
 /// AN ALIAS DECLARATION HAS AN `=` AND THE OTHER TWO FORMS OF `using` DO NOT. `using A = B;`
 /// declares the type name `A`. `using namespace ns;` and `using ns::f;` declare no type name, and
 /// the first word after `using` is `namespace` or the first part of a qualified name in those. The
 /// scan reads one word and then requires an `=`, which tells the three apart with no list of
 /// keywords. `template <class T> using V = W<T>;` has the same shape after its head.
-///
-/// THE TOKEN IS GIVEN ONLY WHEN THE RECORD CHANGES, as `scan_template_head` does. An empty token that a
-/// scan gives again at the same position never ends.
 ///
 /// A TYPEDEF DECLARES A TYPE NAME TOO AND THIS SCAN DOES NOT READ IT. The name of a typedef is its
 /// declarator and it comes last, `typedef int (*fn)(void);`, so reading it needs a declarator scan
@@ -3624,11 +3621,10 @@ static bool scan_using_alias(Scanner *scanner, Reader *reader) {
     if (readable(reader) && lexer->lookahead == '=') {
         return false;
     }
-    if (!record_alias_name(scanner, name)) {
-        return false;
+    if (record_alias_name(scanner, name)) {
+        lexer->result_symbol = TREE_SITTER_EXTERNAL_STATE_ONLY;
     }
-    lexer->result_symbol = USING_ALIAS_MARK;
-    return true;
+    return false;
 }
 
 /// True if the word is a class key: `class`, `struct`, `union`, or the MSVC `__interface`.
@@ -10660,7 +10656,9 @@ static bool scan_word_start(Scanner *scanner, TSLexer *lexer, const bool *valid_
     if (valid_symbols[TEMPLATE_HEAD_MARK] && strcmp(word, "template") == 0) {
         return scan_template_head(scanner, &reader);
     }
-    if (valid_symbols[USING_ALIAS_MARK] && strcmp(word, "using") == 0) {
+    // The word `using` writes the record of aliases with no token, in each state where the parser calls
+    // this scanner, as the class key writes the record of class heads.
+    if (strcmp(word, "using") == 0) {
         return scan_using_alias(scanner, &reader);
     }
     bool is_decltype = strcmp(word, "decltype") == 0;
@@ -11208,7 +11206,6 @@ static bool can_be_empty(TSSymbol symbol) {
         case MACRO_ENUMERATOR_START:
         case MACRO_STATEMENT_START:
         case TEMPLATE_HEAD_MARK:
-        case USING_ALIAS_MARK:
         case MACRO_CALL_ATTRIBUTE_START:
         case MACRO_CALL_ATTRIBUTE_TOKENS_START:
         case ATTRIBUTE_TOKENS_MARKER:

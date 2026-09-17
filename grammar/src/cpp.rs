@@ -208,9 +208,6 @@ pub fn grammar() -> Grammar {
         // after the name cannot be a parameter list, so a text with the two readings does not move.
         // Refer to `_template_parameter_macro`.
         s!(_template_parameter_macro_start),
-        // An empty token before the word `using`. The scanner reads an alias declaration and records
-        // the name that it declares. Refer to `scan_using_alias`.
-        s!(_using_alias_mark),
         // The type of a declaration, where the template head of the same declaration declares the
         // name as a TYPE PARAMETER and a macro-shaped name follows it. The token makes the first
         // name the type, so the bare macro after it can be the attribute macro. Refer to
@@ -2388,10 +2385,8 @@ fn types(g: &mut Grammar) {
     // parser shifts it in each state, and the parse states do not change. Refer to
     // `scan_template_head` in src/scanner.c and to task 291.
     g.extras.push(s!(_template_head_mark));
-    // The scanner records the name that a `using` alias declaration of the file declares, and it
-    // gives `_using_alias_mark` before the word `using` to do it. The token is an empty extra, as
-    // the template head mark is. Refer to `scan_using_alias`.
-    g.extras.push(s!(_using_alias_mark));
+    // The scanner records the name that a `using` alias declaration of the file declares at the word
+    // `using`, with no token, as it records a class head. Refer to `scan_using_alias`.
     // THE OPERAND OF `alignas` IS A TYPE OR A CONSTANT EXPRESSION, AND A BARE NAME IS BOTH. c4e81d4
     // states the expression reading as a rule, because only the declaration of the name tells the
     // two apart and the grammar holds no declaration. The scanner gives `_alignas_type_name` for a
