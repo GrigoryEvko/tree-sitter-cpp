@@ -1,8 +1,16 @@
-//! The seed of a parse: the type names and the template names that a project declares.
+//! The seed of a parse: the type names and the template names that a project declares, and the
+//! names that it defines as a macro.
 //!
-//! A seed file holds one row for each name, as `name<TAB>kind`, sorted by the bytes of the name,
-//! with `#` on a comment line. The kind is `type`, `template` or `macro`, and `template` implies
-//! `type`. The reader builds the C structs of the seed format, and `Seed::as_context` gives the
+//! A seed file holds one row for each name, as `name<TAB>kinds`, sorted by the bytes of the name,
+//! with `#` on a comment line. The kinds are a comma list of words in a fixed order: `type` or
+//! `template`, then `object-macro`, then `function-macro`. `template` implies `type`.
+//!
+//! THE FIRST ROW OF A SEED FILE IS `# seed format N`, where N is the version of the format. The reader
+//! refuses a file with no such row and a file of a different version, and it refuses to give a seed
+//! to a scanner that reads a different version. A scanner reads a seed of a different version as no
+//! name, with no ERROR node and no message, so each of these refusals stops the caller loudly.
+//!
+//! The reader builds the C structs of the seed format, and `Seed::as_context` gives the
 //! pointer that `Parser::set_scanner_context` takes. The scanner reads the names through that
 //! pointer, and the runtime never reads the target.
 //!
@@ -44,15 +52,33 @@ const MAX_NAME: usize = 64;
 /// The first four bytes of the seed struct, `TSSD` in the order of the bytes of the machine. The
 /// value of a little-endian machine is 0x44535354.
 const MAGIC: u32 = u32::from_le_bytes(*b"TSSD");
-/// The version of the seed struct.
-const VERSION: u32 = 1;
-/// The bit of a name that gives a type.
+/// The version of the seed struct, `TS_CPP_SEED_VERSION` of src/seed.h.
+const VERSION: u32 = 2;
+/// The bit of a name that gives a type, `TS_CPP_SEED_TYPE`.
 const KIND_TYPE: u16 = 1;
-/// The bit of a name that gives a template. A template name is also a type name, so a row of the
-/// kind `template` holds the two bits.
+/// The bit of a name that gives a template, `TS_CPP_SEED_TEMPLATE`. A template name is also a type
+/// name, so a row of the kind `template` holds the two bits.
 const KIND_TEMPLATE: u16 = 2;
-/// The bit of a name that a macro defines. #276 reads it, and a reader of #275 ignores it.
-const KIND_MACRO: u16 = 4;
+/// The bit of a name that a `#define` with no parameter list defines, `TS_CPP_SEED_OBJECT_MACRO`.
+const KIND_OBJECT_MACRO: u16 = 4;
+/// The bit of a name that a `#define` with a parameter list defines, `TS_CPP_SEED_FUNCTION_MACRO`.
+const KIND_FUNCTION_MACRO: u16 = 8;
+
+/// The first row of a seed file of this version. `cargo xtask seed collect` writes it, and the reader
+/// refuses a file whose first row differs.
+pub fn format_row() -> String {
+    format!("# seed format {VERSION}")
+}
+
+/// The words of the kinds cell of a row, in the order that a row writes them, with their bits. The
+/// collector writes the words in this order, and the reader refuses a cell in a different order, so
+/// one set of kinds has one text and one id.
+pub const KIND_WORDS: [(&str, u16); 4] = [
+    ("type", KIND_TYPE),
+    ("template", KIND_TYPE | KIND_TEMPLATE),
+    ("object-macro", KIND_OBJECT_MACRO),
+    ("function-macro", KIND_FUNCTION_MACRO),
+];
 
 /// One name of the seed, the layout of `TSCppSeedEntry`.
 #[repr(C)]
@@ -103,12 +129,40 @@ impl Seed {
     /// Read a seed file. O(n) in the bytes of the file.
     ///
     /// The reader refuses a file that a later reader cannot binary search: a row that is not
-    /// `name<TAB>kind`, a kind that is not one of the three words, a name of more than
-    /// `MAX_NAME` bytes, and an order that is not ascending by the bytes of the name.
+    /// `name<TAB>kinds`, a kinds cell that is not the words of `KIND_WORDS` in their order, a name of
+    /// more than `MAX_NAME` bytes, and an order that is not ascending by the bytes of the name.
+    ///
+    /// THE READER REFUSES A VERSION THAT IT OR THE SCANNER DOES NOT READ. The first row of the file
+    /// names the version of the format, and `tree_sitter_cpp::seed_version` names the version that
+    /// the linked scanner reads. The scanner cannot report a seed that it cannot read, because the
+    /// runtime gives the context through a function that returns nothing, so this reader asks first.
     pub fn read(path: &Path) -> Result<Self, Box<dyn Error>> {
+        let scanner = tree_sitter_cpp::seed_version();
+        if scanner != VERSION {
+            return Err(format!(
+                "this reader builds a seed of version {VERSION}, and the linked scanner reads version {scanner}. The \
+                 scanner reads a seed of a different version as no name, with no message, so the reader gives no seed. \
+                 Build the reader and the scanner from one tree: xtask/src/seed.rs and src/seed.h."
+            )
+            .into());
+        }
         let bytes = fs::read(path).map_err(|e| format!("cannot read the seed {}: {e}", path.display()))?;
         let text = std::str::from_utf8(&bytes)
             .map_err(|e| format!("the seed {} is not UTF-8: {e}", path.display()))?;
+        let first = text.lines().next().unwrap_or("");
+        if first != format_row() {
+            let found = first.strip_prefix("# seed format ").map_or_else(
+                || format!("the first row is `{first}`, and a collector of version 1 wrote no such row"),
+                |version| format!("the file has the format `{version}`"),
+            );
+            return Err(format!(
+                "{}:1: the first row of a seed is `{}`, and {found}. This reader reads version {VERSION} only. Write \
+                 the seed again with `cargo xtask seed collect` of this tree.",
+                path.display(),
+                format_row()
+            )
+            .into());
+        }
         let mut entries: Vec<Entry> = Vec::new();
         let mut block: Vec<u8> = Vec::new();
         let mut previous = "";
@@ -135,18 +189,13 @@ impl Seed {
                 )
                 .into());
             }
-            let kinds = match kind {
-                "type" => KIND_TYPE,
-                "template" => KIND_TYPE | KIND_TEMPLATE,
-                "macro" => KIND_MACRO,
-                other => {
-                    return Err(format!(
-                        "{}:{row}: the kind of `{name}` is `{other}`, and a kind is `type`, `template` or `macro`",
-                        path.display()
-                    )
-                    .into());
-                }
-            };
+            let kinds = kinds_of(kind).ok_or_else(|| {
+                format!(
+                    "{}:{row}: the kinds of `{name}` are `{kind}`. The kinds are a comma list of `type` or `template`, \
+                     then `object-macro`, then `function-macro`, each word one time and in that order.",
+                    path.display()
+                )
+            })?;
             if !previous.is_empty() && name.as_bytes() <= previous.as_bytes() {
                 return Err(format!(
                     "{}:{row}: `{name}` comes after `{previous}`, and the rows of a seed ascend by the bytes of \
@@ -323,6 +372,25 @@ impl Seeds {
     }
 }
 
+/// The bits of a kinds cell, or None for a cell that `KIND_WORDS` does not give. O(n) in the words.
+///
+/// The words come in the order of `KIND_WORDS`, and `type` and `template` do not come together,
+/// because `template` holds the bit of `type`. A cell with no word is refused.
+fn kinds_of(cell: &str) -> Option<u16> {
+    let mut bits = 0;
+    let mut next = 0;
+    for word in cell.split(',') {
+        let index = KIND_WORDS.iter().position(|(known, _)| *known == word)?;
+        if index < next {
+            return None;
+        }
+        // `template` comes after `type` in the list, and a cell holds one of the two.
+        next = if index == 0 { 2 } else { index + 1 };
+        bits |= KIND_WORDS[index].1;
+    }
+    (bits != 0).then_some(bits)
+}
+
 /// The first component of a path, which names the project of a corpus file.
 fn project_of(rel: &str) -> &str {
     rel.split('/').next().unwrap_or(rel)
@@ -424,7 +492,13 @@ mod tests {
     static COUNT: std::sync::atomic::AtomicUsize = std::sync::atomic::AtomicUsize::new(0);
 
     impl File {
+        /// A seed file with the format row of this version and then `text`.
         fn new(name: &str, text: &str) -> Self {
+            Self::raw(name, &format!("{}\n{text}", format_row()))
+        }
+
+        /// A seed file with exactly `text`.
+        fn raw(name: &str, text: &str) -> Self {
             let count = COUNT.fetch_add(1, std::sync::atomic::Ordering::Relaxed);
             let directory = std::env::temp_dir().join(format!("xtask-seed-{}-{count}", std::process::id()));
             fs::create_dir_all(&directory).expect("the directory of the test");
@@ -475,24 +549,36 @@ mod tests {
         );
     }
 
-    /// The reader gives the entries in the order of the file, with the kinds of the three words.
+    /// The reader gives the entries in the order of the file, with the bits of the words of each row.
     #[test]
     fn the_reader_gives_one_entry_for_each_row() {
-        let file = File::new("project", "# a comment\nAaa\ttype\nBbb\ttemplate\nCcc\tmacro\n");
+        let file = File::new(
+            "project",
+            "# a comment\nAaa\ttype\nBbb\ttemplate\nCcc\tobject-macro\nDdd\tfunction-macro\n\
+             Eee\ttype,object-macro,function-macro\nFff\ttemplate,function-macro\n",
+        );
         let seed = Seed::read(file.path()).expect("the seed reads");
-        assert_eq!(seed.names(), 3);
-        assert_eq!(seed._text, b"AaaBbbCcc");
+        assert_eq!(seed.names(), 6);
+        assert_eq!(seed._text, b"AaaBbbCccDddEeeFff");
         let kinds: Vec<u16> = seed._entries.iter().map(|entry| entry.kinds).collect();
-        assert_eq!(kinds, vec![KIND_TYPE, KIND_TYPE | KIND_TEMPLATE, KIND_MACRO]);
+        assert_eq!(kinds, vec![
+            KIND_TYPE,
+            KIND_TYPE | KIND_TEMPLATE,
+            KIND_OBJECT_MACRO,
+            KIND_FUNCTION_MACRO,
+            KIND_TYPE | KIND_OBJECT_MACRO | KIND_FUNCTION_MACRO,
+            KIND_TYPE | KIND_TEMPLATE | KIND_FUNCTION_MACRO,
+        ]);
         let offsets: Vec<(u32, u16)> = seed._entries.iter().map(|entry| (entry.offset, entry.length)).collect();
-        assert_eq!(offsets, vec![(0, 3), (3, 3), (6, 3)]);
+        assert_eq!(offsets, vec![(0, 3), (3, 3), (6, 3), (9, 3), (12, 3), (15, 3)]);
     }
 
     /// The id is the hash of the whole file, comments included, and the head holds the same bytes.
     #[test]
     fn the_id_is_the_hash_of_the_whole_file() {
-        let text = "# a comment\nAaa\ttype\n";
-        let file = File::new("project", text);
+        let text = format!("{}\n# a comment\nAaa\ttype\n", format_row());
+        let text = text.as_str();
+        let file = File::raw("project", text);
         let seed = Seed::read(file.path()).expect("the seed reads");
         assert_eq!(seed.id(), hex(&sha256(text.as_bytes())));
         assert_eq!(seed.head.id, sha256(text.as_bytes()));
@@ -527,9 +613,27 @@ mod tests {
             let file = File::new(name, text);
             Seed::read(file.path()).expect_err("the seed does not read").to_string()
         };
+        let raw = |name: &str, text: &str| {
+            let file = File::raw(name, text);
+            Seed::read(file.path()).expect_err("the seed does not read").to_string()
+        };
+        // A file of version 1 has no format row, and a file of a different version names it.
+        assert!(raw("version1", "# The names that this project declares as a type or as a template.\nAaa\ttype\n").contains("version 1 wrote no such row"));
+        assert!(raw("version3", "# seed format 3\nAaa\ttype\n").contains("the format `3`"));
+        assert!(raw("late", "# a comment\n# seed format 2\nAaa\ttype\n").contains("first row"));
+        assert!(raw("empty", "").contains("first row"));
         assert!(message("order", "Bbb\ttype\nAaa\ttype\n").contains("ascend"));
         assert!(message("twice", "Aaa\ttype\nAaa\ttype\n").contains("ascend"));
         assert!(message("kind", "Aaa\tvariable\n").contains("`variable`"));
+        // The word of version 1 that no file used.
+        assert!(message("macro", "Aaa\tmacro\n").contains("`macro`"));
+        // One set of kinds has one text: the order is fixed, a word comes one time, and `type` and
+        // `template` do not come together.
+        assert!(message("order", "Aaa\tobject-macro,type\n").contains("in that order"));
+        assert!(message("repeat", "Aaa\ttype,type\n").contains("in that order"));
+        assert!(message("both", "Aaa\ttype,template\n").contains("in that order"));
+        assert!(message("none", "Aaa\t\n").contains("in that order"));
+        assert!(message("comma", "Aaa\ttype,\n").contains("in that order"));
         assert!(message("row", "Aaa type\n").contains("name<TAB>kind"));
         assert!(message("empty", "\ttype\n").contains("no name"));
         assert!(message("long", &format!("{}\ttype\n", "A".repeat(MAX_NAME + 1))).contains("65 bytes"));
@@ -590,6 +694,43 @@ mod tests {
             header.display(),
             size - 1
         );
+    }
+
+    /// The magic, the version and the kind bits of this reader are the numbers of src/seed.h.
+    ///
+    /// The scanner reads the struct that this reader builds, and it compares the magic and the
+    /// version with the header, and the bits of an entry with the kinds of the header. A number that
+    /// differs in the two languages gives a seed that the scanner reads as no name at all, or a kind
+    /// that reads as a different kind, with no ERROR node. LAWS 1275: two constants that must agree,
+    /// in two languages, are a latent defect, and this test is the agreement.
+    #[test]
+    fn the_magic_the_version_and_the_kinds_agree_with_the_header_of_the_scanner() {
+        let header = crate::repository().join("src").join("seed.h");
+        let text = fs::read_to_string(&header).unwrap_or_else(|e| panic!("{} reads: {e}", header.display()));
+        let value = |name: &str| -> u32 {
+            text.lines()
+                .find_map(|line| {
+                    let rest = line.trim().strip_prefix("#define")?.trim_start().strip_prefix(name)?;
+                    rest.starts_with([' ', '\t']).then(|| rest.split_whitespace().next())?
+                })
+                .and_then(|value| {
+                    let digits = value.strip_suffix('u').unwrap_or(value);
+                    match digits.strip_prefix("0x") {
+                        Some(hex) => u32::from_str_radix(hex, 16).ok(),
+                        None => digits.parse().ok(),
+                    }
+                })
+                .unwrap_or_else(|| panic!("{} declares no numeric {name}", header.display()))
+        };
+        assert_eq!(MAGIC, value("TS_CPP_SEED_MAGIC"));
+        assert_eq!(VERSION, value("TS_CPP_SEED_VERSION"));
+        assert_eq!(u32::from(KIND_TYPE), value("TS_CPP_SEED_TYPE"));
+        assert_eq!(u32::from(KIND_TEMPLATE), value("TS_CPP_SEED_TEMPLATE"));
+        assert_eq!(u32::from(KIND_OBJECT_MACRO), value("TS_CPP_SEED_OBJECT_MACRO"));
+        assert_eq!(u32::from(KIND_FUNCTION_MACRO), value("TS_CPP_SEED_FUNCTION_MACRO"));
+        // The scanner that this program links reads the same version, and the reader asks it.
+        assert_eq!(VERSION, tree_sitter_cpp::seed_version());
+        assert_eq!(format_row(), format!("# seed format {}", value("TS_CPP_SEED_VERSION")));
     }
 
     /// A project with no seed file parses with no seed, and the report names it.

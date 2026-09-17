@@ -6,6 +6,8 @@ mod allocation;
 mod corpus;
 /// The `dedupe` task, which reads the files whose tree depends on the dedupe of the parse stack.
 mod dedupe;
+/// The names that the `#define` lines of a source define, which the `seed` task reads.
+mod defines;
 mod differ;
 mod directives;
 mod fuzz;
@@ -109,7 +111,10 @@ tasks:
                            Write test/dedupe/population.txt again from a measurement.
   seed collect ROOT LIST (--out FILE | --out-dir DIRECTORY)
                            Write the names that each project of LIST declares as a type or as a
-                           template, as `name<TAB>kind` rows that ascend by the bytes of the name.
+                           template, and the names that it defines as a macro, as `name<TAB>kinds`
+                           rows that ascend by the bytes of the name. The type rows read the tree of
+                           each file of LIST. The macro rows read the text of the `#define` lines of
+                           every source file under ROOT/<project>, and no tree.
                            With --out-dir, write one <project>.seed for each project. The task reads
                            back what it wrote with the reader of `seed`, and it reports the names
                            that it dropped for passing TS_CPP_SEED_WORD_SIZE - 1 bytes.

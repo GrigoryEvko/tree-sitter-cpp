@@ -3,7 +3,8 @@
 
 #include <stdint.h>
 
-/// THE SEED OF A PARSE: the names that a project declares as a type, as a template, or as a macro.
+/// THE SEED OF A PARSE: the names that a project declares as a type or as a template, and the names
+/// that it defines as a macro.
 ///
 /// The scanner records the names that the FILE declares, and that record cannot hold a name from a
 /// header, because no header is parsed. A seed gives the scanner the names of the whole project,
@@ -44,14 +45,29 @@
 #define TS_CPP_SEED_MAGIC 0x44535354u
 
 /// The version of the structs below. A reader that meets a different value gives no name.
-#define TS_CPP_SEED_VERSION 1u
+///
+/// Version 2 gives the macro bits below. In version 1, the bit 4 meant a macro of either shape, and
+/// no file and no reader used it.
+#define TS_CPP_SEED_VERSION 2u
 
 /// The name gives a type.
 #define TS_CPP_SEED_TYPE 1u
 /// The name gives a template. A template is also a type, so such an entry holds the two bits.
 #define TS_CPP_SEED_TEMPLATE 2u
-/// A macro defines the name. Task 276 reads this bit, and the readers of task 275 ignore it.
-#define TS_CPP_SEED_MACRO 4u
+/// A `#define` of the project defines the name with no parameter list: `#define MOZ_UNANNOTATED`.
+#define TS_CPP_SEED_OBJECT_MACRO 4u
+/// A `#define` of the project defines the name with a parameter list: `#define GUARDED_BY(x)`.
+#define TS_CPP_SEED_FUNCTION_MACRO 8u
+/// A `#define` of the project defines the name, with either shape.
+///
+/// THE MACRO BITS AND THE TYPE BITS ARE INDEPENDENT FACTS. A project can declare a name as a type and
+/// define it as a macro: zlib renames `Bytef` with a `#define` and declares it with a `typedef`. An
+/// entry then holds the two kinds, and no bit removes another. Each reader asks the question of its
+/// own position, and a reader that needs "a macro and no type" must read both kinds.
+///
+/// A MACRO BIT SAYS THAT A FILE OF THE PROJECT DEFINES THE NAME, AND NOT THAT THE NAME IS A MACRO AT A
+/// SITE. The collector takes every branch of a conditional and every file, test fixtures included.
+#define TS_CPP_SEED_MACRO (TS_CPP_SEED_OBJECT_MACRO | TS_CPP_SEED_FUNCTION_MACRO)
 
 /// One name of a seed.
 typedef struct {

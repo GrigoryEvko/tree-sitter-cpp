@@ -9749,6 +9749,18 @@ void tree_sitter_cpp_external_scanner_set_context(void *payload, const void *con
     scanner->context = context;
 }
 
+/// Give the version of the seed struct that this scanner reads, `TS_CPP_SEED_VERSION` of src/seed.h.
+///
+/// THE SCANNER CANNOT REFUSE A SEED BY ITSELF, SO A CALLER ASKS BEFORE IT GIVES ONE. The runtime gives
+/// the context through `tree_sitter_cpp_external_scanner_set_context`, which returns nothing, and
+/// `seed_kinds` reads a seed of a different magic or version as no name. The parse then gives the tree
+/// of a parse with no seed and no message. A caller that builds a seed of a different version must
+/// stop with an error, and `Seed::read` of xtask/src/seed.rs does. A tool that links two parsers of
+/// two trees asks each parser, because each one reads the version of its own header.
+uint32_t tree_sitter_cpp_seed_version(void) {
+    return TS_CPP_SEED_VERSION;
+}
+
 void tree_sitter_cpp_external_scanner_destroy(void *payload) {
     Scanner *scanner = (Scanner *)payload;
     ts_free(scanner);

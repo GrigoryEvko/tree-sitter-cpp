@@ -27,12 +27,23 @@ use tree_sitter_language::LanguageFn;
 
 extern "C" {
     fn tree_sitter_cpp() -> *const ();
+    fn tree_sitter_cpp_seed_version() -> u32;
 }
 
 /// The tree-sitter [`LanguageFn`][LanguageFn] for this grammar.
 ///
 /// [LanguageFn]: https://docs.rs/tree-sitter-language/*/tree_sitter_language/struct.LanguageFn.html
 pub const LANGUAGE: LanguageFn = unsafe { LanguageFn::from_raw(tree_sitter_cpp) };
+
+/// The version of the seed struct that the scanner of this grammar reads, `TS_CPP_SEED_VERSION` of
+/// src/seed.h.
+///
+/// The scanner reads a seed of a different version as no name, with no error. Compare this version
+/// with the version of a seed before you give the seed to `Parser::set_scanner_context`.
+pub fn seed_version() -> u32 {
+    // SAFETY: the function takes no argument and reads no state.
+    unsafe { tree_sitter_cpp_seed_version() }
+}
 
 /// The content of the [`node-types.json`][] file for this grammar.
 ///

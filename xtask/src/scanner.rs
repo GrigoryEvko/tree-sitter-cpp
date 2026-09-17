@@ -251,7 +251,8 @@ mod seeded {
             fs::create_dir_all(&directory).expect("the directory of the test");
             let path = directory.join("project.seed");
             let mut file = fs::File::create(&path).expect("the file of the test");
-            file.write_all(text.as_bytes()).expect("the text of the test");
+            // The reader refuses a file with no format row, so the helper writes the row first.
+            file.write_all(format!("{}\n{text}", crate::seed::format_row()).as_bytes()).expect("the text of the test");
             Self(path)
         }
 
