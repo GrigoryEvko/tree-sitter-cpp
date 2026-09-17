@@ -5,20 +5,26 @@
 //! hold a name from a header, because no header is parsed. The reader of the file this task writes
 //! is `crate::seed`, and the format is `src/seed.h`.
 //!
-//! THE TWO KINDS OF ROW COME FROM TWO READERS, AND ONLY THE TYPE ROWS READ A PARSE. The type rows
-//! read the tree of each file of LIST. The macro rows read the text of the `#define` lines with
-//! `crate::defines`, and they never read a tree. A misparse writes a wrong type row: the fork reads
-//! `inline StringBuilder::operator StringView() const` as a function named `StringView`, and WebKit
-//! lost `StringView` from its seed. The text of a `#define` line names the macro and its shape with
-//! no grammar, so no grammar change can move a macro row.
+//! THE TYPE ROWS HAVE TWO READERS, AND `--types` SELECTS ONE. `tree` reads the tree of each file, and
+//! it is the reader of every committed seed. `text` reads the declaration positions of the text of each
+//! file with `crate::declarations`, and it never parses. A misparse writes a wrong type row or drops a
+//! correct one with the tree reader: the fork read `inline StringBuilder::operator StringView() const`
+//! as a function named `StringView`, and WebKit lost `StringView` from its seed. The two readers give
+//! the same kinds, so one rule (`resolve`, `type_word` and `rows`) writes the rows of both.
 //!
-//! THE TWO KINDS OF ROW READ TWO SCOPES. The type rows read the files of LIST. The macro rows read
-//! every source file of each project that LIST names, under ROOT. population.txt holds the C++
-//! files of the corpus and excludes the C headers, and a C header defines the macros that the C++
-//! files use: firefox/mfbt/Attributes.h defines `MOZ_UNANNOTATED`. Over the 652 sites of the
-//! trailing macro at f97fe26, the macro rows of population.txt reach 489 sites and the macro rows of
-//! every source file reach 645. The type rows keep LIST, because a parse of every file changes the
-//! type rows that the readers of `is_seed_type_name` read, and task 356 measures that change.
+//! THE MACRO ROWS READ THE TEXT OF THE `#define` LINES with `crate::defines`, and they never read a
+//! tree. No grammar change can move a macro row.
+//!
+//! THE SCOPE. The macro rows read every source file of each project that LIST names, under ROOT.
+//! population.txt holds the C++ files of the corpus and excludes the C headers, and a C header defines
+//! the macros that the C++ files use: firefox/mfbt/Attributes.h defines `MOZ_UNANNOTATED`. Over the 652
+//! sites of the trailing macro at f97fe26, the macro rows of population.txt reach 489 sites and the
+//! macro rows of every source file reach 645. The type rows and the conflicts read the files of LIST by
+//! default, and `--scope project` gives them every source file too. A wider scope changes the type rows
+//! that the readers of `is_seed_type_name` read, and task 356 measures that change.
+//!
+//! `seed facts` WRITES THE FACTS OF EACH FILE, the input of a seed for each translation unit: the
+//! kinds of each name, the include lines, and a hash of the two.
 //!
 //! THE TASK READS BACK WHAT IT WROTE WITH THAT READER BEFORE IT REPORTS SUCCESS. The reader refuses
 //! a file that a binary search cannot read: a row that is not `name<TAB>kinds`, a kinds cell that is
@@ -26,7 +32,7 @@
 //! order that is not ascending by the bytes of the name. A collector that could write such a file
 //! would be found by its user and not by itself, so the last step of the task is the reader.
 
-use std::collections::{BTreeMap, BTreeSet, HashMap};
+use std::collections::{BTreeMap, BTreeSet};
 use std::error::Error;
 use std::fs;
 use std::path::{Path, PathBuf};
@@ -34,6 +40,7 @@ use std::path::{Path, PathBuf};
 use rayon::prelude::*;
 use tree_sitter::{Language, Node, Parser};
 
+use crate::declarations;
 use crate::defines::{self, Shape};
 use crate::seed::{KIND_WORDS, Seed};
 
@@ -84,7 +91,19 @@ struct Names {
     macros: BTreeMap<String, u16>,
     /// The alias targets of the object-like macros of the project. Refer to `defines::inherit_alias_bits`.
     aliases: BTreeMap<String, BTreeSet<String>>,
+    /// The classes of the bodies of the object-like `#define` lines of the project, as the bits
+    /// `BODY_TAG`, `BODY_ATTRIBUTE` and `BODY_OTHER` of each name, and the macro-shaped names that an alias
+    /// body of `crate::declarations::macro_bodies` names. The text reader resolves its heads with them.
+    bodies: BTreeMap<String, u8>,
+    body_aliases: BTreeMap<String, BTreeSet<String>>,
 }
+
+/// A `#define` of the name has a tag body.
+const BODY_TAG: u8 = 1;
+/// A `#define` of the name has an attribute body.
+const BODY_ATTRIBUTE: u8 = 2;
+/// A `#define` of the name has another body.
+const BODY_OTHER: u8 = 4;
 
 impl Names {
     fn add(&mut self, name: &str, kind: Kind) {
@@ -107,6 +126,12 @@ impl Names {
         for (name, bits) in other.macros {
             *self.macros.entry(name).or_default() |= bits;
         }
+        for (name, bits) in other.bodies {
+            *self.bodies.entry(name).or_default() |= bits;
+        }
+        for (name, targets) in other.body_aliases {
+            self.body_aliases.entry(name).or_default().extend(targets);
+        }
         for (name, targets) in other.aliases {
             self.aliases.entry(name).or_default().extend(targets);
         }
@@ -114,6 +139,17 @@ impl Names {
 
     /// Add the `#define` lines of the text of one source.
     fn define(&mut self, source: &[u8]) {
+        for (name, body) in declarations::macro_bodies(source) {
+            match body {
+                declarations::Body::Tag => *self.bodies.entry(name).or_default() |= BODY_TAG,
+                declarations::Body::Attribute => *self.bodies.entry(name).or_default() |= BODY_ATTRIBUTE,
+                declarations::Body::Other => *self.bodies.entry(name).or_default() |= BODY_OTHER,
+                declarations::Body::Alias(target) => {
+                    self.bodies.entry(name.clone()).or_default();
+                    self.body_aliases.entry(name).or_default().insert(target);
+                }
+            }
+        }
         for define in defines::define_lines(source) {
             let bit = match define.shape {
                 Shape::Object => KIND_WORDS[2].1,
@@ -123,6 +159,35 @@ impl Names {
                 self.aliases.entry(define.name.clone()).or_default().insert(target);
             }
             *self.macros.entry(define.name).or_default() |= bit;
+        }
+    }
+
+    /// What the project defines a name as, for the text reader. O(log n) in the names.
+    fn macro_of(&self, name: &str) -> declarations::Macro {
+        self.macro_of_depth(name, 0)
+    }
+
+    /// `macro_of`, following alias bodies to a depth of four.
+    fn macro_of_depth(&self, name: &str, depth: usize) -> declarations::Macro {
+        use declarations::Macro;
+        let Some(shapes) = self.macros.get(name) else {
+            return Macro::None;
+        };
+        if *shapes & KIND_WORDS[3].1 != 0 {
+            return Macro::Other;
+        }
+        let mut bodies = self.bodies.get(name).copied().unwrap_or(0);
+        for target in self.body_aliases.get(name).into_iter().flatten() {
+            bodies |= match (depth < 4).then(|| self.macro_of_depth(target, depth + 1)) {
+                Some(Macro::Tag) => BODY_TAG,
+                Some(Macro::Attribute) => BODY_ATTRIBUTE,
+                _ => BODY_OTHER,
+            };
+        }
+        match bodies {
+            BODY_TAG => Macro::Tag,
+            BODY_ATTRIBUTE => Macro::Attribute,
+            _ => Macro::Other,
         }
     }
 
@@ -385,18 +450,155 @@ fn names_of(source: &[u8]) -> Names {
     names
 }
 
+/// The names that the `primitive_type` token of the grammar holds besides the keywords `bool`, `char`,
+/// `int`, `float` and `double` (src/grammar.json).
+///
+/// A TYPE ROW FOR ONE OF THESE NAMES ONLY CHANGES A CORRECT LABEL. The grammar reads `int64_t` as a
+/// `primitive_type` in each type position, and the scanner reads a seed row in its own positions:
+/// `alignas(int64_t)` became a `type_identifier` in 31 regions of 17 arrow and other files. The tree
+/// collector writes these rows from the `type_identifier` alias of a typedef declarator
+/// (`typedef long int64_t;`), and the text collector writes none.
+const GRAMMAR_PRIMITIVE_NAMES: [&str; 20] = [
+    "size_t",
+    "ssize_t",
+    "ptrdiff_t",
+    "intptr_t",
+    "uintptr_t",
+    "charptr_t",
+    "nullptr_t",
+    "max_align_t",
+    "int8_t",
+    "int16_t",
+    "int32_t",
+    "int64_t",
+    "uint8_t",
+    "uint16_t",
+    "uint32_t",
+    "uint64_t",
+    "char8_t",
+    "char16_t",
+    "char32_t",
+    "char64_t",
+];
+
+/// Read the names that one file declares, from its text with no parse. `macros` holds the `#define`
+/// names of the whole project, which decide the heads of the file. O(n) in the bytes of the file.
+///
+/// THE KINDS ARE THE KINDS OF THE TREE READER, so `resolve`, `type_word` and `rows` read the two
+/// collections with one rule: a type, a template and a type use give a type row, a value of any kind
+/// gives a conflict, and the `#define` lines of the file give `Defined` and, with a parameter list, a
+/// conflict. The names of an `#if 0` group are read, as the tree reader reads them. A name of
+/// `GRAMMAR_PRIMITIVE_NAMES` gives no type kind.
+fn text_names_of(source: &[u8], c_file: bool, project: &Names) -> Names {
+    let facts = declarations::read(source, c_file);
+    let mut names = Names::default();
+    for (name, fact) in facts.resolve(|name| project.macro_of(name)) {
+        let bits = fact.live | fact.dead;
+        let bits = if GRAMMAR_PRIMITIVE_NAMES.contains(&name.as_str()) {
+            bits & !(declarations::TYPE | declarations::TEMPLATE | declarations::TYPE_USE)
+        } else {
+            bits
+        };
+        if bits & declarations::TYPE != 0 {
+            names.add(&name, Kind::Type);
+        }
+        if bits & declarations::TEMPLATE != 0 {
+            names.add(&name, Kind::Template);
+        }
+        if bits & declarations::TYPE_USE != 0 {
+            names.add(&name, Kind::TypeUse);
+        }
+        if bits & declarations::VALUE != 0 {
+            names.add(&name, Kind::Conflict);
+        }
+    }
+    for (name, shape) in defines::defines(source) {
+        if shape == Shape::Function {
+            names.add(&name, Kind::Conflict);
+        }
+        names.add(&name, Kind::Defined);
+    }
+    names
+}
+
+/// The reader that writes the type rows and the conflicts of a seed.
+#[derive(Clone, Copy, PartialEq, Eq, Debug)]
+enum Types {
+    /// The tree of each file, from a parse.
+    Tree,
+    /// The declaration positions of the text of each file, with no parse.
+    Text,
+}
+
+/// The files that the type rows and the conflicts read. The macro rows always read every source file
+/// of each project.
+#[derive(Clone, Copy, PartialEq, Eq, Debug)]
+enum Scope {
+    /// The files of the list of the collection.
+    List,
+    /// Every source file of each project that the list names, C headers included.
+    Project,
+}
+
+/// The options of `seed collect`, `seed check` and `seed facts`.
+#[derive(Clone, Copy, PartialEq, Eq, Debug)]
+struct Options {
+    types: Types,
+    scope: Scope,
+}
+
+impl Options {
+    /// The options at the end of the arguments, and the arguments before them.
+    fn parse(args: &[String]) -> Result<(Vec<&String>, Self), String> {
+        let mut options = Self { types: Types::Tree, scope: Scope::List };
+        let mut positional = Vec::new();
+        let mut iter = args.iter();
+        while let Some(arg) = iter.next() {
+            match arg.as_str() {
+                "--types" => {
+                    options.types = match iter.next().map(String::as_str) {
+                        Some("tree") => Types::Tree,
+                        Some("text") => Types::Text,
+                        other => return Err(format!("--types takes `tree` or `text`, and the argument is {other:?}")),
+                    }
+                }
+                "--scope" => {
+                    options.scope = match iter.next().map(String::as_str) {
+                        Some("list") => Scope::List,
+                        Some("project") => Scope::Project,
+                        other => return Err(format!("--scope takes `list` or `project`, and the argument is {other:?}")),
+                    }
+                }
+                _ => positional.push(arg),
+            }
+        }
+        Ok((positional, options))
+    }
+}
+
 /// The project of a path: its first component.
 fn project_of(path: &str) -> &str {
     path.split('/').next().unwrap_or("")
 }
 
-/// The text of a seed file. One writer, so `collect` and `check` cannot disagree by a byte.
-fn seed_text(rows: &[(&str, String)]) -> String {
+/// The text of a seed file. One writer, so `collect` and `check` cannot disagree by a byte. The second
+/// comment row names the reader and the scope of the type rows, and the tree reader of the list keeps
+/// the text of the seeds that came before the text reader.
+fn seed_text(rows: &[(&str, String)], options: Options) -> String {
     let mut text = String::with_capacity(rows.len() * 32 + 512);
     text.push_str(&crate::seed::format_row());
     text.push('\n');
     text.push_str("# The names that this project declares as a type or as a template, and the names that it\n");
-    text.push_str("# defines as a macro. The type rows read the tree of each file of the list of the collection.\n");
+    text.push_str(match (options.types, options.scope) {
+        (Types::Tree, Scope::List) => "# defines as a macro. The type rows read the tree of each file of the list of the collection.\n",
+        (Types::Tree, Scope::Project) => "# defines as a macro. The type rows read the tree of each source file of the project.\n",
+        (Types::Text, Scope::List) => {
+            "# defines as a macro. The type rows read the declaration positions of the text of each file of the\n# list of the collection.\n"
+        }
+        (Types::Text, Scope::Project) => {
+            "# defines as a macro. The type rows read the declaration positions of the text of each source file\n# of the project.\n"
+        }
+    });
     text.push_str("# The macro rows read the text of the `#define` lines of every source file of the project.\n");
     text.push_str("# `cargo xtask seed collect` writes this file. The reader is xtask/src/seed.rs.\n");
     text.push_str("# The rows ascend by the bytes of the name, and a reader binary searches them.\n");
@@ -414,9 +616,9 @@ fn seed_text(rows: &[(&str, String)]) -> String {
 }
 
 /// Write one seed file, read it back with `crate::seed`, and give the report line.
-fn write_seed(path: &Path, project: &str, names: &Names) -> Result<String, Box<dyn Error>> {
+fn write_seed(path: &Path, project: &str, names: &Names, options: Options) -> Result<String, Box<dyn Error>> {
     let (rows, dropped) = names.rows();
-    let text = seed_text(&rows);
+    let text = seed_text(&rows, options);
     if let Some(directory) = path.parent() {
         fs::create_dir_all(directory)?;
     }
@@ -460,7 +662,7 @@ fn write_seed(path: &Path, project: &str, names: &Names) -> Result<String, Box<d
 /// which pre-approved 8 tie sites and 58 files for every later commit. A SEED THAT SILENTLY LOSES
 /// NAMES GIVES A PARSE THAT LOOKS CORRECT AND IS NOT, which is the failure the seed exists to
 /// prevent, arriving from inside.
-fn check(root: &Path, list: &Path, directory: &Path) -> Result<(), Box<dyn Error>> {
+fn check(root: &Path, list: &Path, directory: &Path, options: Options) -> Result<(), Box<dyn Error>> {
     let text = fs::read_to_string(list).map_err(|e| format!("cannot read the list {}: {e}", list.display()))?;
     let paths: Vec<&str> = text.lines().map(str::trim).filter(|line| !line.is_empty()).collect();
     let mut committed: Vec<PathBuf> = fs::read_dir(directory)
@@ -485,10 +687,10 @@ fn check(root: &Path, list: &Path, directory: &Path) -> Result<(), Box<dyn Error
             )
             .into());
         }
-        let mut names = collect_names(root, &of_project)?;
-        names.resolve();
+        let collected = collect(root, &of_project, options, false)?;
+        let names = collected.get("").ok_or("the collection of a project gave no names")?;
         let (rows, _) = names.rows();
-        let fresh = seed_text(&rows);
+        let fresh = seed_text(&rows, options);
         let stored = fs::read_to_string(path).map_err(|e| format!("cannot read {}: {e}", path.display()))?;
         if fresh == stored {
             println!("{project}\t{} names\tagrees with {}", rows.len(), path.display());
@@ -544,26 +746,51 @@ fn difference(project: &str, path: &Path, stored: &str, fresh: &str) -> String {
     parts.join("\n")
 }
 
-/// Collect the names of the files of `paths`, in parallel, and the macros of the projects that the
-/// paths name.
-fn collect_names(root: &Path, paths: &[&str]) -> Result<Names, Box<dyn Error>> {
-    let mut names = paths
-        .par_iter()
-        .fold(Names::default, |mut names: Names, path| {
-            if let Ok(source) = fs::read(root.join(path)) {
-                names.merge(names_of(&source));
-            }
-            names
-        })
-        .reduce(Names::default, |mut left, right| {
-            left.merge(right);
-            left
-        });
+/// Collect the names of the files of `paths` with the reader and the scope of `options`, and the macros
+/// of the projects that the paths name. With `per_project`, give one `Names` for each project, and
+/// otherwise one for all of them under the empty key. Each `Names` is resolved. O(n) in the bytes of
+/// the files that the scope names.
+///
+/// THE MACROS OF A PROJECT ARE READ FIRST, because the text reader resolves the heads of a file with
+/// them: `class EXPORT_MACRO Name {` and `struct A B;` need to know which word the project defines.
+fn collect(root: &Path, paths: &[&str], options: Options, per_project: bool) -> Result<BTreeMap<String, Names>, Box<dyn Error>> {
     let projects: BTreeSet<&str> = paths.iter().map(|path| project_of(path)).collect();
+    let mut collected: BTreeMap<String, Names> = BTreeMap::new();
     for project in projects {
-        names.merge(macros_of_project(root, project)?);
+        let macros = macros_of_project(root, project)?;
+        let files: Vec<PathBuf> = match options.scope {
+            Scope::List => paths.iter().filter(|path| project_of(path) == project).map(|path| root.join(path)).collect(),
+            Scope::Project => source_files_of_project(root, project)?,
+        };
+        let names = files
+            .par_iter()
+            .fold(Names::default, |mut names: Names, path| {
+                if let Ok(source) = fs::read(path) {
+                    match options.types {
+                        Types::Tree => names.merge(names_of(&source)),
+                        Types::Text => names.merge(text_names_of(&source, is_c_file(path), &macros)),
+                    }
+                }
+                names
+            })
+            .reduce(Names::default, |mut left, right| {
+                left.merge(right);
+                left
+            });
+        let key = if per_project { project.to_owned() } else { String::new() };
+        let entry = collected.entry(key).or_default();
+        entry.merge(names);
+        entry.merge(macros);
     }
-    Ok(names)
+    for names in collected.values_mut() {
+        names.resolve();
+    }
+    Ok(collected)
+}
+
+/// True for a file with the extension `.c`, whose class keys the text reader counts as a trap.
+fn is_c_file(path: &Path) -> bool {
+    path.extension().is_some_and(|extension| extension == "c")
 }
 
 /// True for a path that the macro rows read: a file with an extension of `SOURCE_EXTENSIONS`, in
@@ -594,6 +821,25 @@ fn is_source_file(path: &Path) -> Option<bool> {
 /// give names such as `$2`, `name` and `componentroot`. Over the corpus of 2026-09-17 the test keeps
 /// 2,698 `#define` lines of headers and drops 190 of scripts and documents.
 fn macros_of_project(root: &Path, project: &str) -> Result<Names, Box<dyn Error>> {
+    Ok(source_files_of_project(root, project)?
+        .par_iter()
+        .fold(Names::default, |mut names: Names, path| {
+            if let Ok(source) = fs::read(path) {
+                names.define(&source);
+            }
+            names
+        })
+        .reduce(Names::default, |mut left, right| {
+            left.merge(right);
+            left
+        }))
+}
+
+/// The source files of one project under ROOT: each file with an extension of `SOURCE_EXTENSIONS`, and
+/// each file with no extension whose first token is a directive. A symbolic link is not followed. The
+/// paths ascend. O(n) in the files of the project, and a file with no extension is read to its first
+/// token.
+fn source_files_of_project(root: &Path, project: &str) -> Result<Vec<PathBuf>, Box<dyn Error>> {
     let mut files = Vec::new();
     let mut directories = vec![root.join(project)];
     while let Some(directory) = directories.pop() {
@@ -612,33 +858,28 @@ fn macros_of_project(root: &Path, project: &str) -> Result<Names, Box<dyn Error>
             }
         }
     }
-    Ok(files
-        .par_iter()
-        .fold(Names::default, |mut names: Names, (path, has_extension)| {
-            if let Ok(source) = fs::read(path)
-                && (*has_extension || defines::starts_with_directive(&source))
-            {
-                names.define(&source);
-            }
-            names
-        })
-        .reduce(Names::default, |mut left, right| {
-            left.merge(right);
-            left
-        }))
+    let mut kept: Vec<PathBuf> = files
+        .into_par_iter()
+        .filter(|(path, has_extension)| *has_extension || fs::read(path).is_ok_and(|source| defines::starts_with_directive(&source)))
+        .map(|(path, _)| path)
+        .collect();
+    kept.sort();
+    Ok(kept)
 }
 
 /// Collect the names of a file list and write one seed, or one seed for each project.
 pub fn run(args: &[String]) -> Result<(), Box<dyn Error>> {
-    const USAGE: &str = "usage: cargo xtask seed collect ROOT LIST (--out FILE | --out-dir DIRECTORY)\n       cargo xtask seed check ROOT LIST DIRECTORY";
-    if let [command, root, list, directory] = args
-        && command == "check"
-    {
-        return check(Path::new(root), Path::new(list), Path::new(directory));
+    const USAGE: &str = "usage: cargo xtask seed collect ROOT LIST (--out FILE | --out-dir DIRECTORY) [--types tree|text] [--scope list|project]\n       cargo xtask seed check ROOT LIST DIRECTORY [--types tree|text] [--scope list|project]\n       cargo xtask seed facts ROOT LIST OUT [--types tree|text] [--scope list|project]";
+    let (positional, options) = Options::parse(args)?;
+    let positional: Vec<&str> = positional.iter().map(|arg| arg.as_str()).collect();
+    match positional.as_slice() {
+        ["check", root, list, directory] => return check(Path::new(root), Path::new(list), Path::new(directory), options),
+        ["facts", root, list, out] => return facts(Path::new(root), Path::new(list), Path::new(out), options),
+        _ => {}
     }
-    let (root, list, out, per_project) = match args {
-        [collect, root, list, flag, out] if collect == "collect" && flag == "--out" => (root, list, out, false),
-        [collect, root, list, flag, out] if collect == "collect" && flag == "--out-dir" => (root, list, out, true),
+    let (root, list, out, per_project) = match positional.as_slice() {
+        ["collect", root, list, "--out", out] => (*root, *list, *out, false),
+        ["collect", root, list, "--out-dir", out] => (*root, *list, *out, true),
         _ => return Err(USAGE.into()),
     };
     let root = PathBuf::from(root);
@@ -647,50 +888,153 @@ pub fn run(args: &[String]) -> Result<(), Box<dyn Error>> {
     if paths.is_empty() {
         return Err(format!("the list {list} holds no path").into());
     }
-
-    let collected: HashMap<String, Names> = paths
-        .par_iter()
-        .fold(HashMap::new, |mut map: HashMap<String, Names>, path| {
-            let Ok(source) = fs::read(root.join(path)) else { return map };
-            let project = if per_project { project_of(path).to_owned() } else { String::new() };
-            map.entry(project).or_default().merge(names_of(&source));
-            map
-        })
-        .reduce(HashMap::new, |mut left, right| {
-            for (project, names) in right {
-                left.entry(project).or_default().merge(names);
-            }
-            left
-        });
-
-    let mut collected = collected;
-    let projects: BTreeSet<&str> = paths.iter().map(|path| project_of(path)).collect();
-    for project in projects {
-        let key = if per_project { project } else { "" };
-        collected.entry(key.to_owned()).or_default().merge(macros_of_project(&root, project)?);
-    }
-    for names in collected.values_mut() {
-        names.resolve();
-    }
+    let collected = collect(&root, &paths, options, per_project)?;
     let mut reports = Vec::new();
     if per_project {
         let directory = PathBuf::from(out);
-        let mut projects: Vec<&String> = collected.keys().collect();
-        projects.sort();
-        for project in projects {
-            if project.is_empty() {
-                continue;
-            }
+        for (project, names) in &collected {
             let path = directory.join(format!("{project}.seed"));
-            reports.push(write_seed(&path, project, &collected[project])?);
+            reports.push(write_seed(&path, project, names, options)?);
         }
     } else {
-        let names = collected.values().next().ok_or("the list gave no file that reads")?;
-        reports.push(write_seed(Path::new(out), "all", names)?);
+        let names = collected.get("").ok_or("the list gave no file that reads")?;
+        reports.push(write_seed(Path::new(out), "all", names, options)?);
     }
     for report in reports {
         println!("{report}");
     }
+    Ok(())
+}
+
+/// Write the facts of each file of the scope, one file after the other, as the rows of one TSV. O(n)
+/// in the bytes of the files.
+///
+/// THE ROWS OF ONE FILE, in the order of the paths:
+///   `F  path  bytes  content  facts`   the bytes of the file, the FNV-1a hash of its bytes, and the
+///                                      FNV-1a hash of its include rows and its name rows
+///   `I  angle|quote  header`           one row for each `#include`, in every branch (text only)
+///   `N  name  live  dead  line  value`  the kinds outside and inside an `#if 0` group, the first line, and
+///                                      the first line of a value (text only; the tree gives the kinds of
+///                                      `names_of` and the lines 0)
+///   `A  macro  name`                   a `struct MACRO NAME;` site that `resolve` decides (tree only)
+/// The kinds of the text are the words of `declarations::BIT_WORDS`, with the heads resolved by the
+/// macros of the project. The kinds of the tree are `type`, `template`, `type-use`, `value` and
+/// `defined`.
+///
+/// THE REPORT ON STANDARD OUTPUT gives the files and the distinct contents, for each extension, and
+/// the counts of the traps of the text reader.
+fn facts(root: &Path, list: &Path, out: &Path, options: Options) -> Result<(), Box<dyn Error>> {
+    use std::io::Write as _;
+    let text = fs::read_to_string(list).map_err(|e| format!("cannot read the list {}: {e}", list.display()))?;
+    let paths: Vec<&str> = text.lines().map(str::trim).filter(|line| !line.is_empty()).collect();
+    let projects: BTreeSet<&str> = paths.iter().map(|path| project_of(path)).collect();
+    let mut writer = std::io::BufWriter::new(fs::File::create(out).map_err(|e| format!("cannot write {}: {e}", out.display()))?);
+    let mut by_extension: BTreeMap<String, (usize, BTreeSet<u64>)> = BTreeMap::new();
+    let mut traps = declarations::Traps::default();
+    let mut heads = declarations::HeadCounts::default();
+    for project in projects {
+        let macros = macros_of_project(root, project)?;
+        let files: Vec<PathBuf> = match options.scope {
+            Scope::List => paths.iter().filter(|path| project_of(path) == project).map(|path| root.join(path)).collect(),
+            Scope::Project => source_files_of_project(root, project)?,
+        };
+        for chunk in files.chunks(4096) {
+            let rows: Vec<(String, String, u64, declarations::Traps, declarations::HeadCounts)> = chunk
+                .par_iter()
+                .filter_map(|path| {
+                    let source = fs::read(path).ok()?;
+                    let rel = path.strip_prefix(root).unwrap_or(path).to_string_lossy().into_owned();
+                    let content = crate::trees::fingerprint(&String::from_utf8_lossy(&source));
+                    let mut body = String::new();
+                    let mut file_traps = declarations::Traps::default();
+                    let mut file_heads = declarations::HeadCounts::default();
+                    match options.types {
+                        Types::Text => {
+                            let facts = declarations::read(&source, is_c_file(path));
+                            file_traps = facts.traps;
+                            for (form, header) in &facts.includes {
+                                let form = if *form == declarations::Form::Angle { "angle" } else { "quote" };
+                                body.push_str(&format!("I\t{form}\t{header}\n"));
+                            }
+                            for (name, fact) in facts.resolve_counting(|name| macros.macro_of(name), &mut file_heads) {
+                                body.push_str(&format!(
+                                    "N\t{name}\t{}\t{}\t{}\t{}\n",
+                                    declarations::bits_text(fact.live),
+                                    declarations::bits_text(fact.dead),
+                                    fact.line,
+                                    fact.value_line
+                                ));
+                            }
+                            for (name, shape) in defines::defines(&source) {
+                                let word = if shape == Shape::Function { "function-macro" } else { "object-macro" };
+                                body.push_str(&format!("N\t{name}\t{word}\t\t0\t0\n"));
+                            }
+                        }
+                        Types::Tree => {
+                            let names = names_of(&source);
+                            for (name, kinds) in &names.kinds {
+                                let words: Vec<&str> = kinds
+                                    .iter()
+                                    .map(|kind| match kind {
+                                        Kind::Type => "type",
+                                        Kind::Template => "template",
+                                        Kind::TypeUse => "type-use",
+                                        Kind::Conflict => "value",
+                                        Kind::Defined => "defined",
+                                    })
+                                    .collect();
+                                body.push_str(&format!("N\t{name}\t{}\t\t0\t0\n", words.join(",")));
+                            }
+                            for (macro_name, name) in &names.attributed {
+                                body.push_str(&format!("A\t{macro_name}\t{name}\n"));
+                            }
+                        }
+                    }
+                    let hash = crate::trees::fingerprint(&body);
+                    let extension = path
+                        .file_name()
+                        .and_then(|name| name.to_str())
+                        .map(|name| name.strip_prefix('.').unwrap_or(name))
+                        .and_then(|name| name.rsplit_once('.'))
+                        .map_or_else(|| "-".to_owned(), |(_, extension)| extension.to_ascii_lowercase());
+                    let head = format!("F\t{rel}\t{}\t{content:016x}\t{hash:016x}\n", source.len());
+                    Some((head + &body, extension, content, file_traps, file_heads))
+                })
+                .collect();
+            for (block, extension, content, file_traps, file_heads) in rows {
+                heads.add(&file_heads);
+                writer.write_all(block.as_bytes())?;
+                let entry = by_extension.entry(extension).or_default();
+                entry.0 += 1;
+                entry.1.insert(content);
+                traps.template_parameter_keys += file_traps.template_parameter_keys;
+                traps.macro_body_class_keys += file_traps.macro_body_class_keys;
+                traps.zero_groups += file_traps.zero_groups;
+                traps.c_file_class_keys += file_traps.c_file_class_keys;
+            }
+        }
+    }
+    writer.flush()?;
+    let files: usize = by_extension.values().map(|(count, _)| count).sum();
+    let contents: BTreeSet<u64> = by_extension.values().flat_map(|(_, set)| set.iter().copied()).collect();
+    println!("files {files}\tdistinct contents {}", contents.len());
+    for (extension, (count, set)) in &by_extension {
+        println!("  {extension}\t{count} files\t{} contents", set.len());
+    }
+    println!(
+        "traps: class keys in template heads {}, class keys in macro bodies {}, #if 0 groups {}, class keys in .c files {}",
+        traps.template_parameter_keys, traps.macro_body_class_keys, traps.zero_groups, traps.c_file_class_keys
+    );
+    println!(
+        "class heads of two words or more: definition with the last word {}, with an earlier word by a macro row {}, by the shape of the last word {}; brace initializer {}; forward declaration {}; type and object {}; object of a tag macro {}",
+        heads.definition_last,
+        heads.definition_macro_row,
+        heads.definition_macro_shape,
+        heads.initializer,
+        heads.forward,
+        heads.object,
+        heads.tag_object
+    );
     Ok(())
 }
 
@@ -722,11 +1066,17 @@ mod tests {
         }
 
         fn collect(&self) -> String {
+            self.collect_with(&[])
+        }
+
+        /// Collect the seed with more options after the output path, and give its text.
+        fn collect_with(&self, options: &[&str]) -> String {
             let out = self.0.join("out.seed");
             let args: Vec<String> = ["collect", self.0.to_str().expect("a path of UTF-8")]
                 .into_iter()
                 .chain([self.0.join("list.txt").to_str().expect("a path of UTF-8"), "--out"])
                 .chain([out.to_str().expect("a path of UTF-8")])
+                .chain(options.iter().copied())
                 .map(str::to_owned)
                 .collect();
             run(&args).expect("the collector writes a seed");
@@ -962,5 +1312,44 @@ class ABSL_MUST_USE_RESULT ABSL_ATTRIBUTE_TRIVIAL_ABI Ptr;\n";
         let rows: Vec<(&str, &str)> =
             text.lines().filter(|line| !line.starts_with('#')).filter_map(|line| line.split_once('\t')).collect();
         assert_eq!(rows, [("Shape", "type")]);
+    }
+
+    /// THE TEXT COLLECTOR GIVES THE ROWS OF THE TREE COLLECTOR FOR THE SHAPES ABOVE, AND NO ROW FOR A
+    /// NAME OF THE `primitive_type` TOKEN.
+    ///
+    /// `typedef long int64_t;` declares a type, but the grammar reads `int64_t` as a `primitive_type` in
+    /// each type position. A row only changes that label where the scanner reads the seed.
+    #[test]
+    fn the_text_collector_gives_the_rows_of_the_tree_collector() {
+        let conflicts = "struct Keep { Keep(); Keep(int); ~Keep(); };\n\
+                         struct AsFunction {};\n\
+                         int AsFunction(int);\n\
+                         struct AsObject {};\n\
+                         int AsObject;\n\
+                         struct AsParameter {};\n\
+                         void f(int AsParameter);\n\
+                         struct AsMacro {};\n\
+                         #define AsMacro(x) (x)\n";
+        let tree = Tree::new(conflicts);
+        let text = tree.collect_with(&["--types", "text"]);
+        assert_eq!(rows(&text), [("AsMacro", "function-macro"), ("Keep", "type")]);
+        // The header names the reader, and the tree reader of the list keeps its earlier header.
+        assert!(text.contains("# defines as a macro. The type rows read the declaration positions of the text of each file of the\n"));
+        assert!(tree.collect_with(&["--types", "tree"]).contains(
+            "# defines as a macro. The type rows read the tree of each file of the list of the collection.\n"
+        ));
+
+        // The text reads `struct WORD NAME;` as a forward declaration only when the project defines `WORD`.
+        // Otherwise `WORD` is a type and `NAME` an object. The tree rule reads a forward declaration for an
+        // uppercase `WORD` that the project does not declare as a type. Over the list the two rules differ
+        // on 31 sites, where Clang declares `NAME` as a value on 16 and as a type on none: clang tests
+        // write `struct SS {};` in one file and `struct SS ss;` in another.
+        let tree = Tree::new(
+            "#define LLVM_ABI\nstruct LLVM_ABI Shape;\nstruct SS ss;\ntypedef long int64_t;\ntypedef unsigned long size_t;\ntypedef int Mine;\n",
+        );
+        assert_eq!(
+            rows(&tree.collect_with(&["--types", "text"])),
+            [("LLVM_ABI", "object-macro"), ("Mine", "type"), ("SS", "type"), ("Shape", "type")]
+        );
     }
 }

@@ -6,6 +6,8 @@ mod allocation;
 mod corpus;
 /// The `dedupe` task, which reads the files whose tree depends on the dedupe of the parse stack.
 mod dedupe;
+/// The names that a source declares as a type or as a value, read from its text with no parse.
+mod declarations;
 /// The names that the `#define` lines of a source define, which the `seed` task reads.
 mod defines;
 mod differ;
@@ -109,20 +111,26 @@ tasks:
                            the check. With --write, also write the rows that the run measured.
   dedupe population --write-baseline ROOT LIST
                            Write test/dedupe/population.txt again from a measurement.
-  seed collect ROOT LIST (--out FILE | --out-dir DIRECTORY)
+  seed collect ROOT LIST (--out FILE | --out-dir DIRECTORY) [--types tree|text] [--scope list|project]
                            Write the names that each project of LIST declares as a type or as a
                            template, and the names that it defines as a macro, as `name<TAB>kinds`
                            rows that ascend by the bytes of the name. The type rows read the tree of
-                           each file of LIST. The macro rows read the text of the `#define` lines of
+                           each file of LIST, or with --types text the declaration positions of its
+                           text, with no parse. With --scope project, the type rows read every source
+                           file of each project. The macro rows read the text of the `#define` lines of
                            every source file under ROOT/<project>, and no tree.
                            With --out-dir, write one <project>.seed for each project. The task reads
                            back what it wrote with the reader of `seed`, and it reports the names
                            that it dropped for passing TS_CPP_SEED_WORD_SIZE - 1 bytes.
-  seed check ROOT LIST DIRECTORY
+  seed check ROOT LIST DIRECTORY [--types tree|text] [--scope list|project]
                            Collect again and compare each <project>.seed of DIRECTORY with the
                            result. Fail on a name added, a name REMOVED, and a kind changed. A seed
                            is the memory of what a project declares, and a change to it changes
                            every parse that loads it.
+  seed facts ROOT LIST OUT [--types tree|text] [--scope list|project]
+                           Write the facts of each file to OUT: its bytes and hashes, its include
+                           lines, and the kinds of each name that it declares. Print the count of the
+                           files and of the distinct contents for each extension.
   directives ROOT LIST BASELINE
                            Check that no node outside a directive begins on a line whose first
                            character that is not a blank is `#`. Such a node holds a token that the
