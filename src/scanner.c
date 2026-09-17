@@ -8846,32 +8846,44 @@ static unsigned read_local_declaration(const LocalItem *item, unsigned start, un
 
 /// Read the parameter declarations of the group from `open` to `close`, and append each parameter
 /// name to `frame`. Return the number of names. A `,` inside brackets or inside a template argument
-/// list does not divide two parameters: `std::map<int, int> m`. O(n) in the tokens.
+/// list does not divide two parameters: `std::map<int, int> m`.
+///
+/// NO PARAMETER DECLARATION STARTS WITH `(`. A group with such an entry is the argument list of a macro,
+/// and it gives no entry. In `LLVM_LIBC_FUNCTION(short accum, exphk, (short accum x)) {`, the entry
+/// `short accum` holds a type and no parameter, and `accum` is no local. O(n) in the tokens.
 static unsigned read_local_parameters(const LocalItem *item, unsigned open, unsigned close, LocalRecord *record,
                                       uint8_t frame) {
     if (local_range_out(item, close) || open >= close || close >= item->count) {
         return 0;
     }
     unsigned declared = 0;
-    unsigned start = open + 1;
-    unsigned angles = 0;
-    for (unsigned i = open + 1; i <= close; i++) {
-        const LocalToken *token = &item->tokens[i];
-        if (i < close && token->kind == TOKEN_OPEN) {
-            i = local_match(item, i, close);
-            if (i == LOCAL_NO_TOKEN) {
-                return declared;
+    // Pass 0 reads the first token of each entry, and pass 1 appends the names.
+    for (unsigned pass = 0; pass < 2; pass++) {
+        unsigned start = open + 1;
+        unsigned angles = 0;
+        for (unsigned i = open + 1; i <= close; i++) {
+            const LocalToken *token = &item->tokens[i];
+            if (i < close && token->kind == TOKEN_OPEN) {
+                i = local_match(item, i, close);
+                if (i == LOCAL_NO_TOKEN) {
+                    return declared;
+                }
+                continue;
             }
-            continue;
-        }
-        if (i < close && local_mark_is(token, "<") && i > start && item->tokens[i - 1].kind == TOKEN_WORD) {
-            angles++;
-        } else if (i < close && local_mark_is(token, ">") && angles > 0) {
-            angles--;
-        } else if (i == close || (token->kind == TOKEN_COMMA && angles == 0)) {
-            declared += read_local_declaration(item, start, i, record, frame, LOCAL_PARAMETER);
-            start = i + 1;
-            angles = 0;
+            if (i < close && local_mark_is(token, "<") && i > start && item->tokens[i - 1].kind == TOKEN_WORD) {
+                angles++;
+            } else if (i < close && local_mark_is(token, ">") && angles > 0) {
+                angles--;
+            } else if (i == close || (token->kind == TOKEN_COMMA && angles == 0)) {
+                if (pass == 0 && start < i && local_mark_is(&item->tokens[start], "(")) {
+                    return 0;
+                }
+                if (pass == 1) {
+                    declared += read_local_declaration(item, start, i, record, frame, LOCAL_PARAMETER);
+                }
+                start = i + 1;
+                angles = 0;
+            }
         }
     }
     return declared;
