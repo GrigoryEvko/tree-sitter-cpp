@@ -2050,11 +2050,13 @@ impl Reader<'_> {
                     return;
                 }
                 let last = to - 1;
+                // `__attribute__((x))` after the declarator, and `noexcept(false)` or `throw()` after a
+                // parameter list: `typedef int foo6_t(double) noexcept(false);`.
                 if self.is(last, 0x29)
                     && let Some(open) = self.partner_of(last)
                     && open > from
                     && self.is_word(open - 1)
-                    && is_group_specifier(self.text(open - 1))
+                    && (is_group_specifier(self.text(open - 1)) || matches!(self.text(open - 1), b"noexcept" | b"throw"))
                 {
                     to = open - 1;
                     continue;
@@ -2073,15 +2075,37 @@ impl Reader<'_> {
                     to = last;
                     continue;
                 }
-                // A macro-shaped word after a parameter list: `typedef R (BOOST_BIND_CC *F) () BOOST_BIND_NOEXCEPT;`.
-                if self.is_word(last) && is_macro_shaped(self.text(last)) && last > from && self.is(last - 1, 0x29) {
+                // A macro-shaped word after a parameter list or an array bound:
+                // `typedef R (BOOST_BIND_CC *F) () BOOST_BIND_NOEXCEPT;` and
+                // `typedef char must_be_a_complete_type[sizeof(T)] BOOST_ATTRIBUTE_UNUSED;`. After the group of a
+                // type operator or of an attribute the word is the declarator: `typedef decltype(ds1) DS1;` and
+                // `typedef _Float16 __attribute__((vector_size(16))) F16;`.
+                if self.is_word(last)
+                    && is_macro_shaped(self.text(last))
+                    && last > from
+                    && (self.is(last - 1, 0x5d)
+                        || (self.is(last - 1, 0x29)
+                            && self.partner_of(last - 1).is_some_and(|open| {
+                                !(open > from
+                                    && self.is_word(open - 1)
+                                    && (is_type_operator(self.text(open - 1))
+                                        || is_group_specifier(self.text(open - 1))))
+                            })))
+                {
                     to = last;
                     continue;
                 }
-                // A ref-qualifier after a parameter list: `typedef int (BASE::*F)() &;`.
-                if matches!(self.punct(last), Some(0x26 | AND_AND)) && last > from && self.is(last - 1, 0x29) {
-                    to = last;
-                    continue;
+                // A ref-qualifier after a parameter list and its cv-qualifiers: `typedef int (BASE::*F)() &;` and
+                // `typedef T1 (T1::*F)(T1) const &&;`.
+                if matches!(self.punct(last), Some(0x26 | AND_AND)) && last > from {
+                    let mut k = last - 1;
+                    while k > from && (self.word_is(k, b"const") || self.word_is(k, b"volatile")) {
+                        k -= 1;
+                    }
+                    if self.is(k, 0x29) {
+                        to = last;
+                        continue;
+                    }
                 }
                 break;
             }
@@ -2149,10 +2173,18 @@ impl Reader<'_> {
             return;
         }
         // `using __iter_distance_t _LIBCPP_NODEBUG = ...;`: attributes and macro-shaped words can stand
-        // between the name and the `=`.
+        // between the name and the `=`, and a macro-shaped word can take arguments:
+        // `using MemorySpan V8_DEPRECATE_SOON("Use std::span instead.") = std::span<T>;`.
         let mut after = self.skip_attributes(name + 1);
         while self.is_word(after) && is_macro_shaped(self.text(after)) {
-            after = self.skip_attributes(after + 1);
+            after += 1;
+            if self.is(after, 0x28) {
+                match self.partner_of(after) {
+                    Some(close) => after = close + 1,
+                    None => return,
+                }
+            }
+            after = self.skip_attributes(after);
         }
         if self.is(after, u16::from(b'=')) {
             let bits = if self.under_template(i) { TYPE | TEMPLATE } else { TYPE };
@@ -3173,6 +3205,12 @@ mod tests {
             ),
             pairs(&[("__iter_distance_t", "type"), ("nanoseconds", "type")])
         );
+        assert_eq!(
+            facts(
+                "using AccessorNameSetterCallback  //\n    V8_DEPRECATE_SOON(\"Use V2 instead.\") =\n        void (*)(Local<Name> property);"
+            ),
+            pairs(&[("AccessorNameSetterCallback", "type")])
+        );
         // A template template parameter and a constrained head.
         assert_eq!(
             facts("template <template <class> class TT, typename... Ts> requires Sortable<TT> struct S3 {};"),
@@ -3499,6 +3537,21 @@ mod tests {
         assert_eq!(
             facts("typedef R (BOOST_BIND_CC *F) () BOOST_BIND_NOEXCEPT;"),
             pairs(&[("F", "type")])
+        );
+        // The shapes of the rows that the text reader lost against the tree reader over the list.
+        assert_eq!(
+            facts(
+                "typedef RT (MyClass::*CLFp)(int) const &;\ntypedef T1 (T1::*TestFunc1CR)(T1) const &&;\ntypedef decltype(ds1) DS1;\ntypedef _Float16 __attribute__((vector_size(16))) F16;\ntypedef int foo6_t(double)noexcept(false);\ntypedef char must_be_a_complete_type[sizeof(T)] BOOST_ATTRIBUTE_UNUSED;\ntypedef int __attribute__((mode(QI))) __attribute__((vector_size(8)))  VT_11;"
+            ),
+            pairs(&[
+                ("CLFp", "type"),
+                ("DS1", "type"),
+                ("F16", "type"),
+                ("TestFunc1CR", "type"),
+                ("VT_11", "type"),
+                ("foo6_t", "type"),
+                ("must_be_a_complete_type", "type")
+            ])
         );
         assert_eq!(
             facts(
