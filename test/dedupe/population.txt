@@ -22,7 +22,7 @@
 # and also when a reading is REMOVED. The two look the same here, and only the commit that
 # caused the fall knows which one it made.
 #
-# 2815 files, of the corpus of the fork master.
+# 2818 files, of the corpus of the fork master.
 Cataclysm-DDA/src/debug_console.cpp
 Cataclysm-DDA/src/third-party/flatbuffers/hash.h
 Cataclysm-DDA/src/third-party/fmt/base.h
@@ -2607,6 +2607,9 @@ serenity/Userland/Libraries/LibDebug/Dwarf/LineProgram.h
 serenity/Userland/Libraries/LibEDID/EDID.cpp
 serenity/Userland/Libraries/LibEDID/VIC.cpp
 serenity/Userland/Libraries/LibXML/Parser/Parser.cpp
+simdjson/include/simdjson/nonstd/string_view.hpp
+simdjson/singleheader/simdjson.cpp
+simdjson/singleheader/simdjson.h
 simdjson/tests/document_stream_fuzz_test_common.h
 simdjson/tests/dom/basictests.cpp
 simdjson/tests/dom/numberparsingcheck.cpp

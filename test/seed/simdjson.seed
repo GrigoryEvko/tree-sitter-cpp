@@ -49,6 +49,7 @@ Char	type
 CharReader	type
 CharReaderBuilder	type
 CharReaderPtr	type
+CharT	type
 ChildValues	type
 CitmCatalog	type
 Class	type
@@ -789,6 +790,7 @@ compute_mul_result	type
 const_iterator	type
 const_pointer	template
 const_reference	template
+const_reverse_iterator	type
 constcharstar	type
 constructed_type	type
 decimal	type
@@ -828,6 +830,7 @@ from_chars_caller	template
 from_chars_result	type
 from_chars_result_t	template
 has_custom_serialization	template
+hash	template
 id_sel	type
 implementation_simdjson_result_base	template
 instruction_set	type
@@ -874,6 +877,7 @@ msgpack_param	template
 nlohmann_json	type
 nlohmann_json2msgpack	type
 nlohmann_json_sax	type
+not_in_view	type
 nssv_BASIC_STRING_VIEW_I	function-macro
 nssv_BETWEEN	function-macro
 nssv_BUILTIN_MEMCMP	object-macro
@@ -950,7 +954,7 @@ nssv_constexpr14	object-macro
 nssv_explicit	object-macro
 nssv_inline_ns	object-macro
 nssv_nodiscard	object-macro
-nssv_noexcept	object-macro
+nssv_noexcept	type,object-macro
 nssv_nullptr	object-macro
 number_dataset	type
 number_length	type
@@ -996,6 +1000,7 @@ rebind	template
 rename_t	template
 result_differ	template
 result_type	type
+reverse_iterator	type
 runner	template
 runner_base	template
 runtime_at_path_deep	type
@@ -1091,10 +1096,13 @@ to_adaptor	template
 token_iterator	type
 token_position	type
 top_tweet_result	template
+traits_type	type
 tweet_sel	type
 tweet_sel_t	type
 twitter_user	template
 type_builder	template
+u16string_view	type
+u32string_view	type
 uint128	type
 unsigned_type	type
 unsupported_implementation	type
@@ -1116,6 +1124,7 @@ window_data	template
 wopendir	object-macro
 wreaddir	object-macro
 wrewinddir	object-macro
+wstring_view	type
 xorshift64	type
 yyjson	type
 yyjson2msgpack	type

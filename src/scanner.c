@@ -2156,6 +2156,29 @@ static bool is_grammar_keyword(const char *word) {
     return bsearch(word, GRAMMAR_KEYWORDS, GRAMMAR_KEYWORD_COUNT, sizeof GRAMMAR_KEYWORDS[0], compare_keyword) != NULL;
 }
 
+/// True when WORD, of LENGTH characters, can be the name of a macro invocation line that has a lowercase letter:
+/// `nssv_RESTORE_WARNINGS()`, `__glibcxx_class_requires(T, C)`, `ClassDef(A, 1)`.
+///
+/// The word is not a keyword of the grammar, and it does not start with `_` and an uppercase letter. Such a
+/// reserved name is a keyword or an annotation of the declaration after it: `_Success_(return != 0)` of MSVC.
+/// A word of more than MAX_NAME_LENGTH characters is no keyword here, because the `Name` of the scan of a
+/// conditional group holds only its first characters. `group_is_structured` and `scan_macro_start` read the word
+/// with this one test, so that the two scans agree. O(log n) in the number of keywords.
+static bool is_call_line_word(const char *word, size_t length) {
+    bool reserved = word[0] == '_' && word[1] >= 'A' && word[1] <= 'Z';
+    return length > 0 && !reserved && (length > MAX_NAME_LENGTH || !is_grammar_keyword(word));
+}
+
+/// True when a structured conditional group is open. O(n) in the number of open groups, a maximum of MAX_GROUPS.
+static bool in_structured_group(const Scanner *scanner) {
+    for (uint32_t i = 0; i < scanner->group_count; i++) {
+        if (scanner->groups[i] == GROUP_STRUCTURED) {
+            return true;
+        }
+    }
+    return false;
+}
+
 /// The keywords of `_constructor_specifiers` in the grammar, which can come between the macros before
 /// a constructor.
 ///
@@ -4124,7 +4147,13 @@ static bool scan_macro_start(Reader reader, const char *name, const char *full, 
     // group after the name decides it. Refer to the reading of `template_parameter_macro` below.
     bool template_parameter_macro = valid_symbols[TEMPLATE_PARAMETER_MACRO_START] && !is_grammar_keyword(name) &&
                                     !word_in(name, TYPE_WORDS);
-    if (!invocation && !constructor && !attribute_call && !statement_attribute && !template_parameter_macro) {
+    // A call of a name with a lowercase letter where a declaration or a statement starts, with its `(` immediately
+    // after the name. Refer to the branch below.
+    bool branch_end_call = lexer->lookahead == '(' && !is_macro_name(name, has_lower) && !member_start &&
+                           valid_symbols[MACRO_LINE_START] && is_call_line_word(name, length) &&
+                           in_structured_group(scanner);
+    if (!invocation && !constructor && !attribute_call && !statement_attribute && !template_parameter_macro &&
+        !branch_end_call) {
         return false;
     }
 
@@ -4136,6 +4165,30 @@ static bool scan_macro_start(Reader reader, const char *name, const char *full, 
         return false;
     }
     bool same_line = gap.newlines == 0;
+    // A CALL OF A NAME WITH A LOWERCASE LETTER IS A MACRO INVOCATION LINE WHEN THE DIRECTIVE THAT ENDS A BRANCH OF A
+    // STRUCTURED GROUP COMES AFTER IT. `nssv_RESTORE_WARNINGS()` of simdjson, a line break, and `#endif`: a call
+    // with no `;` there is no declaration and no statement of C++, and the name is a macro. `group_is_structured`
+    // makes such a group a node only where the two scans agree: the call is the last line of the branch, and a
+    // token that starts an item or a `}` comes after the group (`branch_ends_fit`).
+    //
+    // A class body reads such a call as a member macro (`member_name`), and this branch does not run there.
+    //
+    // THE BRANCH READS THE GROUP, AND A DECLINE GIVES THE RESULT OF THE OLD PATH. The other paths for such a name
+    // are the macros before a constructor, and `scan_constructor_after_macro` gives false at the `(`. So a decline
+    // after the read gives no token, as that path did.
+    if (branch_end_call && same_line) {
+        Arguments arguments = {0};
+        if (!skip_group(&reader, &arguments)) {
+            return false;
+        }
+        Gap after = {0};
+        skip_gap(&reader, &after);
+        if (!after.directive || after.newlines == 0) {
+            return false;
+        }
+        lexer->result_symbol = MACRO_LINE_START;
+        return true;
+    }
     Arguments args = {0};
     bool call = false;
     if ((macro_name || sal || member_name || template_parameter_macro) && !gap.directive && lexer->lookahead == '(' &&
@@ -5987,6 +6040,15 @@ typedef struct {
     bool at_item_start;
     /// The macro invocation line that the last tokens are a part of.
     MacroLine macro;
+    /// True when the name of `macro` has a lowercase letter (`is_call_line_name`). Such a call is a macro invocation
+    /// line only as the last line of a branch.
+    bool macro_lower;
+    /// True when the name of `macro` is `_Pragma` or `__pragma`, whose call is an item of the grammar.
+    bool macro_pragma;
+    /// The number of completed branches that end with END_VALUE.
+    uint32_t value_ends;
+    /// The number of those branches whose last line is a call of a name with a lowercase letter.
+    uint32_t call_line_value_ends;
     /// The depth of parentheses outside the arguments of the macro.
     int32_t macro_parens;
     /// The number of `?` operators that have no `:` in the branch.
@@ -6051,6 +6113,16 @@ static const char *const NOT_MACRO_WORDS[] = {"TRUE", "FALSE", "NULL", "Q_EMIT",
 /// The keywords before a parenthesized condition or loop head, after which a statement comes.
 static const char *const STATEMENT_HEAD_KEYWORDS[] = {"if", "while", "for", "switch", NULL};
 
+/// True when NAME can be the name of a macro invocation line that has a lowercase letter (`is_call_line_word`).
+static bool is_call_line_name(const Name *name) {
+    return !name->macro_shaped && is_call_line_word(name->text, name->length);
+}
+
+/// True when NAME is `_Pragma` or `__pragma`. Their call is a `pragma_operator` item of the grammar.
+static bool is_pragma_operator_name(const Name *name) {
+    return name_is(name, "_Pragma") || name_is(name, "__pragma");
+}
+
 /// Record a token that ends the text before a directive in the way END. Fail when the token is the first
 /// token of a branch and it continues a construct.
 static void add_token(GroupScan *scan, EndKind end, bool continues_construct) {
@@ -6082,6 +6154,9 @@ static bool outside_parentheses(const GroupScan *scan) {
 /// A `(` after a macro name opens its arguments. A long name can have its arguments on the next line. A line
 /// break after a macro name or its arguments ends a macro invocation line, as in `scan_macro_start`. The token
 /// after that line break starts an item. In an enumerator list, a name with no arguments is an enumerator.
+///
+/// A call of a name with a lowercase letter is no macro invocation line before a token. `scan_macro_start` reads
+/// such a call as a macro only before the directive that ends a branch, and `end_branch` records that form.
 static void start_token(GroupScan *scan, int32_t c) {
     bool arguments = scan->macro == MACRO_LONG_NAME || (scan->macro == MACRO_SHORT_NAME && !scan->line_break);
     if (c == '(' && arguments) {
@@ -6092,7 +6167,8 @@ static void start_token(GroupScan *scan, int32_t c) {
     if (scan->macro == MACRO_ARGUMENTS) {
         return;
     }
-    bool line_end = scan->macro == MACRO_CALL || (scan->macro == MACRO_LONG_NAME && !scan->enumerators);
+    bool line_end = (scan->macro == MACRO_CALL && !scan->macro_lower) ||
+                    (scan->macro == MACRO_LONG_NAME && !scan->enumerators);
     if (scan->line_break && line_end) {
         scan->end = END_MACRO;
         scan->at_item_start = true;
@@ -6176,6 +6252,15 @@ static void add_punctuator(TSLexer *lexer, GroupScan *scan) {
             close_bracket(scan, 0);
             if (scan->macro == MACRO_ARGUMENTS && scan->depth[0] == scan->macro_parens) {
                 scan->macro = MACRO_CALL;
+                if (scan->macro_pragma) {
+                    // `_Pragma ( ... )` and `__pragma ( ... )` are `pragma_operator` items with no `;` in each
+                    // scope of the grammar ([cpp.pragma.op]).
+                    scan->macro = MACRO_NONE;
+                    scan->end = END_ITEM;
+                    scan->at_item_start = outside_parentheses(scan);
+                    scan->before_body = false;
+                    return;
+                }
             }
             scan->before_body = true;
             // The statement of `if (x)` can be a macro invocation line: `if (x)`, `CHECK(y)`.
@@ -6338,6 +6423,14 @@ static void add_word(TSLexer *lexer, GroupScan *scan) {
     if (item_start && name.macro_shaped && !name_is_one_of(&name, NOT_MACRO_WORDS)) {
         scan->macro = name.length >= MACRO_MIN_BARE_LENGTH ? MACRO_LONG_NAME : MACRO_SHORT_NAME;
         scan->macro_not_names = false;
+        scan->macro_lower = false;
+        scan->macro_pragma = false;
+    } else if (item_start && !scan->enumerators && (is_pragma_operator_name(&name) || is_call_line_name(&name))) {
+        // The arguments must start on the line of the name, with no blank before them.
+        scan->macro = MACRO_SHORT_NAME;
+        scan->macro_not_names = false;
+        scan->macro_pragma = is_pragma_operator_name(&name);
+        scan->macro_lower = !scan->macro_pragma;
     }
     // A `do` statement ends with the `;` after its `while` condition.
     if (name_is(&name, "do") && at_top_level(scan)) {
@@ -6355,10 +6448,20 @@ static void add_number(TSLexer *lexer, GroupScan *scan) {
 
 /// Check the text before a branch directive of the group: its last token, the depths, and the `do` statements.
 /// Record the way that the branch ends. The directive line is a line break after a macro invocation.
+///
+/// A call of a name with a lowercase letter keeps the end END_VALUE, because it is also the head of a function
+/// before its body. The scan counts such a last line apart, and `branch_ends_fit` reads the count.
 static void end_branch(GroupScan *scan) {
-    if (scan->macro == MACRO_CALL || (scan->macro == MACRO_LONG_NAME && !scan->enumerators)) {
+    bool lower_call = scan->macro == MACRO_CALL && scan->macro_lower;
+    if ((scan->macro == MACRO_CALL && !lower_call) || (scan->macro == MACRO_LONG_NAME && !scan->enumerators)) {
         scan->end = END_MACRO;
         scan->call_end |= scan->macro == MACRO_CALL && !scan->macro_not_names;
+    }
+    if (scan->end == END_VALUE) {
+        scan->value_ends++;
+        if (lower_call) {
+            scan->call_line_value_ends++;
+        }
     }
     if (scan->end == END_OPEN || !at_top_level(scan) || scan->open_do > 0) {
         scan->failed = true;
@@ -6562,6 +6665,13 @@ static TokenAfter read_token_after_group(const Scanner *scanner, TSLexer *lexer)
 /// for the preprocessor. A macro name with no arguments before a block, as `RANGES_DIAGNOSTIC_PUSH` before `{`, is a
 /// pragma or a statement macro. A macro call with other arguments before a block, as
 /// `BOOST_IF_CONSTEXPR (x::value)`, is also a statement macro.
+///
+/// A call of a name with a lowercase letter as the last line of a branch, as `nssv_RESTORE_WARNINGS()` of
+/// simdjson, is a macro invocation line only before a token that starts an item or before a `}`. The text after
+/// the preprocessor is the call and that token, and it is valid C++ only when the name is a macro. GCC gives
+/// "expected constructor, destructor, or type conversion" for such a call at namespace scope. `scan_macro_start`
+/// reads the same line as a macro before the directive of a structured group. Before `{`, `;`, `:`, `,`, or `=`,
+/// the call is a function head, a declarator, or an expression, and the group stays a group of lines.
 static bool branch_ends_fit(const GroupScan *scan, TokenAfter after) {
     uint32_t ends = scan->branch_ends;
     if (after == AFTER_CONTINUATION || after == AFTER_CONTINUING_KEYWORD || after == AFTER_CLOSE_PARENTHESIS) {
@@ -6572,6 +6682,11 @@ static bool branch_ends_fit(const GroupScan *scan, TokenAfter after) {
             return false;
         }
         return !(ends & (1U << END_VALUE)) || after == AFTER_CLOSE_BRACE;
+    }
+    bool calls_are_items = scan->value_ends > 0 && scan->value_ends == scan->call_line_value_ends &&
+                           (after == AFTER_ITEM_START || after == AFTER_CLOSE_BRACE);
+    if (calls_are_items) {
+        ends = (ends & ~(1U << END_VALUE)) | (1U << END_MACRO);
     }
     if (ends & ((1U << END_COMMA) | (1U << END_VALUE))) {
         return false;
@@ -6662,13 +6777,24 @@ static bool group_is_structured(const Scanner *scanner, TSLexer *lexer, bool enu
         }
         if (is_horizontal_space(c)) {
             advance(lexer);
+            // `scan_macro_start` reads a call of a name with a lowercase letter only with its `(` immediately after
+            // the name. With a blank, the scan of a comparison can take the name first.
+            if (scan.macro == MACRO_SHORT_NAME && scan.macro_lower) {
+                scan.macro = MACRO_NONE;
+            }
             continue;
         }
         if (c == '\\') {
+            if (scan.macro == MACRO_SHORT_NAME && scan.macro_lower) {
+                scan.macro = MACRO_NONE;
+            }
             skip_backslash(lexer, false);
             continue;
         }
         if (c == '/') {
+            if (scan.macro == MACRO_SHORT_NAME && scan.macro_lower) {
+                scan.macro = MACRO_NONE;
+            }
             advance(lexer);
             if (lexer->lookahead == '*') {
                 if (skip_block_comment(lexer)) {

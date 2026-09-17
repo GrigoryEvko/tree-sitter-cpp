@@ -3064,3 +3064,317 @@ void f() {
         declarator: (init_declarator
           declarator: (identifier)
           value: (number_literal))))))
+
+================================================================================
+A call line with a lowercase letter or a pragma operator as the last line of a branch
+================================================================================
+
+#define nssv_RESTORE_WARNINGS()
+#define span_disable(x)
+#define A 1
+namespace nonstd {
+int a;
+}
+#if A
+using nonstd::a;
+#else
+namespace nonstd {
+int b;
+}
+nssv_RESTORE_WARNINGS()
+#endif
+namespace n {
+#ifdef B
+int c;
+#elif A
+span_disable(26439)
+#else
+int d;
+#endif
+int e;
+}
+void f(int x) {
+#if A
+  x = 1;
+#else
+  if (x)
+    span_disable(x)
+#endif
+}
+struct S {
+#if A
+  int g;
+#else
+  span_disable(g)
+#endif
+};
+#ifdef _MSC_VER
+__pragma(warning(disable: 4244))
+#else
+_Pragma("GCC diagnostic push")
+#endif
+int h;
+
+--------------------------------------------------------------------------------
+
+(translation_unit
+  (preproc_function_def
+    name: (identifier)
+    parameters: (preproc_params))
+  (preproc_function_def
+    name: (identifier)
+    parameters: (preproc_params
+      (identifier)))
+  (preproc_def
+    name: (identifier)
+    value: (preproc_arg))
+  (namespace_definition
+    name: (namespace_identifier)
+    body: (declaration_list
+      (declaration
+        type: (primitive_type)
+        declarator: (identifier))))
+  (preproc_if
+    condition: (identifier)
+    (using_declaration
+      (qualified_identifier
+        scope: (namespace_identifier)
+        name: (identifier)))
+    alternative: (preproc_else
+      (namespace_definition
+        name: (namespace_identifier)
+        body: (declaration_list
+          (declaration
+            type: (primitive_type)
+            declarator: (identifier))))
+      (macro_invocation
+        name: (identifier)
+        arguments: (token_tree))))
+  (namespace_definition
+    name: (namespace_identifier)
+    body: (declaration_list
+      (preproc_ifdef
+        name: (identifier)
+        (declaration
+          type: (primitive_type)
+          declarator: (identifier))
+        alternative: (preproc_elif
+          condition: (identifier)
+          (macro_invocation
+            name: (identifier)
+            arguments: (token_tree
+              (number_literal)))
+          alternative: (preproc_else
+            (declaration
+              type: (primitive_type)
+              declarator: (identifier)))))
+      (declaration
+        type: (primitive_type)
+        declarator: (identifier))))
+  (function_definition
+    type: (primitive_type)
+    declarator: (function_declarator
+      declarator: (identifier)
+      parameters: (parameter_list
+        (parameter_declaration
+          type: (primitive_type)
+          declarator: (identifier))))
+    body: (compound_statement
+      (preproc_if
+        condition: (identifier)
+        (expression_statement
+          (assignment_expression
+            left: (identifier)
+            right: (number_literal)))
+        alternative: (preproc_else
+          (if_statement
+            condition: (condition_clause
+              value: (identifier))
+            consequence: (macro_invocation
+              name: (identifier)
+              arguments: (token_tree
+                (identifier))))))))
+  (struct_specifier
+    name: (type_identifier)
+    body: (field_declaration_list
+      (preproc_if
+        condition: (identifier)
+        (field_declaration
+          type: (primitive_type)
+          declarator: (field_identifier))
+        alternative: (preproc_else
+          (macro_invocation
+            name: (identifier)
+            arguments: (token_tree
+              (identifier)))))))
+  (preproc_ifdef
+    name: (identifier)
+    (pragma_operator
+      directive: (token_tree
+        (identifier)
+        (token_tree
+          (identifier)
+          (number_literal))))
+    alternative: (preproc_else
+      (pragma_operator
+        directive: (token_tree
+          (string_literal
+            (string_content))))))
+  (declaration
+    type: (primitive_type)
+    declarator: (identifier)))
+
+================================================================================
+A call line with a lowercase letter that is no last item of a branch
+================================================================================
+
+#define A 1
+#define span_disable(x)
+#define _In_reads_(n)
+void g(int);
+void f(int x) {
+#if A
+  g(x)
+#else
+  g(x + 1)
+#endif
+  ;
+}
+struct Tree {
+  int m;
+#if A
+  Tree(int *p)
+#else
+  Tree(long *p)
+#endif
+  { m = 0; }
+};
+#if A
+int k;
+#else
+span_disable (k)
+#endif
+int l;
+#if A
+int p;
+#else
+_In_reads_(4)
+#endif
+int q(const char *s);
+#if A
+int r;
+#else
+span_disable(r)
+span_disable(r)
+#endif
+int s;
+
+--------------------------------------------------------------------------------
+
+(translation_unit
+  (preproc_def
+    name: (identifier)
+    value: (preproc_arg))
+  (preproc_function_def
+    name: (identifier)
+    parameters: (preproc_params
+      (identifier)))
+  (preproc_function_def
+    name: (identifier)
+    parameters: (preproc_params
+      (identifier)))
+  (declaration
+    type: (primitive_type)
+    declarator: (function_declarator
+      declarator: (identifier)
+      parameters: (parameter_list
+        (parameter_declaration
+          type: (primitive_type)))))
+  (function_definition
+    type: (primitive_type)
+    declarator: (function_declarator
+      declarator: (identifier)
+      parameters: (parameter_list
+        (parameter_declaration
+          type: (primitive_type)
+          declarator: (identifier))))
+    body: (compound_statement
+      (preproc_call
+        directive: (preproc_directive)
+        argument: (preproc_arg))
+      (expression_statement
+        (call_expression
+          function: (identifier)
+          arguments: (argument_list
+            (identifier)))
+        (preproc_skipped)
+        (preproc_call
+          directive: (preproc_directive)))))
+  (struct_specifier
+    name: (type_identifier)
+    body: (field_declaration_list
+      (field_declaration
+        type: (primitive_type)
+        declarator: (field_identifier))
+      (preproc_call
+        directive: (preproc_directive)
+        argument: (preproc_arg))
+      (function_definition
+        declarator: (function_declarator
+          declarator: (identifier)
+          parameters: (parameter_list
+            (parameter_declaration
+              type: (primitive_type)
+              declarator: (pointer_declarator
+                declarator: (identifier)))))
+        (preproc_skipped)
+        (preproc_call
+          directive: (preproc_directive))
+        body: (compound_statement
+          (expression_statement
+            (assignment_expression
+              left: (identifier)
+              right: (number_literal)))))))
+  (preproc_call
+    directive: (preproc_directive)
+    argument: (preproc_arg))
+  (declaration
+    type: (primitive_type)
+    declarator: (identifier))
+  (preproc_skipped)
+  (preproc_call
+    directive: (preproc_directive))
+  (declaration
+    type: (primitive_type)
+    declarator: (identifier))
+  (preproc_call
+    directive: (preproc_directive)
+    argument: (preproc_arg))
+  (declaration
+    type: (primitive_type)
+    declarator: (identifier))
+  (preproc_skipped)
+  (preproc_call
+    directive: (preproc_directive))
+  (declaration
+    type: (primitive_type)
+    declarator: (function_declarator
+      declarator: (identifier)
+      parameters: (parameter_list
+        (parameter_declaration
+          (type_qualifier)
+          type: (primitive_type)
+          declarator: (pointer_declarator
+            declarator: (identifier))))))
+  (preproc_call
+    directive: (preproc_directive)
+    argument: (preproc_arg))
+  (declaration
+    type: (primitive_type)
+    declarator: (identifier))
+  (preproc_skipped)
+  (preproc_call
+    directive: (preproc_directive))
+  (declaration
+    type: (primitive_type)
+    declarator: (identifier)))
