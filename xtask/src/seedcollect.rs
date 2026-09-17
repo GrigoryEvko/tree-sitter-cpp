@@ -488,8 +488,10 @@ const GRAMMAR_PRIMITIVE_NAMES: [&str; 20] = [
 /// collections with one rule: a type, a template and a type use give a type row, a value of any kind
 /// gives a conflict, and the `#define` lines of the file give `Defined` and, with a parameter list, a
 /// conflict. The names of an `#if 0` group are read, as the tree reader reads them. A name of
-/// `GRAMMAR_PRIMITIVE_NAMES` gives no type kind.
-fn text_names_of(source: &[u8], c_file: bool, project: &Names) -> Names {
+/// `GRAMMAR_PRIMITIVE_NAMES` gives no type kind. With `Conflicts::Outer`, only an object or a function at
+/// namespace scope or class scope gives a conflict, and with `Conflicts::Namespace` only one at namespace
+/// scope.
+fn text_names_of(source: &[u8], c_file: bool, project: &Names, conflicts: Conflicts) -> Names {
     let facts = declarations::read(source, c_file);
     let mut names = Names::default();
     for (name, fact) in facts.resolve(|name| project.macro_of(name)) {
@@ -508,7 +510,12 @@ fn text_names_of(source: &[u8], c_file: bool, project: &Names) -> Names {
         if bits & declarations::TYPE_USE != 0 {
             names.add(&name, Kind::TypeUse);
         }
-        if bits & declarations::VALUE != 0 {
+        let conflict = match conflicts {
+            Conflicts::All => bits & declarations::VALUE != 0,
+            Conflicts::Outer => bits & declarations::OUTER != 0,
+            Conflicts::Namespace => bits & declarations::NAMESPACE != 0,
+        };
+        if conflict {
             names.add(&name, Kind::Conflict);
         }
     }
@@ -545,12 +552,25 @@ enum Scope {
 struct Options {
     types: Types,
     scope: Scope,
+    conflicts: Conflicts,
+}
+
+/// The values of the text reader that remove a type row.
+#[derive(Clone, Copy, PartialEq, Eq, Debug)]
+enum Conflicts {
+    /// Each object, function, parameter and template value.
+    All,
+    /// Each object and function at namespace scope or class scope. A value of a function, a block, a
+    /// parameter list or a template has a scope that no other file sees.
+    Outer,
+    /// Each object and function at namespace scope. A member has the scope of its class.
+    Namespace,
 }
 
 impl Options {
     /// The options at the end of the arguments, and the arguments before them.
     fn parse(args: &[String]) -> Result<(Vec<&String>, Self), String> {
-        let mut options = Self { types: Types::Tree, scope: Scope::List };
+        let mut options = Self { types: Types::Tree, scope: Scope::List, conflicts: Conflicts::All };
         let mut positional = Vec::new();
         let mut iter = args.iter();
         while let Some(arg) = iter.next() {
@@ -560,6 +580,16 @@ impl Options {
                         Some("tree") => Types::Tree,
                         Some("text") => Types::Text,
                         other => return Err(format!("--types takes `tree` or `text`, and the argument is {other:?}")),
+                    }
+                }
+                "--conflicts" => {
+                    options.conflicts = match iter.next().map(String::as_str) {
+                        Some("all") => Conflicts::All,
+                        Some("outer") => Conflicts::Outer,
+                        Some("namespace") => Conflicts::Namespace,
+                        other => {
+                            return Err(format!("--conflicts takes `all`, `outer` or `namespace`, and the argument is {other:?}").into());
+                        }
                     }
                 }
                 "--scope" => {
@@ -768,7 +798,7 @@ fn collect(root: &Path, paths: &[&str], options: Options, per_project: bool) -> 
                 if let Ok(source) = fs::read(path) {
                     match options.types {
                         Types::Tree => names.merge(names_of(&source)),
-                        Types::Text => names.merge(text_names_of(&source, is_c_file(path), &macros)),
+                        Types::Text => names.merge(text_names_of(&source, is_c_file(path), &macros, options.conflicts)),
                     }
                 }
                 names
@@ -1357,5 +1387,26 @@ class ABSL_MUST_USE_RESULT ABSL_ATTRIBUTE_TRIVIAL_ABI Ptr;\n";
         let tree = Tree::new("struct Hash {};\ninline uint64_t Hash(int x) { return 0; }\n");
         tree.add("lib/Headers/wrapper.h", b"#define uint64_t __UINT64_TYPE__\n");
         assert_eq!(rows(&tree.collect_with(&["--types", "text"])), [("uint64_t", "object-macro")]);
+    }
+
+    /// WITH `--conflicts outer`, ONLY A VALUE AT NAMESPACE SCOPE OR CLASS SCOPE REMOVES A TYPE ROW.
+    ///
+    /// A parameter named after its type removes the type from the project with `all`. firefox declares
+    /// the member function `OffTheBooksMutex* Mutex()` at class scope and the template value parameter
+    /// `Mutex`: the member function removes `Mutex` with the two options.
+    #[test]
+    fn an_outer_conflict_needs_a_value_at_namespace_or_class_scope() {
+        let source = "struct HostAndPort {};\n\
+                      void remove(const HostAndPort& HostAndPort) { HostAndPort local; }\n\
+                      struct Mutex {};\n\
+                      template <typename T, int Mutex> class Tracker {};\n\
+                      class Monitor { Mutex* Mutex(); };\n";
+        let tree = Tree::new(source);
+        assert_eq!(type_names(&tree.collect_with(&["--types", "text"])), ["Monitor", "Tracker"]);
+        let outer = tree.collect_with(&["--types", "text", "--conflicts", "outer"]);
+        assert_eq!(type_names(&outer), ["HostAndPort", "Monitor", "Tracker"]);
+        // With `namespace`, the member function `Mutex()` has the scope of its class.
+        let namespace = tree.collect_with(&["--types", "text", "--conflicts", "namespace"]);
+        assert_eq!(type_names(&namespace), ["HostAndPort", "Monitor", "Mutex", "Tracker"]);
     }
 }

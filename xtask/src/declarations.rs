@@ -60,11 +60,19 @@ pub const REFERENCE: u32 = 2048;
 /// libclang gives a FriendDecl with no class child, so the oracle of r74 cannot see this type. The bit
 /// lets a score name those sites.
 pub const FRIEND: u32 = 4096;
+/// An object or a function at namespace scope or at class scope: each brace around the declaration opens
+/// a namespace, a linkage specification or a class body. C++ gives each other value a scope of its
+/// function, its block, its parameter list or its template, and such a value hides no type of a file.
+pub const OUTER: u32 = 8192;
+/// An object or a function at namespace scope: each brace around the declaration opens a namespace or a
+/// linkage specification, and its declarator has no qualifier. A member has the scope of its class, also
+/// when a qualified declarator defines it outside the class: `tripoint_abs_ms const &diag_value::tripoint()`.
+pub const NAMESPACE: u32 = 16384;
 /// Every bit of a declaration that gives a value.
 pub const VALUE: u32 = OBJECT | FUNCTION | PARAMETER | TEMPLATE_VALUE;
 
 /// The words of the bits, in the order of their values. `bits_text` writes them.
-pub const BIT_WORDS: [(u32, &str); 13] = [
+pub const BIT_WORDS: [(u32, &str); 15] = [
     (TYPE, "type"),
     (TEMPLATE, "template"),
     (TYPE_USE, "type-use"),
@@ -78,6 +86,8 @@ pub const BIT_WORDS: [(u32, &str); 13] = [
     (FUNCTION_MACRO, "function-macro"),
     (REFERENCE, "reference"),
     (FRIEND, "friend"),
+    (OUTER, "outer"),
+    (NAMESPACE, "namespace"),
 ];
 
 /// The bits of a name as a comma list of the words of `BIT_WORDS`.
@@ -178,6 +188,8 @@ pub enum Head {
         dead: bool,
         line: u32,
         initializer: bool,
+        /// The bits `OUTER` and `NAMESPACE` of an object that the head declares.
+        scope: u32,
     },
     /// A declarator that ends a run of plain names: `Foo bar;`, `LLVM_ABI Foo bar();`. `typed` is true
     /// when a keyword type, a qualified name, a template-id or a pointer came before the run.
@@ -337,6 +349,7 @@ impl FileFacts {
                     dead,
                     line,
                     initializer,
+                    scope,
                 } => {
                     let type_bits = if *template { TEMPLATE } else { 0 };
                     let last = words.len() - 1;
@@ -408,7 +421,7 @@ impl FileFacts {
                                 counts.tag_object += 1;
                                 if !is_macro(&words[last]) {
                                     let bits = if *follow == Follow::Call { FUNCTION } else { OBJECT };
-                                    add(&words[last], bits, *dead, *line);
+                                    add(&words[last], bits | *scope, *dead, *line);
                                 }
                             } else {
                                 // `struct stat st;`: the type `stat` and the object `st`.
@@ -418,7 +431,7 @@ impl FileFacts {
                                 }
                                 if !is_macro(&words[last]) {
                                     let bits = if *follow == Follow::Call { FUNCTION } else { OBJECT };
-                                    add(&words[last], bits, *dead, *line);
+                                    add(&words[last], bits | *scope, *dead, *line);
                                 }
                             }
                         }
@@ -467,8 +480,8 @@ impl FileFacts {
                         continue;
                     }
                     // A macro with arguments after the declarator was the group: `int foo GUARDED_BY(mu);`.
-                    let bits = if end < words.len() && *bits == FUNCTION {
-                        OBJECT
+                    let bits = if end < words.len() && *bits & !(OUTER | NAMESPACE) == FUNCTION {
+                        OBJECT | *bits & (OUTER | NAMESPACE)
                     } else {
                         *bits
                     };
@@ -1421,7 +1434,7 @@ struct Reader<'a> {
     /// The class names of the class head that each `{` opens.
     class_bodies: BTreeMap<usize, Vec<String>>,
     /// The open braces, with the names of their class head.
-    scopes: Vec<(usize, Vec<String>)>,
+    scopes: Vec<(usize, Vec<String>, bool, bool)>,
     facts: FileFacts,
     c_file: bool,
     /// The nesting of parameter lists that the reader is in. A list deeper than `MAX_DEPTH` is not
@@ -1685,7 +1698,43 @@ impl Reader<'_> {
     fn add(&mut self, i: usize, bits: u32) {
         let token = self.t[i];
         let name = self.string(i);
+        let bits = self.scoped(i, bits);
         self.facts.add(&name, bits, token.dead, token.line);
+    }
+
+    /// The bits with `OUTER` and `NAMESPACE` for an object or a function whose declarator name is at `i`,
+    /// at the scope of the statement that the reader reads. `OUTER`: each brace of the scope stack opens a
+    /// namespace, a linkage specification or a class body. `NAMESPACE`: each brace opens a namespace or a
+    /// linkage specification, and no `::` stands before the name.
+    fn scoped(&self, i: usize, bits: u32) -> u32 {
+        if bits & (OBJECT | FUNCTION) == 0 {
+            return bits;
+        }
+        let mut bits = bits;
+        if self.scopes.iter().all(|(_, _, outer, _)| *outer) {
+            bits |= OUTER;
+        }
+        if self.scopes.iter().all(|(_, _, _, namespace)| *namespace) && !(i > 0 && self.is(i - 1, SCOPE)) {
+            bits |= NAMESPACE;
+        }
+        bits
+    }
+
+    /// True for a `{` that opens a namespace or a linkage specification: `namespace a::b {`,
+    /// `inline namespace v1 {`, `namespace {`, `extern "C" {`.
+    fn namespace_brace(&self, open: usize) -> bool {
+        if open == 0 {
+            return false;
+        }
+        let before = open - 1;
+        if self.t[before].class == Class::Literal {
+            return before > 0 && self.word_is(before - 1, b"extern");
+        }
+        let mut j = before;
+        while j > 0 && (self.is_name(j) || self.is(j, SCOPE)) {
+            j -= 1;
+        }
+        self.word_is(j, b"namespace")
     }
 
     /// True when the token at `i` is after a template head, past `friend`, `export`, attributes, a
@@ -1941,6 +1990,7 @@ impl Reader<'_> {
                 dead: token.dead,
                 line: token.line,
                 initializer,
+                scope: self.scoped(*words.last().expect("a head has two words or more"), OBJECT) & (OUTER | NAMESPACE),
             });
         }
         after
@@ -2385,7 +2435,7 @@ impl Reader<'_> {
         self.scopes
             .iter()
             .rev()
-            .map(|(_, names)| names)
+            .map(|(_, names, _, _)| names)
             .find(|names| !names.is_empty())
     }
 
@@ -2568,7 +2618,7 @@ impl Reader<'_> {
                                 self.facts.heads.push(Head::Run {
                                     words,
                                     typed,
-                                    bits,
+                                    bits: self.scoped(chain.leaf, bits),
                                     dead: token.dead,
                                     line: token.line,
                                     qualifier: chain.previous.map(|previous| self.string(previous)),
@@ -2890,11 +2940,13 @@ impl Reader<'_> {
             match self.t[i].class {
                 Class::Punct(0x7b) => {
                     let names = self.class_bodies.remove(&i).unwrap_or_default();
-                    self.scopes.push((i, names));
+                    let namespace = self.namespace_brace(i);
+                    let outer = self.class_braces[i] || namespace;
+                    self.scopes.push((i, names, outer, namespace));
                 }
                 Class::Punct(0x7d) => {
                     if let Some(open) = self.partner_of(i)
-                        && let Some(depth) = self.scopes.iter().rposition(|(brace, _)| *brace == open)
+                        && let Some(depth) = self.scopes.iter().rposition(|(brace, _, _, _)| *brace == open)
                     {
                         self.scopes.truncate(depth);
                     }
@@ -3034,8 +3086,52 @@ mod tests {
             })
             .into_iter()
             .filter(|(_, fact)| fact.live != 0)
+            .map(|(name, fact)| (name, bits_text(fact.live & !(OUTER | NAMESPACE))))
+            .collect()
+    }
+
+    /// The facts of a source with no macro, and with the bits `OUTER` and `NAMESPACE`.
+    fn facts_scoped(source: &str) -> Vec<(String, String)> {
+        read(source.as_bytes(), false)
+            .resolve(|_| Macro::None)
+            .into_iter()
+            .filter(|(_, fact)| fact.live != 0)
             .map(|(name, fact)| (name, bits_text(fact.live)))
             .collect()
+    }
+
+    /// An object and a function at namespace scope or class scope give `OUTER`, and at namespace scope with
+    /// no qualifier `NAMESPACE`. A parameter, a template value, a local, a range-for variable and a lambda
+    /// parameter give neither.
+    #[test]
+    fn a_value_at_namespace_or_class_scope_is_outer() {
+        assert_eq!(
+            facts_scoped(
+                "namespace n { int g; void f(int p) { int local; for (auto& e : v) {} auto l = [](int q) {}; } struct S { int m; void h(); }; }\ntemplate <int N> struct T {};\nextern \"C\" { int c_object; }\nstruct stat st;\nFoo bar;\nvoid k() { struct stat st2; Foo baz; }\nint n::S::count = 0;"
+            ),
+            pairs(&[
+                ("N", "template-value"),
+                ("S", "type"),
+                ("T", "type,template"),
+                ("bar", "object,outer,namespace"),
+                ("baz", "object"),
+                ("c_object", "object,outer,namespace"),
+                ("count", "object,outer"),
+                ("e", "object,reference"),
+                ("f", "function,outer,namespace"),
+                ("g", "object,outer,namespace"),
+                ("h", "function,outer"),
+                ("k", "function,outer,namespace"),
+                ("l", "object"),
+                ("local", "object"),
+                ("m", "object,outer"),
+                ("p", "parameter"),
+                ("q", "parameter"),
+                ("st", "object,outer,namespace"),
+                ("st2", "object"),
+                ("stat", "type-use")
+            ])
+        );
     }
 
     /// `facts_classes` with each macro of the class `Macro::Other`.
