@@ -28265,8 +28265,22 @@
                 "type": "CHOICE",
                 "members": [
                   {
-                    "type": "SYMBOL",
-                    "name": "_declarator"
+                    "type": "CHOICE",
+                    "members": [
+                      {
+                        "type": "SYMBOL",
+                        "name": "_declarator"
+                      },
+                      {
+                        "type": "ALIAS",
+                        "content": {
+                          "type": "SYMBOL",
+                          "name": "_macro_attributed_declarator"
+                        },
+                        "named": true,
+                        "value": "attributed_declarator"
+                      }
+                    ]
                   },
                   {
                     "type": "SYMBOL",

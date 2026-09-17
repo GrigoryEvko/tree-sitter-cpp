@@ -5443,6 +5443,21 @@ fn declarations(g: &mut Grammar) {
             ],
         )
     });
+    // The same macros come after the declarator of a parameter with a default argument, before the
+    // `=`: `const Transform& transform ABSL_ATTRIBUTE_LIFETIME_BOUND = {}` in abseil any_span.h, `bool
+    // need_lock MY_ATTRIBUTE((unused)) = false` in the MySQL copy of hhvm. ParseParameterDeclarationClause
+    // reads the GNU attributes of the declarator before the default argument. The grammar reads
+    // `[[maybe_unused]]` and `__attribute__((unused))` in the same place.
+    g.redefine("optional_parameter_declaration", |original| {
+        replace_rule(
+            original,
+            &s!(_declarator),
+            &choice![
+                s!(_declarator),
+                alias(s!(_macro_attributed_declarator), s!(attributed_declarator)),
+            ],
+        )
+    });
 }
 
 /// A declarator of the family `family` that does not declare a function and does not end with the
