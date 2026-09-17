@@ -263,6 +263,40 @@ mod tests {
         assert_eq!(kinds, ["preproc_def", "preproc_def"], "{}", root.to_sexp());
     }
 
+    /// A language of an upstream ABI keeps the upstream depth of 16 for the stack summary of error
+    /// recovery, and this grammar keeps 256.
+    ///
+    /// The summary holds each state of the parse stack that recovery can go back to. With the depth
+    /// 256, tree-sitter-c 0.24.2 reads the eight enumerators below as one ERROR node, because it
+    /// recovers to a state deep in the enumerator list. With the depth 16 it reads them as a chain of
+    /// comma_expression, and each name is a named node again. The input is a reduction of
+    /// ClickHouse/src/Core/LogsLevel.h, a C++ header that this C grammar reads. Seven enumerators are
+    /// not enough, because the deepest state that the two depths disagree about is below 16 then.
+    ///
+    /// The depth also decides the cost of a file with an error. The walk of the parse stack visits
+    /// each path, and the two depths are not a factor of 16 apart: over the 2,392 `.ts` files of the
+    /// corpus the fork spends 6.263 times the user instructions of the published runtime with the
+    /// depth 256, and 0.987 times with this rule.
+    #[test]
+    fn test_an_upstream_grammar_keeps_the_upstream_summary_depth() {
+        let c: Language = tree_sitter_c::LANGUAGE.into();
+        let header = concat!(
+            "namespace DB\n{\nenum class LogsLevel : uint8_t\n{\n",
+            "    e1,\n    e2,\n    e3,\n    e4,\n    e5,\n    e6,\n    e7,\n    e8,\n",
+            "};\n}\n",
+        );
+        let mut parser = Parser::new();
+        parser.set_language(&c).expect("the grammar loads");
+        let tree = parser.parse(header, None).expect("the parse ends");
+        let root = tree.root_node();
+        let sexp = root.to_sexp();
+        // Seven comma_expression nodes hold the eight enumerators. With the depth 256 there are none,
+        // and one ERROR node holds the eight names. The ten identifiers are `DB`, `LogsLevel` and the
+        // eight enumerators.
+        assert_eq!(sexp.matches("(comma_expression").count(), 7, "{sexp}");
+        assert_eq!(sexp.matches("(identifier)").count(), 10, "{sexp}");
+    }
+
     /// The parse tables of this grammar are in the shape layout of ABI 1016, and the shape of a state
     /// keeps its symbols in the order in which the runtime reads them. A large state keeps ascending
     /// symbol order, and a small state keeps group order. The order decides which reduction survives

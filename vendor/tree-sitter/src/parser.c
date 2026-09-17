@@ -82,6 +82,11 @@ static const unsigned MAX_VERSION_COUNT_OVERFLOW = 16;
 // 16, a C++ file with an error in a deep construct cannot get back to the translation unit at the end
 // of the file, and its root node is ERROR (tree-sitter-cpp fork).
 static const unsigned MAX_SUMMARY_DEPTH = 256;
+// The depth of the published runtime. A language of an upstream ABI keeps it. The walk of the parse
+// stack visits each path, so the cost of the walk grows much faster than the depth: on one
+// TypeScript file the callback of the walk runs 1,490,884,499 times at depth 256 and 4,796,813 times
+// at depth 16. Refer to `ts_parser__max_summary_depth` (tree-sitter-cpp fork).
+static const unsigned UPSTREAM_MAX_SUMMARY_DEPTH = 16;
 // The number of previous states that error recovery goes back to for one lookahead token. The
 // published runtime goes back only to the nearest state that accepts the token. That state can be
 // in the construct that has the error, and a later error then makes a large ERROR node. With more
@@ -1452,6 +1457,16 @@ static unsigned ts_parser__max_recovery_count(const TSParser *self) {
     : UPSTREAM_MAX_RECOVERY_COUNT;
 }
 
+// The depth of the stack that error recovery examines for a state that accepts the lookahead:
+// MAX_SUMMARY_DEPTH for a language of a fork ABI, and UPSTREAM_MAX_SUMMARY_DEPTH for a language of an
+// upstream ABI. The record of the summary walks each path of the parse stack, so the depth decides
+// the cost of a file with an error. Refer to `ts_language_version_is_fork` (tree-sitter-cpp fork).
+static unsigned ts_parser__max_summary_depth(const TSParser *self) {
+  return ts_language_version_is_fork(self->language->abi_version)
+    ? MAX_SUMMARY_DEPTH
+    : UPSTREAM_MAX_SUMMARY_DEPTH;
+}
+
 static void ts_parser__recover(
   TSParser *self,
   StackVersion version,
@@ -1471,7 +1486,7 @@ static void ts_parser__recover(
   // the summary of the stack below the ERROR at the top. The depths then agree with the summary
   // of ts_parser__handle_error (tree-sitter-cpp fork).
   if (!summary) {
-    ts_stack_record_summary(self->stack, version, MAX_SUMMARY_DEPTH, node_count_since_error > 0 ? 1 : 0);
+    ts_stack_record_summary(self->stack, version, ts_parser__max_summary_depth(self), node_count_since_error > 0 ? 1 : 0);
     summary = ts_stack_get_summary(self->stack, version);
   }
 
@@ -1874,7 +1889,7 @@ static void ts_parser__handle_error(
     ts_assert(did_merge);
   }
 
-  ts_stack_record_summary(self->stack, version, MAX_SUMMARY_DEPTH, 0);
+  ts_stack_record_summary(self->stack, version, ts_parser__max_summary_depth(self), 0);
 
   // Begin recovery with the current lookahead node, rather than waiting for the
   // next turn of the parse loop. This ensures that the tree accounts for the
