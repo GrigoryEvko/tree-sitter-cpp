@@ -82,6 +82,8 @@ struct Names {
     /// The names that the `#define` lines of the project define, with the bits of their shapes.
     /// `crate::defines` reads them from the text, and no parse writes this map.
     macros: BTreeMap<String, u16>,
+    /// The alias targets of the object-like macros of the project. Refer to `defines::inherit_alias_bits`.
+    aliases: BTreeMap<String, BTreeSet<String>>,
 }
 
 impl Names {
@@ -105,16 +107,22 @@ impl Names {
         for (name, bits) in other.macros {
             *self.macros.entry(name).or_default() |= bits;
         }
+        for (name, targets) in other.aliases {
+            self.aliases.entry(name).or_default().extend(targets);
+        }
     }
 
     /// Add the `#define` lines of the text of one source.
     fn define(&mut self, source: &[u8]) {
-        for (name, shape) in defines::defines(source) {
-            let bit = match shape {
+        for define in defines::define_lines(source) {
+            let bit = match define.shape {
                 Shape::Object => KIND_WORDS[2].1,
                 Shape::Function => KIND_WORDS[3].1,
             };
-            *self.macros.entry(name).or_default() |= bit;
+            if let Some(target) = define.alias {
+                self.aliases.entry(define.name.clone()).or_default().insert(target);
+            }
+            *self.macros.entry(define.name).or_default() |= bit;
         }
     }
 
@@ -181,13 +189,19 @@ impl Names {
     /// projects, 731 names of the type rows of population.txt also have a macro row, 687 of them of
     /// the object shape. The type word keeps the rule of `type_word`, which reads the
     /// `preproc_function_def` nodes of the tree as before, so a macro row changes no type row.
+    ///
+    /// AN ALIAS HAS THE MACRO WORDS OF ITS TARGETS. `#define P_ BSLIM_TESTUTIL_P_` gives `P_` the word
+    /// `function-macro` of `BSLIM_TESTUTIL_P_`, because `P_(LINE)` is a call of that macro. Refer to
+    /// `defines::inherit_alias_bits`.
     fn rows(&self) -> (Vec<(&str, String)>, Vec<&str>) {
         let names: BTreeSet<&str> = self.kinds.keys().chain(self.macros.keys()).map(String::as_str).collect();
+        let mut macros = self.macros.clone();
+        defines::inherit_alias_bits(&mut macros, &self.aliases);
         let mut rows = Vec::new();
         let mut dropped = Vec::new();
         for name in names {
             let mut words: Vec<&str> = self.type_word(name).into_iter().collect();
-            let bits = self.macros.get(name).copied().unwrap_or(0);
+            let bits = macros.get(name).copied().unwrap_or(0);
             words.extend(KIND_WORDS[2..].iter().filter(|(_, bit)| bits & bit != 0).map(|(word, _)| *word));
             if words.is_empty() {
                 continue;
@@ -856,13 +870,19 @@ mod tests {
         tree.add("include/bits/c++config", b"// Predefined symbols -*- C++ -*-\n#ifndef _GLIBCXX_CXX_CONFIG_H\n#define _GLIBCXX20_CONSTEXPR constexpr\n#endif\n");
         tree.add("configure", b"#! /bin/sh\n# define name\n#define PACKAGE_NAME \"x\"\n");
         tree.add("doc.txt", b"#define IN_TEXT\n");
+        // An alias in one header and its function-like target in another, as in bde: `P_` gets the
+        // word of `BSLIM_TESTUTIL_P_`. `Bytef` above is an alias of `z_Bytef`, which no file defines.
+        tree.add("include/aliases.h", b"#define P_ BSLIM_TESTUTIL_P_\n");
+        tree.add("include/testutil.h", b"#define BSLIM_TESTUTIL_P_(X) X\n");
         let text = tree.collect();
         assert_eq!(rows(&text), [
+            ("BSLIM_TESTUTIL_P_", "function-macro"),
             ("Both", "type,function-macro"),
             ("Bytef", "type,object-macro"),
             ("GUARDED_BY", "function-macro"),
             ("IN_DEAD", "function-macro"),
             ("MOZ_UNANNOTATED", "object-macro"),
+            ("P_", "object-macro,function-macro"),
             ("_GLIBCXX20_CONSTEXPR", "object-macro"),
         ]);
     }

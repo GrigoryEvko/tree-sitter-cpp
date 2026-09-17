@@ -28,6 +28,14 @@
 //! tell a real definition from a test fixture: qtbase defines `QString()` in
 //! tests/auto/tools/moc/parse-defines.h. A consumer of these names must read them as "a file of the
 //! project defines this name", and never as "this name is a macro at this site".
+//!
+//! AN ALIAS HAS THE KINDS OF ITS TARGET. `#define P_ BSLIM_TESTUTIL_P_` in bde is object-like, and its
+//! replacement list is one identifier that names a function-like macro. `P_(LINE)` then expands to
+//! `BSLIM_TESTUTIL_P_(LINE)`, and the group after `P_` is an argument list ([cpp.rescan] p1). So a name
+//! whose replacement list is exactly one identifier gives that identifier as its alias target, and
+//! `inherit_alias_bits` gives the alias the kinds of each target at the end of its chain.
+
+use std::collections::{BTreeMap, BTreeSet};
 
 /// The shape of a `#define`.
 #[derive(Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Debug, Hash)]
@@ -38,6 +46,18 @@ pub enum Shape {
     /// between the two. [cpp.replace] p10 reads that `(` as the start of a parameter list, and any
     /// other `(` as the start of the replacement list.
     Function,
+}
+
+/// One `#define` of a source.
+#[derive(Clone, PartialEq, Eq, Debug)]
+pub struct Define {
+    /// The name of the macro.
+    pub name: String,
+    /// The shape of the macro.
+    pub shape: Shape,
+    /// The replacement list of an object-like macro when that list is exactly one identifier, with no
+    /// other token: `BSLIM_TESTUTIL_P_` of `#define P_ BSLIM_TESTUTIL_P_`. None for each other macro.
+    pub alias: Option<String>,
 }
 
 /// The longest delimiter of a raw string literal, from [lex.string] p2.
@@ -208,6 +228,12 @@ fn is_identifier_start(byte: u8) -> bool {
 ///
 /// A name that is not UTF-8 is left out, because a seed holds text.
 pub fn defines(source: &[u8]) -> Vec<(String, Shape)> {
+    define_lines(source).into_iter().map(|define| (define.name, define.shape)).collect()
+}
+
+/// Give each `#define` of a source with its alias target, in the order of the text. O(n) in the bytes
+/// of the source.
+pub fn define_lines(source: &[u8]) -> Vec<Define> {
     let mut text = Text { bytes: source, at: 0 };
     let mut found = Vec::new();
     // [cpp.pre] p1: a directive starts at the start of the source or after white space that holds a
@@ -322,7 +348,7 @@ fn skip_number(text: &mut Text) {
 
 /// Read a directive after its `#`, and record a `#define`. The cursor stops after the name of the
 /// macro, or after the name of the directive, and the caller reads the rest of the line as text.
-fn directive(text: &mut Text, found: &mut Vec<(String, Shape)>) {
+fn directive(text: &mut Text, found: &mut Vec<Define>) {
     text.skip_line_space();
     let name = text.identifier();
     match name.as_slice() {
@@ -351,14 +377,132 @@ fn directive(text: &mut Text, found: &mut Vec<(String, Shape)>) {
     }
     let macro_name = text.identifier();
     let shape = if text.peek() == Some(b'(') { Shape::Function } else { Shape::Object };
-    if let Ok(macro_name) = String::from_utf8(macro_name) {
-        found.push((macro_name, shape));
+    let alias = if shape == Shape::Object { alias_target(text) } else { None };
+    if let Ok(name) = String::from_utf8(macro_name) {
+        found.push(Define { name, shape, alias });
+    }
+}
+
+/// The replacement list of an object-like macro when it is exactly one identifier. The cursor does not
+/// move, because the caller reads the rest of the line as text. A comment is white space, and a line
+/// comment runs to the line break. O(n) in the bytes of the line.
+fn alias_target(text: &Text) -> Option<String> {
+    let mut ahead = text.clone();
+    ahead.skip_line_space();
+    if !ahead.peek().is_some_and(is_identifier_start) {
+        return None;
+    }
+    let target = ahead.identifier();
+    ahead.skip_line_space();
+    let ends = match ahead.peek() {
+        None | Some(b'\n') => true,
+        Some(b'/') => ahead.peek_second() == Some(b'/'),
+        Some(_) => false,
+    };
+    if ends { String::from_utf8(target).ok() } else { None }
+}
+
+/// Give each alias the macro bits of each name that its chain of aliases reaches. `bits` maps a name to
+/// the bits of its `#define` lines, and `aliases` maps a name to the targets of its alias lines. A name
+/// can have a target in one branch and a different body in another, so it keeps its own bits and adds
+/// the bits of the targets. A chain that comes back to a name ends there. O(a * c) in the aliases and
+/// the length of the longest chain.
+pub fn inherit_alias_bits(bits: &mut BTreeMap<String, u16>, aliases: &BTreeMap<String, BTreeSet<String>>) {
+    let mut inherited = Vec::new();
+    for name in aliases.keys() {
+        let mut seen = BTreeSet::new();
+        let mut stack = vec![name.as_str()];
+        let mut sum = 0;
+        while let Some(current) = stack.pop() {
+            if !seen.insert(current) {
+                continue;
+            }
+            if current != name {
+                sum |= bits.get(current).copied().unwrap_or(0);
+            }
+            if let Some(targets) = aliases.get(current) {
+                stack.extend(targets.iter().map(String::as_str));
+            }
+        }
+        inherited.push((name, sum));
+    }
+    for (name, sum) in inherited {
+        if sum != 0 {
+            *bits.entry(name.clone()).or_default() |= sum;
+        }
     }
 }
 
 #[cfg(test)]
 mod tests {
-    use super::{Shape, defines, starts_with_directive};
+    use std::collections::{BTreeMap, BTreeSet};
+
+    use super::{Shape, define_lines, defines, inherit_alias_bits, starts_with_directive};
+
+    /// The alias target of each `#define` of a source.
+    fn aliases(source: &str) -> Vec<(String, Option<String>)> {
+        define_lines(source.as_bytes()).into_iter().map(|define| (define.name, define.alias)).collect()
+    }
+
+    fn alias(name: &str, target: Option<&str>) -> Vec<(String, Option<String>)> {
+        vec![(name.to_owned(), target.map(str::to_owned))]
+    }
+
+    /// The replacement list of an object-like macro is an alias when it is exactly one identifier. The
+    /// first line is the macro of bde that #370 found.
+    #[test]
+    fn a_replacement_list_of_one_identifier_is_an_alias() {
+        assert_eq!(aliases("#define P_ BSLIM_TESTUTIL_P_\n"), alias("P_", Some("BSLIM_TESTUTIL_P_")));
+        assert_eq!(aliases("#define A B // a comment\n"), alias("A", Some("B")));
+        assert_eq!(aliases("#define A /* x */ B /* y */\r\n"), alias("A", Some("B")));
+        assert_eq!(aliases("#define A \\\n  B\n"), alias("A", Some("B")));
+        assert_eq!(aliases("#define A B"), alias("A", Some("B")));
+        // A list with a second token, a literal, a raw string, or no token is no alias.
+        assert_eq!(aliases("#define A B C\n"), alias("A", None));
+        assert_eq!(aliases("#define A B(x)\n"), alias("A", None));
+        assert_eq!(aliases("#define A __attribute__((unused))\n"), alias("A", None));
+        assert_eq!(aliases("#define A u8\"x\"\n"), alias("A", None));
+        assert_eq!(aliases("#define A R\"(x)\"\n"), alias("A", None));
+        assert_eq!(aliases("#define A 1\n"), alias("A", None));
+        assert_eq!(aliases("#define A\n"), alias("A", None));
+        assert_eq!(aliases("#define A /* nothing */\n"), alias("A", None));
+        // A function-like macro has parameters, and its list is no alias.
+        assert_eq!(aliases("#define A(x) B\n"), alias("A", None));
+        // The rest of the line stays text for the reader: the raw string hides the next `#define`.
+        assert_eq!(aliases("#define A R\"(\n#define B\n)\"\n"), alias("A", None));
+    }
+
+    /// An alias gets the bits of each name at the end of its chain, and a cycle ends.
+    #[test]
+    fn an_alias_inherits_the_bits_of_its_chain() {
+        let mut bits: BTreeMap<String, u16> =
+            [("P_", 4), ("MID", 4), ("CALL", 8), ("LOOP_A", 4), ("LOOP_B", 4), ("PLAIN", 4), ("TWO", 4), ("ONE", 4)]
+                .into_iter()
+                .map(|(name, bit)| (name.to_owned(), bit))
+                .collect();
+        let aliases: BTreeMap<String, BTreeSet<String>> = [
+            ("P_", vec!["MID"]),
+            ("MID", vec!["CALL"]),
+            ("LOOP_A", vec!["LOOP_B"]),
+            ("LOOP_B", vec!["LOOP_A"]),
+            ("TWO", vec!["ONE", "CALL"]),
+            ("SELF", vec!["SELF"]),
+            ("TO_NO_MACRO", vec!["int"]),
+        ]
+        .into_iter()
+        .map(|(name, targets)| (name.to_owned(), targets.into_iter().map(str::to_owned).collect()))
+        .collect();
+        inherit_alias_bits(&mut bits, &aliases);
+        assert_eq!(bits["P_"], 12, "the chain P_, MID, CALL ends at a function-like macro");
+        assert_eq!(bits["MID"], 12);
+        assert_eq!(bits["CALL"], 8);
+        assert_eq!(bits["LOOP_A"], 4, "a cycle ends, and the names keep their bits");
+        assert_eq!(bits["LOOP_B"], 4);
+        assert_eq!(bits["TWO"], 12, "a name with two targets gets the bits of the two");
+        assert_eq!(bits["PLAIN"], 4);
+        assert!(!bits.contains_key("SELF"), "an alias of itself adds no bit");
+        assert!(!bits.contains_key("TO_NO_MACRO"), "a target that is no macro adds no bit");
+    }
 
     /// A header with no extension starts with a directive, and a script, a Makefile and a document
     /// do not. The texts are the first lines of corpus files.
