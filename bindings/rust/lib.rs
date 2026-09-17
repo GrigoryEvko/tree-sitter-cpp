@@ -172,7 +172,7 @@ mod tests {
     /// destinations of the redirect. The input is a reduction of
     /// llvm-project/compiler-rt/lib/dfsan/scripts/check_custom_wrappers.sh, and `bash -n` accepts it.
     /// One parser reads the bash grammar before and after this grammar, so the limit follows each
-    /// change of the language.
+    /// change of the language. The C++ text needs more than 8 links: with 8 it gets two ERROR nodes.
     #[test]
     fn test_an_upstream_grammar_keeps_the_upstream_link_limit() {
         let bash: Language = tree_sitter_bash::LANGUAGE.into();
@@ -195,7 +195,14 @@ mod tests {
         for language in [&bash, &cpp, &bash] {
             parser.set_language(language).expect("the grammar loads");
             if language.abi_version() > 15 {
-                let tree = parser.parse("int x = f(1);\n", None).expect("the parse ends");
+                let text = concat!(
+                    "static_assert(std::is_same<\n",
+                    "    f<f<f<f<f<f<f<f<x<0>, x<1>>::type, x<2>>::type, x<3>>::type, x<4>>::type, x<5>>::type,",
+                    " x<6>>::type, x<7>>::type, x<8>>::type,\n",
+                    "    y\n",
+                    ">{}, \"\");\n",
+                );
+                let tree = parser.parse(text, None).expect("the parse ends");
                 assert!(!tree.root_node().has_error(), "{}", tree.root_node().to_sexp());
                 continue;
             }
@@ -211,6 +218,29 @@ mod tests {
                 root.to_sexp()
             );
         }
+    }
+
+    /// A language of an upstream ABI keeps the upstream rule of error recovery, one recovery to a
+    /// previous state for one lookahead token. This grammar keeps 3.
+    ///
+    /// With 3 recoveries, tree-sitter-c 0.24.2 reads the first `#define` below as an ERROR node, and with
+    /// 1 it reads two `preproc_def` nodes, as the C preprocessor does. The input is a reduction of
+    /// root/builtins/libAfterImage/asstorage.h.
+    #[test]
+    fn test_an_upstream_grammar_keeps_the_upstream_recovery_rule() {
+        let c: Language = tree_sitter_c::LANGUAGE.into();
+        let header = concat!(
+            "#define SIZE (1024*128)  /* 128 Kb */  \n",
+            "#define LIMIT (1024*8)  /* 8 Kb if the total is below 8K\n",
+            "   *  keep the memory */  \n",
+        );
+        let mut parser = Parser::new();
+        parser.set_language(&c).expect("the grammar loads");
+        let tree = parser.parse(header, None).expect("the parse ends");
+        let root = tree.root_node();
+        let mut cursor = root.walk();
+        let kinds: Vec<&str> = root.named_children(&mut cursor).map(|node| node.kind()).collect();
+        assert_eq!(kinds, ["preproc_def", "preproc_def"], "{}", root.to_sexp());
     }
 
     /// The parse tables of this grammar are in the shape layout of ABI 1016, and the shape of a state

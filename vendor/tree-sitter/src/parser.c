@@ -88,6 +88,10 @@ static const unsigned MAX_SUMMARY_DEPTH = 256;
 // versions, the error costs select the state. On the C++ corpus, 3 gives fewer ERROR bytes than
 // 2, 4, 6, or no limit (tree-sitter-cpp fork).
 static const unsigned MAX_RECOVERY_COUNT = 3;
+// The rule of the upstream runtime: one recovery to a previous state for one lookahead token. A
+// language of an upstream ABI keeps it. Refer to `ts_parser__max_recovery_count` (tree-sitter-cpp
+// fork).
+static const unsigned UPSTREAM_MAX_RECOVERY_COUNT = 1;
 // The maximum number of MISSING `}` tokens that error recovery puts at the end of the input for
 // one version (tree-sitter-cpp fork).
 static const unsigned MAX_MISSING_BRACE_COUNT = 256;
@@ -1438,6 +1442,16 @@ static bool ts_parser__recover_to_state(
   return previous_version != STACK_VERSION_NONE;
 }
 
+// The most previous states that error recovery goes back to for one lookahead token:
+// MAX_RECOVERY_COUNT for a language of a fork ABI, and UPSTREAM_MAX_RECOVERY_COUNT for a language of
+// an upstream ABI. With 3 recoveries, tree-sitter-c 0.24.2 reads a `#define` whose comment continues
+// on the next line as an ERROR node (tree-sitter-cpp fork). Refer to `ts_language_version_is_fork`.
+static unsigned ts_parser__max_recovery_count(const TSParser *self) {
+  return ts_language_version_is_fork(self->language->abi_version)
+    ? MAX_RECOVERY_COUNT
+    : UPSTREAM_MAX_RECOVERY_COUNT;
+}
+
 static void ts_parser__recover(
   TSParser *self,
   StackVersion version,
@@ -1506,14 +1520,14 @@ static void ts_parser__recover(
       if (ts_parser__better_version_exists(self, version, false, new_cost)) break;
 
       // If the current lookahead token is valid in some previous state, recover to that state.
-      // Stop after MAX_RECOVERY_COUNT recoveries.
+      // Stop after `ts_parser__max_recovery_count` recoveries.
       if (ts_language_has_actions(self->language, entry.state, ts_subtree_symbol(lookahead))) {
         if (ts_parser__recover_to_state(self, version, depth, entry.state)) {
           did_recover = true;
           recovery_count++;
           LOG("recover_to_previous state:%u, depth:%u", entry.state, depth);
           LOG_STACK();
-          if (recovery_count == MAX_RECOVERY_COUNT) break;
+          if (recovery_count == ts_parser__max_recovery_count(self)) break;
         }
       }
     }
