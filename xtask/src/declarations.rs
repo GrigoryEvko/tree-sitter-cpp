@@ -2111,6 +2111,21 @@ impl Reader<'_> {
                     to = open - 1;
                     continue;
                 }
+                // An attribute call after a parameter list and its qualifiers:
+                // `typedef void (*sz_ptrty) (int, int) __arm_inout("za");`.
+                if self.is(last, 0x29)
+                    && let Some(open) = self.partner_of(last)
+                    && open > from + 1
+                    && self.is_word(open - 1)
+                    && !is_keyword(self.text(open - 1))
+                    && (self.is(open - 2, 0x29)
+                        || self.word_is(open - 2, b"const")
+                        || self.word_is(open - 2, b"volatile")
+                        || matches!(self.punct(open - 2), Some(0x26 | AND_AND)))
+                {
+                    to = open - 1;
+                    continue;
+                }
                 if self.is(last, 0x5d)
                     && let Some(open) = self.partner_of(last)
                     && self.is(open + 1, 0x5b)
@@ -3648,6 +3663,10 @@ mod tests {
                 ("foo6_t", "type"),
                 ("must_be_a_complete_type", "type")
             ])
+        );
+        assert_eq!(
+            facts("typedef void (*sz_ptrty) (int, int) __arm_inout(\"za\");\ntypedef void (C::*member)() const __arm_preserves(\"za\");"),
+            pairs(&[("member", "type"), ("sz_ptrty", "type")])
         );
         assert_eq!(
             facts(
