@@ -9949,6 +9949,10 @@ static bool starts_operand_only(const TextToken *token) {
 /// measurement found the lowercase names `type`, `va_list`, `locale`, `istream`, and `runtime_error` as
 /// the operand, and each one is a type.
 ///
+/// In the three operators, a plain name that the record of locals holds keeps the expression. A local
+/// is a variable, and a variable is no type: `sizeof(FloatBuffer)` after `char FloatBuffer[32];` in
+/// compiler-rt, and `__alignof__ (aa)` after `A aa;` in gcc g++.dg/cpp0x/gen-attrs-52.C.
+///
 /// In a different place, the token after the `)` also selects the reading:
 /// - `(a, b)` and `&&` keep the call and the logical operator: `(std::min<T>)(a, b)`, `(Value) && x`.
 /// - `(x)`, `*`, `&`, `+`, and `-` keep a cast for the shape `SHAPE_TYPE`, and for `SHAPE_CAPITALS`
@@ -9982,10 +9986,10 @@ static bool scan_parenthesized_name(TSLexer *lexer, const Scanner *scanner, cons
     bool operand = valid_symbols[OPERAND_TYPE_PAREN];
     bool type = false;
     if (alignof_operand) {
-        // Each name is a type. Only a name with a call group is an expression: `__alignof__(f(x))`.
-        type = form != NAME_CALL;
+        // Each name is a type. Only a name with a call group or a local is an expression: `__alignof__(f(x))`.
+        type = form != NAME_CALL && !local;
     } else if (operand) {
-        type = form != NAME_CALL && (form != NAME_PLAIN || shape == SHAPE_TYPE);
+        type = form != NAME_CALL && !local && (form != NAME_PLAIN || shape == SHAPE_TYPE);
         if (type && form == NAME_PLAIN) {
             type = !is_array_size_quotient(&reader, name);
         }

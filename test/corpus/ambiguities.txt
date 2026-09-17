@@ -1390,6 +1390,89 @@ void f() {
               (identifier))))))))
 
 ================================================================================
+Sizeof, alignof and typeid of locals are expressions
+================================================================================
+
+int n;
+
+void g(int Count) {
+  char Buffer[16];
+  n = sizeof(Buffer);
+  n = sizeof(Count);
+  n = __alignof__(Buffer);
+  b = typeid(Count) == typeid(Value);
+  {
+    int Inner;
+  }
+  n = sizeof(Inner);
+  n = sizeof(Value);
+}
+
+--------------------------------------------------------------------------------
+
+(translation_unit
+  (declaration
+    (primitive_type)
+    (identifier))
+  (function_definition
+    (primitive_type)
+    (function_declarator
+      (identifier)
+      (parameter_list
+        (parameter_declaration
+          (primitive_type)
+          (identifier))))
+    (compound_statement
+      (declaration
+        (primitive_type)
+        (array_declarator
+          (identifier)
+          (number_literal)))
+      (expression_statement
+        (assignment_expression
+          (identifier)
+          (sizeof_expression
+            (parenthesized_expression
+              (identifier)))))
+      (expression_statement
+        (assignment_expression
+          (identifier)
+          (sizeof_expression
+            (parenthesized_expression
+              (identifier)))))
+      (expression_statement
+        (assignment_expression
+          (identifier)
+          (alignof_expression
+            (parenthesized_expression
+              (identifier)))))
+      (expression_statement
+        (assignment_expression
+          (identifier)
+          (binary_expression
+            (typeid_expression
+              (identifier))
+            (typeid_expression
+              (type_descriptor
+                (type_identifier))))))
+      (compound_statement
+        (declaration
+          (primitive_type)
+          (identifier)))
+      (expression_statement
+        (assignment_expression
+          (identifier)
+          (sizeof_expression
+            (type_descriptor
+              (type_identifier)))))
+      (expression_statement
+        (assignment_expression
+          (identifier)
+          (sizeof_expression
+            (type_descriptor
+              (type_identifier))))))))
+
+================================================================================
 Template-ids and chains of less and greater comparisons
 ================================================================================
 
