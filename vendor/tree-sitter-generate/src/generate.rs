@@ -756,10 +756,41 @@ pub fn write_file(path: &Path, body: impl AsRef<[u8]>) -> GenerateResult<()> {
 
 #[cfg(test)]
 mod tests {
+    use std::path::{Path, PathBuf};
+
     use super::{LANGUAGE_VERSION, PARSER_HEADER};
+
+    /// The directory of the runtime next to this crate, in either of its two layouts
+    /// (tree-sitter-cpp fork). In tree-sitter-cpp the crate is vendor/tree-sitter-generate and the
+    /// runtime is vendor/tree-sitter. In the tree-sitter repository the crate is crates/generate and
+    /// the runtime is lib. The replay of the fork copies this file into the second layout, so a path
+    /// that `include_str!` fixes at compile time holds in one layout only.
+    fn runtime_directory() -> PathBuf {
+        let manifest = Path::new(env!("CARGO_MANIFEST_DIR"));
+        let candidates = [manifest.join("../tree-sitter"), manifest.join("../../lib")];
+        candidates
+            .iter()
+            .find(|dir| dir.join("include/tree_sitter/api.h").is_file())
+            .cloned()
+            .unwrap_or_else(|| {
+                panic!(
+                    "no runtime next to {}: neither {} nor {} holds include/tree_sitter/api.h",
+                    manifest.display(),
+                    candidates[0].display(),
+                    candidates[1].display()
+                )
+            })
+    }
+
+    /// The text of FILE of the runtime. O(n) in the size of the file.
+    fn runtime_file(file: &str) -> String {
+        let path = runtime_directory().join(file);
+        std::fs::read_to_string(&path).unwrap_or_else(|e| panic!("cannot read {}: {e}", path.display()))
+    }
+
     #[test]
     fn test_language_versions_are_in_sync() {
-        let api_h = include_str!("../../tree-sitter/include/tree_sitter/api.h");
+        let api_h = runtime_file("include/tree_sitter/api.h");
         let api_language_version = api_h
             .lines()
             .find_map(|line| {
@@ -773,10 +804,12 @@ mod tests {
 
     #[test]
     fn test_parser_header_in_sync() {
-        let parser_h = include_str!("../../tree-sitter/src/parser.h");
+        let parser_h = runtime_file("src/parser.h");
         assert!(
             parser_h == PARSER_HEADER,
-            "parser.h.inc is out of sync with vendor/tree-sitter/src/parser.h. Run: cp vendor/tree-sitter/src/parser.h vendor/tree-sitter-generate/src/parser.h.inc"
+            "src/parser.h.inc is out of sync with src/parser.h of the runtime in {}. Copy that file over \
+             src/parser.h.inc of this crate.",
+            runtime_directory().display()
         );
     }
 }
