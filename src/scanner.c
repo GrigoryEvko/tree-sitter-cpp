@@ -8633,11 +8633,18 @@ static void append_local(LocalRecord *record, uint32_t name, uint8_t frame, unsi
 /// A `<` after a name that a `>` closes before `end` opens a template argument list, and its commas
 /// divide no declarators: `auto d = f<Real, p, order>(j);` declares `d` alone. A comparison that a `>`
 /// closes by chance, `int a = b < c, e = d > 1;`, then hides the declarator `e`, and that is a miss
-/// and never a wrong entry. O(n) in the tokens.
+/// and never a wrong entry.
+///
+/// A `,` between a `?` and its `:` is an operator in the second operand of a conditional expression,
+/// and it divides no declarators: `U const n = +i < 0 ? *b++ = '-', U(0) - U(i) : U(i);` declares `n`
+/// alone. The `,` after the third operand divides them: `int a = c ? 1 : 2, b;` declares `b` too. O(n)
+/// in the tokens.
 static unsigned local_next_declarator(const LocalItem *item, unsigned start, unsigned end) {
     if (local_range_out(item, end)) {
         return LOCAL_NO_TOKEN;
     }
+    // The count of the `?` whose `:` did not come.
+    unsigned conditionals = 0;
     for (unsigned i = start; i < end; i++) {
         const LocalToken *token = &item->tokens[i];
         if (local_mark_is(token, "<") && i > start &&
@@ -8655,7 +8662,11 @@ static unsigned local_next_declarator(const LocalItem *item, unsigned start, uns
             }
         } else if (token->kind == TOKEN_CLOSE) {
             return LOCAL_NO_TOKEN;
-        } else if (token->kind == TOKEN_COMMA) {
+        } else if (local_mark_is(token, "?")) {
+            conditionals++;
+        } else if (local_mark_is(token, ":") && conditionals > 0) {
+            conditionals--;
+        } else if (token->kind == TOKEN_COMMA && conditionals == 0) {
             return i + 1;
         }
     }
