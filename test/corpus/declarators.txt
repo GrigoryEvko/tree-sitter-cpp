@@ -2975,6 +2975,222 @@ void S::f(int fout, int i, unsigned long length, double pir, float t2) {
                 (identifier)))))))))
 
 ================================================================================
+Variables in a block with an initializer of subscripts of names
+================================================================================
+
+Foo f1(B[3]);
+template <class T> Foo f2(T[3]);
+X<Foo(B[3])> x1;
+
+void g(int argc, char **argv) {
+  std::ifstream in(argv[1]);
+  Triangle tri(pts[0], pts[1], pts[2]);
+  std::lock_guard<std::mutex> lock(ref_mutex[i]);
+  array a(boost::extents[3][4]);
+  Foo v(x, m[i][j + 1]);
+  auto w(b[0]);
+  Foo f3(B[]);
+  void f4(B[3]);
+  extern Foo f5(B[3]);
+  Foo f6(B[3], int);
+  Foo p(new ::T[n]);
+  Foo q(sizeof ::s);
+}
+
+--------------------------------------------------------------------------------
+
+(translation_unit
+  (declaration
+    type: (type_identifier)
+    declarator: (function_declarator
+      declarator: (identifier)
+      parameters: (parameter_list
+        (parameter_declaration
+          type: (type_identifier)
+          declarator: (abstract_array_declarator
+            size: (number_literal))))))
+  (template_declaration
+    parameters: (template_parameter_list
+      (type_parameter_declaration
+        (type_identifier)))
+    (declaration
+      type: (type_identifier)
+      declarator: (function_declarator
+        declarator: (identifier)
+        parameters: (parameter_list
+          (parameter_declaration
+            type: (type_identifier)
+            declarator: (abstract_array_declarator
+              size: (number_literal)))))))
+  (declaration
+    type: (template_type
+      name: (type_identifier)
+      arguments: (template_argument_list
+        (type_descriptor
+          type: (type_identifier)
+          declarator: (abstract_function_declarator
+            parameters: (parameter_list
+              (parameter_declaration
+                type: (type_identifier)
+                declarator: (abstract_array_declarator
+                  size: (number_literal))))))))
+    declarator: (identifier))
+  (function_definition
+    type: (primitive_type)
+    declarator: (function_declarator
+      declarator: (identifier)
+      parameters: (parameter_list
+        (parameter_declaration
+          type: (primitive_type)
+          declarator: (identifier))
+        (parameter_declaration
+          type: (primitive_type)
+          declarator: (pointer_declarator
+            declarator: (pointer_declarator
+              declarator: (identifier))))))
+    body: (compound_statement
+      (declaration
+        type: (qualified_identifier
+          scope: (namespace_identifier)
+          name: (type_identifier))
+        declarator: (init_declarator
+          declarator: (identifier)
+          value: (argument_list
+            (subscript_expression
+              argument: (identifier)
+              indices: (subscript_argument_list
+                (number_literal))))))
+      (declaration
+        type: (type_identifier)
+        declarator: (init_declarator
+          declarator: (identifier)
+          value: (argument_list
+            (subscript_expression
+              argument: (identifier)
+              indices: (subscript_argument_list
+                (number_literal)))
+            (subscript_expression
+              argument: (identifier)
+              indices: (subscript_argument_list
+                (number_literal)))
+            (subscript_expression
+              argument: (identifier)
+              indices: (subscript_argument_list
+                (number_literal))))))
+      (declaration
+        type: (qualified_identifier
+          scope: (namespace_identifier)
+          name: (template_type
+            name: (type_identifier)
+            arguments: (template_argument_list
+              (type_descriptor
+                type: (qualified_identifier
+                  scope: (namespace_identifier)
+                  name: (type_identifier))))))
+        declarator: (init_declarator
+          declarator: (identifier)
+          value: (argument_list
+            (subscript_expression
+              argument: (identifier)
+              indices: (subscript_argument_list
+                (identifier))))))
+      (declaration
+        type: (type_identifier)
+        declarator: (init_declarator
+          declarator: (identifier)
+          value: (argument_list
+            (subscript_expression
+              argument: (subscript_expression
+                argument: (qualified_identifier
+                  scope: (namespace_identifier)
+                  name: (identifier))
+                indices: (subscript_argument_list
+                  (number_literal)))
+              indices: (subscript_argument_list
+                (number_literal))))))
+      (declaration
+        type: (type_identifier)
+        declarator: (init_declarator
+          declarator: (identifier)
+          value: (argument_list
+            (identifier)
+            (subscript_expression
+              argument: (subscript_expression
+                argument: (identifier)
+                indices: (subscript_argument_list
+                  (identifier)))
+              indices: (subscript_argument_list
+                (binary_expression
+                  left: (identifier)
+                  right: (number_literal)))))))
+      (declaration
+        type: (placeholder_type_specifier
+          (auto))
+        declarator: (init_declarator
+          declarator: (identifier)
+          value: (argument_list
+            (subscript_expression
+              argument: (identifier)
+              indices: (subscript_argument_list
+                (number_literal))))))
+      (declaration
+        type: (type_identifier)
+        declarator: (function_declarator
+          declarator: (identifier)
+          parameters: (parameter_list
+            (parameter_declaration
+              type: (type_identifier)
+              declarator: (abstract_array_declarator)))))
+      (declaration
+        type: (primitive_type)
+        declarator: (function_declarator
+          declarator: (identifier)
+          parameters: (parameter_list
+            (parameter_declaration
+              type: (type_identifier)
+              declarator: (abstract_array_declarator
+                size: (number_literal))))))
+      (declaration
+        (storage_class_specifier)
+        type: (type_identifier)
+        declarator: (function_declarator
+          declarator: (identifier)
+          parameters: (parameter_list
+            (parameter_declaration
+              type: (type_identifier)
+              declarator: (abstract_array_declarator
+                size: (number_literal))))))
+      (declaration
+        type: (type_identifier)
+        declarator: (function_declarator
+          declarator: (identifier)
+          parameters: (parameter_list
+            (parameter_declaration
+              type: (type_identifier)
+              declarator: (abstract_array_declarator
+                size: (number_literal)))
+            (parameter_declaration
+              type: (primitive_type)))))
+      (declaration
+        type: (type_identifier)
+        declarator: (init_declarator
+          declarator: (identifier)
+          value: (argument_list
+            (new_expression
+              type: (qualified_identifier
+                name: (type_identifier))
+              declarator: (new_declarator
+                length: (identifier))))))
+      (declaration
+        type: (type_identifier)
+        declarator: (init_declarator
+          declarator: (identifier)
+          value: (argument_list
+            (sizeof_expression
+              value: (qualified_identifier
+                name: (identifier)))))))))
+
+================================================================================
 Declarations of the type void in a block against variables
 ================================================================================
 

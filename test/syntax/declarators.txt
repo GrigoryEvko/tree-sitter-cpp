@@ -190,3 +190,12 @@ C::operator struct S() { return S(); }
 void g(C c) { (void) c.operator struct S(); }
 ### conversion_class_key_using
 struct D : C { using C::operator struct S; };
+### block_variables_with_subscript_initializers
+void f(int argc, char **argv) {
+  std::ifstream readFile(argv[1]);
+  Triangle tri(pts[0], pts[1], pts[2]);
+  std::lock_guard<std::mutex> lock(ref_mutex[i]);
+  boost::multi_array<int, 3> A(boost::extents[3][4][2]);
+  BasicDecimal128 multiplier(kDecimal128PowersOfTen[scale]);
+  std::unique_ptr<std::uint8_t[]> presult(new ::uint8_t[len + 1]);
+}

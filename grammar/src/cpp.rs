@@ -5561,10 +5561,14 @@ fn parameter_keyword_types() -> Rule {
 /// place, this rule makes the type keywords, `this`, and the literal keywords valid. The lexer then
 /// reads the keyword as a keyword, and the reading stops at the token after it. The keyword has the
 /// node name of a name, and the node types of the rule do not change.
+///
+/// The keywords that start an expression before a global scope are also in the set. Without them, a
+/// rule of names reads `new ::T[n]` as the subscript of the qualified name `new::T`, and
+/// `sizeof ::x` as the qualified name `sizeof::x`.
 fn keyword_stop() -> Rule {
     let words = [
         "long", "short", "signed", "unsigned", "auto", "true", "TRUE", "false", "FALSE", "nullptr",
-        "NULL",
+        "NULL", "new", "delete", "sizeof", "throw", "co_await", "co_yield",
     ]
     .map(|word| alias(word, s!(identifier)))
     .into_iter()
@@ -5952,19 +5956,25 @@ const REFERENCE_WITHOUT_INITIALIZER: i32 = -100;
 const REFERENCE_FUNCTION_IN_BLOCK: i32 = -100;
 
 /// The dynamic precedence of a variable in a block with an initializer in parentheses that holds only
-/// names: `T x(y);`, `T x(a, ns::b);`, `std::tuple<Ts...> t(ts...);`.
+/// names and subscripts of names: `T x(y);`, `T x(a, ns::b);`, `std::tuple<Ts...> t(ts...);`,
+/// `T x(a[i]);`, `T x(a, b[0][1]);`.
 ///
 /// [dcl.ambig.res] makes `T x(y);` a function declaration when `y` names a type, and only name lookup
 /// tells the two readings apart (GCC `cp_parser_direct_declarator`, Clang `isCXXFunctionDeclarator`).
-/// In a block, a function declaration with parameters of such types and no parameter names is rare.
-/// GCC gives the warning `-Wvexing-parse` for it. In 329,387 corpus files, blocks with no parse error
-/// had 203,833 such statements. After 145,561 of them, the block used the name as a variable, and after
-/// 4,992 as a call, as `rng(x)` for a random generator. The block did not use the name after 48,748 of
-/// them, as for a lock guard.
+/// `T x(a[i]);` is the same question: it declares a function with a parameter of the array type `a[i]`
+/// when `a` names a type. In a block, a function declaration with parameters of such types and no
+/// parameter names is rare. GCC gives the warning `-Wvexing-parse` for it. In 329,387 corpus files,
+/// blocks with no parse error had 203,833 such statements with names. After 145,561 of them, the block
+/// used the name as a variable, and after 4,992 as a call, as `rng(x)` for a random generator. The
+/// block did not use the name after 48,748 of them, as for a lock guard.
 ///
 /// The precedence is more than the precedence of the function declarator. A function declaration with
-/// a parameter that is not a name keeps its reading: `T f(int);`, `T f(U u);`, `T f(U *);`, and
-/// `T x();`, which [dcl.ambig.res] makes a function.
+/// a parameter that is not a name or a subscript keeps its reading: `T f(int);`, `T f(U u);`,
+/// `T f(U *);`, `T f(U[]);`, and `T x();`, which [dcl.ambig.res] makes a function. The rule reads no
+/// record of a class and no seed, so `T f(U);` and `T f(U[3]);` read as variables also where a class
+/// head of the file declares `U`. `void f(U[3]);` keeps its function with `VOID_FUNCTION`, and
+/// `extern T f(U[3]);` with `EXTERN_FUNCTION_IN_BLOCK`. Outside a block, `T f(U[3]);` keeps its
+/// function, because a declaration outside a block takes no such reading.
 const NAME_INITIALIZER_IN_BLOCK: i32 = 3;
 
 /// The declaration in a block: a declaration with the pointer declarators of a block.
@@ -6060,6 +6070,7 @@ fn block_declaration(g: &mut Grammar) {
     );
     // After `(` or `,`, a keyword is also valid, and the lexer reads it as a keyword and not as a name.
     // That reading of `T f(int);` stops at the keyword. Refer to `keyword_stop`.
+    let subscript = || alias(s!(_block_name_subscript), s!(subscript_expression));
     let name = || {
         choice_of(
             NAME_EXPRESSIONS
@@ -6067,6 +6078,7 @@ fn block_declaration(g: &mut Grammar) {
                 .into_iter()
                 .chain([
                     alias(s!(identifier_parameter_pack_expansion), s!(parameter_pack_expansion)),
+                    subscript(),
                     keyword_stop(),
                 ]),
         )
@@ -6099,10 +6111,32 @@ fn block_declaration(g: &mut Grammar) {
             seq![choice![name(), cast()], ",", s!(_block_argument_list_tail)],
         ],
     );
-    // The cast has the precedence of a call, as the same cast in an argument list has.
+    // A subscript of a name is a name of this reading: `a[i]`, `ns::a[i]`, `a[i][j]`. The text is also
+    // a parameter of the array type `a[i]`. The copy has the tree of `subscript_expression`. Its
+    // argument is a name or such a subscript, and its brackets hold one index or more, so the
+    // parameter `U[]` keeps its function. A member access has no parameter reading: `s.a[i]`.
     define_after(
         g,
         "_block_argument_list_tail",
+        "_block_name_subscript",
+        prec(
+            SUBSCRIPT,
+            seq![
+                field("argument", choice_of(NAME_EXPRESSIONS.map(sym).into_iter().chain([subscript()]))),
+                field("indices", alias(s!(_block_subscript_indices), s!(subscript_argument_list))),
+            ],
+        ),
+    );
+    define_after(
+        g,
+        "_block_name_subscript",
+        "_block_subscript_indices",
+        seq!["[", comma_sep1(choice![s!(expression), s!(initializer_list)]), close_bracket()],
+    );
+    // The cast has the precedence of a call, as the same cast in an argument list has.
+    define_after(
+        g,
+        "_block_subscript_indices",
         "_block_keyword_cast",
         prec_dynamic(
             CALL_DYNAMIC,

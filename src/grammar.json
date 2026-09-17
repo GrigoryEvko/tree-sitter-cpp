@@ -5831,6 +5831,15 @@
               "value": "parameter_pack_expansion"
             },
             {
+              "type": "ALIAS",
+              "content": {
+                "type": "SYMBOL",
+                "name": "_block_name_subscript"
+              },
+              "named": true,
+              "value": "subscript_expression"
+            },
+            {
               "type": "SEQ",
               "members": [
                 {
@@ -5938,6 +5947,60 @@
                     {
                       "type": "ALIAS",
                       "content": {
+                        "type": "STRING",
+                        "value": "new"
+                      },
+                      "named": true,
+                      "value": "identifier"
+                    },
+                    {
+                      "type": "ALIAS",
+                      "content": {
+                        "type": "STRING",
+                        "value": "delete"
+                      },
+                      "named": true,
+                      "value": "identifier"
+                    },
+                    {
+                      "type": "ALIAS",
+                      "content": {
+                        "type": "STRING",
+                        "value": "sizeof"
+                      },
+                      "named": true,
+                      "value": "identifier"
+                    },
+                    {
+                      "type": "ALIAS",
+                      "content": {
+                        "type": "STRING",
+                        "value": "throw"
+                      },
+                      "named": true,
+                      "value": "identifier"
+                    },
+                    {
+                      "type": "ALIAS",
+                      "content": {
+                        "type": "STRING",
+                        "value": "co_await"
+                      },
+                      "named": true,
+                      "value": "identifier"
+                    },
+                    {
+                      "type": "ALIAS",
+                      "content": {
+                        "type": "STRING",
+                        "value": "co_yield"
+                      },
+                      "named": true,
+                      "value": "identifier"
+                    },
+                    {
+                      "type": "ALIAS",
+                      "content": {
                         "type": "CHOICE",
                         "members": [
                           {
@@ -6006,6 +6069,15 @@
                   },
                   "named": true,
                   "value": "parameter_pack_expansion"
+                },
+                {
+                  "type": "ALIAS",
+                  "content": {
+                    "type": "SYMBOL",
+                    "name": "_block_name_subscript"
+                  },
+                  "named": true,
+                  "value": "subscript_expression"
                 },
                 {
                   "type": "SEQ",
@@ -6108,6 +6180,60 @@
                           "content": {
                             "type": "STRING",
                             "value": "NULL"
+                          },
+                          "named": true,
+                          "value": "identifier"
+                        },
+                        {
+                          "type": "ALIAS",
+                          "content": {
+                            "type": "STRING",
+                            "value": "new"
+                          },
+                          "named": true,
+                          "value": "identifier"
+                        },
+                        {
+                          "type": "ALIAS",
+                          "content": {
+                            "type": "STRING",
+                            "value": "delete"
+                          },
+                          "named": true,
+                          "value": "identifier"
+                        },
+                        {
+                          "type": "ALIAS",
+                          "content": {
+                            "type": "STRING",
+                            "value": "sizeof"
+                          },
+                          "named": true,
+                          "value": "identifier"
+                        },
+                        {
+                          "type": "ALIAS",
+                          "content": {
+                            "type": "STRING",
+                            "value": "throw"
+                          },
+                          "named": true,
+                          "value": "identifier"
+                        },
+                        {
+                          "type": "ALIAS",
+                          "content": {
+                            "type": "STRING",
+                            "value": "co_await"
+                          },
+                          "named": true,
+                          "value": "identifier"
+                        },
+                        {
+                          "type": "ALIAS",
+                          "content": {
+                            "type": "STRING",
+                            "value": "co_yield"
                           },
                           "named": true,
                           "value": "identifier"
@@ -6219,6 +6345,15 @@
               "value": "parameter_pack_expansion"
             },
             {
+              "type": "ALIAS",
+              "content": {
+                "type": "SYMBOL",
+                "name": "_block_name_subscript"
+              },
+              "named": true,
+              "value": "subscript_expression"
+            },
+            {
               "type": "SEQ",
               "members": [
                 {
@@ -6326,6 +6461,60 @@
                     {
                       "type": "ALIAS",
                       "content": {
+                        "type": "STRING",
+                        "value": "new"
+                      },
+                      "named": true,
+                      "value": "identifier"
+                    },
+                    {
+                      "type": "ALIAS",
+                      "content": {
+                        "type": "STRING",
+                        "value": "delete"
+                      },
+                      "named": true,
+                      "value": "identifier"
+                    },
+                    {
+                      "type": "ALIAS",
+                      "content": {
+                        "type": "STRING",
+                        "value": "sizeof"
+                      },
+                      "named": true,
+                      "value": "identifier"
+                    },
+                    {
+                      "type": "ALIAS",
+                      "content": {
+                        "type": "STRING",
+                        "value": "throw"
+                      },
+                      "named": true,
+                      "value": "identifier"
+                    },
+                    {
+                      "type": "ALIAS",
+                      "content": {
+                        "type": "STRING",
+                        "value": "co_await"
+                      },
+                      "named": true,
+                      "value": "identifier"
+                    },
+                    {
+                      "type": "ALIAS",
+                      "content": {
+                        "type": "STRING",
+                        "value": "co_yield"
+                      },
+                      "named": true,
+                      "value": "identifier"
+                    },
+                    {
+                      "type": "ALIAS",
+                      "content": {
                         "type": "CHOICE",
                         "members": [
                           {
@@ -6406,6 +6595,15 @@
                       },
                       "named": true,
                       "value": "parameter_pack_expansion"
+                    },
+                    {
+                      "type": "ALIAS",
+                      "content": {
+                        "type": "SYMBOL",
+                        "name": "_block_name_subscript"
+                      },
+                      "named": true,
+                      "value": "subscript_expression"
                     },
                     {
                       "type": "SEQ",
@@ -6515,6 +6713,60 @@
                             {
                               "type": "ALIAS",
                               "content": {
+                                "type": "STRING",
+                                "value": "new"
+                              },
+                              "named": true,
+                              "value": "identifier"
+                            },
+                            {
+                              "type": "ALIAS",
+                              "content": {
+                                "type": "STRING",
+                                "value": "delete"
+                              },
+                              "named": true,
+                              "value": "identifier"
+                            },
+                            {
+                              "type": "ALIAS",
+                              "content": {
+                                "type": "STRING",
+                                "value": "sizeof"
+                              },
+                              "named": true,
+                              "value": "identifier"
+                            },
+                            {
+                              "type": "ALIAS",
+                              "content": {
+                                "type": "STRING",
+                                "value": "throw"
+                              },
+                              "named": true,
+                              "value": "identifier"
+                            },
+                            {
+                              "type": "ALIAS",
+                              "content": {
+                                "type": "STRING",
+                                "value": "co_await"
+                              },
+                              "named": true,
+                              "value": "identifier"
+                            },
+                            {
+                              "type": "ALIAS",
+                              "content": {
+                                "type": "STRING",
+                                "value": "co_yield"
+                              },
+                              "named": true,
+                              "value": "identifier"
+                            },
+                            {
+                              "type": "ALIAS",
+                              "content": {
                                 "type": "CHOICE",
                                 "members": [
                                   {
@@ -6569,6 +6821,139 @@
               "name": "_block_argument_list_tail"
             }
           ]
+        }
+      ]
+    },
+    "_block_name_subscript": {
+      "type": "PREC",
+      "value": 18,
+      "content": {
+        "type": "SEQ",
+        "members": [
+          {
+            "type": "FIELD",
+            "name": "argument",
+            "content": {
+              "type": "CHOICE",
+              "members": [
+                {
+                  "type": "SYMBOL",
+                  "name": "identifier"
+                },
+                {
+                  "type": "SYMBOL",
+                  "name": "qualified_identifier"
+                },
+                {
+                  "type": "SYMBOL",
+                  "name": "template_function"
+                },
+                {
+                  "type": "SYMBOL",
+                  "name": "splice_expression"
+                },
+                {
+                  "type": "SYMBOL",
+                  "name": "pack_index_expression"
+                },
+                {
+                  "type": "ALIAS",
+                  "content": {
+                    "type": "SYMBOL",
+                    "name": "_block_name_subscript"
+                  },
+                  "named": true,
+                  "value": "subscript_expression"
+                }
+              ]
+            }
+          },
+          {
+            "type": "FIELD",
+            "name": "indices",
+            "content": {
+              "type": "ALIAS",
+              "content": {
+                "type": "SYMBOL",
+                "name": "_block_subscript_indices"
+              },
+              "named": true,
+              "value": "subscript_argument_list"
+            }
+          }
+        ]
+      }
+    },
+    "_block_subscript_indices": {
+      "type": "SEQ",
+      "members": [
+        {
+          "type": "STRING",
+          "value": "["
+        },
+        {
+          "type": "SEQ",
+          "members": [
+            {
+              "type": "CHOICE",
+              "members": [
+                {
+                  "type": "SYMBOL",
+                  "name": "expression"
+                },
+                {
+                  "type": "SYMBOL",
+                  "name": "initializer_list"
+                }
+              ]
+            },
+            {
+              "type": "REPEAT",
+              "content": {
+                "type": "SEQ",
+                "members": [
+                  {
+                    "type": "STRING",
+                    "value": ","
+                  },
+                  {
+                    "type": "CHOICE",
+                    "members": [
+                      {
+                        "type": "SYMBOL",
+                        "name": "expression"
+                      },
+                      {
+                        "type": "SYMBOL",
+                        "name": "initializer_list"
+                      }
+                    ]
+                  }
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "type": "ALIAS",
+          "content": {
+            "type": "TOKEN",
+            "content": {
+              "type": "CHOICE",
+              "members": [
+                {
+                  "type": "STRING",
+                  "value": "]"
+                },
+                {
+                  "type": "STRING",
+                  "value": ":>"
+                }
+              ]
+            }
+          },
+          "named": false,
+          "value": "]"
         }
       ]
     },
@@ -36571,6 +36956,60 @@
                       "content": {
                         "type": "STRING",
                         "value": "NULL"
+                      },
+                      "named": true,
+                      "value": "identifier"
+                    },
+                    {
+                      "type": "ALIAS",
+                      "content": {
+                        "type": "STRING",
+                        "value": "new"
+                      },
+                      "named": true,
+                      "value": "identifier"
+                    },
+                    {
+                      "type": "ALIAS",
+                      "content": {
+                        "type": "STRING",
+                        "value": "delete"
+                      },
+                      "named": true,
+                      "value": "identifier"
+                    },
+                    {
+                      "type": "ALIAS",
+                      "content": {
+                        "type": "STRING",
+                        "value": "sizeof"
+                      },
+                      "named": true,
+                      "value": "identifier"
+                    },
+                    {
+                      "type": "ALIAS",
+                      "content": {
+                        "type": "STRING",
+                        "value": "throw"
+                      },
+                      "named": true,
+                      "value": "identifier"
+                    },
+                    {
+                      "type": "ALIAS",
+                      "content": {
+                        "type": "STRING",
+                        "value": "co_await"
+                      },
+                      "named": true,
+                      "value": "identifier"
+                    },
+                    {
+                      "type": "ALIAS",
+                      "content": {
+                        "type": "STRING",
+                        "value": "co_yield"
                       },
                       "named": true,
                       "value": "identifier"
