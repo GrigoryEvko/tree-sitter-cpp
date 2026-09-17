@@ -228,6 +228,11 @@ pub fn grammar() -> Grammar {
         // An empty token before a macro name with an argument list and a `;` where an item of a
         // translation unit or of a namespace body starts. Refer to `_macro_item`.
         s!(_macro_item_start),
+        // The name of a macro after the name of a declarator, with a group after the macro. The seed
+        // gives the macro an object row and no function row, so the macro takes no arguments, and the
+        // declarator reads the group as it reads the group with no macro. Refer to
+        // `_declarator_object_macro`.
+        s!(_declarator_object_macro_name),
     ];
     // The conflict sets of the grammar. Each set names the rules of one ambiguity, and it tells the
     // generator to keep each reading in a GLR split.
@@ -2651,6 +2656,10 @@ fn types(g: &mut Grammar) {
                             alias(s!(_macro_attributed_declarator), s!(attributed_declarator)),
                             s!(init_declarator),
                             alias(s!(_pointer_init_declarator), s!(init_declarator)),
+                            // A name, an object-like macro of the seed, and a group. Refer to
+                            // `_declarator_object_macro`.
+                            alias(s!(_object_macro_init_declarator), s!(init_declarator)),
+                            alias(s!(_object_macro_function_declarator), s!(function_declarator)),
                         ]
                     ),
                 ]),
@@ -3491,7 +3500,10 @@ fn declarations(g: &mut Grammar) {
     // as in GCC `cp_parser_init_declarator`: `int f() = 0;` has an initializer, and only the
     // compiler rejects it. A function declarator takes no braced or parenthesized initializer.
     // After the attribute macros of a declarator, a `(` belongs to the arguments of the last macro, and
-    // the initializer is `= value` or a braced list: `std::atomic<int> x GUARDED_BY(mu){0};`. A data
+    // the initializer is `= value` or a braced list: `std::atomic<int> x GUARDED_BY(mu){0};`. That holds
+    // for a function-like macro and for a macro of no known kind. AN OBJECT-LIKE MACRO TAKES NO
+    // ARGUMENTS ([cpp.replace] p10), and when the seed gives the macro an object row only, the group is
+    // the initializer or the parameter list of the declarator. Refer to `_declarator_object_macro`. A data
     // member takes the same forms. The rule of a macro in the place of `constexpr` reads
     // `else if MACRO (c) { return x; }` with no error (398f1e2), and the error recovery of that form
     // no longer reads the block as a braced list.
@@ -4423,6 +4435,53 @@ fn declarations(g: &mut Grammar) {
             seq![
                 s!(_declarator),
                 repeat1(choice![s!(attribute_declaration), prec(-1, s!(attribute_specifier))])
+            ],
+        ),
+    );
+    // A macro after the name of a declarator, with a group after the macro, where the seed gives the
+    // macro an object row and no function row: `Mutex l1 MOZ_UNANNOTATED("autolock");` in a block of
+    // firefox.
+    //
+    // AN OBJECT-LIKE MACRO TAKES NO ARGUMENTS ([cpp.replace] p10), so the group after it is no part
+    // of the macro. The macro expands to nothing or to an attribute, and the declaration reads as
+    // it reads with the macro text deleted: `Mutex l1("autolock");` is a variable with an
+    // initializer, and `Monitor monitor(__func__);` outside a block is a function. The macro takes the
+    // place of an attribute of the name, and the group is the argument list of an init declarator or
+    // the parameter list of a function declarator. The external scanner gives the token only for a
+    // macro with an object row and no function row in the seed, before a group of expressions and a
+    // `;` or a `,`. Refer to `scan_trailing_macro_name` in src/scanner.c.
+    //
+    // THE RULES START WITH THE NAME, as `_macro_attributed_declarator` does, so the token is valid only
+    // where DECLARATOR_MACRO_NAME is also valid. The scanner reads a macro after a declarator only where
+    // DECLARATOR_MACRO_NAME or TRAILING_MACRO_NAME is valid (`scan_token`), because that scan reads the
+    // name before it can decline, and a decline stops the scans after it. After the qualified type of
+    // `Air::Opcode NODELETE f();` in WebKit, the scan of the type macro must run. A rule with a declarator
+    // symbol before the macro makes the token valid after the reduction of the name to that symbol, and
+    // the scanner gives no token there.
+    g.define(
+        "_declarator_object_macro",
+        field("name", alias(s!(_declarator_object_macro_name), s!(identifier))),
+    );
+    g.define(
+        "_object_macro_declarator",
+        seq![s!(identifier), alias(s!(_declarator_object_macro), s!(attribute_macro))],
+    );
+    g.define(
+        "_object_macro_init_declarator",
+        seq![
+            field("declarator", alias(s!(_object_macro_declarator), s!(attributed_declarator))),
+            field("value", s!(argument_list)),
+        ],
+    );
+    // The function declarator has the suffix and the dynamic precedence of `function_declarator`, so
+    // that a fork selects it as the fork selects the function declarator of the name with no macro.
+    g.define(
+        "_object_macro_function_declarator",
+        prec_dynamic(
+            1,
+            seq![
+                field("declarator", alias(s!(_object_macro_declarator), s!(attributed_declarator))),
+                s!(_function_declarator_seq),
             ],
         ),
     );
@@ -6067,9 +6126,30 @@ fn block_declaration(g: &mut Grammar) {
         "_block_declaration",
         "_block_name_init_declarator",
         seq![
-            field("declarator", s!(identifier)),
+            field(
+                "declarator",
+                choice![
+                    s!(identifier),
+                    alias(s!(_block_name_attributed_declarator), s!(attributed_declarator)),
+                ]
+            ),
             field("value", alias(s!(_block_name_arguments), s!(argument_list))),
         ],
+    );
+    // An object-like macro of the seed after the name keeps this reading, because the declaration reads
+    // as it reads with no macro: `Monitor monitor MOZ_UNANNOTATED(__func__);` is a variable. Refer to
+    // `_declarator_object_macro`. The rule is a copy of `_object_macro_declarator`, so that the two
+    // readings divide after the macro, as they divide after a name with no macro. A conflict keeps the
+    // two.
+    g.conflicts.push(vec![
+        "_object_macro_declarator".to_owned(),
+        "_block_name_attributed_declarator".to_owned(),
+    ]);
+    define_after(
+        g,
+        "_block_name_init_declarator",
+        "_block_name_attributed_declarator",
+        g.rules["_object_macro_declarator"].clone(),
     );
     // After `(` or `,`, a keyword is also valid, and the lexer reads it as a keyword and not as a name.
     // That reading of `T f(int);` stops at the keyword. Refer to `keyword_stop`.

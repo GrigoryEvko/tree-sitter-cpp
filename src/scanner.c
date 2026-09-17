@@ -199,6 +199,12 @@ enum TokenType {
     /// An empty token before a macro name with an argument list and a `;` where an item of a translation
     /// unit or of a namespace body starts: `DECLARE_HANDLE(foo);`.
     MACRO_ITEM_START,
+    /// The name of a macro after a declarator, where the seed gives the macro an object row and no
+    /// function row, and a group of expressions follows the name: `Mutex l1
+    /// MOZ_UNANNOTATED("autolock");`. An object-like macro takes no arguments ([cpp.replace] p10), so
+    /// the grammar reads the macro in the place of an attribute and gives the group to the declarator.
+    /// Refer to `_declarator_object_macro` in grammar/src/cpp.rs.
+    DECLARATOR_OBJECT_MACRO_NAME,
     /// The count of the external tokens, and not a token. `tree_sitter_cpp_external_scanner_create`
     /// compares it with the count of the parser.
     TOKEN_TYPE_COUNT,
@@ -4366,11 +4372,18 @@ static bool skip_parentheses(Reader *reader) {
     return skip_group(reader, &arguments);
 }
 
-/// Read the name of a macro: two or more characters, an uppercase letter, and no lowercase letter,
-/// as clang-format reads the name of a macro. No C++ keyword has this shape.
-static bool read_macro_name(TSLexer *lexer) {
+/// Read the name of a macro, as `read_macro_name` does, and copy it into `text` of `size` bytes with a
+/// NUL at its end. `*cut` is true when the name has more characters than `text` holds. With a NULL
+/// `text`, the scan copies nothing. O(n) in the length of the name.
+static bool read_macro_name_into(TSLexer *lexer, char *text, unsigned size, bool *cut) {
     unsigned length = 0;
     bool has_uppercase = false;
+    if (cut != NULL) {
+        *cut = false;
+    }
+    if (text != NULL && size > 0) {
+        text[0] = '\0';
+    }
     for (;; ++length) {
         LOOP_STEP();
         int32_t c = lexer->lookahead;
@@ -4384,9 +4397,23 @@ static bool read_macro_name(TSLexer *lexer) {
         } else {
             break;
         }
+        if (text != NULL && size > 0) {
+            if (length + 1 < size) {
+                text[length] = (char)c;
+                text[length + 1] = '\0';
+            } else if (cut != NULL) {
+                *cut = true;
+            }
+        }
         advance(lexer);
     }
     return length >= 2 && has_uppercase;
+}
+
+/// Read the name of a macro: two or more characters, an uppercase letter, and no lowercase letter,
+/// as clang-format reads the name of a macro. No C++ keyword has this shape.
+static bool read_macro_name(TSLexer *lexer) {
+    return read_macro_name_into(lexer, NULL, 0, NULL);
 }
 
 /// Read an identifier. Return the number of its characters, or 0 if no identifier starts here.
@@ -4909,11 +4936,29 @@ static bool scan_call_name_macro(Reader *reader) {
 /// and `double f PREVENT (double x);`, the parentheses hold the parameters of the function.
 ///
 /// Comments and directive lines can come between the tokens (`skip_gap`). `scanner` holds the open groups.
+///
+/// WITH `object_valid`, AN OBJECT-LIKE MACRO OF THE SEED BEFORE A GROUP OF EXPRESSIONS AND A `;` OR A
+/// `,` GIVES DECLARATOR_OBJECT_MACRO_NAME. An object-like macro takes no arguments ([cpp.replace] p10), so
+/// the group is the initializer or the parameter list of the declarator, and the grammar reads it as it
+/// reads the group with no macro: `Mutex l1 MOZ_UNANNOTATED("autolock");` is `Mutex l1("autolock");`.
+/// The seed decides the kind, because the text cannot: `ABSL_GUARDED_BY(mu)` of abseil is
+/// function-like, and envoy uses it with no row of its own. A macro with a function row, with the two
+/// rows, or with no row keeps the arguments. The collector gives an alias the rows of its target, so
+/// `P_` of bde, which expands to the function-like `BSLIM_TESTUTIL_P_`, has a function row. A name with
+/// more bytes than a word of the seed takes no row. A group that is empty or holds no expressions keeps its
+/// reading of a parameter list: `Rep max BOOST_PREVENT_MACRO_SUBSTITUTION ()`, whose macro is also
+/// object-like.
 static bool scan_trailing_macro_name(TSLexer *lexer, const Scanner *scanner, bool line_break, bool declarator,
-                                     bool name_macro) {
-    if (!read_macro_name(lexer)) {
+                                     bool name_macro, bool object_valid) {
+    char name[TS_CPP_SEED_WORD_SIZE];
+    bool cut = false;
+    if (!read_macro_name_into(lexer, name, TS_CPP_SEED_WORD_SIZE, &cut)) {
         return false;
     }
+    uint16_t kinds = declarator && object_valid && has_seed(scanner) && !cut
+                         ? seed_kinds((const TSCppSeed *)scanner->context, name, (uint32_t)strlen(name))
+                         : 0;
+    bool object_macro = (kinds & TS_CPP_SEED_OBJECT_MACRO) != 0 && (kinds & TS_CPP_SEED_FUNCTION_MACRO) == 0;
     lexer->result_symbol = declarator ? DECLARATOR_MACRO_NAME : TRAILING_MACRO_NAME;
     mark_end(lexer);
     if (!line_break && !declarator) {
@@ -4922,6 +4967,9 @@ static bool scan_trailing_macro_name(TSLexer *lexer, const Scanner *scanner, boo
     Reader reader = start_reader(lexer, MACRO_SCAN_LIMIT, scanner);
     // A macro name can have arguments. A virt-specifier and the arguments of an attribute cannot.
     bool after_macro = true;
+    // The object reading takes only the group directly after the name. The group after a later macro
+    // belongs to that macro: `Mutex l1 MOZ_UNANNOTATED GUARDED_BY(mu);`.
+    bool object_group = object_macro;
     for (;;) {
         LOOP_STEP();
         Gap gap = {0};
@@ -4929,6 +4977,8 @@ static bool scan_trailing_macro_name(TSLexer *lexer, const Scanner *scanner, boo
         if (gap.blocked) {
             return false;
         }
+        bool group_after_name = object_group;
+        object_group = false;
         if (after_macro && lexer->lookahead == '(') {
             // The group can be the parameter list of the declarator.
             bool parameter_list = false;
@@ -4947,6 +4997,19 @@ static bool scan_trailing_macro_name(TSLexer *lexer, const Scanner *scanner, boo
                         return true;
                     }
                     return false;
+                }
+                // A group of expressions after an object-like macro of the seed is no argument list of
+                // the macro. The object readings are declarators of a declaration, and only a `;` or a
+                // `,` comes after them. A body keeps the macro between the name and the parameter list:
+                // `void swap BOOST_MATH_PREVENT_MACRO_SUBSTITUTION (T& a, T& b) {` in boost/math/tools/utility.hpp.
+                if (group_after_name) {
+                    Gap after_group = {0};
+                    skip_gap(&reader, &after_group);
+                    int32_t end = lexer->lookahead;
+                    if (!after_group.blocked && (end == ';' || end == ',')) {
+                        lexer->result_symbol = DECLARATOR_OBJECT_MACRO_NAME;
+                        return true;
+                    }
                 }
             } else if (!skip_parentheses(&reader)) {
                 return false;
@@ -11220,7 +11283,8 @@ static bool scan_token(Scanner *scanner, TSLexer *lexer, const bool *valid_symbo
         // starts a line.
         bool line_start = space.line_break || (declarator && lexer->get_column(lexer) == space.spaces);
         return scan_trailing_macro_name(lexer, scanner, line_start, declarator,
-                                        valid_symbols[DECLARATOR_NAME_MACRO_NAME]);
+                                        valid_symbols[DECLARATOR_NAME_MACRO_NAME],
+                                        valid_symbols[DECLARATOR_OBJECT_MACRO_NAME]);
     }
 
     // The `...` of a pack index that a comment, a line splice, or a directive line divides from its `[`.

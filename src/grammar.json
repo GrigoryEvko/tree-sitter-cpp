@@ -4455,6 +4455,24 @@
                             },
                             "named": true,
                             "value": "init_declarator"
+                          },
+                          {
+                            "type": "ALIAS",
+                            "content": {
+                              "type": "SYMBOL",
+                              "name": "_object_macro_init_declarator"
+                            },
+                            "named": true,
+                            "value": "init_declarator"
+                          },
+                          {
+                            "type": "ALIAS",
+                            "content": {
+                              "type": "SYMBOL",
+                              "name": "_object_macro_function_declarator"
+                            },
+                            "named": true,
+                            "value": "function_declarator"
                           }
                         ]
                       }
@@ -4619,6 +4637,24 @@
                                   },
                                   "named": true,
                                   "value": "init_declarator"
+                                },
+                                {
+                                  "type": "ALIAS",
+                                  "content": {
+                                    "type": "SYMBOL",
+                                    "name": "_object_macro_init_declarator"
+                                  },
+                                  "named": true,
+                                  "value": "init_declarator"
+                                },
+                                {
+                                  "type": "ALIAS",
+                                  "content": {
+                                    "type": "SYMBOL",
+                                    "name": "_object_macro_function_declarator"
+                                  },
+                                  "named": true,
+                                  "value": "function_declarator"
                                 }
                               ]
                             }
@@ -5123,6 +5159,24 @@
                             },
                             "named": true,
                             "value": "init_declarator"
+                          },
+                          {
+                            "type": "ALIAS",
+                            "content": {
+                              "type": "SYMBOL",
+                              "name": "_object_macro_init_declarator"
+                            },
+                            "named": true,
+                            "value": "init_declarator"
+                          },
+                          {
+                            "type": "ALIAS",
+                            "content": {
+                              "type": "SYMBOL",
+                              "name": "_object_macro_function_declarator"
+                            },
+                            "named": true,
+                            "value": "function_declarator"
                           }
                         ]
                       }
@@ -5338,6 +5392,24 @@
                                   },
                                   "named": true,
                                   "value": "init_declarator"
+                                },
+                                {
+                                  "type": "ALIAS",
+                                  "content": {
+                                    "type": "SYMBOL",
+                                    "name": "_object_macro_init_declarator"
+                                  },
+                                  "named": true,
+                                  "value": "init_declarator"
+                                },
+                                {
+                                  "type": "ALIAS",
+                                  "content": {
+                                    "type": "SYMBOL",
+                                    "name": "_object_macro_function_declarator"
+                                  },
+                                  "named": true,
+                                  "value": "function_declarator"
                                 }
                               ]
                             }
@@ -5759,8 +5831,22 @@
           "type": "FIELD",
           "name": "declarator",
           "content": {
-            "type": "SYMBOL",
-            "name": "identifier"
+            "type": "CHOICE",
+            "members": [
+              {
+                "type": "SYMBOL",
+                "name": "identifier"
+              },
+              {
+                "type": "ALIAS",
+                "content": {
+                  "type": "SYMBOL",
+                  "name": "_block_name_attributed_declarator"
+                },
+                "named": true,
+                "value": "attributed_declarator"
+              }
+            ]
           }
         },
         {
@@ -7013,6 +7099,24 @@
           }
         ]
       }
+    },
+    "_block_name_attributed_declarator": {
+      "type": "SEQ",
+      "members": [
+        {
+          "type": "SYMBOL",
+          "name": "identifier"
+        },
+        {
+          "type": "ALIAS",
+          "content": {
+            "type": "SYMBOL",
+            "name": "_declarator_object_macro"
+          },
+          "named": true,
+          "value": "attribute_macro"
+        }
+      ]
     },
     "type_definition": {
       "type": "SEQ",
@@ -33288,6 +33392,89 @@
         }
       }
     },
+    "_declarator_object_macro": {
+      "type": "FIELD",
+      "name": "name",
+      "content": {
+        "type": "ALIAS",
+        "content": {
+          "type": "SYMBOL",
+          "name": "_declarator_object_macro_name"
+        },
+        "named": true,
+        "value": "identifier"
+      }
+    },
+    "_object_macro_declarator": {
+      "type": "SEQ",
+      "members": [
+        {
+          "type": "SYMBOL",
+          "name": "identifier"
+        },
+        {
+          "type": "ALIAS",
+          "content": {
+            "type": "SYMBOL",
+            "name": "_declarator_object_macro"
+          },
+          "named": true,
+          "value": "attribute_macro"
+        }
+      ]
+    },
+    "_object_macro_init_declarator": {
+      "type": "SEQ",
+      "members": [
+        {
+          "type": "FIELD",
+          "name": "declarator",
+          "content": {
+            "type": "ALIAS",
+            "content": {
+              "type": "SYMBOL",
+              "name": "_object_macro_declarator"
+            },
+            "named": true,
+            "value": "attributed_declarator"
+          }
+        },
+        {
+          "type": "FIELD",
+          "name": "value",
+          "content": {
+            "type": "SYMBOL",
+            "name": "argument_list"
+          }
+        }
+      ]
+    },
+    "_object_macro_function_declarator": {
+      "type": "PREC_DYNAMIC",
+      "value": 1,
+      "content": {
+        "type": "SEQ",
+        "members": [
+          {
+            "type": "FIELD",
+            "name": "declarator",
+            "content": {
+              "type": "ALIAS",
+              "content": {
+                "type": "SYMBOL",
+                "name": "_object_macro_declarator"
+              },
+              "named": true,
+              "value": "attributed_declarator"
+            }
+          },
+          {
+            "type": "SYMBOL",
+            "name": "_function_declarator_seq"
+          }
+        ]
+      }
+    },
     "_aligned_name_declarator": {
       "type": "SEQ",
       "members": [
@@ -47054,6 +47241,10 @@
       "_block_name_init_declarator"
     ],
     [
+      "_object_macro_declarator",
+      "_block_name_attributed_declarator"
+    ],
+    [
       "_declarator_of_name",
       "_namespace_init_declarator"
     ]
@@ -47424,6 +47615,10 @@
     {
       "type": "SYMBOL",
       "name": "_macro_item_start"
+    },
+    {
+      "type": "SYMBOL",
+      "name": "_declarator_object_macro_name"
     }
   ],
   "external_scanner_set_context": true,

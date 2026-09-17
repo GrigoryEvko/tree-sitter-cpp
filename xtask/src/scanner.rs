@@ -551,6 +551,92 @@ mod seeded {
         assert_eq!(other, unseeded);
     }
 
+    /// AN OBJECT-LIKE MACRO OF THE SEED GIVES THE GROUP AFTER IT TO THE DECLARATOR, AS THE TEXT WITHOUT THE
+    /// MACRO DOES.
+    ///
+    /// An object-like macro takes no arguments ([cpp.replace] p10). For each line with an object row, the
+    /// tree with the macro is the tree of the same line with the macro name deleted, plus the macro node
+    /// and its `attributed_declarator`. The test deletes the name and compares the two trees, so it pins
+    /// no tree of its own:
+    /// - `Mutex l1 MOZ_UNANNOTATED("autolock");` in a block is a variable with an initializer.
+    /// - `Monitor monitor MOZ_UNANNOTATED(__func__);` in a block takes `NAME_INITIALIZER_IN_BLOCK`, and
+    ///   outside a block it is a function with a parameter.
+    /// - `Stream in MOZ_UNANNOTATED(0);` outside a block is a variable with an initializer.
+    ///
+    /// The lines with no object row keep the arguments of the macro: `GUARDED_BY` has a function row,
+    /// `BOTH` has the two rows, and `NO_ROW` has no row. The name of 64 bytes with a tail keeps them too,
+    /// because the seed holds only the first 64 bytes. EACH LINE THAT FOLLOWS KEEPS THE TREE WITH NO SEED,
+    /// AND EACH ONE DECIDES A GUARD OF THE SCAN:
+    /// - `max MOZ_UNANNOTATED ()` keeps the macro between the name and the parameter list, because an
+    ///   empty group holds no initializer.
+    /// - `swap MOZ_UNANNOTATED (T& a, T& b) { T c = a; }` keeps it too, because only a `;` or a `,` comes
+    ///   after an object reading, and a body does not.
+    /// - `isnan MOZ_UNANNOTATED(y))` in a condition keeps its reading, because a `)` does not come after an
+    ///   object reading.
+    /// - `Mutex l1 MOZ_UNANNOTATED GUARDED_BY(mu);` gives `(mu)` to `GUARDED_BY`, because the object reading
+    ///   takes only the group directly after the name.
+    /// - `Air::Opcode NODELETE opcodeForType(Width width);` of WebKit keeps its type macro with an object
+    ///   row for `NODELETE`, because the object readings start at the name of the declarator.
+    #[test]
+    fn an_object_macro_of_the_seed_gives_the_group_to_the_declarator() {
+        const LONG: &str = "OBJECT_MACRO_WITH_A_NAME_OF_SIXTY_FOUR_BYTES_AND_NO_PARAMETERS_1";
+        assert_eq!(LONG.len(), 64, "the name is the longest that the format takes");
+        let file = SeedFile::new(&format!(
+            "BOTH\tobject-macro,function-macro\nGUARDED_BY\tfunction-macro\nMOZ_UNANNOTATED\tobject-macro\n\
+             NODELETE\tobject-macro\n{LONG}\tobject-macro\n"
+        ));
+        let seed = Seed::read(file.path()).expect("the seed reads");
+        let mut parser = parser();
+        // SAFETY: `seed` lives to the end of this test.
+        unsafe { parser.set_scanner_context(seed.as_context()) };
+        let wrapped = "(attributed_declarator (identifier) (attribute_macro name: (identifier)))";
+        for source in [
+            "void g() { Mutex l1 MOZ_UNANNOTATED(\"autolock\"); }\n",
+            "void g() { Monitor monitor MOZ_UNANNOTATED(__func__); }\n",
+            "Monitor monitor MOZ_UNANNOTATED(__func__);\n",
+            "Stream in MOZ_UNANNOTATED(0);\n",
+        ] {
+            let seeded = parser.parse(source, None).expect("the parse ends").root_node().to_sexp();
+            let deleted = parser
+                .parse(source.replace(" MOZ_UNANNOTATED", ""), None)
+                .expect("the parse ends")
+                .root_node()
+                .to_sexp();
+            assert_eq!(seeded.matches(wrapped).count(), 1, "{source}{seeded}");
+            assert_eq!(seeded.replace(wrapped, "(identifier)"), deleted, "{source}");
+        }
+        // The rule of the macro rows also makes an undeclared first name a type before a macro with a row
+        // (refer to `a_macro_row_reaches_the_type_before_a_declarator_and_a_macro`), so a line with such a
+        // name can differ from its tree with no seed. The lines here assert that no object reading comes.
+        let object_readings = ["(init_declarator declarator: (attributed_declarator", "(function_declarator declarator: (attributed_declarator"];
+        for source in [
+            "int x GUARDED_BY(mu);\n".to_owned(),
+            "int y BOTH(mu);\n".to_owned(),
+            "int z NO_ROW(mu);\n".to_owned(),
+            "void g() { Mutex l1 GUARDED_BY(\"autolock\"); }\n".to_owned(),
+            format!("void g() {{ int l1 {LONG}X(\"autolock\"); }}\n"),
+        ] {
+            let seeded = parser.parse(&source, None).expect("the parse ends").root_node().to_sexp();
+            assert!(seeded.contains("(attribute_macro name: (identifier) arguments: (argument_list"), "{source}{seeded}");
+            assert!(!object_readings.iter().any(|reading| seeded.contains(reading)), "{source}{seeded}");
+        }
+        for source in [
+            "class A { static int max MOZ_UNANNOTATED () { return 1; } };\n",
+            "template <class T> void swap MOZ_UNANNOTATED (T& a, T& b) { T c = a; }\n",
+            "void g() { int l1 MOZ_UNANNOTATED GUARDED_BY(mu); }\n",
+            "Air::Opcode NODELETE opcodeForType(Width width);\n",
+        ] {
+            let seeded = parser.parse(source, None).expect("the parse ends");
+            assert!(!seeded.root_node().has_error(), "{source}{}", seeded.root_node().to_sexp());
+            assert_eq!(seeded.root_node().to_sexp(), bare(source).root_node().to_sexp(), "{source}");
+        }
+        // The condition has an error with and without the seed, and neither macro takes an object reading.
+        let condition = "bool f(double x, double y) {\n  if (isnan MOZ_UNANNOTATED(x) || isnan MOZ_UNANNOTATED(y))\n    \
+                         return false;\n  return true;\n}\n";
+        let seeded = parser.parse(condition, None).expect("the parse ends").root_node().to_sexp();
+        assert!(!object_readings.iter().any(|reading| seeded.contains(reading)), "{condition}{seeded}");
+    }
+
     /// THE CONTEXT SURVIVES A PARSE THAT REUSES A TREE.
     ///
     /// `serialize` and `deserialize` do not carry the context, and they must not. The buffer is 1 KB
