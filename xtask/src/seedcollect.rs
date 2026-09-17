@@ -1351,5 +1351,11 @@ class ABSL_MUST_USE_RESULT ABSL_ATTRIBUTE_TRIVIAL_ABI Ptr;\n";
             rows(&tree.collect_with(&["--types", "text"])),
             [("LLVM_ABI", "object-macro"), ("Mine", "type"), ("SS", "type"), ("Shape", "type")]
         );
+
+        // A header of the project defines a type name as a macro of the compiler. The name before a
+        // declarator stays, so the function `Hash` is a value and `Hash` gives no row.
+        let tree = Tree::new("struct Hash {};\ninline uint64_t Hash(int x) { return 0; }\n");
+        tree.add("lib/Headers/wrapper.h", b"#define uint64_t __UINT64_TYPE__\n");
+        assert_eq!(rows(&tree.collect_with(&["--types", "text"])), [("uint64_t", "object-macro")]);
     }
 }

@@ -797,9 +797,10 @@ impl Lexer<'_> {
     /// The class of the text from the cursor to the end of the directive line.
     ///
     /// ONE WORD IS A TAG WHEN IT HAS A LOWERCASE LETTER AND IS NO RESERVED NAME, AN ATTRIBUTE WHEN IT IS A
-    /// RESERVED NAME OR A SPECIFIER KEYWORD, AND OTHER WHEN IT HAS NO LOWERCASE LETTER, because
-    /// `#define CHAR8 UINT8` names a type. Sun's `#define BOOST_SYMBOL_VISIBLE __global` is an attribute
-    /// and no tag. Two words or more are an attribute when each word is a reserved name, a specifier
+    /// RESERVED NAME WITH A LOWERCASE LETTER OR A SPECIFIER KEYWORD, AND AN ALIAS WHEN IT HAS NO LOWERCASE
+    /// LETTER, because `#define CHAR8 UINT8` names a type. Sun's `#define BOOST_SYMBOL_VISIBLE __global` is
+    /// an attribute and no tag. clang's `#define uint64_t __UINT64_TYPE__` names a type of the compiler, and
+    /// an attribute class stripped `uint64_t` from every `uint64_t f(x)` of llvm-project. Two words or more are an attribute when each word is a reserved name, a specifier
     /// keyword or a macro-shaped name, and each group follows a word or is `[[...]]`.
     fn body_class(&mut self) -> Body {
         let mut words = 0;
@@ -864,7 +865,7 @@ impl Lexer<'_> {
         match words {
             0 => Body::Attribute,
             1 if first_tag => Body::Tag,
-            1 if first_attribute => Body::Attribute,
+            1 if first_attribute && !is_macro_shaped(&first_word) => Body::Attribute,
             1 if is_macro_shaped(&first_word) => Body::Alias(String::from_utf8_lossy(&first_word).into_owned()),
             1 => Body::Other,
             _ if attribute => Body::Attribute,
@@ -3253,7 +3254,7 @@ mod tests {
             pairs(&[("Empty", "type"), ("Named", "type")])
         );
         let bodies = macro_bodies(
-            b"#define flatbuffers_stat stat\n#define timeval SceNetInetTimeval // x\n#define VIS __attribute__((visibility(\"default\")))\n#define EMPTY\n#define F(x) x\n#define TWO a b\n#define SUN __global\n#define CE constexpr\n#define DWORD unsigned long\n#define CHAR8 UINT8\n#define GPU __host__ __device__\n#define PFX std::filesystem::\n#define SPLIT(x) \\\n  x\n",
+            b"#define flatbuffers_stat stat\n#define timeval SceNetInetTimeval // x\n#define VIS __attribute__((visibility(\"default\")))\n#define EMPTY\n#define F(x) x\n#define TWO a b\n#define SUN __global\n#define CE constexpr\n#define DWORD unsigned long\n#define CHAR8 UINT8\n#define GPU __host__ __device__\n#define PFX std::filesystem::\n#define SPLIT(x) \\\n  x\n#define uint64_t __UINT64_TYPE__\n",
         );
         assert_eq!(
             bodies,
@@ -3269,6 +3270,7 @@ mod tests {
                 ("CHAR8".to_owned(), Body::Alias("UINT8".to_owned())),
                 ("GPU".to_owned(), Body::Attribute),
                 ("PFX".to_owned(), Body::Other),
+                ("uint64_t".to_owned(), Body::Alias("__UINT64_TYPE__".to_owned())),
             ]
         );
     }
