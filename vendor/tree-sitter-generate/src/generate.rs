@@ -68,8 +68,9 @@ struct GeneratedParser {
 //
 // The ABI of the tree-sitter-cpp fork: the layout of ABI 15 with 32-bit state ids, with the parse
 // tables in the shape layout, and with the entry point of the external scanner that takes the context
-// of the parser as the last field of the language struct.
-const LANGUAGE_VERSION: usize = 1017;
+// of the parser as the last field of the language struct. ABI 1018 adds the state-only scan and a
+// serialization buffer of 16,384 bytes, and no field.
+const LANGUAGE_VERSION: usize = 1018;
 
 pub const ALLOC_HEADER: &str = include_str!("templates/alloc.h");
 pub const ARRAY_HEADER: &str = include_str!("templates/array.h");

@@ -132,7 +132,7 @@ mod tests {
         }
     }
 
-    /// The context of the parser reaches only a language of ABI 1017. An upstream grammar has no
+    /// The context of the parser reaches only a language of ABI 1017 or a subsequent version. An upstream grammar has no
     /// such field in its struct, and the runtime must not read past the end of the struct. The
     /// TypeScript grammar has an external scanner, so the runtime creates a scanner for it and then
     /// must not look for the entry point.
@@ -168,7 +168,7 @@ mod tests {
     #[test]
     fn test_the_lookahead_order_of_the_shape_parse_tables() {
         let cpp: Language = super::LANGUAGE.into();
-        assert_eq!(cpp.abi_version(), 1017);
+        assert_eq!(cpp.abi_version(), tree_sitter::LANGUAGE_VERSION);
         let state_count = u32::try_from(cpp.parse_state_count()).expect("a state id has 32 bits");
         let mut ascending = 0;
         let mut group_order = 0;

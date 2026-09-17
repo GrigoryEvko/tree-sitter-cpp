@@ -10,7 +10,7 @@
 #pragma optimize("", off)
 #endif
 
-#define LANGUAGE_VERSION 1017
+#define LANGUAGE_VERSION 1018
 #define STATE_COUNT 156894
 #define LARGE_STATE_COUNT 89299
 #define SYMBOL_COUNT 1033

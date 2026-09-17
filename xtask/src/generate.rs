@@ -205,5 +205,10 @@ mod tests {
         assert!(tree_sitter::is_supported_language_version(15));
         assert!(!tree_sitter::is_supported_language_version(16));
         assert!(tree_sitter::is_supported_language_version(tree_sitter::LANGUAGE_VERSION));
+        // ABI 1018 adds no field, and a grammar of ABI 1017 still loads by name.
+        assert_eq!(tree_sitter::LANGUAGE_VERSION, 1018);
+        assert!(tree_sitter::is_supported_language_version(tree_sitter::SCANNER_CONTEXT_LANGUAGE_VERSION));
+        assert!(tree_sitter::is_supported_language_version(1017));
+        assert!(!tree_sitter::is_supported_language_version(1019));
     }
 }

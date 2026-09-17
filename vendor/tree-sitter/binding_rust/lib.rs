@@ -67,18 +67,25 @@ pub const WIDE_TABLE_LANGUAGE_VERSION: usize = 1015;
 /// The second ABI version of the fork: the parse tables in the shape layout (tree-sitter-cpp fork).
 pub const SHAPE_TABLE_LANGUAGE_VERSION: usize = 1016;
 
+/// The third ABI version of the fork: the shape layout and the entry point of the external scanner
+/// that takes the context of the parser (tree-sitter-cpp fork).
+pub const SCANNER_CONTEXT_LANGUAGE_VERSION: usize = 1017;
+
 /// True when the library reads the ABI version `version` (tree-sitter-cpp fork).
 ///
 /// The library reads [`MIN_COMPATIBLE_LANGUAGE_VERSION`] thru [`UPSTREAM_LANGUAGE_VERSION`], with 16-bit
 /// parse tables, [`WIDE_TABLE_LANGUAGE_VERSION`], with 32-bit parse tables,
-/// [`SHAPE_TABLE_LANGUAGE_VERSION`], with the parse tables in the shape layout, and
-/// [`LANGUAGE_VERSION`], with the shape layout and the entry point of the external scanner that takes
-/// the context of the parser. It does not read the versions between them.
+/// [`SHAPE_TABLE_LANGUAGE_VERSION`], with the parse tables in the shape layout,
+/// [`SCANNER_CONTEXT_LANGUAGE_VERSION`], with the shape layout and the entry point of the external
+/// scanner that takes the context of the parser, and [`LANGUAGE_VERSION`], which adds a scan that
+/// changes the state of the scanner and gives no token, and a serialization buffer of 16,384 bytes.
+/// It does not read the versions between them.
 #[must_use]
 pub const fn is_supported_language_version(version: usize) -> bool {
     (version >= MIN_COMPATIBLE_LANGUAGE_VERSION && version <= UPSTREAM_LANGUAGE_VERSION)
         || version == WIDE_TABLE_LANGUAGE_VERSION
         || version == SHAPE_TABLE_LANGUAGE_VERSION
+        || version == SCANNER_CONTEXT_LANGUAGE_VERSION
         || version == LANGUAGE_VERSION
 }
 

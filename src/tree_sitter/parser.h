@@ -11,7 +11,18 @@ extern "C" {
 
 #define ts_builtin_sym_error ((TSSymbol)-1)
 #define ts_builtin_sym_end 0
-#define TREE_SITTER_SERIALIZATION_BUFFER_SIZE 1024
+// The bytes that `serialize` of an external scanner can write. The tree-sitter-cpp fork reads 16,384
+// bytes from ABI 1018. The upstream runtime and the fork before ABI 1018 read 1,024 bytes, so a
+// scanner that writes more than 1,024 bytes needs a language of ABI 1018 or a subsequent version.
+#define TREE_SITTER_SERIALIZATION_BUFFER_SIZE 16384
+// The result symbol of a scan that gives no token and changes the state of the scanner only
+// (tree-sitter-cpp fork, ABI 1018). The scanner sets it and returns false. The runtime then stores the
+// serialized state on the next token that the internal lexer reads at the same position, as an
+// external token carries its state, and the parser reads no token of its own for the change. An
+// external token index is less than the external token count, which is at most 65,532, so no token
+// has the value 0xFFFD. The two error symbols are 0xFFFF and 0xFFFE. A runtime before ABI 1018 reads
+// no result symbol after a false return, so it ignores the change.
+#define TREE_SITTER_EXTERNAL_STATE_ONLY ((TSSymbol)0xFFFD)
 
 #ifndef TREE_SITTER_API_H_
 // A parse state id. The runtime and the parsers of the tree-sitter-cpp fork keep a state in 32 bits. A

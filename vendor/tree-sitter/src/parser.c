@@ -119,6 +119,10 @@ struct TSParser {
   // The context that the external scanner gets, an opaque pointer of the caller (tree-sitter-cpp
   // fork). Refer to `ts_parser_set_scanner_context`.
   const void *scanner_context;
+  // The state of the last scan that gave TREE_SITTER_EXTERNAL_STATE_ONLY in `ts_parser__lex`
+  // (tree-sitter-cpp fork). The internal lexer can log into `lexer.debug_buffer`, so the state waits
+  // here for the token that carries it.
+  char state_only_buffer[TREE_SITTER_SERIALIZATION_BUFFER_SIZE];
   FILE *dot_graph_file;
   unsigned accept_count;
   unsigned operation_count;
@@ -560,12 +564,20 @@ static Subtree ts_parser__lex(
   uint32_t lookahead_end_byte = 0;
   uint32_t external_scanner_state_len = 0;
   bool external_scanner_state_changed = false;
+  // A scan that gives TREE_SITTER_EXTERNAL_STATE_ONLY changed the state of the scanner and gave no
+  // token. The token that the internal lexer reads in the same pass of the loop carries that state
+  // (tree-sitter-cpp fork, ABI 1018). The scanner of each version reads its own last external token,
+  // and the token cache keys on that token, so no version reads the state of a different version.
+  bool state_only = false;
+  uint32_t state_only_len = 0;
+  bool reads_state_only = ts_language_has_state_only_scan(self->language) && !ts_language_is_wasm(self->language);
   ts_lexer_reset(&self->lexer, start_position);
 
   for (;;) {
     bool found_token = false;
     Length current_position = self->lexer.current_position;
     ColumnData column_data = self->lexer.column_data;
+    state_only = false;
 
     if (lex_mode.external_lex_state != 0) {
       LOG(
@@ -618,6 +630,13 @@ static Subtree ts_parser__lex(
         found_external_token = true;
         called_get_column = self->lexer.did_get_column;
         break;
+      }
+
+      // `ts_lexer_start` cleared the result symbol before the scan, so this value comes from the scan.
+      if (reads_state_only && self->lexer.data.result_symbol == TREE_SITTER_EXTERNAL_STATE_ONLY) {
+        state_only_len = ts_parser__external_scanner_serialize(self);
+        memcpy(self->state_only_buffer, self->lexer.debug_buffer, state_only_len);
+        state_only = true;
       }
 
       ts_lexer_reset(&self->lexer, current_position);
@@ -703,6 +722,11 @@ static Subtree ts_parser__lex(
       }
     }
 
+    // A token of the internal lexer after a state-only scan carries the state. A leaf with external
+    // tokens is never inline, so each reader of an external token state finds it: the last external
+    // token of a stack version, the token cache, the merge check, the reusable node of an incremental
+    // parse, and the changed ranges. Its lookahead bytes hold the characters that the scan read.
+    bool carries_state = !found_external_token && state_only;
     result = ts_subtree_new_leaf(
       &self->tree_pool,
       symbol,
@@ -710,7 +734,7 @@ static Subtree ts_parser__lex(
       size,
       lookahead_bytes,
       parse_state,
-      found_external_token,
+      found_external_token || carries_state,
       called_get_column,
       is_keyword,
       self->language
@@ -724,6 +748,12 @@ static Subtree ts_parser__lex(
         external_scanner_state_len
       );
       mut_result.ptr->has_external_scanner_state_change = external_scanner_state_changed;
+    } else if (carries_state) {
+      // The flag stays false: a recovery at this token keeps the skip strategy of `ts_parser__recover`,
+      // as it does for the same token with no state.
+      MutableSubtree mut_result = ts_subtree_to_mut_unsafe(result);
+      ts_external_scanner_state_init(&mut_result.ptr->external_scanner_state, self->state_only_buffer, state_only_len);
+      mut_result.ptr->has_external_scanner_state_change = false;
     }
   }
 

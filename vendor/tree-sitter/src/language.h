@@ -23,15 +23,27 @@ extern "C" {
 // The third ABI of the tree-sitter-cpp fork: the shape layout of 1016, and the entry point
 // `external_scanner_set_context` as the last field of TSLanguage.
 #define LANGUAGE_VERSION_WITH_SCANNER_CONTEXT 1017
+// The fourth ABI of the tree-sitter-cpp fork: the layout of 1017, a scan that changes the state of the
+// scanner only (TREE_SITTER_EXTERNAL_STATE_ONLY in parser.h), and a serialization buffer of 16,384
+// bytes. The language struct has no new field.
+#define LANGUAGE_VERSION_WITH_STATE_ONLY_SCAN 1018
 
-// True when the runtime reads the ABI version: 13 thru 15, or one of the three versions of the
+// True when the runtime reads the ABI version: 13 thru 15, or one of the four versions of the
 // tree-sitter-cpp fork.
 static inline bool ts_language_version_is_supported(uint32_t version) {
   return
     (version >= TREE_SITTER_MIN_COMPATIBLE_LANGUAGE_VERSION && version <= LANGUAGE_VERSION_UPSTREAM_MAX) ||
     version == LANGUAGE_VERSION_WITH_WIDE_TABLES ||
     version == LANGUAGE_VERSION_WITH_SHAPE_TABLES ||
-    version == LANGUAGE_VERSION_WITH_SCANNER_CONTEXT;
+    version == LANGUAGE_VERSION_WITH_SCANNER_CONTEXT ||
+    version == LANGUAGE_VERSION_WITH_STATE_ONLY_SCAN;
+}
+
+// True when the runtime stores the state of a scan that gives TREE_SITTER_EXTERNAL_STATE_ONLY
+// (tree-sitter-cpp fork). A language before ABI 1018 can leave any value in the result symbol after a
+// false return, so the runtime reads that value only for ABI 1018.
+static inline bool ts_language_has_state_only_scan(const TSLanguage *self) {
+  return self->abi_version >= LANGUAGE_VERSION_WITH_STATE_ONLY_SCAN;
 }
 
 // The entry point of the external scanner that takes the context of the parser.
