@@ -193,9 +193,6 @@ pub fn grammar() -> Grammar {
         // `std::unique_ptr<T> TSA_GUARDED_BY(mutex) info;`. The scanner gives the token only where the
         // macro cannot be the type itself. Refer to `_type_attribute_macro`.
         s!(_type_attribute_macro_name),
-        // An empty token before the word `template`. The scanner reads the head and records the
-        // names that it declares as TYPE parameters. Refer to `scan_template_head`.
-        s!(_template_head_mark),
         // The operand of `alignas`, where a source of the parse declares the name as a type and the
         // name is the whole operand. Refer to `is_alignas_type_name`.
         s!(_alignas_type_name),
@@ -2376,17 +2373,12 @@ fn types(g: &mut Grammar) {
     // scanner uses the names to find a constructor after a macro: `LLVM_ABI A();`. Refer to
     // `_constructor_macro_start`.
     //
-    // The scanner records the name at a class key with no token: the scan gives
-    // TREE_SITTER_EXTERNAL_STATE_ONLY, and the runtime of ABI 1018 stores the state on the class key.
-    // An empty extra for the record was a lookahead of its own, and it changed trees with no rule that
-    // read it. Refer to `scan_class_head` in src/scanner.c and to task 379.
-    // The scanner records the names that a template head declares as type parameters, and it gives
-    // `_template_head_mark` before the word `template` to do it. The token is an empty extra: the
-    // parser shifts it in each state, and the parse states do not change. Refer to
-    // `scan_template_head` in src/scanner.c and to task 291.
-    g.extras.push(s!(_template_head_mark));
-    // The scanner records the name that a `using` alias declaration of the file declares at the word
-    // `using`, with no token, as it records a class head. Refer to `scan_using_alias`.
+    // The scanner records the names of class heads, of template type parameters and of `using`
+    // aliases at the words `class`, `template` and `using`, with no token: the scan gives
+    // TREE_SITTER_EXTERNAL_STATE_ONLY, and the runtime of ABI 1018 stores the state on the word. An
+    // empty extra for each record was a lookahead of its own, and it changed trees with no rule that
+    // read it. Refer to `scan_class_head`, `scan_template_head` and `scan_using_alias` in
+    // src/scanner.c, and to task 379.
     // THE OPERAND OF `alignas` IS A TYPE OR A CONSTANT EXPRESSION, AND A BARE NAME IS BOTH. c4e81d4
     // states the expression reading as a rule, because only the declaration of the name tells the
     // two apart and the grammar holds no declaration. The scanner gives `_alignas_type_name` for a

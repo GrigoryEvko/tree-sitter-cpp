@@ -160,9 +160,6 @@ enum TokenType {
     /// The name of a macro between the TYPE of a declaration and its declarator:
     /// `typedef unsigned int CV_DECL_ALIGNED(1) unaligned_uint;`. The token holds the name.
     TYPE_ATTRIBUTE_MACRO_NAME,
-    /// An empty token before the word `template`. The scan reads the template head and records the
-    /// names that it declares as TYPE parameters. Refer to `scan_template_head`.
-    TEMPLATE_HEAD_MARK,
     /// The operand of `alignas`, where a source of the parse declares the name as a type:
     /// `template <typename T> struct S { alignas(T) char storage[sizeof(T)]; };`. The token covers
     /// the name and the grammar reads it as a `type_descriptor`. Refer to `is_alignas_type_name`.
@@ -3499,12 +3496,10 @@ static bool scan_class_head(Scanner *scanner, Reader *reader) {
 }
 
 /// Scan a template head after the word `template`, and record the names that it declares as TYPE
-/// parameters. Return true if the recorded names change. The token is the empty extra
-/// TEMPLATE_HEAD_MARK before the word.
-///
-/// THE TOKEN IS GIVEN ONLY WHEN THE RECORD CHANGES. An empty token that a scan gives again at the same
-/// position is a token with no width that the parser reads forever: one such loop of 2026-09-16 took
-/// 152 GB for a file of 20 KB.
+/// parameters. Return false: the scan gives no token. When the recorded names change, the result symbol
+/// is TREE_SITTER_EXTERNAL_STATE_ONLY, and the runtime of ABI 1018 stores the state on the word
+/// `template` that its internal lexer reads next. Refer to `scan_class_head` for the empty extra that
+/// this replaces.
 ///
 /// ONLY `typename` AND `class` GIVE A NAME. A constrained parameter, `template <std::integral T>`,
 /// and a non-type parameter, `template <int N>`, have the SAME SHAPE, a name and then a name, and
@@ -3589,11 +3584,10 @@ static bool scan_template_head(Scanner *scanner, Reader *reader) {
         step(reader);
         parameter_start = false;
     }
-    if (!changed) {
-        return false;
+    if (changed) {
+        lexer->result_symbol = TREE_SITTER_EXTERNAL_STATE_ONLY;
     }
-    lexer->result_symbol = TEMPLATE_HEAD_MARK;
-    return true;
+    return false;
 }
 
 /// Scan an alias declaration after the word `using`, and record the name that it declares. Return
@@ -10752,8 +10746,9 @@ static bool scan_word_start(Scanner *scanner, TSLexer *lexer, const bool *valid_
     // THE TEMPLATE HEAD COMES BEFORE EVERY BRANCH THAT READS `next`. `template<` with no blank puts
     // a `<` there, and the member pointer branch below takes a word before a `<`, so a check after
     // it never saw `template<` and saw only `template <`. The word is a keyword and can be the name
-    // of nothing, so no other branch loses a reading to this one.
-    if (valid_symbols[TEMPLATE_HEAD_MARK] && strcmp(word, "template") == 0) {
+    // of nothing, so no other branch loses a reading to this one. The scan writes the record of template
+    // parameters with no token, in each state where the parser calls this scanner.
+    if (strcmp(word, "template") == 0) {
         return scan_template_head(scanner, &reader);
     }
     // The word `using` writes the record of aliases with no token, in each state where the parser calls
@@ -11305,7 +11300,6 @@ static bool can_be_empty(TSSymbol symbol) {
         case MACRO_CALL_START:
         case MACRO_ENUMERATOR_START:
         case MACRO_STATEMENT_START:
-        case TEMPLATE_HEAD_MARK:
         case MACRO_CALL_ATTRIBUTE_START:
         case MACRO_CALL_ATTRIBUTE_TOKENS_START:
         case ATTRIBUTE_TOKENS_MARKER:

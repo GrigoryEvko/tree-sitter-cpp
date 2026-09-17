@@ -46622,10 +46622,6 @@
     },
     {
       "type": "SYMBOL",
-      "name": "_template_head_mark"
-    },
-    {
-      "type": "SYMBOL",
       "name": "preproc_call"
     },
     {
@@ -47585,10 +47581,6 @@
     {
       "type": "SYMBOL",
       "name": "_type_attribute_macro_name"
-    },
-    {
-      "type": "SYMBOL",
-      "name": "_template_head_mark"
     },
     {
       "type": "SYMBOL",
