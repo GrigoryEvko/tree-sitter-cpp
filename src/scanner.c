@@ -8563,10 +8563,14 @@ typedef enum {
     LOCAL_STATEMENT,
     /// One parameter, whose range ends at its `,` or `)`: `T x`, `T x = 1`, `T x[]`.
     LOCAL_PARAMETER,
-    /// The declaration of a condition or of a `for` head: `if (T x = f())`, `for (T x : v)`,
-    /// `for (T x = 0;`. Only a `=`, a `:` and the end of the range end its declarator, because
-    /// `if (a && b(c))` is an expression and no declaration.
+    /// The declaration of a condition of `if`, `while` or `switch`, or of a range-for: `if (T x = f())`,
+    /// `for (T x : v)`. Only a `=` or a `:` ends its declarator. A condition that declares a name has an
+    /// initializer, so the end of the range ends no declarator: in `if (flags & MAP_PURGEABLE) {`,
+    /// `MAP_PURGEABLE` is an operand and no local. `if (a && b(c))` is an expression too.
     LOCAL_CONDITION,
+    /// The declaration of a `for` head that its first `;` ends: `for (T x = 0;`, `for (T x;`. A `=` or the
+    /// end of the range ends its declarator, because a declaration of a `for` head needs no initializer.
+    LOCAL_FOR_INIT,
 } LocalDeclarationKind;
 
 /// True for a token that can end a declarator of a declaration of `kind`. A `(` is the direct
@@ -8577,13 +8581,13 @@ static bool local_declarator_end(const LocalItem *item, unsigned i, unsigned end
         return false;
     }
     if (i >= end) {
-        return true;
+        return kind != LOCAL_CONDITION;
     }
     const LocalToken *token = &item->tokens[i];
     if (local_mark_is(token, "=")) {
         return true;
     }
-    if (kind == LOCAL_CONDITION) {
+    if (kind == LOCAL_CONDITION || kind == LOCAL_FOR_INIT) {
         return local_mark_is(token, ":");
     }
     // A `[[` starts an attribute, and a `[` alone starts an array declarator.
@@ -9356,7 +9360,12 @@ static void read_local_statement(const LocalItem *item, LocalRecord *record, Rea
             return;
         }
         unsigned first_entry = local_entry_count(record);
-        LocalDeclarationKind kind = local_word_is(first, "catch") ? LOCAL_PARAMETER : LOCAL_CONDITION;
+        LocalDeclarationKind kind = LOCAL_CONDITION;
+        if (local_word_is(first, "catch")) {
+            kind = LOCAL_PARAMETER;
+        } else if (local_word_is(first, "for") && close == LOCAL_NO_TOKEN) {
+            kind = LOCAL_FOR_INIT;
+        }
         read_local_declaration(item, i + 2, end, record, body, kind);
         for (unsigned entry = first_entry; entry < local_entry_count(record); entry++) {
             record->entries[entry].pending = (uint8_t)wait;
