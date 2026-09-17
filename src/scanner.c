@@ -248,6 +248,40 @@ static inline bool is_pending_group(uint8_t kind) { return kind == GROUP_LINE_PE
 /// The number of class names that the scanner records. A new name removes the oldest name.
 #define MAX_CLASSES 32
 
+/// The maximum number of entries of the record of locals.
+///
+/// THE BOUND IS THE SERIALIZATION BUFFER OF THE RUNTIME BEFORE ABI 1018. That buffer holds 1,024
+/// bytes. The other records take up to 648 of them, and this record takes 3 bytes and 6 bytes for
+/// each entry, so 60 entries fit. Over the 329,387 corpus files, the count of the locals in scope at
+/// one point is 34 at p99, 67 at p999, and 912 at the maximum. An entry that does not fit makes the
+/// record SATURATED, and each lookup then gives `LOCAL_UNKNOWN` until the frame of that entry closes.
+/// The record gives up no entry to make room, so a lookup never gives a wrong answer for a lost entry.
+#define MAX_LOCALS 60
+
+/// One entry of the record of locals.
+typedef struct {
+    /// The hash of the name, as `read_word` computes it. The value 0 is the entry of a body with no
+    /// parameter: it opens the frame of the body, and no name has the hash 0.
+    uint32_t name;
+    /// The frame that holds the entry. The outermost frame is 1.
+    uint8_t frame;
+    /// The number of boundaries before the entry is in scope, and 0 for an entry in scope. A declaration
+    /// waits for 1 boundary. A parameter waits for the `{` of its body, after the braces of a constructor
+    /// initializer list: `A(int x) : m{x} {` waits for 3.
+    uint8_t pending;
+} LocalEntry;
+
+/// The parameters and the block-scope variables in scope at the position of the scanner. Refer to
+/// `scan_local_boundary`.
+typedef struct {
+    uint8_t count;
+    /// The open frames. A frame is a `{` inside a body, or the body itself.
+    uint8_t frames;
+    /// 0, or the lowest frame of an entry that did not fit.
+    uint8_t saturated;
+    LocalEntry entries[MAX_LOCALS];
+} LocalRecord;
+
 typedef struct {
     uint8_t delimiter_length;
     wchar_t delimiter[MAX_DELIMITER_LENGTH];
@@ -302,6 +336,9 @@ typedef struct {
     /// at its own position, and would change trees far beyond the task that added them. A record of
     /// its own cannot reach a consumer that does not name it.
     uint32_t aliases[MAX_CLASSES];
+    /// The parameters and the block-scope variables in scope. No consumer reads the record yet. Refer
+    /// to `scan_local_boundary` and `local_name_answer`.
+    LocalRecord locals;
     /// The context of the parser, the seed of #275, or NULL. The runtime gives it through
     /// `tree_sitter_cpp_external_scanner_set_context`, and `serialize` and `deserialize` do not
     /// carry it, so `reset` and `deserialize` must not clear it.
@@ -8128,6 +8165,1316 @@ static bool is_pointer_operator(const TextToken *token) {
     return strcmp(t, "*") == 0 || strcmp(t, "&") == 0 || strcmp(t, "&&") == 0 || strcmp(t, "^") == 0;
 }
 
+// THE RECORD OF LOCALS.
+//
+// The scanner records the parameters and the block-scope variables of the bodies of the file, so that
+// a rule can ask whether a name is one of them where it reads the name. A front end reads
+// `sizeof(buf)` as a value operand when `buf` is a local variable, and the shape of a name does not
+// tell a local from a type.
+//
+// THE RECORD CHANGES AT A BOUNDARY: THE `{`, THE `}`, OR THE `;` BEFORE AN ITEM. At these three
+// characters each other path of `scan_token` gives no token and reads no character. So a scan here
+// can read the next item and then give no token, and no other token of the scanner changes. A scan
+// at a word cannot do that, because the other scans of a word start at the same character.
+//
+// NO TOKEN CARRIES A CHANGE. The scan gives TREE_SITTER_EXTERNAL_STATE_ONLY and no token, and the runtime
+// of ABI 1018 stores the state on the boundary token that its internal lexer reads next. An empty extra
+// for each change was a lookahead of its own, and it changed trees with no rule that read the record:
+// in error recovery, in the order of the versions, and in ties. The scan reads the text and the record
+// only, never `valid_symbols`. So each GLR version at a boundary gets the same record, and two versions
+// that merge without the record also merge with it.
+//
+// THE RECORD HAS NO BYTE POSITION, because the lexer gives none. A name that the scan of an item finds
+// is PENDING, and the next boundary makes it live. A name is therefore never in scope before its
+// declaration, and the type of `Module *Module = nullptr;` reads while the local `Module` is pending.
+// A use in the statement that declares the name is a miss: `T *S0 = S, *S1 = (T *)((char *)(S0) + 1);`.
+//
+// THE LOOPS OVER THE TOKENS OF AN ITEM HAVE NO LOOP GUARD. An item holds at most LOCAL_ITEM_TOKENS
+// tokens in memory, and the index of each such loop grows at each step, so the loop ends with no read.
+// The guard counts the steps after the last read, and an item of 384 tokens takes more of them than
+// MAX_IDLE_STEPS. The loops that read the input keep the guard.
+//
+// EACH RANGE OF THE RECORD FAILS CLOSED. A function that gets an index or an end outside the tokens of
+// its item gives its answer for no match: LOCAL_NO_TOKEN, false, or no entry. A loop over the entries
+// reads MAX_LOCALS of them at most, and a state whose record does not fit decodes as an empty record.
+// The scanner runs in the process of the consumer. An assertion stops that whole process at one
+// malformed file, and a build with NDEBUG reads past the item. In `[=]({) {` and in
+// `void f(Callback cb = [](int a {{)) {`, `local_match` counts each `{` as a bracket, so the `(` of the
+// lambda has no `)` in the item.
+//
+// FRAMES EXIST ONLY WHILE THE RECORD IS NOT EMPTY. The head of a definition or of a lambda opens the
+// first frame at its body. In a frame, each `{` opens a frame and each `}` closes one with its entries.
+// At file scope, in a namespace, and in a class body outside a body, the record stays empty, and a
+// boundary changes it only before a head. A brace that a scanner token reads, as in the arguments of
+// a macro, is no boundary, and it is no brace of the grammar either.
+
+/// The maximum number of characters that the scan of one item reads.
+#define LOCAL_ITEM_LIMIT 8192
+
+/// The maximum number of tokens of one item. An item with more tokens gives no entry. The head of a
+/// constructor with a long initializer list takes 150 tokens and more.
+#define LOCAL_ITEM_TOKENS 384
+
+/// The index of no token.
+#define LOCAL_NO_TOKEN ((unsigned)-1)
+
+/// The maximum number of steps of a loop over the tokens of an item. Each step moves past one token or
+/// more, so an item takes LOCAL_ITEM_TOKENS steps at most. A loop that gets to this maximum gives its
+/// answer for no match.
+#define LOCAL_MAX_STEPS (LOCAL_ITEM_TOKENS + 1)
+
+/// One token of an item.
+typedef struct {
+    TokenClass kind;
+    /// The hash of a word, as `read_word` computes it, or 0.
+    uint32_t name;
+    /// The boundaries of the item before the token: the braces in brackets, `f(T{1}, x)`.
+    unsigned boundaries;
+    /// The text of an operator or a bracket, or the start of a word.
+    char text[MACRO_WORD_SIZE];
+} LocalToken;
+
+/// The tokens from a boundary to the next boundary that ends the item.
+typedef struct {
+    LocalToken tokens[LOCAL_ITEM_TOKENS];
+    unsigned count;
+    /// The boundaries inside the item, before its end.
+    unsigned boundaries;
+    /// The boundary that ends the item, `{`, `}`, or `;`, or 0 when the scan stopped before one.
+    int32_t end;
+} LocalItem;
+
+static unsigned local_lambda_head(const LocalItem *item, unsigned end, unsigned *open, unsigned *close);
+
+/// The words that no declaration of a local holds before its declarator. A statement that holds one
+/// of them there declares no local: `return a * b;`, `x = a and b;`.
+///
+/// `explicit` IS HERE because `explicit Foo(int x);` in a local class would give the declarator `Foo`,
+/// and `Foo` is a type. The statement keywords are here for the tokens after the first one, and
+/// `read_local_statement` reads them before this list at the start of a statement.
+static const char *const LOCAL_STOP_WORDS[] = {
+    "return", "goto",     "break",  "continue", "throw",    "delete",     "new",     "co_return", "co_yield",
+    "co_await", "typedef", "using", "namespace", "friend",  "static_assert", "_Static_assert", "sizeof",
+    "alignof", "_Alignof", "__alignof__", "typeid", "this", "true",       "false",   "nullptr",   "operator",
+    "do",     "try",      "explicit", "template", "concept", "requires",  "export",  "import",    "module",
+    "and",    "or",       "not",    "xor",      "bitand",   "bitor",      "compl",   "not_eq",    "and_eq",
+    "or_eq",  "xor_eq",   "if",     "else",     "while",    "switch",     "for",     "catch",     "case",
+    "default", "__asm",   "__asm__", NULL,
+};
+
+/// The words that take a group and that a declaration holds before its declarator: `decltype(x) y;`,
+/// `__attribute__((unused)) int z;`.
+static const char *const LOCAL_GROUP_WORDS[] = {
+    "decltype", "__attribute__", "__attribute", "alignas", "_Alignas", "__declspec", "typeof", "__typeof__",
+    "__typeof", NULL,
+};
+
+/// The words that qualify a type and that are not a type: `const Foo BAR;` has one type.
+static const char *const LOCAL_QUALIFIER_WORDS[] = {
+    "const", "volatile", "static", "extern", "inline", "constexpr", "constinit", "mutable", "register",
+    "thread_local", "typename", "__restrict", "restrict", NULL,
+};
+
+/// The words after the parameter list of a definition or of a lambda and before its body.
+static const char *const LOCAL_TRAILER_WORDS[] = {
+    "const", "volatile", "noexcept", "throw", "override", "final", "mutable", "constexpr", "static", "try",
+    "restrict", "__restrict", "__attribute__", "__attribute", "__declspec", "transaction_safe", NULL,
+};
+
+/// The words before a `(` that make it no parameter list of a definition: `if (x) {`, `sizeof(x)`.
+static const char *const LOCAL_NOT_HEAD_WORDS[] = {
+    "if",       "while",   "for",     "switch",   "catch",   "return",       "sizeof",      "alignof",
+    "decltype", "typeid",  "noexcept", "throw",   "new",     "delete",       "static_cast", "const_cast",
+    "dynamic_cast", "reinterpret_cast", "__attribute__", "__attribute", "alignas", "requires", "co_await",
+    "co_yield", "co_return", "typeof", "__typeof__", "__typeof", "_Generic", "__builtin_offsetof", NULL,
+};
+
+/// True when a token is a word, and its text is `text`. O(n) in the text.
+static bool local_word_is(const LocalToken *token, const char *text) {
+    return token->kind == TOKEN_WORD && strcmp(token->text, text) == 0;
+}
+
+/// True when a token is not a word, and its text is `text`. O(n) in the text.
+static bool local_mark_is(const LocalToken *token, const char *text) {
+    return token->kind != TOKEN_WORD && strcmp(token->text, text) == 0;
+}
+
+/// True for a word that has the shape of a macro name: an uppercase letter and no lowercase letter.
+/// A SHAPE IS A FILTER AND NEVER EVIDENCE. `read_local_declaration` reads it only where a plain word
+/// comes before it that can be the declarator. The text is the text of a token, MACRO_WORD_SIZE bytes at
+/// most. O(n) in the text.
+static bool local_macro_shaped(const char *text) {
+    bool has_lower = false;
+    for (unsigned i = 0; i < MACRO_WORD_SIZE && text[i] != '\0'; i++) {
+        has_lower |= text[i] >= 'a' && text[i] <= 'z';
+    }
+    return text[0] != '\0' && text[1] != '\0' && is_macro_name(text, has_lower);
+}
+
+/// Read the tokens from the character after a boundary to the boundary that ends the item: a `;`, a `{`
+/// or a `}` outside brackets, or the `{` of the body of a lambda. A brace inside brackets is a token of
+/// the item, and the item counts it as a boundary: `A() : m(T{1}) {`, `void f(Options o = {}) {`. Each
+/// such boundary is a scan of its own too, and the counts make an entry wait for the right one. O(n) in
+/// the characters that the scan reads.
+static void read_local_item(Reader *reader, LocalItem *item) {
+    item->count = 0;
+    item->boundaries = 0;
+    item->end = 0;
+    unsigned brackets = 0;
+    while (item->count < LOCAL_ITEM_TOKENS) {
+        LOOP_STEP();
+        TextToken token;
+        if (!read_text_token(reader, &token) || reader->budget == 0) {
+            return;
+        }
+        bool open_brace = token.kind == TOKEN_OPEN && token.text[0] == '{';
+        bool close_brace = token.kind == TOKEN_CLOSE && token.text[0] == '}';
+        unsigned open = LOCAL_NO_TOKEN;
+        unsigned close = LOCAL_NO_TOKEN;
+        bool lambda_body = open_brace && brackets > 0 && local_lambda_head(item, item->count, &open, &close) != LOCAL_NO_TOKEN;
+        if (token.kind == TOKEN_SEMICOLON || ((open_brace || close_brace) && brackets == 0) || lambda_body) {
+            item->end = token.text[0];
+            return;
+        }
+        if (open_brace || close_brace) {
+            item->boundaries++;
+        } else if (token.kind == TOKEN_OPEN) {
+            brackets++;
+        } else if (token.kind == TOKEN_CLOSE && brackets > 0) {
+            brackets--;
+        } else if (token.kind == TOKEN_CLOSE) {
+            // The item started inside brackets, at a brace of an argument: `f(Options o = {}, int k)`. It
+            // is the rest of a construct and no item, so it gives no entry.
+            return;
+        }
+        LocalToken *local = &item->tokens[item->count++];
+        local->kind = token.kind;
+        local->name = token.kind == TOKEN_WORD ? reader->word_hash : 0;
+        local->boundaries = item->boundaries - (open_brace || close_brace);
+        memcpy(local->text, token.text, MACRO_WORD_SIZE);
+    }
+}
+
+/// True when `end` is no end of a range of the tokens of the item. Refer to "EACH RANGE OF THE RECORD
+/// FAILS CLOSED" above. O(1).
+static bool local_range_out(const LocalItem *item, unsigned end) {
+    return item->count > LOCAL_ITEM_TOKENS || end > item->count;
+}
+
+/// The count of the entries of a record that a loop reads, with MAX_LOCALS as its maximum. O(1).
+static unsigned local_entry_count(const LocalRecord *record) {
+    return record->count < MAX_LOCALS ? record->count : MAX_LOCALS;
+}
+
+/// The index of the bracket that closes the bracket at `open`, or LOCAL_NO_TOKEN. O(n) in the tokens.
+static unsigned local_match(const LocalItem *item, unsigned open, unsigned end) {
+    if (local_range_out(item, end)) {
+        return LOCAL_NO_TOKEN;
+    }
+    unsigned depth = 0;
+    for (unsigned i = open; i < end; i++) {
+        TokenClass kind = item->tokens[i].kind;
+        if (kind == TOKEN_OPEN) {
+            depth++;
+        } else if (kind == TOKEN_CLOSE && --depth == 0) {
+            return i;
+        }
+    }
+    return LOCAL_NO_TOKEN;
+}
+
+/// The index after the `>` that closes the `<` at `open`, or LOCAL_NO_TOKEN. Groups in brackets are
+/// read whole, so a `>` in `(a > b)` closes nothing. O(n) in the tokens.
+static unsigned local_skip_angles(const LocalItem *item, unsigned open, unsigned end) {
+    if (local_range_out(item, end)) {
+        return LOCAL_NO_TOKEN;
+    }
+    unsigned depth = 0;
+    for (unsigned i = open; i < end; i++) {
+        const LocalToken *token = &item->tokens[i];
+        if (token->kind == TOKEN_OPEN) {
+            i = local_match(item, i, end);
+            if (i == LOCAL_NO_TOKEN) {
+                return LOCAL_NO_TOKEN;
+            }
+        } else if (token->kind == TOKEN_CLOSE) {
+            return LOCAL_NO_TOKEN;
+        } else if (local_mark_is(token, "<")) {
+            depth++;
+        } else if (local_mark_is(token, ">") && --depth == 0) {
+            return i + 1;
+        }
+    }
+    return LOCAL_NO_TOKEN;
+}
+
+/// The index after a name at `start`, with its `::` parts and its template argument lists, or
+/// LOCAL_NO_TOKEN when a `<` does not close. O(n) in the tokens.
+static unsigned local_skip_name(const LocalItem *item, unsigned start, unsigned end) {
+    if (local_range_out(item, end) || start >= end) {
+        return LOCAL_NO_TOKEN;
+    }
+    unsigned i = start + 1;
+    for (unsigned steps = 0; steps < LOCAL_MAX_STEPS; steps++) {
+        if (i < end && local_mark_is(&item->tokens[i], "<")) {
+            i = local_skip_angles(item, i, end);
+            if (i == LOCAL_NO_TOKEN) {
+                return LOCAL_NO_TOKEN;
+            }
+        }
+        if (i + 1 < end && local_mark_is(&item->tokens[i], "::") && item->tokens[i + 1].kind == TOKEN_WORD) {
+            i += 2;
+            continue;
+        }
+        return i;
+    }
+    return LOCAL_NO_TOKEN;
+}
+
+/// The kind of a declaration that `read_local_declaration` reads.
+typedef enum {
+    /// A statement: `T x = 1, *y;`, `T x(args);`, `T x[3];`.
+    LOCAL_STATEMENT,
+    /// One parameter, whose range ends at its `,` or `)`: `T x`, `T x = 1`, `T x[]`.
+    LOCAL_PARAMETER,
+    /// The declaration of a condition or of a `for` head: `if (T x = f())`, `for (T x : v)`,
+    /// `for (T x = 0;`. Only a `=`, a `:` and the end of the range end its declarator, because
+    /// `if (a && b(c))` is an expression and no declaration.
+    LOCAL_CONDITION,
+} LocalDeclarationKind;
+
+/// True for a token that can end a declarator of a declaration of `kind`. A `(` is the direct
+/// initializer of `T x(args)`, and not the parenthesized declarator of `R (*f)(int)`, whose name is
+/// inside the group. O(1).
+static bool local_declarator_end(const LocalItem *item, unsigned i, unsigned end, LocalDeclarationKind kind) {
+    if (local_range_out(item, end)) {
+        return false;
+    }
+    if (i >= end) {
+        return true;
+    }
+    const LocalToken *token = &item->tokens[i];
+    if (local_mark_is(token, "=")) {
+        return true;
+    }
+    if (kind == LOCAL_CONDITION) {
+        return local_mark_is(token, ":");
+    }
+    // A `[[` starts an attribute, and a `[` alone starts an array declarator.
+    if (local_mark_is(token, "[")) {
+        return !(i + 1 < end && local_mark_is(&item->tokens[i + 1], "["));
+    }
+    if (kind == LOCAL_PARAMETER) {
+        return false;
+    }
+    if (local_mark_is(token, "(")) {
+        const LocalToken *inner = i + 1 < end ? &item->tokens[i + 1] : NULL;
+        const LocalToken *second = i + 2 < end ? &item->tokens[i + 2] : NULL;
+        bool pointer = inner != NULL && (local_mark_is(inner, "*") || local_mark_is(inner, "&") ||
+                                         local_mark_is(inner, "&&") || local_mark_is(inner, "^"));
+        bool convention = inner != NULL && inner->kind == TOKEN_WORD && second != NULL && local_mark_is(second, "*");
+        return !pointer && !convention;
+    }
+    return token->kind == TOKEN_COMMA || local_mark_is(token, ":") || local_mark_is(token, ")");
+}
+
+/// Mark the record saturated from `frame`. O(1).
+static void saturate_locals(LocalRecord *record, uint8_t frame) {
+    if (record->saturated == 0 || frame < record->saturated) {
+        record->saturated = frame;
+    }
+}
+
+/// Append an entry that waits for the boundary after the `boundaries` boundaries of its item that come
+/// before its declaration. When the record is full, or the wait does not fit its byte, mark the record
+/// saturated from the frame of the entry and append nothing. O(1).
+static void append_local(LocalRecord *record, uint32_t name, uint8_t frame, unsigned boundaries) {
+    if (record->count >= MAX_LOCALS || boundaries >= UINT8_MAX) {
+        saturate_locals(record, frame);
+        return;
+    }
+    record->entries[record->count++] =
+        (LocalEntry){.name = name, .frame = frame, .pending = (uint8_t)(boundaries + 1)};
+}
+
+/// The index after the initializer of a declarator at `start` and the `,` after it, or
+/// LOCAL_NO_TOKEN when no `,` comes before `end`.
+///
+/// A `<` after a name that a `>` closes before `end` opens a template argument list, and its commas
+/// divide no declarators: `auto d = f<Real, p, order>(j);` declares `d` alone. A comparison that a `>`
+/// closes by chance, `int a = b < c, e = d > 1;`, then hides the declarator `e`, and that is a miss
+/// and never a wrong entry. O(n) in the tokens.
+static unsigned local_next_declarator(const LocalItem *item, unsigned start, unsigned end) {
+    if (local_range_out(item, end)) {
+        return LOCAL_NO_TOKEN;
+    }
+    for (unsigned i = start; i < end; i++) {
+        const LocalToken *token = &item->tokens[i];
+        if (local_mark_is(token, "<") && i > start &&
+            (item->tokens[i - 1].kind == TOKEN_WORD || local_mark_is(&item->tokens[i - 1], "]"))) {
+            unsigned after = local_skip_angles(item, i, end);
+            if (after != LOCAL_NO_TOKEN) {
+                i = after - 1;
+                continue;
+            }
+        }
+        if (token->kind == TOKEN_OPEN) {
+            i = local_match(item, i, end);
+            if (i == LOCAL_NO_TOKEN) {
+                return LOCAL_NO_TOKEN;
+            }
+        } else if (token->kind == TOKEN_CLOSE) {
+            return LOCAL_NO_TOKEN;
+        } else if (token->kind == TOKEN_COMMA) {
+            return i + 1;
+        }
+    }
+    return LOCAL_NO_TOKEN;
+}
+
+/// Read a simple declaration from token `start` to `end`, and append each declarator name to `frame`.
+/// Return the number of names that the declaration declares, with the names that did not fit.
+///
+/// A DECLARATOR NAME IS A PLAIN WORD WITH A TYPE BEFORE IT AND A DECLARATOR END AFTER IT: `T x =`,
+/// `a * b;`, `std::vector<int> v(3)`, `unsigned n;`. A name that is a value in each reading of the
+/// text is safe to record, and the declarator of `a * b;` is `b` whether the statement declares `b`
+/// or multiplies. A word with no type before it is no declarator: `x = y;`, `f(x);`.
+///
+/// A parameter and a condition read one declarator, and a `=` starts its initializer. In a statement,
+/// a `,` after an initializer starts the next declarator: `int a = 1, *b;`. The next declarator holds
+/// only pointer operators and qualifiers before its name, so `auto f = [&]<typename D, typename P>` is
+/// no list of declarators.
+///
+/// A macro-shaped word after a plain word that two plain types come before is an attribute macro of
+/// that word, when the declaration ends after it: `Mutex mu MOZ_UNANNOTATED;`. The plain word is the
+/// declarator. Each other macro-shaped word is a declarator: `const T Q_1_2[] = {...};`,
+/// `BOOST_MATH_STATIC const T C3;`, `int N;`.
+///
+/// O(n) in the tokens.
+static unsigned read_local_declaration(const LocalItem *item, unsigned start, unsigned end, LocalRecord *record,
+                                       uint8_t frame, LocalDeclarationKind kind) {
+    if (local_range_out(item, end)) {
+        return 0;
+    }
+    bool parameter = kind != LOCAL_STATEMENT;
+    unsigned declared = 0;
+    // The tokens of the type, the types among them, and the plain types that are not macro-shaped.
+    unsigned units = 0;
+    unsigned types = 0;
+    unsigned plain_types = 0;
+    // The index of a plain word that can be the declarator before a macro-shaped word, or LOCAL_NO_TOKEN.
+    unsigned candidate = LOCAL_NO_TOKEN;
+    // True after the `,` that starts a declarator after the first one.
+    bool continuation = false;
+    unsigned i = start;
+    for (unsigned steps = 0; i < end; steps++) {
+        if (steps == LOCAL_MAX_STEPS) {
+            return declared;
+        }
+        const LocalToken *token = &item->tokens[i];
+        if (local_mark_is(token, "[") && i + 1 < end && local_mark_is(&item->tokens[i + 1], "[")) {
+            unsigned close = local_match(item, i, end);
+            if (close == LOCAL_NO_TOKEN) {
+                return declared;
+            }
+            i = close + 1;
+            continue;
+        }
+        if (local_mark_is(token, "::") && units == 0) {
+            i++;
+            continue;
+        }
+        if (local_mark_is(token, "...") || local_mark_is(token, "*") || local_mark_is(token, "&") ||
+            local_mark_is(token, "&&")) {
+            if (units == 0) {
+                return declared;
+            }
+            candidate = LOCAL_NO_TOKEN;
+            i++;
+            continue;
+        }
+        // A structured binding: `auto [a, b] = f();`, `const auto& [k, v] : map`. The `[` comes after
+        // `auto` or after a reference operator after `auto`. After a name, it is a subscript: `a[i] = b;`.
+        const LocalToken *before = i > start ? &item->tokens[i - 1] : NULL;
+        bool binding = before != NULL &&
+                       (local_word_is(before, "auto") ||
+                        ((local_mark_is(before, "&") || local_mark_is(before, "&&")) && i - 1 > start &&
+                         local_word_is(&item->tokens[i - 2], "auto")));
+        if (local_mark_is(token, "[") && units > 0 && !binding) {
+            return declared;
+        }
+        if (local_mark_is(token, "[") && binding) {
+            unsigned close = local_match(item, i, end);
+            if (close == LOCAL_NO_TOKEN || parameter) {
+                return declared;
+            }
+            for (unsigned j = i + 1; j < close; j++) {
+                if (item->tokens[j].kind == TOKEN_WORD) {
+                    append_local(record, item->tokens[j].name, frame, item->tokens[j].boundaries);
+                    declared++;
+                } else if (item->tokens[j].kind != TOKEN_COMMA) {
+                    return declared;
+                }
+            }
+            return declared;
+        }
+        if (token->kind != TOKEN_WORD || word_in(token->text, LOCAL_STOP_WORDS)) {
+            return declared;
+        }
+        if (continuation && (local_word_is(token, "const") || local_word_is(token, "volatile"))) {
+            i++;
+            continue;
+        }
+        // A later declarator has no type of its own: `[]<class... _Tail>` after `auto f =` is no list.
+        if (continuation && (is_class_key(token->text) || strcmp(token->text, "enum") == 0 ||
+                             word_in(token->text, LOCAL_GROUP_WORDS))) {
+            return declared;
+        }
+        if (is_class_key(token->text) || strcmp(token->text, "enum") == 0) {
+            // An elaborated type: `struct stat st;`, `enum class E e;`. The name belongs to the type.
+            i++;
+            if (i < end && (local_word_is(&item->tokens[i], "class") || local_word_is(&item->tokens[i], "struct"))) {
+                i++;
+            }
+            if (i < end && item->tokens[i].kind == TOKEN_WORD) {
+                i = local_skip_name(item, i, end);
+                if (i == LOCAL_NO_TOKEN) {
+                    return declared;
+                }
+            }
+            units++;
+            types++;
+            candidate = LOCAL_NO_TOKEN;
+            continue;
+        }
+        if (word_in(token->text, LOCAL_GROUP_WORDS)) {
+            i++;
+            if (i < end && local_mark_is(&item->tokens[i], "(")) {
+                unsigned close = local_match(item, i, end);
+                if (close == LOCAL_NO_TOKEN) {
+                    return declared;
+                }
+                i = close + 1;
+            }
+            units++;
+            types += strcmp(token->text, "decltype") == 0 || strncmp(token->text, "typeof", 6) == 0 ||
+                     strncmp(token->text, "__typeof", 8) == 0;
+            candidate = LOCAL_NO_TOKEN;
+            continue;
+        }
+        unsigned after = local_skip_name(item, i, end);
+        if (after == LOCAL_NO_TOKEN) {
+            return declared;
+        }
+        bool plain = after == i + 1;
+        bool keyword = word_in(token->text, RESERVED_WORDS);
+        bool at_end = local_declarator_end(item, after, end, kind);
+        if (types > 0 && plain && !keyword && at_end) {
+            uint32_t name = token->name;
+            bool ends = after == end || item->tokens[after].kind == TOKEN_COMMA || local_mark_is(&item->tokens[after], ")");
+            if (plain_types >= 2 && candidate != LOCAL_NO_TOKEN && candidate + 1 == i && ends &&
+                local_macro_shaped(token->text)) {
+                name = item->tokens[candidate].name;
+            }
+            append_local(record, name, frame, token->boundaries);
+            declared++;
+            if (parameter || after == end) {
+                return declared;
+            }
+            i = local_next_declarator(item, after, end);
+            if (i == LOCAL_NO_TOKEN) {
+                return declared;
+            }
+            // The declarators after a `,` share the type of the first one.
+            candidate = LOCAL_NO_TOKEN;
+            continuation = true;
+            continue;
+        }
+        if (continuation) {
+            return declared;
+        }
+        bool qualifier = word_in(token->text, LOCAL_QUALIFIER_WORDS);
+        units++;
+        types += !qualifier;
+        plain_types += !qualifier && plain && !local_macro_shaped(token->text);
+        candidate = plain && !keyword ? i : LOCAL_NO_TOKEN;
+        i = after;
+    }
+    return declared;
+}
+
+/// Read the parameter declarations of the group from `open` to `close`, and append each parameter
+/// name to `frame`. Return the number of names. A `,` inside brackets or inside a template argument
+/// list does not divide two parameters: `std::map<int, int> m`. O(n) in the tokens.
+static unsigned read_local_parameters(const LocalItem *item, unsigned open, unsigned close, LocalRecord *record,
+                                      uint8_t frame) {
+    if (local_range_out(item, close) || open >= close || close >= item->count) {
+        return 0;
+    }
+    unsigned declared = 0;
+    unsigned start = open + 1;
+    unsigned angles = 0;
+    for (unsigned i = open + 1; i <= close; i++) {
+        const LocalToken *token = &item->tokens[i];
+        if (i < close && token->kind == TOKEN_OPEN) {
+            i = local_match(item, i, close);
+            if (i == LOCAL_NO_TOKEN) {
+                return declared;
+            }
+            continue;
+        }
+        if (i < close && local_mark_is(token, "<") && i > start && item->tokens[i - 1].kind == TOKEN_WORD) {
+            angles++;
+        } else if (i < close && local_mark_is(token, ">") && angles > 0) {
+            angles--;
+        } else if (i == close || (token->kind == TOKEN_COMMA && angles == 0)) {
+            declared += read_local_declaration(item, start, i, record, frame, LOCAL_PARAMETER);
+            start = i + 1;
+            angles = 0;
+        }
+    }
+    return declared;
+}
+
+/// True when the tokens from `start` to `end` are the tokens between the parameter list of a
+/// definition or of a lambda and its body: qualifiers, `noexcept(...)`, an attribute, a macro, a
+/// trailing return type, a constraint, or a constructor initializer list with groups in parentheses.
+///
+/// An initializer in braces ends the item at its `{`: `A(int x) : m{x} {`. When `brace_init` is not
+/// NULL, a list whose last entry is a name before that `{` also gives true, and `*brace_init` becomes
+/// true. The caller then reads the rest of the list. O(n) in the tokens.
+static bool local_trailers_reach(const LocalItem *item, unsigned start, unsigned end, bool *brace_init) {
+    if (local_range_out(item, end)) {
+        return false;
+    }
+    unsigned i = start;
+    for (unsigned steps = 0; i < end; steps++) {
+        if (steps == LOCAL_MAX_STEPS) {
+            return false;
+        }
+        const LocalToken *token = &item->tokens[i];
+        if (token->kind == TOKEN_WORD) {
+            if (strcmp(token->text, "requires") == 0) {
+                return true;
+            }
+            if (!word_in(token->text, LOCAL_TRAILER_WORDS) && !local_macro_shaped(token->text)) {
+                return false;
+            }
+            i++;
+            if (i < end && local_mark_is(&item->tokens[i], "(")) {
+                i = local_match(item, i, end);
+                if (i == LOCAL_NO_TOKEN) {
+                    return false;
+                }
+                i++;
+            }
+            continue;
+        }
+        if (local_mark_is(token, "&") || local_mark_is(token, "&&")) {
+            i++;
+            continue;
+        }
+        if (local_mark_is(token, "[") && i + 1 < end && local_mark_is(&item->tokens[i + 1], "[")) {
+            i = local_match(item, i, end);
+            if (i == LOCAL_NO_TOKEN) {
+                return false;
+            }
+            i++;
+            continue;
+        }
+        if (local_mark_is(token, "->")) {
+            // The trailing return type: names, `::`, template arguments, pointer operators, groups.
+            i++;
+            for (unsigned part_steps = 0; i < end; part_steps++) {
+                if (part_steps == LOCAL_MAX_STEPS) {
+                    return false;
+                }
+                const LocalToken *part = &item->tokens[i];
+                if (local_mark_is(part, "<")) {
+                    i = local_skip_angles(item, i, end);
+                } else if (part->kind == TOKEN_OPEN) {
+                    i = local_match(item, i, end);
+                    if (i != LOCAL_NO_TOKEN) {
+                        i++;
+                    }
+                } else if (part->kind == TOKEN_WORD || local_mark_is(part, "::") || local_mark_is(part, "*") ||
+                           local_mark_is(part, "&") || local_mark_is(part, "&&") || local_mark_is(part, "...")) {
+                    i++;
+                } else {
+                    return false;
+                }
+                if (i == LOCAL_NO_TOKEN) {
+                    return false;
+                }
+            }
+            return true;
+        }
+        if (local_mark_is(token, ":")) {
+            // A constructor initializer list: `: a(x), b(y)`.
+            i++;
+            for (unsigned entry_steps = 0; i < end; entry_steps++) {
+                if (entry_steps == LOCAL_MAX_STEPS) {
+                    return false;
+                }
+                if (item->tokens[i].kind != TOKEN_WORD) {
+                    return false;
+                }
+                i = local_skip_name(item, i, end);
+                if (i == end && brace_init != NULL) {
+                    *brace_init = true;
+                    return true;
+                }
+                if (i == LOCAL_NO_TOKEN || i >= end || !local_mark_is(&item->tokens[i], "(")) {
+                    return false;
+                }
+                i = local_match(item, i, end);
+                if (i == LOCAL_NO_TOKEN) {
+                    return false;
+                }
+                i++;
+                if (i < end && local_mark_is(&item->tokens[i], "...")) {
+                    i++;
+                }
+                if (i < end) {
+                    if (item->tokens[i].kind != TOKEN_COMMA) {
+                        return false;
+                    }
+                    i++;
+                }
+            }
+            return true;
+        }
+        return false;
+    }
+    return true;
+}
+
+/// The index of the bracket that opens the bracket at `close`, or LOCAL_NO_TOKEN. O(n) in the tokens.
+static unsigned local_match_back(const LocalItem *item, unsigned close) {
+    if (local_range_out(item, close) || close >= item->count) {
+        return LOCAL_NO_TOKEN;
+    }
+    unsigned depth = 0;
+    for (unsigned i = close + 1; i-- > 0;) {
+        TokenClass kind = item->tokens[i].kind;
+        if (kind == TOKEN_CLOSE) {
+            depth++;
+        } else if (kind == TOKEN_OPEN && --depth == 0) {
+            return i;
+        }
+    }
+    return LOCAL_NO_TOKEN;
+}
+
+/// True when the tokens before the `(` at `open` name the declarator of a definition: a name that is
+/// no keyword of an expression, a destructor, the `>` of a template argument list, or an `operator`
+/// function. An attribute can come between the name and the list, `f [[gnu::used]] (int)`, and so can
+/// the arguments of a macro that gives the name, `MONGO_INITIALIZER(Name)(InitializerContext *c)`.
+/// O(n) in the tokens.
+static bool local_head_name(const LocalItem *item, unsigned open) {
+    if (open == 0 || local_range_out(item, open) || open >= item->count) {
+        return false;
+    }
+    const LocalToken *before = &item->tokens[open - 1];
+    if (before->kind == TOKEN_WORD) {
+        return !word_in(before->text, LOCAL_NOT_HEAD_WORDS);
+    }
+    if (local_mark_is(before, ">")) {
+        return true;
+    }
+    if (local_mark_is(before, "]") || local_mark_is(before, ")")) {
+        unsigned group = local_match_back(item, open - 1);
+        bool attribute = local_mark_is(before, "]") && group != LOCAL_NO_TOKEN && group + 1 < open &&
+                         local_mark_is(&item->tokens[group + 1], "[");
+        bool call = local_mark_is(before, ")") && group != LOCAL_NO_TOKEN;
+        if ((attribute || call) && group > 0 && item->tokens[group - 1].kind == TOKEN_WORD &&
+            !word_in(item->tokens[group - 1].text, LOCAL_NOT_HEAD_WORDS) &&
+            !local_word_is(&item->tokens[group - 1], "operator")) {
+            return true;
+        }
+    }
+    // `operator()(int x)`, `operator==(const A& a)`, `operator new(size_t n)`.
+    for (unsigned back = 2; back <= 4 && back <= open; back++) {
+        if (local_word_is(&item->tokens[open - back], "operator")) {
+            return true;
+        }
+    }
+    return false;
+}
+
+/// Read the rest of a constructor initializer list from the character after the `{` of a braced
+/// initializer, to the `{` of the body: `A(int x) : m{x}, n(x) {`. Return the count of the boundaries
+/// from the `{` of the initializer to the `{` of the body, the two included, or 0 when the text is no
+/// such list or the count does not fit a `uint8_t`. O(n) in the characters that the scan reads.
+static unsigned count_initializer_boundaries(Reader *reader);
+
+/// Read the rest of the head of a `for` from the character after its first `;`, to the `{` of its body.
+/// Return the count of the boundaries from that `;` to the `{` of the body, the two included, or 0 when
+/// the body is no block or the count does not fit a `uint8_t`. O(n) in the characters that the scan
+/// reads.
+static unsigned count_for_head_boundaries(Reader *reader) {
+    unsigned boundaries = 1;
+    // The `(` of the head is open.
+    unsigned depth = 1;
+    for (unsigned tokens = 0; tokens < 4 * LOCAL_ITEM_TOKENS; tokens++) {
+        LOOP_STEP();
+        TextToken token;
+        if (!read_text_token(reader, &token) || reader->budget == 0) {
+            return 0;
+        }
+        bool brace = token.kind == TOKEN_OPEN && token.text[0] == '{';
+        if (brace || (token.kind == TOKEN_CLOSE && token.text[0] == '}') || token.kind == TOKEN_SEMICOLON) {
+            boundaries++;
+        }
+        if (depth == 0) {
+            return brace && boundaries <= UINT8_MAX ? boundaries : 0;
+        }
+        if (token.kind == TOKEN_OPEN) {
+            depth++;
+        } else if (token.kind == TOKEN_CLOSE) {
+            depth--;
+        }
+    }
+    return 0;
+}
+
+static unsigned count_initializer_boundaries(Reader *reader) {
+    unsigned boundaries = 1;
+    // The open brackets of the current initializer. The `{` of the first initializer is open.
+    unsigned depth = 1;
+    // True after an initializer closes, where a `,` or the `{` of the body comes next.
+    bool after_entry = false;
+    unsigned angles = 0;
+    for (unsigned tokens = 0; tokens < 4 * LOCAL_ITEM_TOKENS; tokens++) {
+        LOOP_STEP();
+        TextToken token;
+        if (!read_text_token(reader, &token) || reader->budget == 0) {
+            return 0;
+        }
+        bool brace = token.kind == TOKEN_OPEN && token.text[0] == '{';
+        if (brace || (token.kind == TOKEN_CLOSE && token.text[0] == '}') || token.kind == TOKEN_SEMICOLON) {
+            boundaries++;
+        }
+        if (depth > 0) {
+            if (token.kind == TOKEN_OPEN) {
+                depth++;
+            } else if (token.kind == TOKEN_CLOSE && --depth == 0) {
+                after_entry = true;
+            }
+            continue;
+        }
+        if (after_entry) {
+            if (brace) {
+                return boundaries <= UINT8_MAX ? boundaries : 0;
+            }
+            if (token.kind == TOKEN_COMMA) {
+                after_entry = false;
+            } else if (strcmp(token.text, "...") != 0) {
+                return 0;
+            }
+            continue;
+        }
+        // The name of the next initializer: words, `::`, and template arguments.
+        if (angles == 0 && (brace || (token.kind == TOKEN_OPEN && token.text[0] == '('))) {
+            depth = 1;
+        } else if (strcmp(token.text, "<") == 0) {
+            angles++;
+        } else if (strcmp(token.text, ">") == 0 && angles > 0) {
+            angles--;
+        } else if (!(token.kind == TOKEN_WORD || strcmp(token.text, "::") == 0 ||
+                     (angles > 0 && (token.kind == TOKEN_COMMA || token.kind == TOKEN_LITERAL)))) {
+            return 0;
+        }
+    }
+    return 0;
+}
+
+/// The index of the `[` of a lambda whose captures, parameter list and trailers reach token `end`, or
+/// LOCAL_NO_TOKEN. `*open` and `*close` get its parameter list, or LOCAL_NO_TOKEN for a lambda with none
+/// and for no lambda. The last such `[` wins. A `[` after a name, a `)`, a `]` or a literal is a
+/// subscript: `a[i]`, `f()[0]`. O(n) for each `[` of the item.
+///
+/// A candidate that fails writes nothing to the caller. In `[=]({) {`, the `(` has no `)` in the item. An
+/// `*open` of that candidate with no `*close` sends `read_local_parameters` past the last token.
+static unsigned local_lambda_head(const LocalItem *item, unsigned end, unsigned *open, unsigned *close) {
+    *open = LOCAL_NO_TOKEN;
+    *close = LOCAL_NO_TOKEN;
+    if (local_range_out(item, end)) {
+        return LOCAL_NO_TOKEN;
+    }
+    for (unsigned p = end; p-- > 0;) {
+        if (!local_mark_is(&item->tokens[p], "[") || (p + 1 < end && local_mark_is(&item->tokens[p + 1], "["))) {
+            continue;
+        }
+        if (p > 0) {
+            const LocalToken *before = &item->tokens[p - 1];
+            bool operand = (before->kind == TOKEN_WORD && !word_in(before->text, LOCAL_STOP_WORDS)) ||
+                           before->kind == TOKEN_CLOSE || before->kind == TOKEN_LITERAL;
+            if (operand) {
+                continue;
+            }
+        }
+        unsigned captures = local_match(item, p, end);
+        if (captures == LOCAL_NO_TOKEN) {
+            continue;
+        }
+        unsigned after = captures + 1;
+        // A generic lambda can have a template parameter list: `[&]<typename D, typename P>(D d, P p)`.
+        if (after < end && local_mark_is(&item->tokens[after], "<")) {
+            after = local_skip_angles(item, after, end);
+            if (after == LOCAL_NO_TOKEN) {
+                continue;
+            }
+        }
+        unsigned params_open = LOCAL_NO_TOKEN;
+        unsigned params_close = LOCAL_NO_TOKEN;
+        if (after < end && local_mark_is(&item->tokens[after], "(")) {
+            params_open = after;
+            params_close = local_match(item, after, end);
+            if (params_close == LOCAL_NO_TOKEN) {
+                continue;
+            }
+            after = params_close + 1;
+        }
+        if (local_trailers_reach(item, after, end, NULL)) {
+            *open = params_open;
+            *close = params_close;
+            return p;
+        }
+    }
+    return LOCAL_NO_TOKEN;
+}
+
+/// True when an item starts a namespace or a class, after `export`, `inline`, `extern "C"`, a template
+/// head, and attributes: `namespace std _GLIBCXX_VISIBILITY(default) {`, `class A DECLARE(x) {`. A group
+/// before the body of such an item is no parameter list. O(n) in the tokens.
+static bool local_item_starts_scope(const LocalItem *item) {
+    if (local_range_out(item, item->count)) {
+        return false;
+    }
+    unsigned i = 0;
+    unsigned n = item->count;
+    for (unsigned steps = 0; i < n && steps < LOCAL_MAX_STEPS; steps++) {
+        const LocalToken *token = &item->tokens[i];
+        if (local_word_is(token, "export") || local_word_is(token, "inline") || local_word_is(token, "extern") ||
+            token->kind == TOKEN_LITERAL) {
+            i++;
+        } else if (local_word_is(token, "template") && i + 1 < n && local_mark_is(&item->tokens[i + 1], "<")) {
+            i = local_skip_angles(item, i + 1, n);
+            if (i == LOCAL_NO_TOKEN) {
+                return false;
+            }
+        } else if (local_mark_is(token, "[") && i + 1 < n && local_mark_is(&item->tokens[i + 1], "[")) {
+            i = local_match(item, i, n);
+            if (i == LOCAL_NO_TOKEN) {
+                return false;
+            }
+            i++;
+        } else {
+            return token->kind == TOKEN_WORD &&
+                   (strcmp(token->text, "namespace") == 0 || strcmp(token->text, "enum") == 0 ||
+                    strcmp(token->text, "concept") == 0 || is_class_key(token->text));
+        }
+    }
+    return false;
+}
+
+/// Read a head that ends at the `{` of a body, and append its parameters to the frame of that body. A
+/// head of a lambda can be inside brackets: `f(a, [](int x) {`. A head of a definition is at the top
+/// level of the item: `void f(int x) {`, `A::A(int x) : a(x) {`, `TEST(Suite, Name) {`. At file scope, a
+/// head with no parameter name appends an entry with the name 0, so that its body opens a frame.
+///
+/// The entries wait for the `{` of the body: the braces inside the item come first, `f(Options o = {}) {`.
+/// A constructor whose initializer list has an initializer in braces ends the item at that `{`. With a
+/// reader, the scan reads the rest of the list and counts its boundaries too. Without a reader, such a
+/// head gives no entry.
+///
+/// Return true when the item is the head of a definition, and false for a lambda and for no head. The
+/// name of a definition is no local of the frame, and the caller then reads no statement. O(n) in the
+/// tokens.
+static bool read_local_head(const LocalItem *item, LocalRecord *record, Reader *reader) {
+    if (item->end != '{' || item->count == 0 || local_range_out(item, item->count) || record->frames == UINT8_MAX) {
+        return false;
+    }
+    unsigned n = item->count;
+    uint8_t body = record->frames + 1;
+    unsigned open = LOCAL_NO_TOKEN;
+    unsigned close = LOCAL_NO_TOKEN;
+    unsigned wait = item->boundaries + 1;
+    bool definition = false;
+    if (local_lambda_head(item, n, &open, &close) == LOCAL_NO_TOKEN) {
+        if (local_item_starts_scope(item)) {
+            return false;
+        }
+        // A definition: the FIRST `(` at the top level whose group and trailers reach the body. Each entry
+        // of a constructor initializer list after it reaches the body too: `A(int x) : m(x) {`.
+        bool last_brace_init = false;
+        for (unsigned i = 0; i < n && open == LOCAL_NO_TOKEN; i++) {
+            if (item->tokens[i].kind != TOKEN_OPEN) {
+                continue;
+            }
+            unsigned group_close = local_match(item, i, n);
+            if (group_close == LOCAL_NO_TOKEN) {
+                return false;
+            }
+            bool brace_init = false;
+            if (local_mark_is(&item->tokens[i], "(") && local_head_name(item, i) &&
+                local_trailers_reach(item, group_close + 1, n, &brace_init)) {
+                open = i;
+                close = group_close;
+                last_brace_init = brace_init;
+            }
+            i = group_close;
+        }
+        if (open == LOCAL_NO_TOKEN) {
+            return false;
+        }
+        definition = true;
+        if (last_brace_init) {
+            unsigned rest = reader == NULL ? 0 : count_initializer_boundaries(reader);
+            if (rest == 0) {
+                return definition;
+            }
+            wait = item->boundaries + rest;
+        }
+    }
+    if (wait > UINT8_MAX) {
+        return definition;
+    }
+    unsigned first = local_entry_count(record);
+    unsigned declared = open == LOCAL_NO_TOKEN ? 0 : read_local_parameters(item, open, close, record, body);
+    if (declared == 0 && record->frames == 0) {
+        append_local(record, 0, body, 0);
+    }
+    for (unsigned i = first; i < local_entry_count(record); i++) {
+        record->entries[i].pending = (uint8_t)wait;
+    }
+    return definition;
+}
+
+/// Read the declarations of a statement in a frame. A condition of `if`, `while` and `switch`, the head
+/// of a `for`, and the parameter of `catch` declare their names in the frame of the body in braces. A
+/// head of a `for` ends the item at its first `;`, and with a reader the scan reads the rest of the head
+/// to that body. A statement with no body in braces gives no entry for its condition. O(n) in the
+/// tokens.
+static void read_local_statement(const LocalItem *item, LocalRecord *record, Reader *reader) {
+    if (local_range_out(item, item->count)) {
+        return;
+    }
+    unsigned n = item->count;
+    unsigned i = 0;
+    // The prefixes: `else`, a label, `case X:`, `default:`, and an access specifier.
+    for (unsigned steps = 0;; steps++) {
+        if (steps == LOCAL_MAX_STEPS) {
+            return;
+        }
+        if (i < n && local_word_is(&item->tokens[i], "else")) {
+            i++;
+            continue;
+        }
+        if (i + 1 < n && item->tokens[i].kind == TOKEN_WORD && local_mark_is(&item->tokens[i + 1], ":") &&
+            (!word_in(item->tokens[i].text, RESERVED_WORDS) || local_word_is(&item->tokens[i], "default") ||
+             local_word_is(&item->tokens[i], "public") || local_word_is(&item->tokens[i], "private") ||
+             local_word_is(&item->tokens[i], "protected"))) {
+            i += 2;
+            continue;
+        }
+        if (i < n && local_word_is(&item->tokens[i], "case")) {
+            unsigned j = i + 1;
+            while (j < n && !local_mark_is(&item->tokens[j], ":")) {
+                j++;
+            }
+            if (j == n) {
+                return;
+            }
+            i = j + 1;
+            continue;
+        }
+        break;
+    }
+    if (i >= n || record->frames == UINT8_MAX) {
+        return;
+    }
+    const LocalToken *first = &item->tokens[i];
+    uint8_t body = record->frames + 1;
+    // The head of a class, whose body ends the item, declares a type and no local:
+    // `struct ABSL_ATTRIBUTE_TRIVIAL_ABI Probe {`, `class [[nodiscard]] awaitable {`.
+    if (item->end == '{' && first->kind == TOKEN_WORD && (is_class_key(first->text) || strcmp(first->text, "enum") == 0)) {
+        return;
+    }
+    // A declaration of a condition, of a `for` head, or of a `catch` is in scope in the body of its
+    // statement, and only a body in braces is a frame. A statement with no such body gives no entry,
+    // because its declaration leaves scope at a `;` that no frame closes: after
+    // `for (auto *Use : I->users()) f(Use);`, `for (Use &Op : ...)` reads `Use` as a type.
+    bool control = local_word_is(first, "if") || local_word_is(first, "while") ||
+                   local_word_is(first, "switch") || local_word_is(first, "for");
+    if (control || local_word_is(first, "catch")) {
+        if (i + 1 >= n || !local_mark_is(&item->tokens[i + 1], "(")) {
+            return;
+        }
+        unsigned close = local_match(item, i + 1, n);
+        unsigned end = close == LOCAL_NO_TOKEN ? n : close;
+        unsigned wait = item->boundaries + 1;
+        if (local_word_is(first, "for") && item->end == ';' && close == LOCAL_NO_TOKEN) {
+            // `for (int i = 0; i < n; ++i) {`: the item ends at the first `;` of the head, and the scan
+            // reads the rest of the head to find the body.
+            unsigned rest = reader == NULL ? 0 : count_for_head_boundaries(reader);
+            if (rest == 0) {
+                return;
+            }
+            wait = item->boundaries + rest;
+        } else if (item->end != '{') {
+            return;
+        }
+        if (wait > UINT8_MAX) {
+            return;
+        }
+        unsigned first_entry = local_entry_count(record);
+        LocalDeclarationKind kind = local_word_is(first, "catch") ? LOCAL_PARAMETER : LOCAL_CONDITION;
+        read_local_declaration(item, i + 2, end, record, body, kind);
+        for (unsigned entry = first_entry; entry < local_entry_count(record); entry++) {
+            record->entries[entry].pending = (uint8_t)wait;
+        }
+        return;
+    }
+    read_local_declaration(item, i, n, record, record->frames, LOCAL_STATEMENT);
+}
+
+/// Apply a boundary to a record: each pending entry comes one boundary nearer to scope, a `{` opens a
+/// frame, and a `}` closes the innermost frame with its entries in scope. O(n) in the entries.
+///
+/// A `{` opens a frame in a frame, and at file scope only when an entry of a head comes into scope at it.
+/// An entry in scope whose frame is not open after the boundary goes: the entries of a closed frame,
+/// and the entries of a head whose body did not come at the boundary that the head scan counted. A
+/// pending entry stays across a `}`, because the braces of a constructor initializer list come before
+/// the body of its head: `A() : m{1} {`.
+static void apply_local_boundary(LocalRecord *record, int32_t boundary) {
+    bool body = false;
+    unsigned count = local_entry_count(record);
+    for (unsigned i = 0; i < count; i++) {
+        LocalEntry *entry = &record->entries[i];
+        if (entry->pending > 0 && --entry->pending == 0) {
+            body |= entry->frame > record->frames;
+        }
+    }
+    if (boundary == '{' && (record->frames > 0 || body)) {
+        if (record->frames == UINT8_MAX) {
+            saturate_locals(record, 1);
+        } else {
+            record->frames++;
+        }
+    } else if (boundary == '}' && record->frames > 0) {
+        if (record->saturated >= record->frames) {
+            record->saturated = 0;
+        }
+        record->frames--;
+    } else if (boundary == '}') {
+        record->saturated = 0;
+    }
+    unsigned kept = 0;
+    for (unsigned i = 0; i < count; i++) {
+        const LocalEntry *entry = &record->entries[i];
+        if (entry->pending > 0 || entry->frame <= record->frames) {
+            record->entries[kept++] = *entry;
+        }
+    }
+    record->count = (uint8_t)kept;
+}
+
+/// True when two records hold the same entries, frames and saturation. O(n) in the entries.
+static bool local_record_same(const LocalRecord *a, const LocalRecord *b) {
+    if (a->count != b->count || a->frames != b->frames || a->saturated != b->saturated) {
+        return false;
+    }
+    for (unsigned i = 0; i < local_entry_count(a); i++) {
+        const LocalEntry *x = &a->entries[i];
+        const LocalEntry *y = &b->entries[i];
+        if (x->name != y->name || x->frame != y->frame || x->pending != y->pending) {
+            return false;
+        }
+    }
+    return true;
+}
+
+#ifdef TS_CPP_LOCAL_TRACE
+// MEASUREMENT BUILD ONLY. A build with TS_CPP_LOCAL_TRACE records each change of the record of locals with
+// its byte offset, so that a tool can compare the frames and the entries with a tree. No shipped build
+// defines it.
+
+/// The first members of the `Lexer` of vendor/tree-sitter/src/lexer.h: `TSLexer data` and the byte of
+/// `Length current_position`. The tool that reads the trace checks the offsets against a known input.
+typedef struct {
+    TSLexer data;
+    uint32_t bytes;
+} TraceLexer;
+
+static _Thread_local char *trace_text;
+static _Thread_local size_t trace_length;
+static _Thread_local size_t trace_capacity;
+
+/// Append one line of the trace: the byte of the boundary, the boundary, the frames, the saturation,
+/// and each entry as its hash, its frame, and its pending mark.
+static void trace_local_mark(uint32_t bytes, int32_t boundary, const LocalRecord *record) {
+    char line[64 + MAX_LOCALS * 24];
+    int length = snprintf(line, sizeof line, "%u\t%c\t%u\t%u", bytes, (char)boundary, record->frames, record->saturated);
+    for (unsigned i = 0; i < local_entry_count(record); i++) {
+        const LocalEntry *entry = &record->entries[i];
+        length += snprintf(line + length, sizeof line - (size_t)length, "\t%u:%u:%u", entry->name, entry->frame,
+                           entry->pending);
+    }
+    length += snprintf(line + length, sizeof line - (size_t)length, "\n");
+    if (trace_length + (size_t)length > trace_capacity) {
+        size_t capacity = trace_capacity == 0 ? 1 << 16 : trace_capacity * 2;
+        while (capacity < trace_length + (size_t)length) {
+            capacity *= 2;
+        }
+        trace_text = realloc(trace_text, capacity);
+        trace_capacity = capacity;
+    }
+    memcpy(trace_text + trace_length, line, (size_t)length);
+    trace_length += (size_t)length;
+}
+
+/// Copy the trace of this thread into `out` and clear it, when `capacity` holds it. Return its length.
+size_t tree_sitter_cpp_local_trace_take(char *out, size_t capacity) {
+    size_t length = trace_length;
+    if (length <= capacity) {
+        memcpy(out, trace_text, length);
+        trace_length = 0;
+    }
+    return length;
+}
+#endif
+
+/// Scan a boundary, `{`, `}`, or `;`, and change the record of locals with no token. The scan applies
+/// the boundary, reads the next item, and appends the names that the item declares. Refer to "THE RECORD
+/// OF LOCALS" above.
+///
+/// The scan gives no token in each path. When the record changes, the result symbol is
+/// TREE_SITTER_EXTERNAL_STATE_ONLY, and the runtime of ABI 1018 stores the state on the boundary
+/// token that the internal lexer reads next. A version reads a boundary one time, because the state
+/// after it lives on the boundary token itself, and a version that holds that state stands after it.
+/// O(n) in the characters of the item and in the entries.
+static bool scan_local_boundary(Scanner *scanner, TSLexer *lexer) {
+    LocalRecord *record = &scanner->locals;
+    int32_t boundary = lexer->lookahead;
+#ifdef TS_CPP_LOCAL_TRACE
+    uint32_t bytes = ((const TraceLexer *)lexer)->bytes;
+#endif
+    mark_end(lexer);
+    Reader reader = start_reader(lexer, LOCAL_ITEM_LIMIT, scanner);
+    step(&reader);
+    LocalItem item;
+    read_local_item(&reader, &item);
+    LocalRecord next = *record;
+    apply_local_boundary(&next, boundary);
+    // The head of a definition declares no local of the frame: `S(int val) : val_(val) {` is a
+    // constructor, and `S` is a type. So a head that matches skips the statement.
+    if (item.end != 0 && !read_local_head(&item, &next, &reader) && next.frames > 0) {
+        read_local_statement(&item, &next, &reader);
+    }
+    if (local_record_same(record, &next)) {
+        return false;
+    }
+    *record = next;
+#ifdef TS_CPP_LOCAL_TRACE
+    trace_local_mark(bytes, boundary, record);
+#endif
+    lexer->result_symbol = TREE_SITTER_EXTERNAL_STATE_ONLY;
+    return false;
+}
+
+/// Scan the item after a directive line, and append the names that it declares. The token of the
+/// directive carries the change, and this scan gives no token of its own. It applies no boundary.
+///
+/// A DIRECTIVE LINE IS THE BOUNDARY BEFORE AN ITEM WHERE NO `;`, `{` OR `}` IS: `#include <x>` and then
+/// `int main(int argc, char **argv) {`. Over the corpus, 127,112 definitions follow a directive line
+/// directly. The caller gives the token that ends the line: the line end, or an `#endif` or `#else` of a
+/// structured group, which has no line end.
+///
+/// THE SAME ITEM CAN BE READ TWO TIMES, and the second read appends nothing. A version that reads
+/// `#endif` as a structured group and a version that reads it as a line with a line end read the same
+/// item. A boundary scan before a directive line that it reads past, `;` and `#pragma once`, reads the
+/// same item as the line end of that directive. The entries that such a read appends equal the entries
+/// at the end of the record, and the scan keeps one copy. O(n) in the characters of the item and in the
+/// entries.
+static void scan_local_after_directive(Scanner *scanner, TSLexer *lexer) {
+    LocalRecord next = scanner->locals;
+    unsigned before = local_entry_count(&next);
+    uint8_t saturated = next.saturated;
+#ifdef TS_CPP_LOCAL_TRACE
+    uint32_t bytes = ((const TraceLexer *)lexer)->bytes;
+#endif
+    Reader reader = start_reader(lexer, LOCAL_ITEM_LIMIT, scanner);
+    LocalItem item;
+    read_local_item(&reader, &item);
+    if (item.end == 0) {
+        return;
+    }
+    if (!read_local_head(&item, &next, &reader) && next.frames > 0) {
+        read_local_statement(&item, &next, &reader);
+    }
+    unsigned after = local_entry_count(&next);
+    unsigned added = after > before ? after - before : 0;
+    if (added == 0 && next.saturated == saturated) {
+        return;
+    }
+    if (added > 0 && before >= added) {
+        bool same = true;
+        for (unsigned i = 0; i < added && same; i++) {
+            const LocalEntry *old = &next.entries[before - added + i];
+            const LocalEntry *new = &next.entries[before + i];
+            same = old->name == new->name && old->frame == new->frame && old->pending == new->pending;
+        }
+        if (same) {
+            return;
+        }
+    }
+    scanner->locals = next;
+#ifdef TS_CPP_LOCAL_TRACE
+    trace_local_mark(bytes, 'n', &scanner->locals);
+#endif
+}
+
+/// The answer of the record of locals about a name.
+typedef enum {
+    /// No live entry has the name, and the record lost no entry.
+    LOCAL_NO,
+    /// A live entry has the name.
+    LOCAL_YES,
+    /// No live entry has the name, and the record lost an entry that is in scope.
+    LOCAL_UNKNOWN,
+} LocalAnswer;
+
+/// The answer of the record of locals about the name of the hash, at the position of the scanner.
+///
+/// A HASH IS NOT A NAME, so two names with one hash give one answer. Over the 73,288,021 distinct words
+/// of the corpus files, summed for each file, two pairs of distinct words in one file share a hash:
+/// `limiter` and `Denominator` in the two copies of llvm/lib/Analysis/ValueTracking.cpp, and
+/// `kScalarCount` and `get` in arrow/cpp/src/arrow/compute/function_benchmark.cc. With no scanner,
+/// the answer is `LOCAL_UNKNOWN`. O(n) in the entries.
+static LocalAnswer local_name_answer(const Scanner *scanner, uint32_t name) {
+    if (scanner == NULL) {
+        return LOCAL_UNKNOWN;
+    }
+    const LocalRecord *record = &scanner->locals;
+    for (unsigned i = local_entry_count(record); i-- > 0;) {
+        const LocalEntry *entry = &record->entries[i];
+        if (entry->pending == 0 && entry->name == name && name != 0) {
+            return LOCAL_YES;
+        }
+    }
+    return record->saturated != 0 ? LOCAL_UNKNOWN : LOCAL_NO;
+}
+
+/// True when a live entry of the record of locals has the name of the hash. No consumer reads it yet.
+#if defined(__GNUC__) || defined(__clang__)
+__attribute__((unused))
+#endif
+static bool is_local_name(const Scanner *scanner, uint32_t name) {
+    return local_name_answer(scanner, name) == LOCAL_YES;
+}
+
 /// The facts about a group in parentheses.
 typedef struct {
     /// 0 for `()`, 2 for a `,` at the top level of the group, and 1 otherwise. A `,` between a name and `<`
@@ -9608,11 +10955,20 @@ static bool scan_token(Scanner *scanner, TSLexer *lexer, const bool *valid_symbo
                 case ARG_STOP:
                     return false;
                 case ARG_LINE_END:
-                    return valid_symbols[PREPROC_LINE_END] && scan_line_end(lexer);
+                    if (!valid_symbols[PREPROC_LINE_END] || !scan_line_end(lexer)) {
+                        return false;
+                    }
+                    scan_local_after_directive(scanner, lexer);
+                    return true;
             }
         }
         if (valid_symbols[PREPROC_LINE_END]) {
-            return scan_line_end(lexer);
+            if (!scan_line_end(lexer)) {
+                return false;
+            }
+            // The item after the line. Refer to `scan_local_after_directive`.
+            scan_local_after_directive(scanner, lexer);
+            return true;
         }
 
         // The assembly code of an MS `__asm` block is valid only after the `{` of the block.
@@ -9636,7 +10992,22 @@ static bool scan_token(Scanner *scanner, TSLexer *lexer, const bool *valid_symbo
     if (pending || lexer->lookahead == '#' || lexer->lookahead == '%') {
         bool directive = valid_symbols[PREPROC_DIRECTIVE] || valid_symbols[PREPROC_SKIPPED] ||
                          valid_symbols[PREPROC_IF] || valid_symbols[PREPROC_ENDIF];
-        return directive && scan_directive(scanner, lexer, valid_symbols, space);
+        if (!directive || !scan_directive(scanner, lexer, valid_symbols, space)) {
+            return false;
+        }
+        // An `#endif` or an `#else` of a structured group has no line end. The item after its line comes
+        // after the directive token. Refer to `scan_local_after_directive`.
+        if (lexer->result_symbol == PREPROC_ENDIF || lexer->result_symbol == PREPROC_ELSE) {
+            scan_local_after_directive(scanner, lexer);
+        }
+        return true;
+    }
+    // A boundary of the record of locals. At `{`, `}` and `;`, each path below gives no token and reads
+    // no character, and this scan gives no token either, so no token of the parser changes. It runs in
+    // error recovery too, so that a version in recovery keeps the frames of the other versions. It reads
+    // no `valid_symbols`, so each version at a boundary writes the same record.
+    if (lexer->lookahead == '{' || lexer->lookahead == '}' || lexer->lookahead == ';') {
+        return scan_local_boundary(scanner, lexer);
     }
     // In error recovery, the mark of a class head is the only token of this scanner. The versions in
     // recovery then read the mark in the same place as the other versions, as they read a comment.
@@ -9722,14 +11093,18 @@ static bool scan_token(Scanner *scanner, TSLexer *lexer, const bool *valid_symbo
 /// a scanner with no delimiter, no group, and no class name is empty. A deeper group needs a full array of groups,
 /// so an empty state has no such group.
 unsigned tree_sitter_cpp_external_scanner_serialize(void *payload, char *buffer) {
+    // The record of locals takes 3 bytes and 6 bytes for each entry.
     static_assert(1 + MAX_DELIMITER_LENGTH * sizeof(wchar_t) + 1 + MAX_GROUPS + 2 + 1 + 1 +
-                          2 + 4 * MAX_CLASSES * sizeof(uint32_t) <
+                          2 + 4 * MAX_CLASSES * sizeof(uint32_t) + 3 + 6 * MAX_LOCALS <
                       TREE_SITTER_SERIALIZATION_BUFFER_SIZE,
                   "Serialized state is too long!");
 
     Scanner *scanner = (Scanner *)payload;
+    const LocalRecord *locals = &scanner->locals;
+    bool no_locals = locals->count == 0 && locals->frames == 0 && locals->saturated == 0;
     if (scanner->delimiter_length == 0 && scanner->group_count == 0 && scanner->class_count == 0 &&
-        scanner->loose_count == 0 && scanner->template_count == 0 && scanner->alias_count == 0 && !scanner->preproc_extra_tokens) {
+        scanner->loose_count == 0 && scanner->template_count == 0 && scanner->alias_count == 0 && !scanner->preproc_extra_tokens &&
+        no_locals) {
         return 0;
     }
     unsigned size = 0;
@@ -9756,6 +11131,18 @@ unsigned tree_sitter_cpp_external_scanner_serialize(void *payload, char *buffer)
     buffer[size++] = (char)scanner->alias_count;
     memcpy(&buffer[size], scanner->aliases, scanner->alias_count * sizeof(uint32_t));
     size += scanner->alias_count * sizeof(uint32_t);
+    // The record of locals carries its own count too. Each entry is its hash, its frame and its count of
+    // pending boundaries.
+    unsigned entry_count = local_entry_count(locals);
+    buffer[size++] = (char)entry_count;
+    buffer[size++] = (char)locals->frames;
+    buffer[size++] = (char)locals->saturated;
+    for (unsigned i = 0; i < entry_count; i++) {
+        memcpy(&buffer[size], &locals->entries[i].name, sizeof(uint32_t));
+        size += sizeof(uint32_t);
+        buffer[size++] = (char)locals->entries[i].frame;
+        buffer[size++] = (char)locals->entries[i].pending;
+    }
     memcpy(&buffer[size], scanner->classes, scanner->class_count * sizeof(uint32_t));
     size += scanner->class_count * sizeof(uint32_t);
     return size;
@@ -9771,6 +11158,9 @@ void tree_sitter_cpp_external_scanner_deserialize(void *payload, const char *buf
     scanner->template_count = 0;
     scanner->alias_count = 0;
     scanner->preproc_extra_tokens = false;
+    scanner->locals.count = 0;
+    scanner->locals.frames = 0;
+    scanner->locals.saturated = 0;
     if (length == 0) {
         return;
     }
@@ -9803,6 +11193,26 @@ void tree_sitter_cpp_external_scanner_deserialize(void *payload, const char *buf
         assert(scanner->alias_count <= MAX_CLASSES && "Can't decode the names of the alias record!");
         memcpy(scanner->aliases, &buffer[size], scanner->alias_count * sizeof(uint32_t));
         size += scanner->alias_count * sizeof(uint32_t);
+        // The record of locals fails closed. A header or entries that do not fit in the state, or more
+        // entries than MAX_LOCALS, give an empty record and no class names, because the class names come
+        // after the entries. Refer to "EACH RANGE OF THE RECORD FAILS CLOSED".
+        if (size + 3 > length) {
+            return;
+        }
+        unsigned entry_count = (uint8_t)buffer[size];
+        if (entry_count > MAX_LOCALS || size + 3 + 6 * entry_count > length) {
+            return;
+        }
+        LocalRecord *locals = &scanner->locals;
+        locals->count = (uint8_t)buffer[size++];
+        locals->frames = (uint8_t)buffer[size++];
+        locals->saturated = (uint8_t)buffer[size++];
+        for (unsigned i = 0; i < entry_count; i++) {
+            memcpy(&locals->entries[i].name, &buffer[size], sizeof(uint32_t));
+            size += sizeof(uint32_t);
+            locals->entries[i].frame = (uint8_t)buffer[size++];
+            locals->entries[i].pending = (uint8_t)buffer[size++];
+        }
     }
     unsigned names = size < length ? (length - size) / sizeof(uint32_t) : 0;
     assert(names <= MAX_CLASSES && "Can't decode serialized class names!");

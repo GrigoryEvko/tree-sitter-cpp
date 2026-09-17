@@ -11,8 +11,9 @@
 //! child stops without a reply, for example at a failed assertion of the loop guard in `src/scanner.c` or of the
 //! runtime, the parent records the input and the last line of the standard error of the child.
 //!
-//! The inputs are the snippets of `test/syntax`, the inputs of the examples of `test/corpus`, and the files of an
-//! optional list. The changes of an input are:
+//! The inputs are the snippets of `test/syntax`, the inputs of the examples of `test/corpus`, the files of
+//! `test/fuzz`, and the files of an optional list. A file of `test/fuzz` is an input that stopped a process one
+//! time, and it has no expected tree. The changes of an input are:
 //! - A cut at the start or at the end of each token
 //! - The removal of one token
 //! - An insertion of one text of `INSERTIONS` at the start or at the end of each token
@@ -636,8 +637,27 @@ fn options(args: &[String]) -> Result<Options, Box<dyn Error>> {
     Ok(options)
 }
 
-/// The inputs: the snippets of `test/syntax`, the inputs of the examples of `test/corpus`, and the files of the
-/// list.
+/// The files of `test/fuzz`, in name order, as their names relative to that directory and their bytes. O(n) in the
+/// bytes of the files.
+fn regression_inputs(repository: &Path) -> Result<Vec<(String, Vec<u8>)>, Box<dyn Error>> {
+    let directory = repository.join("test").join("fuzz");
+    let mut paths: Vec<PathBuf> = fs::read_dir(&directory)
+        .map_err(|e| format!("cannot read {}: {e}", directory.display()))?
+        .map(|entry| entry.map(|e| e.path()))
+        .collect::<Result<_, _>>()?;
+    paths.retain(|path| path.extension().is_some_and(|extension| extension == "cpp"));
+    paths.sort();
+    paths
+        .into_iter()
+        .map(|path| {
+            let bytes = fs::read(&path).map_err(|e| format!("cannot read {}: {e}", path.display()))?;
+            Ok((path.file_name().unwrap_or_default().to_string_lossy().into_owned(), bytes))
+        })
+        .collect()
+}
+
+/// The inputs: the snippets of `test/syntax`, the inputs of the examples of `test/corpus`, the files of
+/// `test/fuzz`, and the files of the list.
 fn inputs(repository: &Path, options: &Options) -> Result<Vec<Input>, Box<dyn Error>> {
     let mut inputs = Vec::new();
     let directory = repository.join("test").join("syntax");
@@ -661,6 +681,13 @@ fn inputs(repository: &Path, options: &Options) -> Result<Vec<Input>, Box<dyn Er
     for (name, bytes) in crate::test::example_inputs(repository)? {
         inputs.push(Input {
             name: format!("corpus/{name}"),
+            bytes,
+            limit: TEST_INPUT_CHANGES,
+        });
+    }
+    for (name, bytes) in regression_inputs(repository)? {
+        inputs.push(Input {
+            name: format!("fuzz/{name}"),
             bytes,
             limit: TEST_INPUT_CHANGES,
         });
@@ -920,6 +947,23 @@ mod tests {
                 .parse(source, None)
                 .expect("a parse with no time limit gives a tree");
             assert_eq!(check_ranges(&tree, source.len()), Ok(()), "{source}");
+        }
+    }
+
+    /// Each file of `test/fuzz` parses in this process and gives a tree with correct ranges. A defect that stops
+    /// the process at such a file stops this test too.
+    #[test]
+    fn each_regression_input_parses() {
+        let repository = Path::new(env!("CARGO_MANIFEST_DIR")).join("..");
+        let files = regression_inputs(&repository).expect("test/fuzz is readable");
+        assert!(files.len() >= 2, "test/fuzz holds the regression inputs of the record of locals");
+        let language = Language::new(tree_sitter_cpp::LANGUAGE);
+        let mut parser = new_parser(&language);
+        for (name, bytes) in files {
+            let tree = parser
+                .parse(&bytes, None)
+                .expect("a parse with no time limit gives a tree");
+            assert_eq!(check_ranges(&tree, bytes.len()), Ok(()), "{name}");
         }
     }
 
