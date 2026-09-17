@@ -112,6 +112,7 @@ tasks:
   dedupe population --write-baseline ROOT LIST
                            Write test/dedupe/population.txt again from a measurement.
   seed collect ROOT LIST (--out FILE | --out-dir DIRECTORY) [--types tree|text] [--scope list|project]
+                           [--conflicts all|outer|namespace|methods]
                            Write the names that each project of LIST declares as a type or as a
                            template, and the names that it defines as a macro, as `name<TAB>kinds`
                            rows that ascend by the bytes of the name. The type rows read the tree of
@@ -122,7 +123,7 @@ tasks:
                            With --out-dir, write one <project>.seed for each project. The task reads
                            back what it wrote with the reader of `seed`, and it reports the names
                            that it dropped for passing TS_CPP_SEED_WORD_SIZE - 1 bytes.
-  seed check ROOT LIST DIRECTORY [--types tree|text] [--scope list|project]
+  seed check ROOT LIST DIRECTORY [--types tree|text] [--scope list|project] [--conflicts all|outer|namespace|methods]
                            Collect again and compare each <project>.seed of DIRECTORY with the
                            result. Fail on a name added, a name REMOVED, and a kind changed. A seed
                            is the memory of what a project declares, and a change to it changes

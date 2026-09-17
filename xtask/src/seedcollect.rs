@@ -489,8 +489,8 @@ const GRAMMAR_PRIMITIVE_NAMES: [&str; 20] = [
 /// gives a conflict, and the `#define` lines of the file give `Defined` and, with a parameter list, a
 /// conflict. The names of an `#if 0` group are read, as the tree reader reads them. A name of
 /// `GRAMMAR_PRIMITIVE_NAMES` gives no type kind. With `Conflicts::Outer`, only an object or a function at
-/// namespace scope or class scope gives a conflict, and with `Conflicts::Namespace` only one at namespace
-/// scope.
+/// namespace scope or class scope gives a conflict, with `Conflicts::Namespace` only one at namespace scope,
+/// and with `Conflicts::Methods` one at namespace scope or a member function.
 fn text_names_of(source: &[u8], c_file: bool, project: &Names, conflicts: Conflicts) -> Names {
     let facts = declarations::read(source, c_file);
     let mut names = Names::default();
@@ -514,6 +514,10 @@ fn text_names_of(source: &[u8], c_file: bool, project: &Names, conflicts: Confli
             Conflicts::All => bits & declarations::VALUE != 0,
             Conflicts::Outer => bits & declarations::OUTER != 0,
             Conflicts::Namespace => bits & declarations::NAMESPACE != 0,
+            Conflicts::Methods => {
+                bits & declarations::NAMESPACE != 0
+                    || (bits & declarations::OUTER != 0 && bits & declarations::FUNCTION != 0)
+            }
         };
         if conflict {
             names.add(&name, Kind::Conflict);
@@ -565,6 +569,9 @@ enum Conflicts {
     Outer,
     /// Each object and function at namespace scope. A member has the scope of its class.
     Namespace,
+    /// Each object and function at namespace scope, and each member function. A member function is a
+    /// value in each member function of its class, where a call needs no `this->`: `request().getDbName()`.
+    Methods,
 }
 
 impl Options {
@@ -587,8 +594,9 @@ impl Options {
                         Some("all") => Conflicts::All,
                         Some("outer") => Conflicts::Outer,
                         Some("namespace") => Conflicts::Namespace,
+                        Some("methods") => Conflicts::Methods,
                         other => {
-                            return Err(format!("--conflicts takes `all`, `outer` or `namespace`, and the argument is {other:?}").into());
+                            return Err(format!("--conflicts takes `all`, `outer`, `namespace` or `methods`, and the argument is {other:?}").into());
                         }
                     }
                 }
@@ -899,7 +907,7 @@ fn source_files_of_project(root: &Path, project: &str) -> Result<Vec<PathBuf>, B
 
 /// Collect the names of a file list and write one seed, or one seed for each project.
 pub fn run(args: &[String]) -> Result<(), Box<dyn Error>> {
-    const USAGE: &str = "usage: cargo xtask seed collect ROOT LIST (--out FILE | --out-dir DIRECTORY) [--types tree|text] [--scope list|project]\n       cargo xtask seed check ROOT LIST DIRECTORY [--types tree|text] [--scope list|project]\n       cargo xtask seed facts ROOT LIST OUT [--types tree|text] [--scope list|project]";
+    const USAGE: &str = "usage: cargo xtask seed collect ROOT LIST (--out FILE | --out-dir DIRECTORY) [--types tree|text] [--scope list|project] [--conflicts all|outer|namespace|methods]\n       cargo xtask seed check ROOT LIST DIRECTORY [--types tree|text] [--scope list|project] [--conflicts all|outer|namespace|methods]\n       cargo xtask seed facts ROOT LIST OUT [--types tree|text] [--scope list|project]";
     let (positional, options) = Options::parse(args)?;
     let positional: Vec<&str> = positional.iter().map(|arg| arg.as_str()).collect();
     match positional.as_slice() {
@@ -1408,5 +1416,7 @@ class ABSL_MUST_USE_RESULT ABSL_ATTRIBUTE_TRIVIAL_ABI Ptr;\n";
         // With `namespace`, the member function `Mutex()` has the scope of its class.
         let namespace = tree.collect_with(&["--types", "text", "--conflicts", "namespace"]);
         assert_eq!(type_names(&namespace), ["HostAndPort", "Monitor", "Mutex", "Tracker"]);
+        // With `methods`, the member function `Mutex()` removes the type, and the parameter does not.
+        assert_eq!(type_names(&tree.collect_with(&["--types", "text", "--conflicts", "methods"])), ["HostAndPort", "Monitor", "Tracker"]);
     }
 }
