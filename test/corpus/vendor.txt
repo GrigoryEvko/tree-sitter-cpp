@@ -1417,16 +1417,20 @@ struct S { __extension__ ; int y; };
 --------------------------------------------------------------------------------
 
 (translation_unit
+  (empty_declaration)
+  (empty_declaration)
   (namespace_definition
     name: (namespace_identifier)
     body: (declaration_list
+      (empty_declaration)
       (declaration
         type: (primitive_type)
         declarator: (identifier))))
   (linkage_specification
     value: (string_literal
       (string_content))
-    body: (declaration_list))
+    body: (declaration_list
+      (empty_declaration)))
   (struct_specifier
     name: (type_identifier)
     body: (field_declaration_list

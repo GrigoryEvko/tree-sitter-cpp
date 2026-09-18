@@ -497,7 +497,7 @@ TTS_CASE_TPL("Check types", eve::test::simd::all_types)
                   function: (identifier)
                   arguments: (argument_list))))
             (identifier))))))
-  (expression_statement))
+  (empty_declaration))
 
 ================================================================================
 Token trees with statements, types, and nested brackets
@@ -3748,7 +3748,7 @@ NAME(int x) { return x; }
       (declaration
         type: (primitive_type)
         declarator: (identifier))))
-  (expression_statement)
+  (empty_declaration)
   (macro_invocation
     name: (identifier)
     arguments: (token_tree
@@ -3869,7 +3869,7 @@ BOOST_MSM_EUML_ACTION(No_Transition) { template <class T> void operator()(T) { }
         (call_expression
           function: (identifier)
           arguments: (argument_list)))))
-  (expression_statement)
+  (empty_declaration)
   (macro_invocation
     name: (identifier)
     arguments: (token_tree
@@ -3887,7 +3887,7 @@ BOOST_MSM_EUML_ACTION(No_Transition) { template <class T> void operator()(T) { }
               (parameter_declaration
                 type: (type_identifier))))
           body: (compound_statement)))))
-  (expression_statement))
+  (empty_declaration))
 
 ================================================================================
 A macro name, a line break, its arguments, and a body

@@ -305,6 +305,12 @@ pub fn grammar() -> Grammar {
         // `NAMESPACE_EXPRESSION`. Refer to `asm_declaration`.
         &["expression", "asm_declaration"],
         &["_top_level_expression_statement", "asm_declaration"],
+        // At namespace scope, `;` is an empty-declaration of [dcl.dcl]. The grammar keeps the empty
+        // expression statement of the same text for macro code, and that statement has the dynamic
+        // precedence `NAMESPACE_EXPRESSION`, which is less than the precedence of the declaration.
+        // Refer to `empty_declaration`.
+        &["_top_level_expression_statement", "empty_declaration"],
+        &["expression_statement", "empty_declaration"],
         &["comma_expression", "initializer_list"],
         // In the arguments `f({ {} x; })`, the inner `{}` is a block of a GNU statement expression. In
         // `f({ {} })`, it can also be a braced list in a braced list. Only the tokens after the inner `}`
@@ -1501,14 +1507,45 @@ fn replace_rule(rule: Rule, from: &Rule, to: &Rule) -> Rule {
 }
 
 fn items(g: &mut Grammar) {
-    // An empty declaration after the GNU keyword `__extension__`: `__extension__ ;`. GCC
-    // `cp_parser_declaration` (parser.cc:17519) reads the `;` after the keyword, and Clang
-    // `ParseExternalDeclaration` (Parser.cpp:813) builds an `EmptyDecl` for it. A block takes no such
-    // declaration, because `cp_parser_block_declaration` has no step for the `;`. The rule is hidden,
-    // as `_empty_declaration` is, and the two tokens are children of the list.
+    // [dcl.dcl] gives `empty-declaration: ;` and [class.mem] gives the same `;` as a
+    // member-declaration. GCC reads it in `cp_parser_declaration` (parser.cc:17519) and in
+    // `cp_parser_member_declaration` (parser.cc:30932), and warns with `-Wextra-semi`. Clang builds an
+    // `EmptyDecl` in `ParseExternalDeclaration` (Parser.cpp:813) and consumes the member form in
+    // `ParseCXXClassMemberDeclaration` (ParseDeclCXX.cpp, `ConsumeExtraSemi`). The GNU keyword
+    // `__extension__` can come before it.
+    //
+    // ONE NODE FOR THE THREE POSITIONS. Before this rule the fork gave three trees for one construct:
+    // an `expression_statement` with only the `;` at file scope, in a namespace body and in a linkage
+    // specification body, and a bare `;` token with NO node in a class body. The standard has one
+    // production and the two front ends accept it in each of those positions, so the tree has one node.
+    // A BLOCK KEEPS ITS `expression_statement`, because there the `;` is an expression-statement of
+    // [stmt.expr] and Clang builds a `NullStmt`. `cp_parser_block_declaration` has no step for the `;`.
+    // The name of the hidden `_empty_declaration` beside this rule means a DIFFERENT construct, a
+    // declaration whose specifiers declare only a class or an enumeration, as in `struct X;`.
+    // THE RULE TAKES NO DYNAMIC PRECEDENCE, AND A DRAFT PROVED THAT IT NEEDS NONE. The competing
+    // reading at namespace scope is the empty expression statement, which carries
+    // `NAMESPACE_EXPRESSION`, and the declaration wins against -100 with the precedence 0 that every
+    // rule has. A first draft gave this rule -1 to keep `_macro_item` from losing the `;` of
+    // `MACRO(x);`. The draft with -1 and the draft with 0 give THE SAME TREE for all 329,387 corpus
+    // files and pass all 627 corpus tests, so the value decided nothing and it is gone. The parse
+    // table settles the macro competition, because no conflict set names `_macro_item` with this rule.
     define_after(
         g,
         "_empty_declaration",
+        "empty_declaration",
+        seq![repeat(s!(_extension_specifier)), ";"],
+    );
+    // THE CLASS BODY KEEPS ITS BARE `;` AND THIS RULE, AND THE REASON IS A MEASUREMENT.
+    // A `;` of a class body has no node today, and this rule reads only the `__extension__` form. A
+    // probe over the corpus counted every `;` that is a direct child of a class body and split it by
+    // what stands before it: 43,145 after a `macro_invocation`, 9,718 after a `function_definition`,
+    // 215 after a `template_declaration`, 37 after a `field_declaration`, 24 after a
+    // `friend_declaration`, and TEN that are the empty-declaration of [class.mem]. A rule that takes
+    // the bare `;` there would move 52,863 sites to give a node to ten, and it would change the RANGE
+    // of every class-body macro invocation. The position is a task of its own beside #349.
+    define_after(
+        g,
+        "empty_declaration",
         "_extension_empty_declaration",
         seq![repeat1(s!(_extension_specifier)), ";"],
     );
@@ -1587,7 +1624,7 @@ fn items(g: &mut Grammar) {
         members.push(deduction_guide());
         members.push(s!(asm_declaration));
         members.push(s!(ms_if_exists));
-        members.push(s!(_extension_empty_declaration));
+        members.push(s!(empty_declaration));
         members.push(alias(s!(_macro_item), s!(macro_invocation)));
         Rule::Choice(members)
     });
@@ -1648,7 +1685,7 @@ fn items(g: &mut Grammar) {
         })
         .chain([s!(linkage_specification), s!(concept_definition), s!(export_declaration)])
         .chain(conversion_functions())
-        .chain([deduction_guide(), s!(_extension_empty_declaration), s!(asm_declaration)])
+        .chain([deduction_guide(), s!(empty_declaration), s!(asm_declaration)])
         .chain([alias(s!(_macro_item), s!(macro_invocation))])
         .collect();
     // `export` takes an item of a declaration list. Its braces start only a declaration list, and the
@@ -3686,6 +3723,12 @@ fn declarations(g: &mut Grammar) {
             s!(static_assert_declaration),
             s!(consteval_block_declaration),
             alias(s!(_ms_if_exists_in_field_declaration_list), s!(ms_if_exists)),
+            // A `;` of a class body has no node. [class.mem] gives `member-declaration: ...
+            // empty-declaration`, so the ten sites of the corpus that are such a declaration deserve
+            // the `empty_declaration` node that file scope and a namespace body now have. The other
+            // 52,853 sites of this `;` are the terminator that an author wrote after a macro
+            // invocation or after an inline member function, and a node there would change the range
+            // of each one. Refer to `empty_declaration` for the count and for the task.
             ";",
             // `struct S { __extension__ ; };` is a member declaration with only the `;`. GCC
             // `cp_parser_member_declaration` (parser.cc:30932) reads the keyword and then the member

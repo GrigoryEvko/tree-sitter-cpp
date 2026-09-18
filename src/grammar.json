@@ -152,7 +152,7 @@
         },
         {
           "type": "SYMBOL",
-          "name": "_extension_empty_declaration"
+          "name": "empty_declaration"
         },
         {
           "type": "ALIAS",
@@ -416,7 +416,7 @@
         },
         {
           "type": "SYMBOL",
-          "name": "_extension_empty_declaration"
+          "name": "empty_declaration"
         },
         {
           "type": "SYMBOL",
@@ -568,7 +568,7 @@
         },
         {
           "type": "SYMBOL",
-          "name": "_extension_empty_declaration"
+          "name": "empty_declaration"
         },
         {
           "type": "SYMBOL",
@@ -23004,6 +23004,22 @@
         {
           "type": "SYMBOL",
           "name": "type_specifier"
+        },
+        {
+          "type": "STRING",
+          "value": ";"
+        }
+      ]
+    },
+    "empty_declaration": {
+      "type": "SEQ",
+      "members": [
+        {
+          "type": "REPEAT",
+          "content": {
+            "type": "SYMBOL",
+            "name": "_extension_specifier"
+          }
         },
         {
           "type": "STRING",
@@ -46826,6 +46842,14 @@
     [
       "_top_level_expression_statement",
       "asm_declaration"
+    ],
+    [
+      "_top_level_expression_statement",
+      "empty_declaration"
+    ],
+    [
+      "expression_statement",
+      "empty_declaration"
     ],
     [
       "comma_expression",

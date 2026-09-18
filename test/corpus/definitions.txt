@@ -560,7 +560,7 @@ struct B {
       declarator: (identifier)
       parameters: (parameter_list))
     body: (compound_statement))
-  (expression_statement)
+  (empty_declaration)
   (template_declaration
     parameters: (template_parameter_list
       (type_parameter_declaration
@@ -573,7 +573,7 @@ struct B {
           (parameter_declaration
             type: (type_identifier))))
       body: (compound_statement)))
-  (expression_statement)
+  (empty_declaration)
   (struct_specifier
     name: (type_identifier)
     body: (field_declaration_list

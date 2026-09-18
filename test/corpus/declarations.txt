@@ -3418,3 +3418,67 @@ void bind(Cache& c) { auto &[a, b] = c; }
               (identifier)
               (identifier)))
           value: (identifier))))))
+
+================================================================================
+The empty declaration of a semicolon at each scope that takes a declaration
+================================================================================
+
+;
+void f() { };
+namespace N { void g(); ; }
+extern "C" { ; }
+__extension__ ;
+struct S { int a; };
+struct T { ; int b; };
+void h() { ; }
+MACRO(x);
+
+--------------------------------------------------------------------------------
+
+(translation_unit
+  (empty_declaration)
+  (function_definition
+    type: (primitive_type)
+    declarator: (function_declarator
+      declarator: (identifier)
+      parameters: (parameter_list))
+    body: (compound_statement))
+  (empty_declaration)
+  (namespace_definition
+    name: (namespace_identifier)
+    body: (declaration_list
+      (declaration
+        type: (primitive_type)
+        declarator: (function_declarator
+          declarator: (identifier)
+          parameters: (parameter_list)))
+      (empty_declaration)))
+  (linkage_specification
+    value: (string_literal
+      (string_content))
+    body: (declaration_list
+      (empty_declaration)))
+  (empty_declaration)
+  (struct_specifier
+    name: (type_identifier)
+    body: (field_declaration_list
+      (field_declaration
+        type: (primitive_type)
+        declarator: (field_identifier))))
+  (struct_specifier
+    name: (type_identifier)
+    body: (field_declaration_list
+      (field_declaration
+        type: (primitive_type)
+        declarator: (field_identifier))))
+  (function_definition
+    type: (primitive_type)
+    declarator: (function_declarator
+      declarator: (identifier)
+      parameters: (parameter_list))
+    body: (compound_statement
+      (expression_statement)))
+  (macro_invocation
+    name: (identifier)
+    arguments: (token_tree
+      (identifier))))

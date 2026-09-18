@@ -3207,6 +3207,10 @@
           "named": true
         },
         {
+          "type": "empty_declaration",
+          "named": true
+        },
+        {
           "type": "enum_specifier",
           "named": true
         },
@@ -3569,6 +3573,11 @@
         }
       ]
     }
+  },
+  {
+    "type": "empty_declaration",
+    "named": true,
+    "fields": {}
   },
   {
     "type": "enum_specifier",
@@ -3961,7 +3970,7 @@
     "fields": {},
     "children": {
       "multiple": false,
-      "required": false,
+      "required": true,
       "types": [
         {
           "type": "alias_declaration",
@@ -3993,6 +4002,10 @@
         },
         {
           "type": "declaration_list",
+          "named": true
+        },
+        {
+          "type": "empty_declaration",
           "named": true
         },
         {
@@ -6884,6 +6897,10 @@
           "named": true
         },
         {
+          "type": "empty_declaration",
+          "named": true
+        },
+        {
           "type": "enum_specifier",
           "named": true
         },
@@ -8370,6 +8387,10 @@
           "named": true
         },
         {
+          "type": "empty_declaration",
+          "named": true
+        },
+        {
           "type": "enumerator",
           "named": true
         },
@@ -8542,6 +8563,10 @@
           "named": true
         },
         {
+          "type": "empty_declaration",
+          "named": true
+        },
+        {
           "type": "enumerator",
           "named": true
         },
@@ -8686,6 +8711,10 @@
         },
         {
           "type": "declaration",
+          "named": true
+        },
+        {
+          "type": "empty_declaration",
           "named": true
         },
         {
@@ -8968,6 +8997,10 @@
           "named": true
         },
         {
+          "type": "empty_declaration",
+          "named": true
+        },
+        {
           "type": "enumerator",
           "named": true
         },
@@ -9125,6 +9158,10 @@
         },
         {
           "type": "declaration",
+          "named": true
+        },
+        {
+          "type": "empty_declaration",
           "named": true
         },
         {
@@ -11271,6 +11308,10 @@
         },
         {
           "type": "do_statement",
+          "named": true
+        },
+        {
+          "type": "empty_declaration",
           "named": true
         },
         {
