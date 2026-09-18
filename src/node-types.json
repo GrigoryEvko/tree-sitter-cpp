@@ -829,31 +829,38 @@
   {
     "type": "abstract_reference_declarator",
     "named": true,
-    "fields": {},
+    "fields": {
+      "declarator": {
+        "multiple": false,
+        "required": false,
+        "types": [
+          {
+            "type": "abstract_array_declarator",
+            "named": true
+          },
+          {
+            "type": "abstract_function_declarator",
+            "named": true
+          },
+          {
+            "type": "abstract_parenthesized_declarator",
+            "named": true
+          },
+          {
+            "type": "abstract_pointer_declarator",
+            "named": true
+          },
+          {
+            "type": "abstract_reference_declarator",
+            "named": true
+          }
+        ]
+      }
+    },
     "children": {
       "multiple": true,
       "required": false,
       "types": [
-        {
-          "type": "abstract_array_declarator",
-          "named": true
-        },
-        {
-          "type": "abstract_function_declarator",
-          "named": true
-        },
-        {
-          "type": "abstract_parenthesized_declarator",
-          "named": true
-        },
-        {
-          "type": "abstract_pointer_declarator",
-          "named": true
-        },
-        {
-          "type": "abstract_reference_declarator",
-          "named": true
-        },
         {
           "type": "attribute_declaration",
           "named": true
@@ -9658,15 +9665,58 @@
   {
     "type": "reference_declarator",
     "named": true,
-    "fields": {},
+    "fields": {
+      "declarator": {
+        "multiple": false,
+        "required": true,
+        "types": [
+          {
+            "type": "_type_declarator",
+            "named": true
+          },
+          {
+            "type": "destructor_name",
+            "named": true
+          },
+          {
+            "type": "field_identifier",
+            "named": true
+          },
+          {
+            "type": "identifier",
+            "named": true
+          },
+          {
+            "type": "operator_name",
+            "named": true
+          },
+          {
+            "type": "qualified_identifier",
+            "named": true
+          },
+          {
+            "type": "structured_binding_declarator",
+            "named": true
+          },
+          {
+            "type": "template_function",
+            "named": true
+          },
+          {
+            "type": "template_method",
+            "named": true
+          },
+          {
+            "type": "variadic_declarator",
+            "named": true
+          }
+        ]
+      }
+    },
     "children": {
       "multiple": true,
-      "required": true,
+      "required": false,
       "types": [
-        {
-          "type": "_type_declarator",
-          "named": true
-        },
         {
           "type": "attribute_declaration",
           "named": true
@@ -9680,47 +9730,11 @@
           "named": true
         },
         {
-          "type": "destructor_name",
-          "named": true
-        },
-        {
-          "type": "field_identifier",
-          "named": true
-        },
-        {
-          "type": "identifier",
-          "named": true
-        },
-        {
           "type": "ms_call_modifier",
           "named": true
         },
         {
-          "type": "operator_name",
-          "named": true
-        },
-        {
-          "type": "qualified_identifier",
-          "named": true
-        },
-        {
-          "type": "structured_binding_declarator",
-          "named": true
-        },
-        {
-          "type": "template_function",
-          "named": true
-        },
-        {
-          "type": "template_method",
-          "named": true
-        },
-        {
           "type": "type_qualifier",
-          "named": true
-        },
-        {
-          "type": "variadic_declarator",
           "named": true
         }
       ]

@@ -595,7 +595,7 @@ void f() {
         type: (type_identifier)
         declarator: (init_declarator
           declarator: (reference_declarator
-            (identifier))
+            declarator: (identifier))
           value: (assignment_expression
             left: (binary_expression
               left: (identifier)

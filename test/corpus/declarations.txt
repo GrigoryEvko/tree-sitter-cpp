@@ -350,7 +350,7 @@ void k(int, [[maybe_unused]] int y);
               (parameter_declaration
                 type: (type_identifier)
                 declarator: (reference_declarator
-                  (identifier)))))))
+                  declarator: (identifier)))))))
       (field_declaration
         type: (primitive_type)
         declarator: (function_declarator
@@ -379,7 +379,7 @@ void k(int, [[maybe_unused]] int y);
                 (type_qualifier)
                 type: (type_identifier)
                 declarator: (reference_declarator
-                  (identifier)))))))))
+                  declarator: (identifier)))))))))
   (declaration
     type: (placeholder_type_specifier
       (auto))
@@ -1693,7 +1693,7 @@ int main() {
           (auto))
         declarator: (init_declarator
           declarator: (reference_declarator
-            (structured_binding_declarator
+            declarator: (structured_binding_declarator
               (identifier)
               (identifier)))
           value: (call_expression
@@ -1718,7 +1718,7 @@ int main() {
         type: (placeholder_type_specifier
           (auto))
         declarator: (reference_declarator
-          (structured_binding_declarator
+          declarator: (structured_binding_declarator
             (identifier)
             (identifier)))
         right: (identifier)
@@ -1821,7 +1821,7 @@ void f(int arr[], int i, int v, P x) {
           (auto))
         declarator: (init_declarator
           declarator: (reference_declarator
-            (structured_binding_declarator
+            declarator: (structured_binding_declarator
               (identifier)
               (identifier)))
           value: (initializer_list
@@ -1832,7 +1832,7 @@ void f(int arr[], int i, int v, P x) {
         (type_qualifier)
         declarator: (init_declarator
           declarator: (reference_declarator
-            (structured_binding_declarator
+            declarator: (structured_binding_declarator
               (identifier)
               (identifier)))
           value: (call_expression
@@ -1902,7 +1902,7 @@ void f() {
             (attribute_declaration
               (attribute
                 name: (identifier)))
-            (structured_binding_declarator
+            declarator: (structured_binding_declarator
               (identifier)
               (identifier)))
           value: (identifier)))
@@ -1917,7 +1917,7 @@ void f() {
             (attribute_specifier
               (argument_list
                 (identifier)))
-            (structured_binding_declarator
+            declarator: (structured_binding_declarator
               (identifier)
               (identifier)))
           value: (identifier)))
@@ -1929,7 +1929,7 @@ void f() {
             (attribute_specifier
               (argument_list
                 (identifier)))
-            (structured_binding_declarator
+            declarator: (structured_binding_declarator
               (identifier)
               (identifier)))
           value: (identifier)))
@@ -1941,7 +1941,7 @@ void f() {
             (attribute_declaration
               (attribute
                 name: (identifier)))
-            (identifier))
+            declarator: (identifier))
           value: (identifier))))))
 
 ================================================================================
@@ -2318,7 +2318,7 @@ void g(C c) { (void) c.operator struct S(); }
           type: (struct_specifier
             name: (type_identifier))
           declarator: (abstract_reference_declarator
-            (abstract_function_declarator
+            declarator: (abstract_function_declarator
               parameters: (parameter_list)))))
       (declaration
         declarator: (operator_cast
@@ -2481,7 +2481,7 @@ struct D : B { using A<T>::operator typename A<T>::Nested *; };
         declarator: (operator_cast
           type: (primitive_type)
           declarator: (abstract_reference_declarator
-            (abstract_function_declarator
+            declarator: (abstract_function_declarator
               parameters: (parameter_list)
               (ref_qualifier)
               (noexcept)))))
@@ -3352,3 +3352,69 @@ n::X::operator Vec<T>() const { return Vec<T>(); }
               (type_descriptor
                 type: (type_identifier))))
           arguments: (argument_list))))))
+
+================================================================================
+The declarator of a reference, beside a macro and in a structured binding
+================================================================================
+
+struct Cache { int a; int b; };
+Cache& singleton();
+static Cache& NODELETE lookup();
+void take(const Cache&);
+void bind(Cache& c) { auto &[a, b] = c; }
+
+--------------------------------------------------------------------------------
+
+(translation_unit
+  (struct_specifier
+    name: (type_identifier)
+    body: (field_declaration_list
+      (field_declaration
+        type: (primitive_type)
+        declarator: (field_identifier))
+      (field_declaration
+        type: (primitive_type)
+        declarator: (field_identifier))))
+  (declaration
+    type: (type_identifier)
+    declarator: (reference_declarator
+      declarator: (function_declarator
+        declarator: (identifier)
+        parameters: (parameter_list))))
+  (declaration
+    (storage_class_specifier)
+    type: (type_identifier)
+    declarator: (reference_declarator
+      (attribute_macro
+        name: (identifier))
+      declarator: (function_declarator
+        declarator: (identifier)
+        parameters: (parameter_list))))
+  (declaration
+    type: (primitive_type)
+    declarator: (function_declarator
+      declarator: (identifier)
+      parameters: (parameter_list
+        (parameter_declaration
+          (type_qualifier)
+          type: (type_identifier)
+          declarator: (abstract_reference_declarator)))))
+  (function_definition
+    type: (primitive_type)
+    declarator: (function_declarator
+      declarator: (identifier)
+      parameters: (parameter_list
+        (parameter_declaration
+          type: (type_identifier)
+          declarator: (reference_declarator
+            declarator: (identifier)))))
+    body: (compound_statement
+      (declaration
+        type: (placeholder_type_specifier
+          (auto))
+        declarator: (init_declarator
+          declarator: (reference_declarator
+            declarator: (structured_binding_declarator
+              (identifier)
+              (identifier)))
+          value: (identifier))))))

@@ -492,7 +492,7 @@ int (max)(int a, int b) { return a; }
   (function_definition
     type: (primitive_type)
     declarator: (reference_declarator
-      (function_declarator
+      declarator: (function_declarator
         declarator: (identifier)
         parameters: (parameter_list)))
     body: (compound_statement

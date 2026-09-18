@@ -1586,7 +1586,7 @@ void f(T...) {}
               (type_qualifier)
               type: (type_identifier)
               declarator: (reference_declarator
-                (variadic_declarator
+                declarator: (variadic_declarator
                   (identifier))))))
         (field_initializer_list
           (field_initializer
@@ -1606,7 +1606,7 @@ void f(T...) {}
           (variadic_parameter_declaration
             type: (type_identifier)
             declarator: (reference_declarator
-              (variadic_declarator
+              declarator: (variadic_declarator
                 (identifier))))))
       body: (compound_statement
         (expression_statement

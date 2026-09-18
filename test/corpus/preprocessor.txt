@@ -2585,7 +2585,7 @@ void g(bool x) {
               (parameter_declaration
                 type: (type_identifier)
                 declarator: (reference_declarator
-                  (identifier)))))
+                  declarator: (identifier)))))
           (preproc_call
             directive: (preproc_directive))
           body: (compound_statement)))))

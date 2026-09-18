@@ -182,7 +182,7 @@ typedef void __cdecl G(void), __cdecl H(int);
     type: (primitive_type)
     declarator: (reference_declarator
       (ms_call_modifier)
-      (function_declarator
+      declarator: (function_declarator
         declarator: (identifier)
         parameters: (parameter_list))))
   (struct_specifier
@@ -192,7 +192,7 @@ typedef void __cdecl G(void), __cdecl H(int);
         type: (type_identifier)
         declarator: (reference_declarator
           (ms_call_modifier)
-          (function_declarator
+          declarator: (function_declarator
             declarator: (operator_name)
             parameters: (parameter_list
               (parameter_declaration

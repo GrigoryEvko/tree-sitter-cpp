@@ -1678,7 +1678,7 @@ extern "C" { T (*r)[3]; }
       declarator: (function_declarator
         declarator: (parenthesized_declarator
           (reference_declarator
-            (identifier)))
+            declarator: (identifier)))
         parameters: (parameter_list))
       value: (identifier)))
   (declaration
@@ -3226,7 +3226,7 @@ struct base { virtual void v() = 0; base() = default; base(const base&) = delete
         (storage_class_specifier)
         type: (primitive_type)
         declarator: (reference_declarator
-          (function_declarator
+          declarator: (function_declarator
             declarator: (field_identifier)
             parameters: (parameter_list
               (parameter_declaration
@@ -3235,7 +3235,7 @@ struct base { virtual void v() = 0; base() = default; base(const base&) = delete
   (declaration
     type: (primitive_type)
     declarator: (reference_declarator
-      (function_declarator
+      declarator: (function_declarator
         declarator: (identifier)
         parameters: (parameter_list))))
   (template_declaration
@@ -3250,7 +3250,7 @@ struct base { virtual void v() = 0; base() = default; base(const base&) = delete
           (storage_class_specifier)
           type: (primitive_type)
           declarator: (reference_declarator
-            (function_declarator
+            declarator: (function_declarator
               declarator: (field_identifier)
               parameters: (parameter_list))))
         (function_definition
@@ -3262,7 +3262,7 @@ struct base { virtual void v() = 0; base() = default; base(const base&) = delete
               (parameter_declaration
                 type: (type_identifier)
                 declarator: (reference_declarator
-                  (identifier)))))
+                  declarator: (identifier)))))
           body: (compound_statement
             (expression_statement
               (assignment_expression

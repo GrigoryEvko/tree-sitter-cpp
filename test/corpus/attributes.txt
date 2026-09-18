@@ -20,7 +20,7 @@ void h(UNUSED const Font &p);
         (parameter_declaration
           type: (type_identifier)
           declarator: (reference_declarator
-            (identifier))))))
+            declarator: (identifier))))))
   (declaration
     (storage_class_specifier)
     (attribute_macro
@@ -53,7 +53,7 @@ void h(UNUSED const Font &p);
           (type_qualifier)
           type: (type_identifier)
           declarator: (reference_declarator
-            (identifier)))))))
+            declarator: (identifier)))))))
 
 ================================================================================
 Attribute macros before a constructor and a conversion function
@@ -406,7 +406,7 @@ void f() {
             type: (type_identifier)
             (type_qualifier)
             declarator: (reference_declarator
-              (identifier)))))
+              declarator: (identifier)))))
       body: (compound_statement
         (return_statement
           (identifier)))))
@@ -1260,7 +1260,7 @@ void g()
       (field_declaration
         type: (type_identifier)
         declarator: (reference_declarator
-          (function_declarator
+          declarator: (function_declarator
             declarator: (field_identifier)
             parameters: (parameter_list)
             (type_qualifier)
@@ -1835,7 +1835,7 @@ struct P { const P& min BOOST_PREVENT_MACRO_SUBSTITUTION () const; };
         (type_qualifier)
         type: (type_identifier)
         declarator: (reference_declarator
-          (function_declarator
+          declarator: (function_declarator
             declarator: (field_identifier)
             (attribute_macro
               name: (identifier))
@@ -2793,7 +2793,7 @@ struct [[nodiscard]] EXPORT_MACRO Before {
               (type_qualifier)
               type: (type_identifier)
               declarator: (reference_declarator
-                (identifier))))))
+                declarator: (identifier))))))
       (function_definition
         declarator: (function_declarator
           declarator: (identifier)
@@ -3003,7 +3003,7 @@ struct Vec {
               (type_qualifier)
               type: (type_identifier)
               declarator: (reference_declarator
-                (identifier))))))))
+                declarator: (identifier))))))))
   (struct_specifier
     name: (type_identifier)
     body: (field_declaration_list
@@ -3291,7 +3291,7 @@ template <typename T> void m(const D *data, const O &op) { T Q_DECL_UNINITIALIZE
             (type_qualifier)
             type: (type_identifier)
             declarator: (reference_declarator
-              (identifier)))))
+              declarator: (identifier)))))
       body: (compound_statement
         (declaration
           type: (type_identifier)
@@ -3406,7 +3406,7 @@ typedef long double NT;
             (type_qualifier)
             type: (type_identifier)
             declarator: (reference_declarator
-              (identifier)))
+              declarator: (identifier)))
           (parameter_declaration
             type: (type_identifier)
             declarator: (attributed_declarator

@@ -267,7 +267,7 @@ class Vec {
         type: (type_identifier)
         declarator: (parenthesized_declarator
           (reference_declarator
-            (field_identifier))))
+            declarator: (field_identifier))))
       (field_declaration
         type: (type_identifier)
         declarator: (parenthesized_declarator
@@ -312,7 +312,7 @@ class Vec {
               (type_qualifier)
               type: (type_identifier)
               declarator: (reference_declarator
-                (identifier))))
+                declarator: (identifier))))
           (requires_clause
             constraint: (parenthesized_expression
               (binary_expression
@@ -335,7 +335,7 @@ class Vec {
             (parameter_declaration
               type: (type_identifier)
               declarator: (reference_declarator
-                (identifier))))
+                declarator: (identifier))))
           (attribute_macro
             name: (identifier)))
         (default_method_clause)))))
@@ -1476,7 +1476,7 @@ struct A {
               type: (type_identifier)
               declarator: (attributed_declarator
                 (reference_declarator
-                  (identifier))
+                  declarator: (identifier))
                 (attribute_macro
                   name: (identifier)
                   arguments: (argument_list
@@ -1522,7 +1522,7 @@ struct A {
               type: (type_identifier)
               declarator: (attributed_declarator
                 (reference_declarator
-                  (identifier))
+                  declarator: (identifier))
                 (attribute_macro
                   name: (identifier)))
               default_value: (initializer_list))
@@ -1694,7 +1694,7 @@ void h() { x * y * z; }
     (type_qualifier)
     type: (type_identifier)
     declarator: (reference_declarator
-      (function_declarator
+      declarator: (function_declarator
         declarator: (identifier)
         (attribute_macro
           name: (identifier))
@@ -1808,7 +1808,7 @@ A B C(x);
         (type_qualifier)
         type: (type_identifier)
         declarator: (reference_declarator
-          (function_declarator
+          declarator: (function_declarator
             declarator: (field_identifier)
             (attribute_macro
               name: (identifier))
@@ -1826,12 +1826,12 @@ A B C(x);
           (type_qualifier)
           type: (type_identifier)
           declarator: (reference_declarator
-            (identifier)))
+            declarator: (identifier)))
         (parameter_declaration
           (type_qualifier)
           type: (type_identifier)
           declarator: (reference_declarator
-            (identifier))))))
+            declarator: (identifier))))))
   (declaration
     (attribute_macro
       name: (identifier))
@@ -1979,7 +1979,7 @@ void h(T &k(U x));
         (parameter_declaration
           type: (type_identifier)
           declarator: (reference_declarator
-            (function_declarator
+            declarator: (function_declarator
               declarator: (identifier)
               parameters: (parameter_list
                 (parameter_declaration
@@ -2259,7 +2259,7 @@ struct S {
                   (type_qualifier)
                   type: (type_identifier)
                   declarator: (reference_declarator
-                    (identifier)))))))))))
+                    declarator: (identifier)))))))))))
 
 ================================================================================
 A macro between the name of a function and its arguments
@@ -3992,7 +3992,7 @@ struct S {
           (parameter_declaration
             type: (type_identifier)
             declarator: (reference_declarator
-              (identifier)))
+              declarator: (identifier)))
           (parameter_declaration
             type: (primitive_type)
             declarator: (identifier))))
@@ -4100,7 +4100,7 @@ try { return x; } catch (...) { return 0; }
                 (type_qualifier)
                 type: (type_identifier)
                 declarator: (reference_declarator
-                  (identifier))))
+                  declarator: (identifier))))
             body: (compound_statement
               (expression_statement
                 (call_expression
@@ -4746,7 +4746,7 @@ void SANITIZER_RELEASE(poison_records_mutex) ReleasePoisonRecords() { }
           (type_qualifier)
           type: (type_identifier)
           declarator: (reference_declarator
-            (identifier)))))
+            declarator: (identifier)))))
     body: (compound_statement
       (return_statement
         (number_literal))))

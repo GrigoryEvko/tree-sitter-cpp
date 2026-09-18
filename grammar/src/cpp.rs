@@ -4691,14 +4691,28 @@ fn declarations(g: &mut Grammar) {
     };
     // A macro can come after the `&` and the qualifiers of a named declarator, in the place of a
     // calling convention: `static Cache& NODELETE singleton();`.
-    let reference_with_macro =
-        |declarator: Rule| reference(seq![optional(choice![call_macro(), pointer_call_macro()]), declarator]);
+    //
+    // THE FIELD `declarator` GOES ON THE DECLARATOR AND NOT AROUND THE MACRO BESIDE IT. A field
+    // over the whole sequence marks two children, which makes `declarator` a MULTIPLE field, and a
+    // consumer that reads it as single then takes the macro. `pointer_declarator` is the model: it
+    // writes `field("declarator", declarator)` and a reference wrote nothing, so the same question
+    // had an answer on the pointer form and none on the reference form. Without it a consumer walks
+    // to `named_child(0)` or stops, and `Cache& singleton()` reports as a unit named `Cache`.
+    let reference_with_macro = |declarator: Rule| {
+        reference(seq![
+            optional(choice![call_macro(), pointer_call_macro()]),
+            field("declarator", declarator),
+        ])
+    };
     g.define("reference_declarator", reference_with_macro(s!(_declarator)));
     g.define(
         "reference_field_declarator",
         reference_with_macro(s!(_field_declarator)),
     );
-    g.define("reference_type_declarator", reference(s!(_type_declarator)));
+    g.define(
+        "reference_type_declarator",
+        reference(field("declarator", s!(_type_declarator))),
+    );
     // A member pointer cannot follow `&` or `&&`, because a pointer to a member of reference type
     // is ill-formed. Without it, the type reading of `A<T>::value && B<U>::value` in a template
     // argument stops at `B`, and the parser keeps fewer versions. The lower precedence of the
@@ -4711,16 +4725,21 @@ fn declarations(g: &mut Grammar) {
             seq![
                 choice!["&", "&&"],
                 reference_qualifiers(),
-                optional(prec_right(
-                    -1,
-                    choice![
-                        s!(abstract_pointer_declarator),
-                        s!(abstract_function_declarator),
-                        s!(abstract_array_declarator),
-                        s!(abstract_parenthesized_declarator),
-                        s!(abstract_reference_declarator),
-                    ]
-                )),
+                // The field is optional here, as `abstract_pointer_declarator` writes it, because
+                // an abstract reference can end at the `&`.
+                field(
+                    "declarator",
+                    optional(prec_right(
+                        -1,
+                        choice![
+                            s!(abstract_pointer_declarator),
+                            s!(abstract_function_declarator),
+                            s!(abstract_array_declarator),
+                            s!(abstract_parenthesized_declarator),
+                            s!(abstract_reference_declarator),
+                        ]
+                    ))
+                ),
             ],
         ),
     );
@@ -4815,7 +4834,7 @@ fn declarations(g: &mut Grammar) {
         seq![
             choice!["&", "&&"],
             repeat(choice![s!(attribute_declaration), s!(attribute_specifier)]),
-            s!(structured_binding_declarator)
+            field("declarator", s!(structured_binding_declarator))
         ],
     );
     // The initializer of a binding is `= e`, `{e}`, or `(e)` (GCC cp_parser_initializer).
@@ -5938,7 +5957,8 @@ fn pointer_init_declarators(g: &mut Grammar) {
             field("declarator", inner())
         ]
     };
-    let reference = |operator: &str| seq![operator, reference_qualifiers(), s!(identifier)];
+    let reference =
+        |operator: &str| seq![operator, reference_qualifiers(), field("declarator", s!(identifier))];
     g.define("_pointer_name_declarator", prec_dynamic(-1, pointer()));
     g.define("_member_pointer_name_declarator", prec_dynamic(-1, member_pointer()));
     g.define("_reference_name_declarator", prec_dynamic(-1, reference("&")));
@@ -6242,7 +6262,10 @@ fn block_declaration(g: &mut Grammar) {
             1,
             seq![
                 choice!["&", "&&"],
-                alias(s!(_block_operator_function_declarator), s!(function_declarator)),
+                field(
+                    "declarator",
+                    alias(s!(_block_operator_function_declarator), s!(function_declarator))
+                ),
             ],
         ),
     );
@@ -7594,7 +7617,7 @@ fn expressions(g: &mut Grammar) {
             seq![
                 choice!["&", "&&"],
                 repeat(s!(attribute_declaration)),
-                optional(s!(_conversion_declarator))
+                field("declarator", optional(s!(_conversion_declarator)))
             ],
         ),
     );

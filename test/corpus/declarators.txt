@@ -90,7 +90,7 @@ void (&[[a]] fr)() = fn;
         (attribute_declaration
           (attribute
             name: (identifier)))
-        (identifier))
+        declarator: (identifier))
       value: (identifier)))
   (declaration
     type: (primitive_type)
@@ -99,7 +99,7 @@ void (&[[a]] fr)() = fn;
         (attribute_declaration
           (attribute
             name: (identifier)))
-        (identifier))
+        declarator: (identifier))
       value: (number_literal)))
   (declaration
     type: (primitive_type)
@@ -137,7 +137,7 @@ void (&[[a]] fr)() = fn;
           (attribute_declaration
             (attribute
               name: (identifier)))
-          (identifier)))
+          declarator: (identifier)))
       value: (identifier)))
   (type_definition
     type: (primitive_type)
@@ -167,7 +167,7 @@ void (&[[a]] fr)() = fn;
             (attribute_declaration
               (attribute
                 name: (identifier)))
-            (identifier)))
+            declarator: (identifier)))
         parameters: (parameter_list))
       value: (identifier))))
 
@@ -193,7 +193,7 @@ template <class... A> void u(A &&[[a]]... a, int A::*[[a]]... b);
             (attribute_declaration
               (attribute
                 name: (identifier)))
-            (identifier)))
+            declarator: (identifier)))
         (parameter_declaration
           type: (primitive_type)
           declarator: (abstract_reference_declarator
@@ -216,14 +216,14 @@ template <class... A> void u(A &&[[a]]... a, int A::*[[a]]... b);
           (attribute_declaration
             (attribute
               name: (identifier)))
-          (field_identifier)))
+          declarator: (field_identifier)))
       (field_declaration
         type: (type_identifier)
         declarator: (reference_declarator
           (attribute_declaration
             (attribute
               name: (identifier)))
-          (function_declarator
+          declarator: (function_declarator
             declarator: (field_identifier)
             parameters: (parameter_list))))
       (field_declaration
@@ -249,7 +249,7 @@ template <class... A> void u(A &&[[a]]... a, int A::*[[a]]... b);
               (attribute_declaration
                 (attribute
                   name: (identifier)))
-              (variadic_declarator
+              declarator: (variadic_declarator
                 (identifier))))
           (variadic_parameter_declaration
             type: (primitive_type)
@@ -436,7 +436,7 @@ X::operator T &();
           name: (operator_cast
             type: (type_identifier)
             declarator: (abstract_reference_declarator
-              (abstract_function_declarator
+              declarator: (abstract_function_declarator
                 parameters: (parameter_list)))))))))
 
 ================================================================================
@@ -797,7 +797,7 @@ void g() {
             (attribute_declaration
               (attribute
                 name: (identifier)))
-            (identifier))
+            declarator: (identifier))
           value: (identifier)))
       (declaration
         type: (primitive_type)
@@ -806,7 +806,7 @@ void g() {
             (attribute_declaration
               (attribute
                 name: (identifier)))
-            (identifier))
+            declarator: (identifier))
           value: (argument_list
             (identifier))))
       (declaration
@@ -1090,7 +1090,7 @@ static Foo *instance(new Foo);
               declarator: (array_declarator
                 declarator: (parenthesized_declarator
                   (reference_declarator
-                    (identifier)))
+                    declarator: (identifier)))
                 size: (number_literal))))))))
   (template_declaration
     parameters: (template_parameter_list
@@ -1217,7 +1217,7 @@ void g(void *h, Foo *q) {
         type: (type_identifier)
         declarator: (init_declarator
           declarator: (reference_declarator
-            (identifier))
+            declarator: (identifier))
           value: (argument_list
             (pointer_expression
               argument: (identifier)))))
@@ -1225,7 +1225,7 @@ void g(void *h, Foo *q) {
         type: (type_identifier)
         declarator: (init_declarator
           declarator: (reference_declarator
-            (identifier))
+            declarator: (identifier))
           value: (argument_list
             (call_expression
               function: (qualified_identifier
@@ -1308,7 +1308,7 @@ struct S {
           (parameter_declaration
             type: (type_identifier)
             declarator: (reference_declarator
-              (identifier)))
+              declarator: (identifier)))
           (parameter_declaration
             type: (primitive_type)
             declarator: (identifier))
@@ -1340,7 +1340,7 @@ struct S {
           type: (placeholder_type_specifier
             (auto))
           declarator: (reference_declarator
-            (identifier))
+            declarator: (identifier))
           right: (identifier)
           body: (expression_statement
             (binary_expression
@@ -1363,17 +1363,17 @@ struct S {
           (storage_class_specifier)
           type: (type_identifier)
           declarator: (reference_declarator
-            (identifier)))
+            declarator: (identifier)))
         (declaration
           (storage_class_specifier)
           type: (type_identifier)
           declarator: (reference_declarator
-            (identifier)))
+            declarator: (identifier)))
         (declaration
           type: (type_identifier)
           declarator: (init_declarator
             declarator: (reference_declarator
-              (identifier))
+              declarator: (identifier))
             value: (argument_list
               (pointer_expression
                 argument: (identifier)))))
@@ -1381,14 +1381,14 @@ struct S {
           type: (type_identifier)
           declarator: (init_declarator
             declarator: (reference_declarator
-              (identifier))
+              declarator: (identifier))
             value: (initializer_list
               (pointer_expression
                 argument: (identifier)))))
         (declaration
           type: (type_identifier)
           declarator: (reference_declarator
-            (function_declarator
+            declarator: (function_declarator
               declarator: (identifier)
               parameters: (parameter_list
                 (parameter_declaration
@@ -1399,7 +1399,7 @@ struct S {
       (field_declaration
         type: (type_identifier)
         declarator: (reference_declarator
-          (field_identifier))))))
+          declarator: (field_identifier))))))
 
 ================================================================================
 Reference function declarators with no initializer in a block
@@ -1432,11 +1432,11 @@ template <class A> void save(A &ar, T &x, bool trace, bool c, int data_, int n) 
           (parameter_declaration
             type: (type_identifier)
             declarator: (reference_declarator
-              (identifier)))
+              declarator: (identifier)))
           (parameter_declaration
             type: (type_identifier)
             declarator: (reference_declarator
-              (identifier)))
+              declarator: (identifier)))
           (parameter_declaration
             type: (primitive_type)
             declarator: (identifier))
@@ -1489,13 +1489,13 @@ template <class A> void save(A &ar, T &x, bool trace, bool c, int data_, int n) 
           type: (type_identifier)
           declarator: (init_declarator
             declarator: (reference_declarator
-              (identifier))
+              declarator: (identifier))
             value: (argument_list
               (identifier))))
         (declaration
           type: (type_identifier)
           declarator: (reference_declarator
-            (function_declarator
+            declarator: (function_declarator
               declarator: (identifier)
               parameters: (parameter_list
                 (parameter_declaration
@@ -1503,7 +1503,7 @@ template <class A> void save(A &ar, T &x, bool trace, bool c, int data_, int n) 
         (declaration
           type: (type_identifier)
           declarator: (reference_declarator
-            (function_declarator
+            declarator: (function_declarator
               declarator: (identifier)
               parameters: (parameter_list
                 (parameter_declaration
@@ -1512,17 +1512,17 @@ template <class A> void save(A &ar, T &x, bool trace, bool c, int data_, int n) 
         (declaration
           type: (type_identifier)
           declarator: (reference_declarator
-            (function_declarator
+            declarator: (function_declarator
               declarator: (operator_name)
               parameters: (parameter_list
                 (parameter_declaration
                   type: (type_identifier)
                   declarator: (reference_declarator
-                    (identifier)))
+                    declarator: (identifier)))
                 (parameter_declaration
                   type: (type_identifier)
                   declarator: (reference_declarator
-                    (identifier)))))))
+                    declarator: (identifier)))))))
         (expression_statement
           (binary_expression
             left: (identifier)
@@ -1593,7 +1593,7 @@ struct S {
         type: (type_identifier)
         declarator: (init_declarator
           declarator: (reference_declarator
-            (identifier))
+            declarator: (identifier))
           value: (argument_list
             (pointer_expression
               argument: (identifier)))))
@@ -1602,7 +1602,7 @@ struct S {
         (type_qualifier)
         declarator: (init_declarator
           declarator: (reference_declarator
-            (identifier))
+            declarator: (identifier))
           value: (argument_list
             (true))))
       (declaration
@@ -1610,7 +1610,7 @@ struct S {
         type: (sized_type_specifier)
         declarator: (init_declarator
           declarator: (reference_declarator
-            (identifier))
+            declarator: (identifier))
           value: (argument_list
             (sizeof_expression
               type: (type_descriptor
@@ -1622,7 +1622,7 @@ struct S {
           name: (type_identifier))
         declarator: (init_declarator
           declarator: (reference_declarator
-            (identifier))
+            declarator: (identifier))
           value: (argument_list
             (typeid_expression
               value: (identifier)))))
@@ -1680,7 +1680,7 @@ struct S {
         type: (placeholder_type_specifier
           (auto))
         declarator: (reference_declarator
-          (function_declarator
+          declarator: (function_declarator
             declarator: (field_identifier)
             parameters: (parameter_list
               (explicit_object_parameter_declaration
@@ -1688,7 +1688,7 @@ struct S {
                 (parameter_declaration
                   type: (type_identifier)
                   declarator: (reference_declarator
-                    (identifier)))))))))))
+                    declarator: (identifier)))))))))))
 
 ================================================================================
 Functional casts to decltype
@@ -1784,7 +1784,7 @@ lab:
             declarator: (function_declarator
               declarator: (parenthesized_declarator
                 (reference_declarator
-                  (identifier)))
+                  declarator: (identifier)))
               parameters: (parameter_list))
             value: (identifier)))
         (declaration
