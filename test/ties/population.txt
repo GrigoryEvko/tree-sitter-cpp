@@ -657,7 +657,7 @@ boost/libs/log/example/doc/sources_severity_channel.cpp	1	select_earlier symbol:
 boost/libs/log/example/event_log/main.cpp	1	select_earlier symbol:binary_expression, over_symbol:binary_expression
 boost/libs/log/example/multiple_threads/main.cpp	1	select_earlier symbol:binary_expression, over_symbol:binary_expression
 boost/libs/log/include/boost/log/attributes/value_extraction.hpp	2	select_earlier symbol:template_argument_list_repeat1, over_symbol:template_argument_list_repeat1
-boost/libs/log/include/boost/log/sources/severity_channel_logger.hpp	11	select_earlier symbol:template_argument_list_repeat1, over_symbol:template_argument_list_repeat1
+boost/libs/log/include/boost/log/sources/severity_channel_logger.hpp	8	select_earlier symbol:template_argument_list_repeat1, over_symbol:template_argument_list_repeat1
 boost/libs/log/test/run/form_attr.cpp	1	select_earlier symbol:binary_expression, over_symbol:binary_expression
 boost/libs/math/example/autodiff_reverse_black_scholes.cpp	2	select_earlier symbol:binary_expression, over_symbol:binary_expression
 boost/libs/math/example/cstdfloat_example.cpp	6	select_earlier symbol:binary_expression, over_symbol:binary_expression
@@ -2380,7 +2380,7 @@ mongo/src/third_party/boost/libs/lambda/include/boost/lambda/exceptions.hpp	1	se
 mongo/src/third_party/boost/libs/lambda/include/boost/lambda/exceptions.hpp	884	select_earlier symbol:template_argument_list, over_symbol:template_argument_list
 mongo/src/third_party/boost/libs/locale/include/boost/locale/encoding_utf.hpp	6	select_earlier symbol:template_argument_list_repeat1, over_symbol:template_argument_list_repeat1
 mongo/src/third_party/boost/libs/log/include/boost/log/attributes/value_extraction.hpp	2	select_earlier symbol:template_argument_list_repeat1, over_symbol:template_argument_list_repeat1
-mongo/src/third_party/boost/libs/log/include/boost/log/sources/severity_channel_logger.hpp	11	select_earlier symbol:template_argument_list_repeat1, over_symbol:template_argument_list_repeat1
+mongo/src/third_party/boost/libs/log/include/boost/log/sources/severity_channel_logger.hpp	8	select_earlier symbol:template_argument_list_repeat1, over_symbol:template_argument_list_repeat1
 mongo/src/third_party/boost/libs/math/include/boost/math/ccmath/fma.hpp	40	select_earlier symbol:template_argument_list_repeat1, over_symbol:template_argument_list_repeat1
 mongo/src/third_party/boost/libs/math/include/boost/math/constants/calculate_constants.hpp	1	select_earlier symbol:binary_expression, over_symbol:binary_expression
 mongo/src/third_party/boost/libs/math/include/boost/math/quadrature/gauss.hpp	34	select_earlier symbol:template_argument_list_repeat1, over_symbol:template_argument_list_repeat1
