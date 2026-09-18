@@ -641,7 +641,7 @@ S::~S() = default;
       declarator: (qualified_identifier
         scope: (namespace_identifier)
         name: (destructor_name
-          (identifier)))
+          name: (identifier)))
       parameters: (parameter_list))
     (default_method_clause))
   (function_definition
@@ -681,6 +681,6 @@ S::~S() = default;
           declarator: (qualified_identifier
             scope: (namespace_identifier)
             name: (destructor_name
-              (identifier)))
+              name: (identifier)))
           parameters: (parameter_list))
         (default_method_clause)))))

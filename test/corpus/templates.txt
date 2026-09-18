@@ -810,3 +810,68 @@ A::B<T1<T2<T3<T4<T5<T6<T7<T8<T9<T10<T11<T12<T13<T14<T15<I::J, I::K*>>>>>>>>>>>>>
         declarator: (init_declarator
           declarator: (identifier)
           value: (initializer_list))))))
+
+================================================================================
+The name of a destructor, as a name and as a template-id
+================================================================================
+
+template <class T> struct Base { ~Base(); };
+template <class T> Base<T>::~Base() {}
+void f(Base<int> *p) { p->~Base<int>(); }
+
+--------------------------------------------------------------------------------
+
+(translation_unit
+  (template_declaration
+    parameters: (template_parameter_list
+      (type_parameter_declaration
+        (type_identifier)))
+    (struct_specifier
+      name: (type_identifier)
+      body: (field_declaration_list
+        (declaration
+          declarator: (function_declarator
+            declarator: (destructor_name
+              name: (identifier))
+            parameters: (parameter_list))))))
+  (template_declaration
+    parameters: (template_parameter_list
+      (type_parameter_declaration
+        (type_identifier)))
+    (function_definition
+      declarator: (function_declarator
+        declarator: (qualified_identifier
+          scope: (template_type
+            name: (type_identifier)
+            arguments: (template_argument_list
+              (type_descriptor
+                type: (type_identifier))))
+          name: (destructor_name
+            name: (identifier)))
+        parameters: (parameter_list))
+      body: (compound_statement)))
+  (function_definition
+    type: (primitive_type)
+    declarator: (function_declarator
+      declarator: (identifier)
+      parameters: (parameter_list
+        (parameter_declaration
+          type: (template_type
+            name: (type_identifier)
+            arguments: (template_argument_list
+              (type_descriptor
+                type: (primitive_type))))
+          declarator: (pointer_declarator
+            declarator: (identifier)))))
+    body: (compound_statement
+      (expression_statement
+        (call_expression
+          function: (field_expression
+            argument: (identifier)
+            field: (destructor_name
+              name: (template_type
+                name: (type_identifier)
+                arguments: (template_argument_list
+                  (type_descriptor
+                    type: (primitive_type))))))
+          arguments: (argument_list))))))

@@ -175,7 +175,7 @@ template <class T> class Tp {
           name: (identifier))
         declarator: (function_declarator
           declarator: (destructor_name
-            (identifier))
+            name: (identifier))
           parameters: (parameter_list)))))
   (class_specifier
     name: (type_identifier)
@@ -258,7 +258,7 @@ template <class T> API Tp<T>::Tp(T value) {}
       declarator: (qualified_identifier
         scope: (namespace_identifier)
         name: (destructor_name
-          (identifier)))
+          name: (identifier)))
       parameters: (parameter_list))
     body: (compound_statement))
   (template_declaration
@@ -354,7 +354,7 @@ class Widget {
           name: (identifier))
         declarator: (function_declarator
           declarator: (destructor_name
-            (identifier))
+            name: (identifier))
           parameters: (parameter_list))))))
 
 ================================================================================

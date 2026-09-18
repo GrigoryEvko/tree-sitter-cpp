@@ -274,7 +274,7 @@ __thiscall I::~I() {}
       declarator: (qualified_identifier
         scope: (namespace_identifier)
         name: (destructor_name
-          (identifier)))
+          name: (identifier)))
       parameters: (parameter_list))
     body: (compound_statement)))
 

@@ -3345,7 +3345,7 @@ void f(int* prog, int* obj) { bpf_object__for_each_program(prog, obj) { g(prog);
       (declaration
         declarator: (function_declarator
           declarator: (destructor_name
-            (identifier))
+            name: (identifier))
           parameters: (parameter_list)))))
   (function_definition
     declarator: (function_declarator
@@ -3359,7 +3359,7 @@ void f(int* prog, int* obj) { bpf_object__for_each_program(prog, obj) { g(prog);
       declarator: (qualified_identifier
         scope: (namespace_identifier)
         name: (destructor_name
-          (identifier)))
+          name: (identifier)))
       parameters: (parameter_list))
     body: (compound_statement))
   (function_definition

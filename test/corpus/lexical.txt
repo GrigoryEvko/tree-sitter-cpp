@@ -298,14 +298,14 @@ S::compl S() {}
       (declaration
         declarator: (function_declarator
           declarator: (destructor_name
-            (identifier))
+            name: (identifier))
           parameters: (parameter_list)))))
   (function_definition
     declarator: (function_declarator
       declarator: (qualified_identifier
         scope: (namespace_identifier)
         name: (destructor_name
-          (identifier)))
+          name: (identifier)))
       parameters: (parameter_list))
     body: (compound_statement)))
 

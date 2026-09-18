@@ -8148,9 +8148,16 @@ fn expressions(g: &mut Grammar) {
     // arguments. The precedence also applies to the reduction of the copy. For this reason a
     // declarator without a scope uses `_plain_destructor_name`: in a block, `~f<T>(x)` is also
     // the complement of a call, and C++20 does not permit a template-id there (CWG 2237).
+    // THE NAME OF THE CLASS TAKES THE FIELD `name`, as it does in `qualified_identifier`,
+    // `template_type` and `_destructor_template_type` below. A consumer wants the class that the
+    // destructor destroys and not the `~` beside it, and with no field it can only take the whole
+    // text `~Store` or the first named child by its position. THE TWO RULES CARRY THE FIELD
+    // TOGETHER: `_plain_destructor_name` is an alias of `destructor_name`, so a field on one of
+    // them only would give the field to some `destructor_name` nodes and not to others, and a
+    // consumer cannot tell that kind of absence from a node that has no name.
     g.define(
         "_plain_destructor_name",
-        prec(1, seq![choice!["~", "compl"], s!(identifier)]),
+        prec(1, seq![choice!["~", "compl"], field("name", s!(identifier))]),
     );
     g.define(
         "destructor_name",
@@ -8158,7 +8165,10 @@ fn expressions(g: &mut Grammar) {
             1,
             seq![
                 choice!["~", "compl"],
-                choice![s!(identifier), alias(s!(_destructor_template_type), s!(template_type))]
+                field(
+                    "name",
+                    choice![s!(identifier), alias(s!(_destructor_template_type), s!(template_type))]
+                )
             ],
         ),
     );
