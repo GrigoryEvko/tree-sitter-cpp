@@ -261,30 +261,30 @@ class Vec {
       (field_declaration
         type: (type_identifier)
         declarator: (parenthesized_declarator
-          (pointer_declarator
+          declarator: (pointer_declarator
             declarator: (field_identifier))))
       (field_declaration
         type: (type_identifier)
         declarator: (parenthesized_declarator
-          (reference_declarator
+          declarator: (reference_declarator
             declarator: (field_identifier))))
       (field_declaration
         type: (type_identifier)
         declarator: (parenthesized_declarator
-          (pointer_declarator
+          declarator: (pointer_declarator
             (type_qualifier)
             declarator: (field_identifier))))
       (field_declaration
         type: (type_identifier)
         declarator: (parenthesized_declarator
-          (member_pointer_declarator
+          declarator: (member_pointer_declarator
             scope: (namespace_identifier)
             declarator: (field_identifier))))
       (field_declaration
         type: (type_identifier)
         declarator: (function_declarator
           declarator: (parenthesized_declarator
-            (pointer_declarator
+            declarator: (pointer_declarator
               declarator: (field_identifier)))
           parameters: (parameter_list
             (parameter_declaration
@@ -3553,7 +3553,7 @@ template <class T, U((V))> void keeps_the_group_in_a_group();
       (parameter_declaration
         type: (type_identifier)
         declarator: (parenthesized_declarator
-          (pointer_declarator
+          declarator: (pointer_declarator
             declarator: (identifier)))))
     (declaration
       type: (primitive_type)
@@ -3567,7 +3567,7 @@ template <class T, U((V))> void keeps_the_group_in_a_group();
       (parameter_declaration
         type: (type_identifier)
         declarator: (abstract_parenthesized_declarator
-          (abstract_function_declarator
+          declarator: (abstract_function_declarator
             parameters: (parameter_list
               (parameter_declaration
                 type: (type_identifier)))))))
@@ -3798,7 +3798,7 @@ BOOST_MSM_EUML_ACTION(No_Transition) { template <class T> void operator()(T) { }
     type: (type_identifier)
     declarator: (init_declarator
       declarator: (parenthesized_declarator
-        (identifier))
+        declarator: (identifier))
       value: (initializer_list
         (assignment_expression
           left: (identifier)
@@ -3811,7 +3811,7 @@ BOOST_MSM_EUML_ACTION(No_Transition) { template <class T> void operator()(T) { }
     type: (type_identifier)
     declarator: (init_declarator
       declarator: (parenthesized_declarator
-        (qualified_identifier
+        declarator: (qualified_identifier
           scope: (namespace_identifier)
           name: (identifier)))
       value: (initializer_list
@@ -3820,7 +3820,7 @@ BOOST_MSM_EUML_ACTION(No_Transition) { template <class T> void operator()(T) { }
     type: (type_identifier)
     declarator: (init_declarator
       declarator: (parenthesized_declarator
-        (identifier))
+        declarator: (identifier))
       value: (initializer_list
         (lambda_expression
           captures: (lambda_capture_specifier)
@@ -3833,7 +3833,7 @@ BOOST_MSM_EUML_ACTION(No_Transition) { template <class T> void operator()(T) { }
     type: (type_identifier)
     declarator: (init_declarator
       declarator: (parenthesized_declarator
-        (identifier))
+        declarator: (identifier))
       value: (initializer_list
         (identifier)
         (identifier)))
@@ -3963,14 +3963,14 @@ struct S {
     type: (type_identifier)
     declarator: (init_declarator
       declarator: (parenthesized_declarator
-        (identifier))
+        declarator: (identifier))
       value: (initializer_list
         (number_literal))))
   (declaration
     type: (type_identifier)
     declarator: (init_declarator
       declarator: (parenthesized_declarator
-        (identifier))
+        declarator: (identifier))
       value: (initializer_list
         (assignment_expression
           left: (identifier)
@@ -4426,7 +4426,7 @@ struct S { DISALLOW_COPY(S); };
   (declaration
     type: (type_identifier)
     declarator: (parenthesized_declarator
-      (identifier))
+      declarator: (identifier))
     declarator: (function_declarator
       declarator: (identifier)
       parameters: (parameter_list
@@ -4435,13 +4435,13 @@ struct S { DISALLOW_COPY(S); };
   (declaration
     type: (type_identifier)
     declarator: (parenthesized_declarator
-      (pointer_declarator
+      declarator: (pointer_declarator
         declarator: (identifier))))
   (declaration
     (storage_class_specifier)
     type: (type_identifier)
     declarator: (parenthesized_declarator
-      (identifier)))
+      declarator: (identifier)))
   (template_declaration
     parameters: (template_parameter_list
       (type_parameter_declaration
@@ -4483,7 +4483,7 @@ struct S { DISALLOW_COPY(S); };
       scope: (namespace_identifier)
       name: (type_identifier))
     declarator: (parenthesized_declarator
-      (identifier)))
+      declarator: (identifier)))
   (expression_statement
     (call_expression
       function: (field_expression

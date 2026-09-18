@@ -1669,7 +1669,7 @@ extern "C" { T (*r)[3]; }
     type: (type_identifier)
     declarator: (array_declarator
       declarator: (parenthesized_declarator
-        (pointer_declarator
+        declarator: (pointer_declarator
           declarator: (identifier)))
       size: (number_literal)))
   (declaration
@@ -1677,7 +1677,7 @@ extern "C" { T (*r)[3]; }
     declarator: (init_declarator
       declarator: (function_declarator
         declarator: (parenthesized_declarator
-          (reference_declarator
+          declarator: (reference_declarator
             declarator: (identifier)))
         parameters: (parameter_list))
       value: (identifier)))
@@ -1686,7 +1686,7 @@ extern "C" { T (*r)[3]; }
     declarator: (init_declarator
       declarator: (function_declarator
         declarator: (parenthesized_declarator
-          (pointer_declarator
+          declarator: (pointer_declarator
             declarator: (identifier)))
         parameters: (parameter_list
           (parameter_declaration
@@ -1696,7 +1696,7 @@ extern "C" { T (*r)[3]; }
     type: (type_identifier)
     declarator: (function_declarator
       declarator: (parenthesized_declarator
-        (pointer_declarator
+        declarator: (pointer_declarator
           declarator: (array_declarator
             declarator: (identifier)
             size: (number_literal))))
@@ -1708,7 +1708,7 @@ extern "C" { T (*r)[3]; }
     declarator: (init_declarator
       declarator: (array_declarator
         declarator: (parenthesized_declarator
-          (member_pointer_declarator
+          declarator: (member_pointer_declarator
             scope: (namespace_identifier)
             declarator: (identifier)))
         size: (number_literal))
@@ -1721,7 +1721,7 @@ extern "C" { T (*r)[3]; }
     declarator: (init_declarator
       declarator: (array_declarator
         declarator: (parenthesized_declarator
-          (pointer_declarator
+          declarator: (pointer_declarator
             declarator: (qualified_identifier
               scope: (namespace_identifier)
               name: (identifier))))
@@ -1734,7 +1734,7 @@ extern "C" { T (*r)[3]; }
         type: (type_identifier)
         declarator: (array_declarator
           declarator: (parenthesized_declarator
-            (pointer_declarator
+            declarator: (pointer_declarator
               declarator: (identifier)))
           size: (number_literal)))))
   (linkage_specification
@@ -1745,7 +1745,7 @@ extern "C" { T (*r)[3]; }
         type: (type_identifier)
         declarator: (array_declarator
           declarator: (parenthesized_declarator
-            (pointer_declarator
+            declarator: (pointer_declarator
               declarator: (identifier)))
           size: (number_literal))))))
 
@@ -1807,7 +1807,7 @@ int (x) = 1;
     type: (primitive_type)
     declarator: (init_declarator
       declarator: (parenthesized_declarator
-        (identifier))
+        declarator: (identifier))
       value: (number_literal))))
 
 ================================================================================
@@ -2037,7 +2037,7 @@ F<A(int)> fv;
       (declaration
         type: (primitive_type)
         declarator: (parenthesized_declarator
-          (identifier)))))
+          declarator: (identifier)))))
   (comment)
   (comment)
   (comment)
@@ -2061,14 +2061,14 @@ F<A(int)> fv;
     type: (type_identifier)
     declarator: (array_declarator
       declarator: (parenthesized_declarator
-        (pointer_declarator
+        declarator: (pointer_declarator
           declarator: (identifier)))
       size: (number_literal)))
   (declaration
     type: (type_identifier)
     declarator: (array_declarator
       declarator: (parenthesized_declarator
-        (identifier))
+        declarator: (identifier))
       size: (number_literal)))
   (declaration
     type: (primitive_type)
@@ -2088,7 +2088,7 @@ F<A(int)> fv;
         type: (type_identifier)
         declarator: (function_declarator
           declarator: (parenthesized_declarator
-            (pointer_declarator
+            declarator: (pointer_declarator
               declarator: (field_identifier)))
           parameters: (parameter_list
             (parameter_declaration

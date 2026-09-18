@@ -353,13 +353,13 @@ namespace N { T (x) {}; }
     type: (type_identifier)
     declarator: (init_declarator
       declarator: (parenthesized_declarator
-        (identifier))
+        declarator: (identifier))
       value: (initializer_list)))
   (declaration
     type: (type_identifier)
     declarator: (init_declarator
       declarator: (parenthesized_declarator
-        (qualified_identifier
+        declarator: (qualified_identifier
           scope: (namespace_identifier)
           name: (identifier)))
       value: (initializer_list)))
@@ -367,7 +367,7 @@ namespace N { T (x) {}; }
     type: (type_identifier)
     declarator: (function_declarator
       declarator: (parenthesized_declarator
-        (identifier))
+        declarator: (identifier))
       parameters: (parameter_list
         (parameter_declaration
           type: (type_identifier)
@@ -381,7 +381,7 @@ namespace N { T (x) {}; }
     type: (type_identifier)
     declarator: (function_declarator
       declarator: (parenthesized_declarator
-        (identifier))
+        declarator: (identifier))
       parameters: (parameter_list
         (parameter_declaration
           type: (primitive_type)
@@ -419,7 +419,7 @@ namespace N { T (x) {}; }
         type: (type_identifier)
         declarator: (init_declarator
           declarator: (parenthesized_declarator
-            (identifier))
+            declarator: (identifier))
           value: (initializer_list))))))
 
 ================================================================================
@@ -502,7 +502,7 @@ int (max)(int a, int b) { return a; }
     type: (primitive_type)
     declarator: (function_declarator
       declarator: (parenthesized_declarator
-        (pointer_declarator
+        declarator: (pointer_declarator
           declarator: (function_declarator
             declarator: (identifier)
             parameters: (parameter_list
@@ -512,7 +512,7 @@ int (max)(int a, int b) { return a; }
                 type: (primitive_type)
                 declarator: (abstract_function_declarator
                   declarator: (abstract_parenthesized_declarator
-                    (abstract_pointer_declarator))
+                    declarator: (abstract_pointer_declarator))
                   parameters: (parameter_list
                     (parameter_declaration
                       type: (primitive_type)))))))))
@@ -526,7 +526,7 @@ int (max)(int a, int b) { return a; }
     type: (primitive_type)
     declarator: (function_declarator
       declarator: (parenthesized_declarator
-        (identifier))
+        declarator: (identifier))
       parameters: (parameter_list
         (parameter_declaration
           type: (primitive_type)

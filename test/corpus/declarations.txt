@@ -3169,7 +3169,7 @@ struct C { friend operator int(); };
             name: (identifier))
           type: (primitive_type)
           declarator: (parenthesized_declarator
-            (MISSING identifier)))))))
+            declarator: (MISSING identifier)))))))
 
 ================================================================================
 A conversion function defined outside its class after a specifier or a macro
@@ -3482,3 +3482,54 @@ MACRO(x);
     name: (identifier)
     arguments: (token_tree
       (identifier))))
+
+================================================================================
+The declarator inside a grouping
+================================================================================
+
+void (*handler())(int);
+int (*table)[4];
+void apply(int (*fn)(int), int (&rows)[8]);
+
+--------------------------------------------------------------------------------
+
+(translation_unit
+  (declaration
+    type: (primitive_type)
+    declarator: (function_declarator
+      declarator: (parenthesized_declarator
+        declarator: (pointer_declarator
+          declarator: (function_declarator
+            declarator: (identifier)
+            parameters: (parameter_list))))
+      parameters: (parameter_list
+        (parameter_declaration
+          type: (primitive_type)))))
+  (declaration
+    type: (primitive_type)
+    declarator: (array_declarator
+      declarator: (parenthesized_declarator
+        declarator: (pointer_declarator
+          declarator: (identifier)))
+      size: (number_literal)))
+  (declaration
+    type: (primitive_type)
+    declarator: (function_declarator
+      declarator: (identifier)
+      parameters: (parameter_list
+        (parameter_declaration
+          type: (primitive_type)
+          declarator: (function_declarator
+            declarator: (parenthesized_declarator
+              declarator: (pointer_declarator
+                declarator: (identifier)))
+            parameters: (parameter_list
+              (parameter_declaration
+                type: (primitive_type)))))
+        (parameter_declaration
+          type: (primitive_type)
+          declarator: (array_declarator
+            declarator: (parenthesized_declarator
+              declarator: (reference_declarator
+                declarator: (identifier)))
+            size: (number_literal)))))))

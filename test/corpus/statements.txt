@@ -1497,7 +1497,7 @@ void f() { __attribute__((unused)) Foo *q; __attribute__((unused)) a * b; __attr
             (identifier)))
         type: (type_identifier)
         declarator: (parenthesized_declarator
-          (identifier)))))
+          declarator: (identifier)))))
   (function_definition
     type: (primitive_type)
     declarator: (function_declarator
@@ -1524,7 +1524,7 @@ void f() { __attribute__((unused)) Foo *q; __attribute__((unused)) a * b; __attr
             (identifier)))
         type: (type_identifier)
         declarator: (parenthesized_declarator
-          (identifier))))))
+          declarator: (identifier))))))
 
 ================================================================================
 GNU attributes before a macro line and a declaration

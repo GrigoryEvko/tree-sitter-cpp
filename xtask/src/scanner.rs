@@ -516,7 +516,9 @@ mod seeded {
         assert_eq!(kept.matches("(expression_statement (call_expression").count(), 4, "{kept}");
         // `TF_CALL_half(*p);` keeps its declaration with a parenthesized declarator.
         assert!(
-            kept.contains("(declaration type: (type_identifier) declarator: (parenthesized_declarator (pointer_declarator declarator: (identifier))))"),
+            kept.contains(
+                "(declaration type: (type_identifier) declarator: (parenthesized_declarator declarator: (pointer_declarator declarator: (identifier))))"
+            ),
             "{kept}"
         );
     }

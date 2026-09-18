@@ -4610,22 +4610,36 @@ fn declarations(g: &mut Grammar) {
     // declarator: `void cb(DWORD (WINAPI *fn)(LPVOID));` declares a function with a parameter. The
     // grouping of a name with attributes only gets a different precedence. Refer to
     // `name_grouping_with_attributes`.
+    // THE DECLARATOR IN THE PARENTHESES TAKES THE FIELD `declarator` IN EACH OF THE THREE
+    // ALTERNATIVES, as `pointer_declarator` writes it. With no field a consumer that drills through
+    // a declarator chain STOPS HERE, because each other link answers `child_by_field_name(
+    // "declarator")` and this one gave None. `void (*f())(int)` then reports as a unit named
+    // `void`, the name of its type. A field on one alternative only would answer for some nodes of
+    // the kind and not for others, which a consumer cannot tell from a node with no declarator.
     let grouping = |declarator: &str| {
         choice![
-            prec_dynamic(PAREN_DECLARATOR, seq!["(", sym(declarator), ")"]),
+            prec_dynamic(
+                PAREN_DECLARATOR,
+                seq!["(", field("declarator", sym(declarator)), ")"]
+            ),
             prec_dynamic(
                 GROUPING_WITH_ATTRIBUTES,
                 seq![
                     "(",
                     optional(s!(_grouping_attributes)),
                     calling_convention(),
-                    sym(declarator),
+                    field("declarator", sym(declarator)),
                     ")"
                 ]
             ),
             prec_dynamic(
                 GROUPING_WITH_ATTRIBUTES,
-                seq!["(", s!(_grouping_attributes), sym(declarator), ")"]
+                seq![
+                    "(",
+                    s!(_grouping_attributes),
+                    field("declarator", sym(declarator)),
+                    ")"
+                ]
             ),
         ]
     };
@@ -4636,7 +4650,12 @@ fn declarations(g: &mut Grammar) {
         "abstract_parenthesized_declarator",
         prec(
             1,
-            seq!["(", optional(grouping_start()), s!(_abstract_declarator), ")"],
+            seq![
+                "(",
+                optional(grouping_start()),
+                field("declarator", s!(_abstract_declarator)),
+                ")"
+            ],
         ),
     );
     // The external scanner reads the name of the macro only before a declarator, the `)` of the
@@ -5720,7 +5739,17 @@ fn keyword_parameter_grouping(g: &mut Grammar) {
     // stops at the keyword: the parameter has a function type. Refer to `keyword_stop`.
     g.define(
         "_keyword_parameter_grouping",
-        seq!["(", choice![s!(identifier), keyword_stop()], ")"],
+        seq![
+            "(",
+            // THIS PRODUCTION TAKES NO FIELD, AND THE FIELD OF THE KIND IS OPTIONAL BECAUSE OF IT.
+            // The production is `( name )`, which is the production of `argument_list` as well, and
+            // a field here reaches the argument of every call: `unsigned(j)` gave its argument `j`
+            // the field `declarator`, and `src/node-types.json` gave `argument_list` a `declarator`
+            // field. An argument is not a declarator. The gate of this commit found it, and the
+            // corpus holds 119 nodes of this production in 39 files, 0.32% of the kind.
+            choice![s!(identifier), keyword_stop()],
+            ")"
+        ],
     );
     g.redefine("parameter_declaration", |original| {
         choice![

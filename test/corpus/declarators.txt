@@ -143,7 +143,7 @@ void (&[[a]] fr)() = fn;
     type: (primitive_type)
     declarator: (function_declarator
       declarator: (parenthesized_declarator
-        (member_pointer_declarator
+        declarator: (member_pointer_declarator
           scope: (namespace_identifier)
           (attribute_declaration
             (attribute
@@ -163,7 +163,7 @@ void (&[[a]] fr)() = fn;
     declarator: (init_declarator
       declarator: (function_declarator
         declarator: (parenthesized_declarator
-          (reference_declarator
+          declarator: (reference_declarator
             (attribute_declaration
               (attribute
                 name: (identifier)))
@@ -350,7 +350,7 @@ X::operator T &();
         declarator: (init_declarator
           declarator: (function_declarator
             declarator: (parenthesized_declarator
-              (member_pointer_declarator
+              declarator: (member_pointer_declarator
                 scope: (namespace_identifier)
                 declarator: (identifier)))
             parameters: (parameter_list)
@@ -1089,7 +1089,7 @@ static Foo *instance(new Foo);
               type: (type_identifier)
               declarator: (array_declarator
                 declarator: (parenthesized_declarator
-                  (reference_declarator
+                  declarator: (reference_declarator
                     declarator: (identifier)))
                 size: (number_literal))))))))
   (template_declaration
@@ -1783,7 +1783,7 @@ lab:
           declarator: (init_declarator
             declarator: (function_declarator
               declarator: (parenthesized_declarator
-                (reference_declarator
+                declarator: (reference_declarator
                   declarator: (identifier)))
               parameters: (parameter_list))
             value: (identifier)))
@@ -1792,7 +1792,7 @@ lab:
           declarator: (init_declarator
             declarator: (function_declarator
               declarator: (parenthesized_declarator
-                (pointer_declarator
+                declarator: (pointer_declarator
                   declarator: (identifier)))
               parameters: (parameter_list
                 (parameter_declaration
@@ -1802,43 +1802,43 @@ lab:
           type: (primitive_type)
           declarator: (array_declarator
             declarator: (parenthesized_declarator
-              (pointer_declarator
+              declarator: (pointer_declarator
                 declarator: (identifier)))
             size: (number_literal)))
         (declaration
           type: (primitive_type)
           declarator: (array_declarator
             declarator: (parenthesized_declarator
-              (pointer_declarator
+              declarator: (pointer_declarator
                 declarator: (identifier)))
             size: (number_literal))
           declarator: (array_declarator
             declarator: (parenthesized_declarator
-              (pointer_declarator
+              declarator: (pointer_declarator
                 declarator: (identifier)))
             size: (number_literal)))
         (declaration
           type: (sized_type_specifier)
           declarator: (parenthesized_declarator
-            (identifier)))
+            declarator: (identifier)))
         (declaration
           type: (decltype
             (identifier))
           declarator: (parenthesized_declarator
-            (identifier)))
+            declarator: (identifier)))
         (declaration
           type: (dependent_type
             (qualified_identifier
               scope: (namespace_identifier)
               name: (type_identifier)))
           declarator: (parenthesized_declarator
-            (identifier)))
+            declarator: (identifier)))
         (declaration
           type: (placeholder_type_specifier
             (auto))
           declarator: (init_declarator
             declarator: (parenthesized_declarator
-              (identifier))
+              declarator: (identifier))
             value: (number_literal)))
         (if_statement
           condition: (condition_clause
@@ -1847,7 +1847,7 @@ lab:
             type: (primitive_type)
             declarator: (array_declarator
               declarator: (parenthesized_declarator
-                (pointer_declarator
+                declarator: (pointer_declarator
                   declarator: (identifier)))
               size: (number_literal))))
         (labeled_statement
@@ -1857,7 +1857,7 @@ lab:
             declarator: (init_declarator
               declarator: (function_declarator
                 declarator: (parenthesized_declarator
-                  (pointer_declarator
+                  declarator: (pointer_declarator
                     declarator: (identifier)))
                 parameters: (parameter_list
                   (parameter_declaration
@@ -1911,7 +1911,7 @@ lab:
           type: (primitive_type)
           declarator: (function_declarator
             declarator: (parenthesized_declarator
-              (pointer_declarator
+              declarator: (pointer_declarator
                 declarator: (function_declarator
                   declarator: (identifier)
                   parameters: (parameter_list
@@ -2397,7 +2397,7 @@ struct S {
     declarator: (init_declarator
       declarator: (function_declarator
         declarator: (parenthesized_declarator
-          (pointer_declarator
+          declarator: (pointer_declarator
             declarator: (identifier)))
         parameters: (parameter_list))
       value: (initializer_list)))
@@ -2406,7 +2406,7 @@ struct S {
     declarator: (init_declarator
       declarator: (function_declarator
         declarator: (parenthesized_declarator
-          (pointer_declarator
+          declarator: (pointer_declarator
             declarator: (identifier)))
         parameters: (parameter_list
           (parameter_declaration
@@ -2424,7 +2424,7 @@ struct S {
     type: (primitive_type)
     declarator: (init_declarator
       declarator: (parenthesized_declarator
-        (identifier))
+        declarator: (identifier))
       value: (initializer_list
         (number_literal))))
   (struct_specifier
@@ -2434,7 +2434,7 @@ struct S {
         type: (primitive_type)
         declarator: (function_declarator
           declarator: (parenthesized_declarator
-            (pointer_declarator
+            declarator: (pointer_declarator
               declarator: (field_identifier)))
           parameters: (parameter_list))
         default_value: (initializer_list)))))

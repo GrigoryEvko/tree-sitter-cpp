@@ -756,15 +756,22 @@
   {
     "type": "abstract_parenthesized_declarator",
     "named": true,
-    "fields": {},
+    "fields": {
+      "declarator": {
+        "multiple": false,
+        "required": true,
+        "types": [
+          {
+            "type": "_abstract_declarator",
+            "named": true
+          }
+        ]
+      }
+    },
     "children": {
       "multiple": true,
-      "required": true,
+      "required": false,
       "types": [
-        {
-          "type": "_abstract_declarator",
-          "named": true
-        },
         {
           "type": "attribute_macro",
           "named": true
@@ -7913,15 +7920,54 @@
   {
     "type": "parenthesized_declarator",
     "named": true,
-    "fields": {},
+    "fields": {
+      "declarator": {
+        "multiple": false,
+        "required": false,
+        "types": [
+          {
+            "type": "_type_declarator",
+            "named": true
+          },
+          {
+            "type": "destructor_name",
+            "named": true
+          },
+          {
+            "type": "field_identifier",
+            "named": true
+          },
+          {
+            "type": "identifier",
+            "named": true
+          },
+          {
+            "type": "operator_name",
+            "named": true
+          },
+          {
+            "type": "qualified_identifier",
+            "named": true
+          },
+          {
+            "type": "template_function",
+            "named": true
+          },
+          {
+            "type": "template_method",
+            "named": true
+          },
+          {
+            "type": "variadic_declarator",
+            "named": true
+          }
+        ]
+      }
+    },
     "children": {
       "multiple": true,
-      "required": true,
+      "required": false,
       "types": [
-        {
-          "type": "_type_declarator",
-          "named": true
-        },
         {
           "type": "attribute_macro",
           "named": true
@@ -7931,39 +7977,11 @@
           "named": true
         },
         {
-          "type": "destructor_name",
-          "named": true
-        },
-        {
-          "type": "field_identifier",
-          "named": true
-        },
-        {
           "type": "identifier",
           "named": true
         },
         {
           "type": "ms_call_modifier",
-          "named": true
-        },
-        {
-          "type": "operator_name",
-          "named": true
-        },
-        {
-          "type": "qualified_identifier",
-          "named": true
-        },
-        {
-          "type": "template_function",
-          "named": true
-        },
-        {
-          "type": "template_method",
-          "named": true
-        },
-        {
-          "type": "variadic_declarator",
           "named": true
         }
       ]

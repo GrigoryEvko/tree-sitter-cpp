@@ -389,7 +389,7 @@ void f() {
         type: (type_identifier)
         declarator: (function_declarator
           declarator: (parenthesized_declarator
-            (pointer_declarator
+            declarator: (pointer_declarator
               declarator: (field_identifier)))
           parameters: (parameter_list)))))
   (template_declaration
@@ -1695,7 +1695,7 @@ struct LogicalType {
     type: (primitive_type)
     declarator: (function_declarator
       declarator: (parenthesized_declarator
-        (pointer_declarator
+        declarator: (pointer_declarator
           declarator: (identifier)))
       parameters: (parameter_list
         (parameter_declaration
@@ -1712,7 +1712,7 @@ struct LogicalType {
     declarator: (pointer_declarator
       declarator: (function_declarator
         declarator: (parenthesized_declarator
-          (pointer_declarator
+          declarator: (pointer_declarator
             declarator: (identifier)))
         parameters: (parameter_list
           (parameter_declaration
@@ -2170,7 +2170,7 @@ void g() { T (SYSV_ABI *function)(int) = nullptr; }
       declarator: (parenthesized_declarator
         (attribute_macro
           name: (identifier))
-        (pointer_declarator
+        declarator: (pointer_declarator
           declarator: (type_identifier)))
       parameters: (parameter_list
         (parameter_declaration
@@ -2182,7 +2182,7 @@ void g() { T (SYSV_ABI *function)(int) = nullptr; }
       declarator: (parenthesized_declarator
         (attribute_macro
           name: (identifier))
-        (pointer_declarator
+        declarator: (pointer_declarator
           declarator: (identifier)))
       parameters: (parameter_list
         (parameter_declaration
@@ -2193,7 +2193,7 @@ void g() { T (SYSV_ABI *function)(int) = nullptr; }
       declarator: (parenthesized_declarator
         (attribute_macro
           name: (identifier))
-        (member_pointer_declarator
+        declarator: (member_pointer_declarator
           scope: (namespace_identifier)
           declarator: (type_identifier)))
       parameters: (parameter_list
@@ -2207,7 +2207,7 @@ void g() { T (SYSV_ABI *function)(int) = nullptr; }
       declarator: (parenthesized_declarator
         (attribute_macro
           name: (identifier))
-        (type_identifier))
+        declarator: (type_identifier))
       parameters: (parameter_list
         (parameter_declaration
           type: (primitive_type)))))
@@ -2219,7 +2219,7 @@ void g() { T (SYSV_ABI *function)(int) = nullptr; }
         declarator: (abstract_parenthesized_declarator
           (attribute_macro
             name: (identifier))
-          (abstract_pointer_declarator))
+          declarator: (abstract_pointer_declarator))
         parameters: (parameter_list
           (parameter_declaration
             type: (type_identifier))))))
@@ -2234,7 +2234,7 @@ void g() { T (SYSV_ABI *function)(int) = nullptr; }
             declarator: (parenthesized_declarator
               (attribute_macro
                 name: (identifier))
-              (pointer_declarator
+              declarator: (pointer_declarator
                 declarator: (identifier)))
             parameters: (parameter_list
               (parameter_declaration
@@ -2245,7 +2245,7 @@ void g() { T (SYSV_ABI *function)(int) = nullptr; }
             declarator: (abstract_parenthesized_declarator
               (attribute_macro
                 name: (identifier))
-              (abstract_pointer_declarator))
+              declarator: (abstract_pointer_declarator))
             parameters: (parameter_list
               (parameter_declaration
                 type: (type_identifier))))))))
@@ -2258,7 +2258,7 @@ void g() { T (SYSV_ABI *function)(int) = nullptr; }
           declarator: (parenthesized_declarator
             (attribute_macro
               name: (identifier))
-            (pointer_declarator
+            declarator: (pointer_declarator
               declarator: (field_identifier)))
           parameters: (parameter_list
             (parameter_declaration
@@ -2276,7 +2276,7 @@ void g() { T (SYSV_ABI *function)(int) = nullptr; }
             declarator: (parenthesized_declarator
               (attribute_macro
                 name: (identifier))
-              (pointer_declarator
+              declarator: (pointer_declarator
                 declarator: (identifier)))
             parameters: (parameter_list
               (parameter_declaration
@@ -2302,7 +2302,7 @@ using P = int (__attribute__((unused)) *)(int);
         (attribute_specifier
           (argument_list
             (identifier)))
-        (pointer_declarator
+        declarator: (pointer_declarator
           declarator: (identifier)))
       parameters: (parameter_list
         (parameter_declaration
@@ -2312,7 +2312,7 @@ using P = int (__attribute__((unused)) *)(int);
     declarator: (function_declarator
       declarator: (parenthesized_declarator
         (ms_call_modifier)
-        (pointer_declarator
+        declarator: (pointer_declarator
           declarator: (type_identifier)))
       parameters: (parameter_list
         (parameter_declaration
@@ -2322,7 +2322,7 @@ using P = int (__attribute__((unused)) *)(int);
     declarator: (function_declarator
       declarator: (parenthesized_declarator
         (ms_call_modifier)
-        (identifier))
+        declarator: (identifier))
       parameters: (parameter_list
         (parameter_declaration
           type: (primitive_type)))))
@@ -2335,7 +2335,7 @@ using P = int (__attribute__((unused)) *)(int);
           (attribute_specifier
             (argument_list
               (identifier)))
-          (abstract_pointer_declarator))
+          declarator: (abstract_pointer_declarator))
         parameters: (parameter_list
           (parameter_declaration
             type: (primitive_type)))))))
@@ -2361,7 +2361,7 @@ void g() {
       type: (type_identifier)
       declarator: (abstract_function_declarator
         declarator: (abstract_parenthesized_declarator
-          (abstract_member_pointer_declarator
+          declarator: (abstract_member_pointer_declarator
             scope: (namespace_identifier)))
         parameters: (parameter_list
           (variadic_parameter_declaration

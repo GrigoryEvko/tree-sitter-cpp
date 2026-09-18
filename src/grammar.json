@@ -9945,8 +9945,12 @@
                 "value": "("
               },
               {
-                "type": "SYMBOL",
-                "name": "_declarator_of_name"
+                "type": "FIELD",
+                "name": "declarator",
+                "content": {
+                  "type": "SYMBOL",
+                  "name": "_declarator_of_name"
+                }
               },
               {
                 "type": "STRING",
@@ -9996,8 +10000,12 @@
                 ]
               },
               {
-                "type": "SYMBOL",
-                "name": "_declarator_of_name"
+                "type": "FIELD",
+                "name": "declarator",
+                "content": {
+                  "type": "SYMBOL",
+                  "name": "_declarator_of_name"
+                }
               },
               {
                 "type": "STRING",
@@ -10021,8 +10029,12 @@
                 "name": "_grouping_attributes"
               },
               {
-                "type": "SYMBOL",
-                "name": "_declarator_of_name"
+                "type": "FIELD",
+                "name": "declarator",
+                "content": {
+                  "type": "SYMBOL",
+                  "name": "_declarator_of_name"
+                }
               },
               {
                 "type": "STRING",
@@ -10047,80 +10059,84 @@
                 "value": "("
               },
               {
-                "type": "CHOICE",
-                "members": [
-                  {
-                    "type": "PREC_DYNAMIC",
-                    "value": -300,
-                    "content": {
-                      "type": "SYMBOL",
-                      "name": "function_declarator"
+                "type": "FIELD",
+                "name": "declarator",
+                "content": {
+                  "type": "CHOICE",
+                  "members": [
+                    {
+                      "type": "PREC_DYNAMIC",
+                      "value": -300,
+                      "content": {
+                        "type": "SYMBOL",
+                        "name": "function_declarator"
+                      }
+                    },
+                    {
+                      "type": "ALIAS",
+                      "content": {
+                        "type": "SYMBOL",
+                        "name": "_attributed_declarator_of_function"
+                      },
+                      "named": true,
+                      "value": "attributed_declarator"
+                    },
+                    {
+                      "type": "ALIAS",
+                      "content": {
+                        "type": "SYMBOL",
+                        "name": "_pointer_declarator_of_function"
+                      },
+                      "named": true,
+                      "value": "pointer_declarator"
+                    },
+                    {
+                      "type": "ALIAS",
+                      "content": {
+                        "type": "SYMBOL",
+                        "name": "_array_declarator_of_function"
+                      },
+                      "named": true,
+                      "value": "array_declarator"
+                    },
+                    {
+                      "type": "ALIAS",
+                      "content": {
+                        "type": "SYMBOL",
+                        "name": "_parenthesized_declarator_of_function"
+                      },
+                      "named": true,
+                      "value": "parenthesized_declarator"
+                    },
+                    {
+                      "type": "ALIAS",
+                      "content": {
+                        "type": "SYMBOL",
+                        "name": "_reference_declarator_of_function"
+                      },
+                      "named": true,
+                      "value": "reference_declarator"
+                    },
+                    {
+                      "type": "ALIAS",
+                      "content": {
+                        "type": "SYMBOL",
+                        "name": "_block_pointer_declarator_of_function"
+                      },
+                      "named": true,
+                      "value": "block_pointer_declarator"
+                    },
+                    {
+                      "type": "ALIAS",
+                      "content": {
+                        "type": "SYMBOL",
+                        "name": "_member_pointer_declarator_of_function"
+                      },
+                      "named": true,
+                      "value": "member_pointer_declarator"
                     }
-                  },
-                  {
-                    "type": "ALIAS",
-                    "content": {
-                      "type": "SYMBOL",
-                      "name": "_attributed_declarator_of_function"
-                    },
-                    "named": true,
-                    "value": "attributed_declarator"
-                  },
-                  {
-                    "type": "ALIAS",
-                    "content": {
-                      "type": "SYMBOL",
-                      "name": "_pointer_declarator_of_function"
-                    },
-                    "named": true,
-                    "value": "pointer_declarator"
-                  },
-                  {
-                    "type": "ALIAS",
-                    "content": {
-                      "type": "SYMBOL",
-                      "name": "_array_declarator_of_function"
-                    },
-                    "named": true,
-                    "value": "array_declarator"
-                  },
-                  {
-                    "type": "ALIAS",
-                    "content": {
-                      "type": "SYMBOL",
-                      "name": "_parenthesized_declarator_of_function"
-                    },
-                    "named": true,
-                    "value": "parenthesized_declarator"
-                  },
-                  {
-                    "type": "ALIAS",
-                    "content": {
-                      "type": "SYMBOL",
-                      "name": "_reference_declarator_of_function"
-                    },
-                    "named": true,
-                    "value": "reference_declarator"
-                  },
-                  {
-                    "type": "ALIAS",
-                    "content": {
-                      "type": "SYMBOL",
-                      "name": "_block_pointer_declarator_of_function"
-                    },
-                    "named": true,
-                    "value": "block_pointer_declarator"
-                  },
-                  {
-                    "type": "ALIAS",
-                    "content": {
-                      "type": "SYMBOL",
-                      "name": "_member_pointer_declarator_of_function"
-                    },
-                    "named": true,
-                    "value": "member_pointer_declarator"
-                  }
-                ]
+                  ]
+                }
               },
               {
                 "type": "STRING",
@@ -10170,8 +10186,12 @@
                 ]
               },
               {
-                "type": "SYMBOL",
-                "name": "_declarator_of_function"
+                "type": "FIELD",
+                "name": "declarator",
+                "content": {
+                  "type": "SYMBOL",
+                  "name": "_declarator_of_function"
+                }
               },
               {
                 "type": "STRING",
@@ -10195,8 +10215,12 @@
                 "name": "_grouping_attributes"
               },
               {
-                "type": "SYMBOL",
-                "name": "_declarator_of_function"
+                "type": "FIELD",
+                "name": "declarator",
+                "content": {
+                  "type": "SYMBOL",
+                  "name": "_declarator_of_function"
+                }
               },
               {
                 "type": "STRING",
@@ -10221,8 +10245,12 @@
                 "value": "("
               },
               {
-                "type": "SYMBOL",
-                "name": "_declarator_of_object"
+                "type": "FIELD",
+                "name": "declarator",
+                "content": {
+                  "type": "SYMBOL",
+                  "name": "_declarator_of_object"
+                }
               },
               {
                 "type": "STRING",
@@ -10272,8 +10300,12 @@
                 ]
               },
               {
-                "type": "SYMBOL",
-                "name": "_declarator_of_object"
+                "type": "FIELD",
+                "name": "declarator",
+                "content": {
+                  "type": "SYMBOL",
+                  "name": "_declarator_of_object"
+                }
               },
               {
                 "type": "STRING",
@@ -10297,8 +10329,12 @@
                 "name": "_grouping_attributes"
               },
               {
-                "type": "SYMBOL",
-                "name": "_declarator_of_object"
+                "type": "FIELD",
+                "name": "declarator",
+                "content": {
+                  "type": "SYMBOL",
+                  "name": "_declarator_of_object"
+                }
               },
               {
                 "type": "STRING",
@@ -10323,8 +10359,12 @@
                 "value": "("
               },
               {
-                "type": "SYMBOL",
-                "name": "_declarator_of_reference"
+                "type": "FIELD",
+                "name": "declarator",
+                "content": {
+                  "type": "SYMBOL",
+                  "name": "_declarator_of_reference"
+                }
               },
               {
                 "type": "STRING",
@@ -10374,8 +10414,12 @@
                 ]
               },
               {
-                "type": "SYMBOL",
-                "name": "_declarator_of_reference"
+                "type": "FIELD",
+                "name": "declarator",
+                "content": {
+                  "type": "SYMBOL",
+                  "name": "_declarator_of_reference"
+                }
               },
               {
                 "type": "STRING",
@@ -10399,8 +10443,12 @@
                 "name": "_grouping_attributes"
               },
               {
-                "type": "SYMBOL",
-                "name": "_declarator_of_reference"
+                "type": "FIELD",
+                "name": "declarator",
+                "content": {
+                  "type": "SYMBOL",
+                  "name": "_declarator_of_reference"
+                }
               },
               {
                 "type": "STRING",
@@ -10425,8 +10473,12 @@
                 "value": "("
               },
               {
-                "type": "SYMBOL",
-                "name": "_field_declarator_of_name"
+                "type": "FIELD",
+                "name": "declarator",
+                "content": {
+                  "type": "SYMBOL",
+                  "name": "_field_declarator_of_name"
+                }
               },
               {
                 "type": "STRING",
@@ -10476,8 +10528,12 @@
                 ]
               },
               {
-                "type": "SYMBOL",
-                "name": "_field_declarator_of_name"
+                "type": "FIELD",
+                "name": "declarator",
+                "content": {
+                  "type": "SYMBOL",
+                  "name": "_field_declarator_of_name"
+                }
               },
               {
                 "type": "STRING",
@@ -10501,8 +10557,12 @@
                 "name": "_grouping_attributes"
               },
               {
-                "type": "SYMBOL",
-                "name": "_field_declarator_of_name"
+                "type": "FIELD",
+                "name": "declarator",
+                "content": {
+                  "type": "SYMBOL",
+                  "name": "_field_declarator_of_name"
+                }
               },
               {
                 "type": "STRING",
@@ -10527,8 +10587,12 @@
                 "value": "("
               },
               {
-                "type": "SYMBOL",
-                "name": "_field_declarator_of_function"
+                "type": "FIELD",
+                "name": "declarator",
+                "content": {
+                  "type": "SYMBOL",
+                  "name": "_field_declarator_of_function"
+                }
               },
               {
                 "type": "STRING",
@@ -10578,8 +10642,12 @@
                 ]
               },
               {
-                "type": "SYMBOL",
-                "name": "_field_declarator_of_function"
+                "type": "FIELD",
+                "name": "declarator",
+                "content": {
+                  "type": "SYMBOL",
+                  "name": "_field_declarator_of_function"
+                }
               },
               {
                 "type": "STRING",
@@ -10603,8 +10671,12 @@
                 "name": "_grouping_attributes"
               },
               {
-                "type": "SYMBOL",
-                "name": "_field_declarator_of_function"
+                "type": "FIELD",
+                "name": "declarator",
+                "content": {
+                  "type": "SYMBOL",
+                  "name": "_field_declarator_of_function"
+                }
               },
               {
                 "type": "STRING",
@@ -10629,8 +10701,12 @@
                 "value": "("
               },
               {
-                "type": "SYMBOL",
-                "name": "_field_declarator_of_object"
+                "type": "FIELD",
+                "name": "declarator",
+                "content": {
+                  "type": "SYMBOL",
+                  "name": "_field_declarator_of_object"
+                }
               },
               {
                 "type": "STRING",
@@ -10680,8 +10756,12 @@
                 ]
               },
               {
-                "type": "SYMBOL",
-                "name": "_field_declarator_of_object"
+                "type": "FIELD",
+                "name": "declarator",
+                "content": {
+                  "type": "SYMBOL",
+                  "name": "_field_declarator_of_object"
+                }
               },
               {
                 "type": "STRING",
@@ -10705,8 +10785,12 @@
                 "name": "_grouping_attributes"
               },
               {
-                "type": "SYMBOL",
-                "name": "_field_declarator_of_object"
+                "type": "FIELD",
+                "name": "declarator",
+                "content": {
+                  "type": "SYMBOL",
+                  "name": "_field_declarator_of_object"
+                }
               },
               {
                 "type": "STRING",
@@ -10731,8 +10815,12 @@
                 "value": "("
               },
               {
-                "type": "SYMBOL",
-                "name": "_field_declarator_of_reference"
+                "type": "FIELD",
+                "name": "declarator",
+                "content": {
+                  "type": "SYMBOL",
+                  "name": "_field_declarator_of_reference"
+                }
               },
               {
                 "type": "STRING",
@@ -10782,8 +10870,12 @@
                 ]
               },
               {
-                "type": "SYMBOL",
-                "name": "_field_declarator_of_reference"
+                "type": "FIELD",
+                "name": "declarator",
+                "content": {
+                  "type": "SYMBOL",
+                  "name": "_field_declarator_of_reference"
+                }
               },
               {
                 "type": "STRING",
@@ -10807,8 +10899,12 @@
                 "name": "_grouping_attributes"
               },
               {
-                "type": "SYMBOL",
-                "name": "_field_declarator_of_reference"
+                "type": "FIELD",
+                "name": "declarator",
+                "content": {
+                  "type": "SYMBOL",
+                  "name": "_field_declarator_of_reference"
+                }
               },
               {
                 "type": "STRING",
@@ -10833,8 +10929,12 @@
                 "value": "("
               },
               {
-                "type": "SYMBOL",
-                "name": "_type_declarator"
+                "type": "FIELD",
+                "name": "declarator",
+                "content": {
+                  "type": "SYMBOL",
+                  "name": "_type_declarator"
+                }
               },
               {
                 "type": "STRING",
@@ -10884,8 +10984,12 @@
                 ]
               },
               {
-                "type": "SYMBOL",
-                "name": "_type_declarator"
+                "type": "FIELD",
+                "name": "declarator",
+                "content": {
+                  "type": "SYMBOL",
+                  "name": "_type_declarator"
+                }
               },
               {
                 "type": "STRING",
@@ -10909,8 +11013,12 @@
                 "name": "_grouping_attributes"
               },
               {
-                "type": "SYMBOL",
-                "name": "_type_declarator"
+                "type": "FIELD",
+                "name": "declarator",
+                "content": {
+                  "type": "SYMBOL",
+                  "name": "_type_declarator"
+                }
               },
               {
                 "type": "STRING",
@@ -10998,8 +11106,12 @@
             ]
           },
           {
-            "type": "SYMBOL",
-            "name": "_abstract_declarator"
+            "type": "FIELD",
+            "name": "declarator",
+            "content": {
+              "type": "SYMBOL",
+              "name": "_abstract_declarator"
+            }
           },
           {
             "type": "STRING",
@@ -28512,8 +28624,12 @@
                 "value": "("
               },
               {
-                "type": "SYMBOL",
-                "name": "_variadic_declarator"
+                "type": "FIELD",
+                "name": "declarator",
+                "content": {
+                  "type": "SYMBOL",
+                  "name": "_variadic_declarator"
+                }
               },
               {
                 "type": "STRING",
@@ -28563,8 +28679,12 @@
                 ]
               },
               {
-                "type": "SYMBOL",
-                "name": "_variadic_declarator"
+                "type": "FIELD",
+                "name": "declarator",
+                "content": {
+                  "type": "SYMBOL",
+                  "name": "_variadic_declarator"
+                }
               },
               {
                 "type": "STRING",
@@ -28588,8 +28708,12 @@
                 "name": "_grouping_attributes"
               },
               {
-                "type": "SYMBOL",
-                "name": "_variadic_declarator"
+                "type": "FIELD",
+                "name": "declarator",
+                "content": {
+                  "type": "SYMBOL",
+                  "name": "_variadic_declarator"
+                }
               },
               {
                 "type": "STRING",
