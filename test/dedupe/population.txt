@@ -22,7 +22,7 @@
 # and also when a reading is REMOVED. The two look the same here, and only the commit that
 # caused the fall knows which one it made.
 #
-# 2818 files, of the corpus of the fork master.
+# 2815 files, of the corpus of the fork master.
 Cataclysm-DDA/src/debug_console.cpp
 Cataclysm-DDA/src/third-party/flatbuffers/hash.h
 Cataclysm-DDA/src/third-party/fmt/base.h
@@ -834,7 +834,6 @@ godot/thirdparty/glslang/glslang/MachineIndependent/preprocessor/PpAtom.cpp
 godot/thirdparty/glslang/glslang/MachineIndependent/preprocessor/PpScanner.cpp
 godot/thirdparty/harfbuzz/src/OT/Color/CPAL/CPAL.hh
 godot/thirdparty/harfbuzz/src/hb-aat-layout-morx-table.hh
-godot/thirdparty/harfbuzz/src/hb-algs.hh
 godot/thirdparty/harfbuzz/src/hb-blob.cc
 godot/thirdparty/harfbuzz/src/hb-buffer.cc
 godot/thirdparty/harfbuzz/src/hb-buffer.hh
@@ -2086,7 +2085,6 @@ onnxruntime/orttraining/orttraining/training_ops/cpu/activation/activations_grad
 onnxruntime/orttraining/orttraining/training_ops/cuda/nn/conv_shared.cc
 opencv/3rdparty/harfbuzz/src/OT/Color/CPAL/CPAL.hh
 opencv/3rdparty/harfbuzz/src/hb-aat-layout-morx-table.hh
-opencv/3rdparty/harfbuzz/src/hb-algs.hh
 opencv/3rdparty/harfbuzz/src/hb-blob.cc
 opencv/3rdparty/harfbuzz/src/hb-buffer.cc
 opencv/3rdparty/harfbuzz/src/hb-buffer.hh
@@ -2320,7 +2318,6 @@ qtbase/src/3rdparty/D3D12MemoryAllocator/D3D12MemAlloc.cpp
 qtbase/src/3rdparty/VulkanMemoryAllocator/vk_mem_alloc.h
 qtbase/src/3rdparty/harfbuzz-ng/src/OT/Color/CPAL/CPAL.hh
 qtbase/src/3rdparty/harfbuzz-ng/src/hb-aat-layout-morx-table.hh
-qtbase/src/3rdparty/harfbuzz-ng/src/hb-algs.hh
 qtbase/src/3rdparty/harfbuzz-ng/src/hb-blob.cc
 qtbase/src/3rdparty/harfbuzz-ng/src/hb-buffer.cc
 qtbase/src/3rdparty/harfbuzz-ng/src/hb-buffer.hh
