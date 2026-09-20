@@ -201,6 +201,10 @@ enum TokenType {
     /// where a branch of a conditional group that ends with a comma or with an argument fits the text
     /// after the group.
     ARGUMENT_LIST_MARKER,
+    /// An empty token before the name of an object-like macro whose replacement list ends in `->` or
+    /// `.`, where a statement starts and a name and an argument list follow: `__ Mov(x29, sp);` with
+    /// `#define __ masm->`. Refer to `_macro_member_statement` in grammar/src/cpp.rs.
+    MACRO_MEMBER_START,
     /// The count of the external tokens, and not a token. `tree_sitter_cpp_external_scanner_create`
     /// compares it with the count of the parser.
     TOKEN_TYPE_COUNT,
@@ -2495,6 +2499,27 @@ static bool is_seed_macro_name(const Scanner *scanner, const char *name, const R
     return (kinds & TS_CPP_SEED_MACRO) != 0;
 }
 
+/// True when EVERY object-like `#define` of the name in the project gives a member prefix, a body that
+/// ends in `->` or `.`: `#define __ masm->` of v8. It reads no character.
+///
+/// THE TEST IS EXCLUSIVE, AND THAT IS THE EVIDENCE. A name has one row and many definitions, and the
+/// body bits are the union of them (src/seed.h). A name with a member body AND another body shape can
+/// expand to something that is no member access at a site, and the reading is then not forced. An empty
+/// body is the one shape that joins a member body here: `#define __` makes `__ Mov(x, y);` the call
+/// `Mov(x, y);`, which is an expression statement as the member access is. llvm-project defines `A` as
+/// a member prefix in one header and as five other shapes elsewhere, and the exclusive test declines
+/// that name at each of its 40 sites.
+///
+/// A CUT WORD GIVES FALSE, for the reason that `is_seed_type_name` gives.
+static bool is_seed_member_body_name(const Scanner *scanner, const char *name, const Reader *reader) {
+    if (scanner == NULL || reader->word_cut) {
+        return false;
+    }
+    uint16_t kinds = seed_kinds((const TSCppSeed *)scanner->context, name, (uint32_t)strlen(name));
+    uint16_t body = kinds & (uint16_t)(TS_CPP_SEED_BODY & ~TS_CPP_SEED_BODY_EMPTY);
+    return body == TS_CPP_SEED_BODY_MEMBER;
+}
+
 /// True when the seed of the project declares the name as a function-like macro. It reads no character.
 static bool is_seed_function_macro_name(const Scanner *scanner, const char *name, const Reader *reader) {
     if (scanner == NULL || reader->word_cut) {
@@ -4186,6 +4211,46 @@ static Invocation scan_macro_invocation(Reader *reader, const char *name, size_t
     return INVOCATION_TOKEN;
 }
 
+/// Read the member call that comes after the name of a member-prefix macro: a name, a balanced group
+/// and a `;`.
+///
+/// The reader stands after the gap that follows the macro name. `_macro_member_statement` holds
+/// exactly this text, so the scan verifies the whole shape and the parser can always complete it.
+///
+/// THE `;` AFTER THE GROUP IS THE END OF THE STATEMENT. `masm->Mov(x29, sp);` is one member call, and
+/// `masm->Get(i).Set(v);` and `masm->Get(i)[0] = v;` continue with a postfix operator that this rule
+/// does not hold. Over the corpus 53,291 of the 53,596 sites end at the `;`, and the other 305 keep
+/// the tree that they have. O(n) in the length of the name and the group.
+static bool scan_macro_member_call(Reader *reader) {
+    if (!readable(reader) || !is_word_start(reader->lexer->lookahead)) {
+        return false;
+    }
+    char member[MACRO_WORD_SIZE];
+    bool has_lower = false;
+    read_word(reader, member, &has_lower);
+    if (member[0] == '\0' || is_grammar_keyword(member)) {
+        return false;
+    }
+    Gap before_group = {0};
+    skip_gap(reader, &before_group);
+    if (before_group.blocked || !readable(reader) || reader->lexer->lookahead != '(') {
+        return false;
+    }
+    // THE SHAPE OF THE GROUP DECIDES NOTHING HERE, AND A TEST OF IT COSTS 861 REPAIRS. `skip_group`
+    // calls `__ Mov(x4, __ StackPointer())` and `__ Printf("a" PRIx64 "b", x)` no expression list,
+    // because two words stand in sequence in an argument. The two are an expression list: the inner
+    // macro is a member access, and the words between the literals are a concatenation. A form with
+    // the test of `not_expressions` and `statements` left 17 files of the 177 with an ERROR node that
+    // the form without it repairs, and the form without it adds no error to any of the 177.
+    Arguments arguments = {0};
+    if (!skip_group(reader, &arguments) || reader->budget == 0) {
+        return false;
+    }
+    Gap after_group = {0};
+    skip_gap(reader, &after_group);
+    return !after_group.blocked && readable(reader) && reader->lexer->lookahead == ';';
+}
+
 /// Scan for the start of a macro invocation, or for the start of the macros before a constructor. The
 /// token is empty, and it comes before the name.
 ///
@@ -4275,8 +4340,34 @@ static bool scan_macro_start(Reader reader, const char *name, const char *full, 
     bool branch_end_call = lexer->lookahead == '(' && !is_macro_name(name, has_lower) && !member_start &&
                            valid_symbols[MACRO_LINE_START] && is_call_line_word(name, length) &&
                            in_structured_group(scanner);
+    // A MACRO WHOSE REPLACEMENT LIST ENDS IN `->` OR `.`, WHERE A STATEMENT STARTS: `__ Mov(x29, sp);`
+    // with `#define __ masm->` (v8/src/compiler/backend/arm/code-generator-arm.cc:36). After the
+    // expansion the text is one member call ([expr.ref], [expr.call]), and the grammar reads it as a
+    // declaration of `Mov` with the type `__`. A member access operator can start no declaration, so
+    // the declaration reading is one that the expansion of the macro forbids.
+    //
+    // THE SEED IS THE ONLY SOURCE THAT KNOWS THE REPLACEMENT LIST. The file that uses the name defines
+    // it in a header, and the scanner parses no header. Refer to `is_seed_member_body_name`.
+    //
+    // A NAME THAT A SOURCE OF THE PARSE DECLARES AS A TYPE KEEPS ITS DECLARATION. The guard removes no
+    // site of the corpus, because no project of the corpus declares such a name as a type. It states
+    // that the position and the body word decide, and that a type row overrules the two.
+    //
+    // A BLANK MUST FOLLOW THE NAME, AND THAT TEST COMES BEFORE THE SCAN READS A CHARACTER. `__(x)` is
+    // one name and an argument list, and no site of this class has that shape.
+    //
+    // A NAME THAT ANOTHER MACRO RULE CLAIMS DOES NOT ENTER. The rules below read the text after the
+    // name, and the lexer cannot go back, so the two scans cannot both run. `macro_name`, `sal`,
+    // `member_name` and `item_name` are the four flags that those rules read from the NAME, and each
+    // one of them keeps this scan out. Of the four names of the corpus whose every body is a member
+    // prefix, `__` of v8 and `__` of hhvm have none of the flags, and `CONT` and
+    // `MLIR_PYTHON_PACKAGE_PREFIX` of llvm-project have the shape of a macro name. Those two names
+    // hold one site of this shape together, and it is no statement start.
+    bool member_prefix = !macro_name && !sal && !member_name && !item_name && !is_grammar_keyword(name) &&
+                         (lexer->lookahead == ' ' || lexer->lookahead == '\t') &&
+                         is_seed_member_body_name(scanner, full, &reader) && !declared_type;
     if (!invocation && !constructor && !attribute_call && !statement_attribute && !template_parameter_macro &&
-        !branch_end_call) {
+        !branch_end_call && !(valid_symbols[MACRO_MEMBER_START] && member_prefix)) {
         return false;
     }
 
@@ -4288,6 +4379,26 @@ static bool scan_macro_start(Reader reader, const char *name, const char *full, 
         return false;
     }
     bool same_line = gap.newlines == 0;
+    // THE MEMBER-PREFIX SCAN COMES FIRST, AND THE ONE READING IT CAN TAKE AWAY IS A READING THAT THE
+    // SAME EVIDENCE ALREADY REFUSES. `member_prefix` holds `macro_name`, `sal`, `member_name` and
+    // `item_name` as false, so the rules that read those flags give `false` at this name and read no
+    // character. `constructor` is the one flag that can be true here, because
+    // `CONSTRUCTOR_MACRO_START` is valid where a statement starts, and a decline of this scan then
+    // stops `scan_constructor_after_macro`. THAT SCAN LOOKS FOR THE MACROS BEFORE A CONSTRUCTOR, and
+    // a macro whose every body ends in `->` or `.` can stand before no constructor: the expansion
+    // gives a member access, and a declaration cannot start with one. The reading is wrong for each
+    // name that reaches this branch, so the decline costs nothing.
+    //
+    // A TEST OF `constructor` HERE WOULD REMOVE THE WHOLE RULE, and that is measured.
+    // `CONSTRUCTOR_MACRO_START` is valid at each statement start of a block, so a form with
+    // `!constructor` in this condition gives the trees of the base for all 177 files of the class.
+    if (valid_symbols[MACRO_MEMBER_START] && member_prefix) {
+        if (!same_line || gap.directive || !scan_macro_member_call(&reader)) {
+            return false;
+        }
+        lexer->result_symbol = MACRO_MEMBER_START;
+        return true;
+    }
     // A CALL OF A NAME WITH A LOWERCASE LETTER IS A MACRO INVOCATION LINE WHEN THE DIRECTIVE THAT ENDS A BRANCH OF A
     // STRUCTURED GROUP COMES AFTER IT. `nssv_RESTORE_WARNINGS()` of simdjson, a line break, and `#endif`: a call
     // with no `;` there is no declaration and no statement of C++, and the name is a macro. `group_is_structured`
@@ -11035,7 +11146,8 @@ static bool scan_word_start(Scanner *scanner, TSLexer *lexer, const bool *valid_
                       valid_symbols[MACRO_CALL_START] || valid_symbols[MACRO_ENUMERATOR_START];
     bool macro = invocation || valid_symbols[CONSTRUCTOR_MACRO_START] || valid_symbols[MACRO_CALL_ATTRIBUTE_START] ||
                  valid_symbols[MACRO_CALL_ATTRIBUTE_TOKENS_START] || valid_symbols[MACRO_TYPE_START] ||
-                 valid_symbols[PARAMETER_MACRO_TYPE_START] || valid_symbols[STATEMENT_ATTRIBUTE_MACRO_START];
+                 valid_symbols[PARAMETER_MACRO_TYPE_START] || valid_symbols[STATEMENT_ATTRIBUTE_MACRO_START] ||
+                 valid_symbols[MACRO_MEMBER_START];
     // A comparison name has a `<` or a blank after it. A macro name keeps the scan of a macro invocation.
     // A macro before an attribute has a group after it, and the condition `if (N < 0 || N > M)` has a
     // comparison. A name with a blank after it keeps the scan of a macro start where a constructor can
@@ -11456,6 +11568,7 @@ static bool can_be_empty(TSSymbol symbol) {
         case INITIALIZER_MACRO_START:
         case TEMPLATE_PARAMETER_MACRO_START:
         case MACRO_ITEM_START:
+        case MACRO_MEMBER_START:
         case RAW_STRING_CONTENT:
             return true;
         default:

@@ -17708,6 +17708,15 @@
           "value": "expression_statement"
         },
         {
+          "type": "ALIAS",
+          "content": {
+            "type": "SYMBOL",
+            "name": "_macro_member_statement"
+          },
+          "named": true,
+          "value": "expression_statement"
+        },
+        {
           "type": "SYMBOL",
           "name": "pragma_operator"
         }
@@ -17848,6 +17857,15 @@
           "content": {
             "type": "SYMBOL",
             "name": "_macro_call_statement"
+          },
+          "named": true,
+          "value": "expression_statement"
+        },
+        {
+          "type": "ALIAS",
+          "content": {
+            "type": "SYMBOL",
+            "name": "_macro_member_statement"
           },
           "named": true,
           "value": "expression_statement"
@@ -46883,6 +46901,75 @@
         }
       ]
     },
+    "_macro_member_name": {
+      "type": "SEQ",
+      "members": [
+        {
+          "type": "FIELD",
+          "name": "argument",
+          "content": {
+            "type": "SYMBOL",
+            "name": "identifier"
+          }
+        },
+        {
+          "type": "FIELD",
+          "name": "field",
+          "content": {
+            "type": "SYMBOL",
+            "name": "_field_identifier"
+          }
+        }
+      ]
+    },
+    "_macro_member_call": {
+      "type": "SEQ",
+      "members": [
+        {
+          "type": "FIELD",
+          "name": "function",
+          "content": {
+            "type": "ALIAS",
+            "content": {
+              "type": "SYMBOL",
+              "name": "_macro_member_name"
+            },
+            "named": true,
+            "value": "field_expression"
+          }
+        },
+        {
+          "type": "FIELD",
+          "name": "arguments",
+          "content": {
+            "type": "SYMBOL",
+            "name": "argument_list"
+          }
+        }
+      ]
+    },
+    "_macro_member_statement": {
+      "type": "SEQ",
+      "members": [
+        {
+          "type": "SYMBOL",
+          "name": "_macro_member_start"
+        },
+        {
+          "type": "ALIAS",
+          "content": {
+            "type": "SYMBOL",
+            "name": "_macro_member_call"
+          },
+          "named": true,
+          "value": "call_expression"
+        },
+        {
+          "type": "STRING",
+          "value": ";"
+        }
+      ]
+    },
     "_macro_item": {
       "type": "SEQ",
       "members": [
@@ -48699,6 +48786,10 @@
     {
       "type": "SYMBOL",
       "name": "_argument_list_marker"
+    },
+    {
+      "type": "SYMBOL",
+      "name": "_macro_member_start"
     }
   ],
   "external_scanner_set_context": true,

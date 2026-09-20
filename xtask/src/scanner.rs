@@ -864,6 +864,73 @@ mod seeded {
         let seeded = parser.parse(SEEDED, None).expect("the parse ends").root_node().to_sexp();
         assert_eq!(seeded.matches("(macro_invocation").count(), 0, "{seeded}");
     }
+
+    /// A BODY THAT ENDS IN `->` OR `.` READS THE TWO NAMES AND THE GROUP AS ONE MEMBER CALL.
+    ///
+    /// `#define __ masm->` of v8 makes `__ Mov(x29, sp);` the member call `masm->Mov(x29, sp);`
+    /// ([expr.ref] p1, [expr.call] p1). The grammar reads the text as a declaration of `Mov` with the
+    /// type `__`, and a member access operator can start no declaration. Refer to
+    /// `_macro_member_statement` in grammar/src/cpp.rs.
+    ///
+    /// EACH LINE OF THE SOURCE NAMES A POSITION THAT THE RULE DECIDES: a block, a case body, a label,
+    /// a file item, a namespace body and a branch of a conditional group.
+    ///
+    /// EACH LINE OF `KEPT` NAMES AN INPUT THAT ONE TEST OF THE RULE DECIDES, and each one keeps the
+    /// tree of a parse with no seed:
+    /// - `__ Get(i).Set(v);` and `__ out()[0] = w;`: a postfix operator after the group. The rule
+    ///   holds the call and the `;` only, and the scan reads the `;` before it gives the token.
+    /// - `int a[] = {__ Foo(x), 1};`: a `,` after the group, in a braced list and not in a block.
+    /// - `MEMBER_AND_MORE Foo(x);`: a name whose bodies are a member prefix AND one other shape. The
+    ///   expansion at the site is unknown, so the reading is not forced.
+    /// - `A_TYPE Foo(x);`: a name that the seed also declares as a type.
+    /// - `__ return(x);`: a keyword of the grammar in the place of the member.
+    /// - `PLAIN Foo(x);`: a name with no body row.
+    /// - `class C { __ Unreachable(); };`: a class body, where the rule is not valid.
+    ///
+    /// THE GATE RUNS NO SEED, so this rule measures zero in the plain steps of the gate. This test
+    /// and a seeded run of `xtask trees --seeds` are the evidence.
+    #[test]
+    fn a_member_prefix_body_reads_a_statement_of_two_names_as_a_member_call() {
+        const SOURCE: &str = "void f() {\n  __ Mov(x29, sp);\n  switch (n) { case 1: __ Nop(); }\n  \
+                              here: __ Ret(0);\n}\n__ Init(0);\nnamespace ns { __ Start(1); }\n\
+                              void g() {\n#if X\n  __ Stop(2);\n#endif\n}\n";
+        // Each line here keeps the tree of a parse with no seed.
+        const KEPT: &str = "void f() {\n  __ Get(i).Set(v);\n  __ out()[0] = w;\n  int a[] = {__ Foo(x), 1};\n  \
+                            MEMBER_AND_MORE Foo(x);\n  A_TYPE Foo(x);\n  __ return(x);\n  PLAIN Foo(x);\n}\n\
+                            class C { __ Unreachable(); };\n";
+        // The rows of a seed ascend by the bytes of the name.
+        let file = SeedFile::new(
+            "A_TYPE\ttype,object-macro,body-member\nMEMBER_AND_MORE\tobject-macro,body-member,body-other\n\
+             PLAIN\tobject-macro\n__\tobject-macro,body-member\n",
+        );
+        let seed = Seed::read(file.path()).expect("the seed reads");
+
+        let unseeded = bare(SOURCE);
+        let before = unseeded.root_node().to_sexp();
+        assert!(!unseeded.root_node().has_error(), "{before}");
+        assert_eq!(before.matches("(field_expression").count(), 0, "{before}");
+
+        let mut parser = parser();
+        // SAFETY: `seed` lives to the end of this test.
+        unsafe { parser.set_scanner_context(seed.as_context()) };
+        let seeded = parser.parse(SOURCE, None).expect("the parse ends");
+        let sexp = seeded.root_node().to_sexp();
+        assert!(!seeded.root_node().has_error(), "{sexp}");
+        // The six positions take the reading, and no declaration stays.
+        assert_eq!(
+            sexp.matches(
+                "(expression_statement (call_expression function: (field_expression argument: (identifier) \
+                 field: (field_identifier)) arguments: (argument_list"
+            )
+            .count(),
+            6,
+            "{sexp}"
+        );
+        assert_eq!(sexp.matches("(declaration type:").count(), 0, "{sexp}");
+
+        let kept = parser.parse(KEPT, None).expect("the parse ends");
+        assert_eq!(kept.root_node().to_sexp(), bare(KEPT).root_node().to_sexp(), "a line of KEPT changed");
+    }
 }
 
 /// THE ORDER OF THE SCANS OF A FUNCTION THAT TRIES MORE THAN ONE TOKEN.

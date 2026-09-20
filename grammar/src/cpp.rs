@@ -231,6 +231,11 @@ pub fn grammar() -> Grammar {
         // that the group stands in an argument list, where a branch that ends with a comma or with an
         // argument fits the text after the group. Refer to `group_is_structured` in src/scanner.c.
         s!(_argument_list_marker),
+        // An empty token before the name of an object-like macro whose replacement list ends in `->`
+        // or `.`, where a statement starts: `__ Mov(x29, sp);` with `#define __ masm->`. The scanner
+        // gives it when the seed of the project says that every body of the name is a member prefix,
+        // and a name and an argument list come after it. Refer to `_macro_member_statement`.
+        s!(_macro_member_start),
     ];
     // The conflict sets of the grammar. Each set names the rules of one ambiguity, and it tells the
     // generator to keep each reading in a GLR split.
@@ -1164,6 +1169,50 @@ fn macros(g: &mut Grammar) {
             ";"
         ],
     );
+    // A CALL OF A MEMBER THAT AN OBJECT-LIKE MACRO NAMES, WHERE A STATEMENT STARTS:
+    // `__ Mov(x29, sp);` with `#define __ masm->`
+    // (v8/src/compiler/backend/arm/code-generator-arm.cc:36).
+    //
+    // After the expansion the text is `masm->Mov(x29, sp);`, which is a class member access and a
+    // call of the member ([expr.ref] p1, [expr.call] p1). Clang builds a `CXXMemberCallExpr` over a
+    // `MemberExpr` (clang/lib/Parse/ParseExpr.cpp, `ParsePostfixExpressionSuffix`), and GCC builds a
+    // `call_expr` over a `component_ref` (gcc/cp/parser.cc, `cp_parser_postfix_dot_deref_expression`).
+    // The grammar reads the two names and the group as a declaration of `Mov` with the type `__`, and
+    // a member access operator can start no declaration. So the declaration is a reading that the
+    // expansion of the macro forbids.
+    //
+    // THE NODE IS THE NODE OF THE EXPANSION, WITH THE MACRO IN THE PLACE OF THE OBJECT. The macro
+    // gives the object and the operator together, and the text holds no operator, so the
+    // `field_expression` has an `argument` and a `field` and no `operator`. This is the shape that
+    // `_macro_scope_expression_name` already uses for a macro that gives a nested-name-specifier:
+    // `CGAL_NTS abs(a)` is a `qualified_identifier` with the macro as its scope and no `::` token.
+    //
+    // THE SCANNER READS THE WHOLE SHAPE, so this rule holds exactly the text that the token verified:
+    // the name, a second name, a balanced group and a `;`. A site whose group is followed by a `.`,
+    // an `->`, a `,` or a `}` gets no token and keeps the tree that it has. Over the corpus, 53,291
+    // of the 53,596 sites of this shape end at a `;`.
+    g.define(
+        "_macro_member_name",
+        seq![
+            field("argument", s!(identifier)),
+            field("field", s!(_field_identifier)),
+        ],
+    );
+    g.define(
+        "_macro_member_call",
+        seq![
+            field("function", alias(s!(_macro_member_name), s!(field_expression))),
+            field("arguments", s!(argument_list)),
+        ],
+    );
+    g.define(
+        "_macro_member_statement",
+        seq![
+            s!(_macro_member_start),
+            alias(s!(_macro_member_call), s!(call_expression)),
+            ";"
+        ],
+    );
     // A macro name with an argument list and a `;` where an item of a translation unit or of a
     // namespace body starts: `DECLARE_HANDLE(foo);`, `BENCHMARK(BM_Run);`, `STATIC_ASSERT(x == 1);`.
     // A translation unit and a namespace body hold declarations and no statement (GCC
@@ -1189,6 +1238,7 @@ fn macros(g: &mut Grammar) {
                 original,
                 s!(macro_invocation),
                 alias(s!(_macro_call_statement), s!(expression_statement)),
+                alias(s!(_macro_member_statement), s!(expression_statement)),
                 s!(pragma_operator),
             ]
         });
