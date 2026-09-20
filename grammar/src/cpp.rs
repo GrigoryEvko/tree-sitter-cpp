@@ -4999,13 +4999,28 @@ fn declarations(g: &mut Grammar) {
     // An attribute after the parameters belongs to the function declarator, and not to an
     // attributed declarator around it. The dynamic precedences here and in
     // `_function_attributes_end` decide the fork of `void f() __attribute__((x));`.
+    // A macro can come after the cv-qualifiers, in the place of a GNU attribute, before the
+    // ref-qualifier and the exception specification: `SharedPermission<Tag> token() const
+    // LIFETIMEBOUND noexcept;` in crucible. Both front ends reject the expanded attribute here, so
+    // the macro expands to nothing in the build that compiles. The scanner gives the macro token on
+    // the same line, and the macro comes only after at least one cv-qualifier. So `f() MACRO;` with
+    // no qualifier keeps its reading in `_function_postfix_with_macros`. The right associativity
+    // gives the macro to this rule, so a trailing macro keeps the same tree as before.
+    let trailing_attribute_macro = || alias(s!(_trailing_attribute_macro), s!(attribute_macro));
     g.define(
         "_function_attributes_start",
-        prec(
+        prec_right(
             1,
             choice![
-                prec_dynamic(1, seq![repeat1(s!(attribute_specifier)), repeat(s!(type_qualifier))]),
-                repeat1(s!(type_qualifier)),
+                prec_dynamic(
+                    1,
+                    seq![
+                        repeat1(s!(attribute_specifier)),
+                        repeat(s!(type_qualifier)),
+                        repeat(trailing_attribute_macro()),
+                    ]
+                ),
+                seq![repeat1(s!(type_qualifier)), repeat(trailing_attribute_macro())],
             ],
         ),
     );

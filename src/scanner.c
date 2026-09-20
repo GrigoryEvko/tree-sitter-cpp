@@ -5127,6 +5127,8 @@ typedef enum {
     TRAILING_WORD_ATTRIBUTE,
     /// `override` or `final`.
     TRAILING_WORD_VIRT_SPECIFIER,
+    /// `pre` or `post`, the keyword of a C++26 function contract specifier.
+    TRAILING_WORD_CONTRACT,
 } TrailingWord;
 
 /// Read a word, and classify it for `scan_trailing_macro_name`. O(n) in the length of the word.
@@ -5158,6 +5160,9 @@ static TrailingWord read_trailing_word(TSLexer *lexer) {
     }
     if (strcmp(text, "override") == 0 || strcmp(text, "final") == 0) {
         return TRAILING_WORD_VIRT_SPECIFIER;
+    }
+    if (strcmp(text, "pre") == 0 || strcmp(text, "post") == 0) {
+        return TRAILING_WORD_CONTRACT;
     }
     return TRAILING_WORD_OTHER;
 }
@@ -5320,13 +5325,21 @@ static bool scan_trailing_macro_name(TSLexer *lexer, const Scanner *scanner, boo
         }
         TrailingWord word = read_trailing_word(lexer);
         after_macro = word == TRAILING_WORD_MACRO;
-        if (word == TRAILING_WORD_ATTRIBUTE) {
+        // A function contract specifier `pre(cond)` or `post(cond)` comes among the trailing
+        // specifiers of a function, and it can follow a trailing macro on a different line:
+        // `f()\n MACRO pre(x) {`. Both front ends read it there, and the grammar reads
+        // `function_contract_specifier`. The keyword has a parenthesized condition, as an attribute
+        // has its group, so the scan skips it and reads the terminator after it. A data declarator
+        // takes no contract, so `declarator` declines the word.
+        bool contract = word == TRAILING_WORD_CONTRACT && !declarator;
+        if (word == TRAILING_WORD_ATTRIBUTE || contract) {
             Gap after = {0};
             skip_gap(&reader, &after);
             if (after.blocked || lexer->lookahead != '(' || !skip_parentheses(&reader)) {
                 return false;
             }
-        } else if (word == TRAILING_WORD_OTHER || (declarator && word == TRAILING_WORD_VIRT_SPECIFIER)) {
+        } else if (word == TRAILING_WORD_OTHER || word == TRAILING_WORD_CONTRACT ||
+                   (declarator && word == TRAILING_WORD_VIRT_SPECIFIER)) {
             return false;
         }
     }

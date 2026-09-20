@@ -779,3 +779,64 @@ static_assert(std::is_same_v<T, U>, "msg");
             type: (type_identifier)))))
     message: (string_literal
       (string_content))))
+
+================================================================================
+Attribute macro among the trailing function specifiers
+================================================================================
+
+struct S {
+  int f() const LIFETIMEBOUND noexcept;
+  int g(int a) noexcept LIFETIMEBOUND pre(a > 0);
+  int h(int a) NO_THREAD_SAFETY
+    pre(a > 0)
+    pre(a < 9);
+};
+
+--------------------------------------------------------------------------------
+
+(translation_unit
+  (struct_specifier
+    (type_identifier)
+    (field_declaration_list
+      (field_declaration
+        (primitive_type)
+        (function_declarator
+          (field_identifier)
+          (parameter_list)
+          (type_qualifier)
+          (attribute_macro
+            (identifier))
+          (noexcept)))
+      (field_declaration
+        (primitive_type)
+        (function_declarator
+          (field_identifier)
+          (parameter_list
+            (parameter_declaration
+              (primitive_type)
+              (identifier)))
+          (noexcept)
+          (attribute_macro
+            (identifier))
+          (function_contract_specifier
+            (binary_expression
+              (identifier)
+              (number_literal)))))
+      (field_declaration
+        (primitive_type)
+        (function_declarator
+          (field_identifier)
+          (parameter_list
+            (parameter_declaration
+              (primitive_type)
+              (identifier)))
+          (attribute_macro
+            (identifier))
+          (function_contract_specifier
+            (binary_expression
+              (identifier)
+              (number_literal)))
+          (function_contract_specifier
+            (binary_expression
+              (identifier)
+              (number_literal))))))))
