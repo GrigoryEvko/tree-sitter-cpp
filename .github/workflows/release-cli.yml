@@ -1,0 +1,293 @@
+# Build the tree-sitter CLI against the runtime that this grammar vendors, and release it with the
+# grammar as one kit.
+#
+# A kit holds the CLI, the grammar as a compiled shared object, the grammar as source, and a manifest
+# of every input. A consumer needs no compiler and no network.
+#
+# Start it with a tag that starts with `cpp-fork-v`, or by hand from the Actions tab.
+name: Release the welded CLI
+
+on:
+  push:
+    tags:
+      - 'cpp-fork-v*'
+  workflow_dispatch:
+    inputs:
+      tag_name:
+        description: 'The tag to release, for example cpp-fork-v1'
+        required: true
+
+permissions:
+  contents: write
+
+jobs:
+  verify:
+    name: Verify the pins
+    runs-on: ubuntu-24.04
+    outputs:
+      runtime_commit: ${{ steps.pin.outputs.runtime_commit }}
+      runtime_repo: ${{ steps.pin.outputs.runtime_repo }}
+      runtime_tag: ${{ steps.pin.outputs.runtime_tag }}
+      rust_toolchain: ${{ steps.pin.outputs.rust_toolchain }}
+      grammar_abi: ${{ steps.pin.outputs.grammar_abi }}
+      tag_name: ${{ steps.pin.outputs.tag_name }}
+    steps:
+      - name: Check out the grammar
+        uses: actions/checkout@v4
+
+      - name: Read the pins
+        id: pin
+        run: |
+          set -euo pipefail
+          . .github/runtime-pin.env
+          {
+            echo "runtime_repo=$RUNTIME_REPO"
+            echo "runtime_commit=$RUNTIME_COMMIT"
+            echo "runtime_tag=$RUNTIME_TAG"
+            echo "rust_toolchain=$RUST_TOOLCHAIN"
+            echo "grammar_abi=$GRAMMAR_ABI"
+          } >> "$GITHUB_OUTPUT"
+          if [ "${{ github.event_name }}" = workflow_dispatch ]; then
+            echo "tag_name=${{ github.event.inputs.tag_name }}" >> "$GITHUB_OUTPUT"
+          else
+            echo "tag_name=${GITHUB_REF_NAME}" >> "$GITHUB_OUTPUT"
+          fi
+
+      - name: Check out the runtime at the pinned commit
+        uses: actions/checkout@v4
+        with:
+          repository: ${{ steps.pin.outputs.runtime_repo }}
+          ref: ${{ steps.pin.outputs.runtime_commit }}
+          path: runtime
+
+      # THE RELEASE IS ONLY HONEST WHEN THE TWO COPIES AGREE. This grammar was generated and gated
+      # against `vendor/tree-sitter`. The CLI links `runtime/lib`. A difference means the released
+      # binary holds a runtime that no gate ever measured, so stop here.
+      - name: Compare the vendored runtime with the pinned commit
+        run: |
+          set -euo pipefail
+          diff -rq vendor/tree-sitter/src runtime/lib/src
+          diff -rq vendor/tree-sitter/include runtime/lib/include
+          diff -rq vendor/tree-sitter-generate/src runtime/crates/generate/src
+          echo "the vendored runtime and the pinned commit agree byte for byte"
+
+      - name: Compare the ABI of the grammar with the pin
+        run: |
+          set -euo pipefail
+          abi=$(grep -m1 -oP '(?<=#define LANGUAGE_VERSION )\d+' src/parser.c)
+          echo "src/parser.c holds ABI $abi"
+          test "$abi" = "${{ steps.pin.outputs.grammar_abi }}"
+          runtime_abi=$(grep -m1 -oP '(?<=#define TREE_SITTER_LANGUAGE_VERSION )\d+' \
+            vendor/tree-sitter/include/tree_sitter/api.h)
+          echo "the vendored runtime holds ABI $runtime_abi"
+          test "$abi" = "$runtime_abi"
+
+  build:
+    name: ${{ matrix.platform }}
+    needs: verify
+    runs-on: ${{ matrix.os }}
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          # Each runner builds for itself. No build crosses an architecture, because each job runs
+          # the CLI that it builds to compile the grammar and to test the result.
+          - { platform: linux-x64,   os: ubuntu-24.04 }
+          - { platform: linux-arm64, os: ubuntu-24.04-arm }
+          - { platform: macos-arm64, os: macos-15 }
+    steps:
+      - name: Check out the grammar
+        uses: actions/checkout@v4
+
+      - name: Check out the runtime at the pinned commit
+        uses: actions/checkout@v4
+        with:
+          repository: ${{ needs.verify.outputs.runtime_repo }}
+          ref: ${{ needs.verify.outputs.runtime_commit }}
+          path: runtime
+
+      - name: Install the pinned toolchain
+        uses: dtolnay/rust-toolchain@master
+        with:
+          toolchain: ${{ needs.verify.outputs.rust_toolchain }}
+
+      # `--locked` refuses a dependency that the lock file does not name. A release that resolves a
+      # new version is not reproducible.
+      - name: Build the CLI
+        working-directory: runtime
+        run: cargo build --release --locked -p tree-sitter-cli
+
+      - name: Assemble the kit
+        id: kit
+        shell: bash
+        run: |
+          set -euo pipefail
+          name="tree-sitter-cpp-fork-${{ needs.verify.outputs.tag_name }}-${{ matrix.platform }}"
+          mkdir -p "$name/bin" "$name/lib" "$name/parsers/tree-sitter-cpp"
+          cp runtime/target/release/tree-sitter "$name/bin/"
+          cp -r src queries tree-sitter.json "$name/parsers/tree-sitter-cpp/"
+          # The CLI compiles the grammar, so the kit needs no compiler at the consumer.
+          "$name/bin/tree-sitter" build -o "$name/lib/cpp.so" .
+          echo "name=$name" >> "$GITHUB_OUTPUT"
+
+      - name: Write the activation script
+        shell: bash
+        run: |
+          set -euo pipefail
+          cat > "${{ steps.kit.outputs.name }}/activate.sh" <<'SCRIPT'
+          # Source this file. It puts the CLI on the path and points it at the grammar of this kit.
+          # The config file needs an absolute path, so this script writes it at each activation.
+          KIT="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+          mkdir -p "$KIT/config"
+          printf '{"parser-directories":["%s/parsers"]}\n' "$KIT" > "$KIT/config/config.json"
+          TREE_SITTER_DIR="$KIT/config"
+          TREE_SITTER_LIBDIR="$KIT/lib"
+          PATH="$KIT/bin:$PATH"
+          export TREE_SITTER_DIR TREE_SITTER_LIBDIR PATH
+          SCRIPT
+          chmod +x "${{ steps.kit.outputs.name }}/activate.sh"
+
+      # A STOCK CLI PARSES THIS FILE TOO, AND GIVES A DIFFERENT TREE. The test proves that the kit
+      # holds the fork and not the published runtime. A stock runtime refuses ABI 1019 at load, and a
+      # stock grammar reads the group as `preproc_call` with a skipped branch.
+      - name: Test that the kit holds the fork
+        shell: bash
+        run: |
+          set -euo pipefail
+          . "./${{ steps.kit.outputs.name }}/activate.sh"
+          cat > /tmp/fork-check.cpp <<'CPP'
+          int g(int, int);
+          int h() {
+            return g(
+          #ifdef A
+              1,
+          #else
+              2,
+          #endif
+              3);
+          }
+          CPP
+          tree-sitter parse /tmp/fork-check.cpp > /tmp/fork-check.txt
+          cat /tmp/fork-check.txt
+          grep -q 'argument_list' /tmp/fork-check.txt
+          grep -q 'preproc_ifdef' /tmp/fork-check.txt
+          grep -q 'preproc_else' /tmp/fork-check.txt
+          if grep -q 'ERROR' /tmp/fork-check.txt; then
+            echo "the kit gives an ERROR node for a conditional group in an argument list" >&2
+            exit 1
+          fi
+          echo "the kit reads a conditional group as a node of the argument list"
+
+      - name: Write the manifest
+        shell: bash
+        run: |
+          set -euo pipefail
+          name="${{ steps.kit.outputs.name }}"
+          {
+            echo "kit                $name"
+            echo "platform           ${{ matrix.platform }}"
+            echo "runner             ${{ matrix.os }}"
+            echo "grammar_repo       ${{ github.repository }}"
+            echo "grammar_commit     ${{ github.sha }}"
+            echo "grammar_abi        ${{ needs.verify.outputs.grammar_abi }}"
+            echo "runtime_repo       ${{ needs.verify.outputs.runtime_repo }}"
+            echo "runtime_commit     ${{ needs.verify.outputs.runtime_commit }}"
+            echo "runtime_tag        ${{ needs.verify.outputs.runtime_tag }}"
+            echo "rust_toolchain     ${{ needs.verify.outputs.rust_toolchain }}"
+            echo "built_at           $(date -u +%Y-%m-%dT%H:%M:%SZ)"
+            echo "workflow_run       ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}"
+          } > "$name/MANIFEST.txt"
+          cat "$name/MANIFEST.txt"
+
+      - name: Pack the kit
+        shell: bash
+        run: |
+          set -euo pipefail
+          name="${{ steps.kit.outputs.name }}"
+          tar czf "$name.tar.gz" "$name"
+          shasum -a 256 "$name.tar.gz" > "$name.tar.gz.sha256"
+          cat "$name.tar.gz.sha256"
+
+      - name: Upload the kit
+        uses: actions/upload-artifact@v4
+        with:
+          name: ${{ steps.kit.outputs.name }}
+          path: |
+            ${{ steps.kit.outputs.name }}.tar.gz
+            ${{ steps.kit.outputs.name }}.tar.gz.sha256
+          if-no-files-found: error
+
+  release:
+    name: Release on GitHub
+    needs: [verify, build]
+    runs-on: ubuntu-24.04
+    steps:
+      - name: Collect the kits
+        uses: actions/download-artifact@v4
+        with:
+          path: kits
+          merge-multiple: true
+
+      - name: Write the notes
+        run: |
+          set -euo pipefail
+          cd kits
+          cat *.sha256 > SHA256SUMS
+          {
+            echo "The tree-sitter CLI of the C++ fork, welded to the grammar of this tag."
+            echo
+            echo "| input | value |"
+            echo "|---|---|"
+            echo "| grammar commit | \`${{ github.sha }}\` |"
+            echo "| grammar ABI | ${{ needs.verify.outputs.grammar_abi }} |"
+            echo "| runtime commit | \`${{ needs.verify.outputs.runtime_commit }}\` |"
+            echo "| runtime tag | ${{ needs.verify.outputs.runtime_tag }} |"
+            echo "| toolchain | Rust ${{ needs.verify.outputs.rust_toolchain }} |"
+            echo
+            echo "The workflow compares \`vendor/tree-sitter\` with the runtime commit byte for byte."
+            echo "A published kit therefore holds the runtime that gated this grammar."
+            echo
+            echo '## Use a kit in the CI of another project'
+            echo
+            echo '```yaml'
+            echo '- name: Get the C++ parser'
+            echo '  run: |'
+            echo "    tag=${{ needs.verify.outputs.tag_name }}"
+            echo '    kit=tree-sitter-cpp-fork-$tag-linux-x64'
+            echo "    url=${{ github.server_url }}/${{ github.repository }}/releases/download/\$tag"
+            echo '    curl -sSfL "$url/$kit.tar.gz" -o kit.tar.gz'
+            echo '    curl -sSfL "$url/SHA256SUMS" -o SHA256SUMS'
+            echo '    grep " $kit.tar.gz$" SHA256SUMS | sed "s| .*| kit.tar.gz|" | sha256sum -c -'
+            echo '    tar xzf kit.tar.gz'
+            echo '    echo "$PWD/$kit" >> "$GITHUB_ENV"'
+            echo
+            echo '- name: Parse the sources'
+            echo '  run: |'
+            echo '    . "$KIT/activate.sh"'
+            echo '    tree-sitter parse src/main.cpp'
+            echo '```'
+            echo
+            echo 'A kit needs no compiler, because `lib/cpp.so` holds the grammar already compiled.'
+            echo 'The Linux kits need glibc 2.39 or a later version. To run on an older system,'
+            echo 'compile the sources under `parsers/tree-sitter-cpp` with `tree-sitter build`.'
+            echo
+            echo '## A seed is not available through the CLI'
+            echo
+            echo 'Several rules of this grammar read a per-project seed of names. A seed reaches the'
+            echo 'scanner through `ts_parser_set_scanner_context`, and the CLI has no option for it.'
+            echo 'Those rules stay quiet in a kit. Use `cargo xtask parse FILE --seed SEED` in a'
+            echo 'checkout of this repository when a rule needs a seed.'
+          } > NOTES.md
+          cat NOTES.md
+
+      - name: Publish the release
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+          cd kits
+          gh release create "${{ needs.verify.outputs.tag_name }}" \
+            --repo "${{ github.repository }}" \
+            --title "C++ fork CLI ${{ needs.verify.outputs.tag_name }}" \
+            --notes-file NOTES.md \
+            *.tar.gz SHA256SUMS

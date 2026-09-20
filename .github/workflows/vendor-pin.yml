@@ -1,0 +1,65 @@
+# Compare the vendored runtime with the commit that `.github/runtime-pin.env` names.
+#
+# The release workflow makes the same comparison, but it makes it at release time. This workflow makes
+# it at each push, so a drift never reaches a tag. A drift means that the grammar and the runtime of a
+# released kit come from two different sources.
+name: Vendor pin
+
+on:
+  push:
+    branches: [master]
+    paths:
+      - 'vendor/**'
+      - 'src/parser.c'
+      - '.github/runtime-pin.env'
+      - '.github/workflows/vendor-pin.yml'
+  pull_request:
+    paths:
+      - 'vendor/**'
+      - 'src/parser.c'
+      - '.github/runtime-pin.env'
+  workflow_dispatch:
+
+jobs:
+  compare:
+    name: Compare the vendored runtime with the pin
+    runs-on: ubuntu-24.04
+    steps:
+      - name: Check out the grammar
+        uses: actions/checkout@v4
+
+      - name: Read the pins
+        id: pin
+        run: |
+          set -euo pipefail
+          . .github/runtime-pin.env
+          {
+            echo "runtime_repo=$RUNTIME_REPO"
+            echo "runtime_commit=$RUNTIME_COMMIT"
+            echo "grammar_abi=$GRAMMAR_ABI"
+          } >> "$GITHUB_OUTPUT"
+
+      - name: Check out the runtime at the pinned commit
+        uses: actions/checkout@v4
+        with:
+          repository: ${{ steps.pin.outputs.runtime_repo }}
+          ref: ${{ steps.pin.outputs.runtime_commit }}
+          path: runtime
+
+      - name: Compare the sources
+        run: |
+          set -euo pipefail
+          diff -rq vendor/tree-sitter/src runtime/lib/src
+          diff -rq vendor/tree-sitter/include runtime/lib/include
+          diff -rq vendor/tree-sitter-generate/src runtime/crates/generate/src
+          echo "the vendored runtime and the pinned commit agree byte for byte"
+
+      - name: Compare the ABI of the grammar with the pin
+        run: |
+          set -euo pipefail
+          abi=$(grep -m1 -oP '(?<=#define LANGUAGE_VERSION )\d+' src/parser.c)
+          runtime_abi=$(grep -m1 -oP '(?<=#define TREE_SITTER_LANGUAGE_VERSION )\d+' \
+            vendor/tree-sitter/include/tree_sitter/api.h)
+          echo "the grammar holds ABI $abi and the runtime holds ABI $runtime_abi"
+          test "$abi" = "${{ steps.pin.outputs.grammar_abi }}"
+          test "$abi" = "$runtime_abi"
