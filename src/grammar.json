@@ -11207,8 +11207,26 @@
                 "type": "FIELD",
                 "name": "declarator",
                 "content": {
-                  "type": "SYMBOL",
-                  "name": "_declarator_of_reference"
+                  "type": "CHOICE",
+                  "members": [
+                    {
+                      "type": "SYMBOL",
+                      "name": "_declarator_of_reference"
+                    },
+                    {
+                      "type": "PREC_DYNAMIC",
+                      "value": -300,
+                      "content": {
+                        "type": "ALIAS",
+                        "content": {
+                          "type": "SYMBOL",
+                          "name": "_macro_attributed_reference_declarator"
+                        },
+                        "named": true,
+                        "value": "attributed_declarator"
+                      }
+                    }
+                  ]
                 }
               },
               {
@@ -11262,8 +11280,26 @@
                 "type": "FIELD",
                 "name": "declarator",
                 "content": {
-                  "type": "SYMBOL",
-                  "name": "_declarator_of_reference"
+                  "type": "CHOICE",
+                  "members": [
+                    {
+                      "type": "SYMBOL",
+                      "name": "_declarator_of_reference"
+                    },
+                    {
+                      "type": "PREC_DYNAMIC",
+                      "value": -300,
+                      "content": {
+                        "type": "ALIAS",
+                        "content": {
+                          "type": "SYMBOL",
+                          "name": "_macro_attributed_reference_declarator"
+                        },
+                        "named": true,
+                        "value": "attributed_declarator"
+                      }
+                    }
+                  ]
                 }
               },
               {
@@ -11291,8 +11327,26 @@
                 "type": "FIELD",
                 "name": "declarator",
                 "content": {
-                  "type": "SYMBOL",
-                  "name": "_declarator_of_reference"
+                  "type": "CHOICE",
+                  "members": [
+                    {
+                      "type": "SYMBOL",
+                      "name": "_declarator_of_reference"
+                    },
+                    {
+                      "type": "PREC_DYNAMIC",
+                      "value": -300,
+                      "content": {
+                        "type": "ALIAS",
+                        "content": {
+                          "type": "SYMBOL",
+                          "name": "_macro_attributed_reference_declarator"
+                        },
+                        "named": true,
+                        "value": "attributed_declarator"
+                      }
+                    }
+                  ]
                 }
               },
               {
@@ -38923,6 +38977,100 @@
               "content": {
                 "type": "SYMBOL",
                 "name": "_field_declarator_attribute_macro"
+              },
+              "named": true,
+              "value": "attribute_macro"
+            },
+            {
+              "type": "REPEAT",
+              "content": {
+                "type": "ALIAS",
+                "content": {
+                  "type": "SYMBOL",
+                  "name": "_next_declarator_attribute_macro"
+                },
+                "named": true,
+                "value": "attribute_macro"
+              }
+            }
+          ]
+        }
+      ]
+    },
+    "_macro_attributed_reference_declarator": {
+      "type": "SEQ",
+      "members": [
+        {
+          "type": "CHOICE",
+          "members": [
+            {
+              "type": "ALIAS",
+              "content": {
+                "type": "SYMBOL",
+                "name": "_attributed_declarator_of_reference"
+              },
+              "named": true,
+              "value": "attributed_declarator"
+            },
+            {
+              "type": "ALIAS",
+              "content": {
+                "type": "SYMBOL",
+                "name": "_pointer_declarator_of_reference"
+              },
+              "named": true,
+              "value": "pointer_declarator"
+            },
+            {
+              "type": "ALIAS",
+              "content": {
+                "type": "SYMBOL",
+                "name": "_array_declarator_of_reference"
+              },
+              "named": true,
+              "value": "array_declarator"
+            },
+            {
+              "type": "ALIAS",
+              "content": {
+                "type": "SYMBOL",
+                "name": "_parenthesized_declarator_of_reference"
+              },
+              "named": true,
+              "value": "parenthesized_declarator"
+            },
+            {
+              "type": "SYMBOL",
+              "name": "reference_declarator"
+            },
+            {
+              "type": "ALIAS",
+              "content": {
+                "type": "SYMBOL",
+                "name": "_block_pointer_declarator_of_reference"
+              },
+              "named": true,
+              "value": "block_pointer_declarator"
+            },
+            {
+              "type": "ALIAS",
+              "content": {
+                "type": "SYMBOL",
+                "name": "_member_pointer_declarator_of_reference"
+              },
+              "named": true,
+              "value": "member_pointer_declarator"
+            }
+          ]
+        },
+        {
+          "type": "SEQ",
+          "members": [
+            {
+              "type": "ALIAS",
+              "content": {
+                "type": "SYMBOL",
+                "name": "_declarator_attribute_macro"
               },
               "named": true,
               "value": "attribute_macro"

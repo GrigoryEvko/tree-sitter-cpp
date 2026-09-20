@@ -5548,6 +5548,16 @@ fn declarations(g: &mut Grammar) {
             declarator_attribute_macros("_field_declarator_attribute_macro"),
         ],
     );
+    // A reference declarator inside a parenthesized declarator, with a trailing attribute macro:
+    // `T (&array LIFETIMEBOUND)[N]`. The rule keeps the reference class, so the parenthesized
+    // declarator stays a reference to an array.
+    g.define(
+        "_macro_attributed_reference_declarator",
+        seq![
+            reference_data_declarators(g, "_declarator"),
+            declarator_attribute_macros("_declarator_attribute_macro"),
+        ],
+    );
     // A macro can also come after the declarator of a parameter:
     // `void f(int a VULKAN_HPP_DEFAULT_ASSIGNMENT(nullptr), int b);`, where the macro expands to
     // `= nullptr` (Vulkan-Hpp vulkan_hpp_macros.hpp line 320). Clang reads GNU attributes and the
@@ -5580,7 +5590,33 @@ fn declarations(g: &mut Grammar) {
             ],
         )
     });
+    // A macro can come after the declarator-id inside a parenthesized reference declarator, in the
+    // place of an attribute: `T (&array LIFETIMEBOUND)[N]` of a reference to an array. Both front ends
+    // accept `[[clang::lifetimebound]]` after the declarator-id here, and `attributed_declarator`
+    // reads the same attribute in standard form. The external scanner gives the macro token before
+    // the `)` of the grouping. The macro attaches to the data declarator, as it does for a parameter
+    // with no parentheses. The rule adds the macro to the reference class copy of the parenthesized
+    // declarator, so a pointer or a name inside parentheses keeps its own class.
+    g.redefine("_parenthesized_declarator_of_reference", |original| {
+        replace_rule(
+            original,
+            &s!(_declarator_of_reference),
+            &choice![
+                s!(_declarator_of_reference),
+                prec_dynamic(
+                    MACRO_REFERENCE_IN_PARENTHESES,
+                    alias(s!(_macro_attributed_reference_declarator), s!(attributed_declarator)),
+                ),
+            ],
+        )
+    });
 }
+
+/// The reference declarator with a trailing attribute macro inside a parenthesized declarator loses
+/// to a call. `bc_init_num(&temp TSRMLS_CC);` in hhvm is a call whose macro expands to an argument,
+/// and not a declaration of a reference. A parameter has no call reading, so `T (&array LIFETIMEBOUND)
+/// [N]` still reads the declarator.
+const MACRO_REFERENCE_IN_PARENTHESES: i32 = -300;
 
 /// A declarator of the family `family` that does not declare a function and does not end with the
 /// parameter list of a function declarator: the name `name`, `*p`, `a[2]`, `&r`, but not `(*p)(int)`.
@@ -5608,6 +5644,32 @@ fn declarator_of_data(g: &Grammar, family: &str, name: Rule) -> Rule {
         );
     }
     choice_of(data)
+}
+
+/// The data declarators of the reference class of `family`, without the function declarator. A
+/// trailing attribute macro comes after a reference declarator inside a parenthesized declarator:
+/// `T (&array LIFETIMEBOUND)[N]`. The rule keeps only the reference class, so a pointer or a name
+/// inside the parentheses keeps its own class. O(n) in the members of the reference class.
+///
+/// # Panics
+///
+/// If `declarator_classes` did not define the reference class of the family.
+fn reference_data_declarators(g: &Grammar, family: &str) -> Rule {
+    let function = "function_declarator";
+    let rule = format!("{family}_of_reference");
+    let Rule::Choice(members) = &g.rules[&rule] else {
+        panic!("`{rule}` is a choice");
+    };
+    choice_of(
+        members
+            .iter()
+            .filter(|member| match member {
+                Rule::Alias { value, .. } => value != function,
+                other => **other != sym(function),
+            })
+            .cloned()
+            .collect::<Vec<_>>(),
+    )
 }
 
 /// The rules of `_declarator` with one inner declarator. A pack declarator has a copy of each. Refer to

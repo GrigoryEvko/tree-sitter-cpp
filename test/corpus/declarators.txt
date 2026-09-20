@@ -3463,3 +3463,40 @@ void g() {
               name: (identifier)))
           value: (argument_list
             (null)))))))
+
+================================================================================
+Attribute macro in a parenthesized reference declarator
+================================================================================
+
+struct S {
+  template <int N>
+  explicit S(int (&array LIFETIMEBOUND)[N]) noexcept;
+};
+
+--------------------------------------------------------------------------------
+
+(translation_unit
+  (struct_specifier
+    (type_identifier)
+    (field_declaration_list
+      (template_declaration
+        (template_parameter_list
+          (parameter_declaration
+            (primitive_type)
+            (identifier)))
+        (declaration
+          (explicit_function_specifier)
+          (function_declarator
+            (identifier)
+            (parameter_list
+              (parameter_declaration
+                (primitive_type)
+                (array_declarator
+                  (parenthesized_declarator
+                    (attributed_declarator
+                      (reference_declarator
+                        (identifier))
+                      (attribute_macro
+                        (identifier))))
+                  (identifier))))
+            (noexcept)))))))
