@@ -14,6 +14,8 @@ mod differ;
 mod directives;
 mod fuzz;
 mod generate;
+/// The `incremental` task, which compares a fresh parse with a parse after an edit and its undo.
+mod incremental;
 mod limits;
 mod parse;
 mod precedence;
@@ -155,6 +157,14 @@ tasks:
                            whose hash changed with no error in A, and of files whose hash changed
                            with an error in A. Then print the first 60 paths of the first group,
                            with the byte range of the first node that differs.
+  incremental ROOT LIST OUT
+                           Parse each file of LIST fresh, and then again after an edit and its undo,
+                           and compare the two trees. The bytes after an undo are the bytes of the
+                           fresh parse, so the two trees must be equal. Write one line for each file
+                           that differs. With --seeds DIRECTORY, each file takes the seed of its
+                           project, as `corpus --seeds` gives it, and a consumer parses with a seed.
+                           --edits N gives N edit positions for each file, 1 by default. --shapes
+                           all runs six edit shapes in the place of the two of a fast run.
   differ ROOT LIST OUT     Compare the trees of the files of LIST with GCC and Clang, and write the
                            disagreements to the directory OUT. `cargo xtask differ --help` gives
                            the modes for the syntax snippets and for one snippet.
@@ -215,6 +225,7 @@ fn main() -> ExitCode {
         Some("dedupe") => dedupe::run(&repository(), &args[1..]),
         Some("directives") => directives::run(&args[1..]),
         Some("trees") => trees::run(&args[1..]),
+        Some("incremental") => incremental::run(&args[1..]),
         Some("differ") => differ::run(&repository(), &args[1..]),
         Some("fuzz") => fuzz::run(&repository(), &args[1..]),
         Some("seed") => seedcollect::run(&args[1..]),

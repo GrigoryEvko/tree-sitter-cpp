@@ -57,7 +57,7 @@ use crate::seed::{Seed, Seeds};
 /// of 50,000 statements `a b;` takes 11,003 callbacks and 13.8 s. A file of 50,000 statements
 /// `x = 1;` takes the same 11,003 callbacks and 0.35 s. The lookahead scans of the scanner are the
 /// difference, and no counter of the runtime reads them.
-const BUDGET: u64 = 2_000_000;
+pub const BUDGET: u64 = 2_000_000;
 /// The largest count of progress callbacks of the 329,387 corpus files, for the 6.8 MB generated
 /// file `OpenRCT2/src/openrct2/ride/VehicleSubpositionData.cpp`.
 const LARGEST_CORPUS_CHECKS: u64 = 148_044;
@@ -322,6 +322,23 @@ pub fn parse_with_limits(
     budget: u64,
     ceiling: u64,
 ) -> Result<Tree, Stop> {
+    parse_with_limits_and_old(parser, source, label, budget, ceiling, None)
+}
+
+/// `parse_with_limits` with an old tree, which is what an incremental parse takes.
+///
+/// THE LIMITS LIVE IN ONE PLACE. A second copy of the budget rule and the ceiling rule is a second
+/// rule: the two drift, and a file that one reads is a file that the other stops. `xtask incremental`
+/// parses each file fresh and then twice more with an old tree, and each of the three parses must
+/// meet the same limits, or a file that a corpus run reads gives no comparison here.
+pub fn parse_with_limits_and_old(
+    parser: &mut Parser,
+    source: &[u8],
+    label: &str,
+    budget: u64,
+    ceiling: u64,
+    old: Option<&Tree>,
+) -> Result<Tree, Stop> {
     let _label = allocation::Label::new(label);
     allocation::reset();
     let mut checks: u64 = 0;
@@ -341,7 +358,7 @@ pub fn parse_with_limits(
     };
     let tree = parser.parse_with_options(
         &mut |at, _| source.get(at..).unwrap_or_default(),
-        None,
+        old,
         Some(ParseOptions::new().progress_callback(&mut watch)),
     );
     match tree {
