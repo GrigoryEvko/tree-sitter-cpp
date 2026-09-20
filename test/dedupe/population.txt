@@ -22,10 +22,9 @@
 # and also when a reading is REMOVED. The two look the same here, and only the commit that
 # caused the fall knows which one it made.
 #
-# 2815 files, of the corpus of the fork master.
+# 2813 files, of the corpus of the fork master.
 Cataclysm-DDA/src/debug_console.cpp
 Cataclysm-DDA/src/third-party/flatbuffers/hash.h
-Cataclysm-DDA/src/third-party/fmt/base.h
 Cataclysm-DDA/src/third-party/imgui/imgui_demo.cpp
 Cataclysm-DDA/src/third-party/imgui/imgui_draw.cpp
 ClickHouse/base/base/wide_integer_impl.h
@@ -785,7 +784,6 @@ firefox/xpcom/reflect/xptcall/md/win32/xptcstubs_aarch64.cpp
 firefox/xpcom/tests/gtest/TestPriorityQueue.cpp
 firefox/xpcom/tests/gtest/TestStrings.cpp
 firefox/xpcom/tests/gtest/TestTArray2.cpp
-fmt/include/fmt/core.h
 fmt/test/gtest/gmock-gtest-all.cc
 fmt/test/module-test.cc
 fmt/test/xchar-test.cc
