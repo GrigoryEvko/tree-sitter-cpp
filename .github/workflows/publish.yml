@@ -2,7 +2,10 @@ name: Publish packages
 
 on:
   push:
-    tags: ["*"]
+    # A tag of the fork releases a kit of the CLI, and it publishes no package. The jobs below call
+    # the reusable workflows of the upstream organization, which publish to npm, to crates.io and to
+    # PyPI under the name of the upstream package. So a tag `cpp-fork-v*` must not start them.
+    tags: ["*", "!cpp-fork-v*"]
 
 permissions:
   contents: write
