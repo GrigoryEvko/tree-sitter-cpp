@@ -1883,4 +1883,64 @@ mod order_tests {
             found.join("\n")
         );
     }
+
+    /// The scanner reads the state of the lexer through `TSLexer` and never through a copy of the
+    /// private `Lexer` of the runtime.
+    ///
+    /// `TSLexer` is the whole contract between a runtime and a scanner. `Lexer` of
+    /// vendor/tree-sitter/src/lexer.h is private, it starts with `TSLexer data`, and the members
+    /// after it are the state of the lexer. A cast of a `TSLexer *` to a struct that names those
+    /// members reads that state, and the read is correct only while the private layout stays as it
+    /// was. Nothing tells such a cast that a member moved: it reads a different field and gives a
+    /// number of the right type.
+    ///
+    /// The trace of the record of locals held such a copy until ABI 1019 gave `get_offset`. The
+    /// accessor makes the same value part of the contract, and this test keeps the copy from coming
+    /// back for the next value somebody wants.
+    ///
+    /// THE TEST ASSERTS A POSITIVE FIRST. A pattern that stops matching finds nothing and reads as a
+    /// pass, so the test demands that the file holds the accessor call before it demands that the
+    /// file holds no cast.
+    #[test]
+    fn the_scanner_reads_no_private_field_of_the_runtime_lexer() {
+        let path = crate::repository().join("src").join("scanner.c");
+        let text = fs::read_to_string(&path).expect("src/scanner.c reads");
+
+        let calls = text.matches("lexer->get_offset(lexer)").count();
+        assert!(
+            calls > 0,
+            "{} calls `lexer->get_offset(lexer)` nowhere. Either the byte offset of ABI 1019 has no \
+             reader left, and this test checks nothing, or the call is spelled differently and the \
+             pattern must follow it.",
+            path.display()
+        );
+
+        // A cast of a lexer pointer to a named type, with or without `const`. The `regex` crate has
+        // no look-ahead, so the pattern captures the type and the code drops a cast to `TSLexer`,
+        // which is the contract and not a private field.
+        let cast = Regex::new(r"\(\s*(?:const\s+)?(\w+)\s*\*\s*\)\s*(?:_?lexer|_self)\b")
+            .expect("the pattern compiles");
+        // A struct whose first member is a `TSLexer` by value, which is the shape of the private
+        // `Lexer` and the only reason to write such a struct in a scanner.
+        let mirror = Regex::new(r"\{\s*\n\s*TSLexer\s+\w+\s*;").expect("the pattern compiles");
+        let mut found: Vec<String> = Vec::new();
+        for (number, line) in text.lines().enumerate() {
+            for capture in cast.captures_iter(line) {
+                if &capture[1] != "TSLexer" {
+                    found.push(format!("  src/scanner.c:{}: {}", number + 1, line.trim()));
+                }
+            }
+        }
+        if mirror.is_match(&text) {
+            found.push("  src/scanner.c declares a struct whose first member is a TSLexer".to_string());
+        }
+        assert!(
+            found.is_empty(),
+            "{} reads a private field of the runtime lexer. `TSLexer` is the whole contract, and a \
+             copy of `Lexer` is correct only while its private layout does not move. Add an accessor \
+             to `TSLexer` with an ABI version, as `get_offset` of ABI 1019 does.\n{}",
+            path.display(),
+            found.join("\n")
+        );
+    }
 }

@@ -74,6 +74,19 @@ struct TSLexer {
   bool (*is_at_included_range_start)(const TSLexer *);
   bool (*eof)(const TSLexer *);
   void (*log)(const TSLexer *, const char *, ...);
+  // The byte offset of the character that `lookahead` holds, counted from the start of the input
+  // (tree-sitter-cpp fork, ABI 1019). `advance` moves it by the length of the character, so a scan
+  // that reads each character through `advance` gets the byte after the text it read. It moves the
+  // lexer nowhere and reads no character, unlike `get_column`.
+  //
+  // THE FIELD IS LAST, AND EVERY EARLIER FIELD KEEPS ITS OFFSET. A scanner that a lower ABI compiled
+  // holds the eight fields before it at the offsets 0, 4, 8, 16, 24, 32, 40 and 48, and this runtime
+  // writes them there. So the 19 upstream grammars run unchanged. The other direction is the reason
+  // for the ABI: a scanner that reads this field, in a runtime that does not write it, reads the
+  // first bytes of the private `Lexer` of that runtime as a function pointer. Only the ABI version
+  // of the language stops that, and `ts_language_version_is_supported` of a runtime before 1019
+  // refuses a language of 1019.
+  uint32_t (*get_offset)(const TSLexer *);
 };
 
 typedef enum {

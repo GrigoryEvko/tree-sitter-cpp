@@ -383,6 +383,20 @@ static bool ts_lexer__is_at_included_range_start(const TSLexer *_self) {
   }
 }
 
+// The byte offset of the character that `lookahead` holds (tree-sitter-cpp fork, ABI 1019).
+//
+// The value is `current_position.bytes`, the field that `ts_lexer__advance` moves by the length of
+// each character it reads. A scan that reads its text through `advance` therefore gets the byte
+// after that text with no bookkeeping of its own. The call moves the lexer nowhere, reads no
+// character and takes constant time, unlike `ts_lexer__get_column`, which reads a line again.
+//
+// The offset counts from the start of the input and not from the start of an included range, so a
+// scanner that compares it with a byte of the input needs no conversion.
+static uint32_t ts_lexer__get_offset(const TSLexer *_self) {
+  const Lexer *self = (const Lexer *)_self;
+  return self->current_position.bytes;
+}
+
 static void ts_lexer__log(const TSLexer *_self, const char *fmt, ...) {
   Lexer *self = (Lexer *)_self;
   va_list args;
@@ -406,6 +420,7 @@ void ts_lexer_init(Lexer *self) {
       .is_at_included_range_start = ts_lexer__is_at_included_range_start,
       .eof = ts_lexer__eof,
       .log = ts_lexer__log,
+      .get_offset = ts_lexer__get_offset,
       .lookahead = 0,
       .result_symbol = 0,
     },

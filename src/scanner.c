@@ -9752,13 +9752,11 @@ static bool local_record_same(const LocalRecord *a, const LocalRecord *b) {
 // MEASUREMENT BUILD ONLY. A build with TS_CPP_LOCAL_TRACE records each change of the record of locals with
 // its byte offset, so that a tool can compare the frames and the entries with a tree. No shipped build
 // defines it.
-
-/// The first members of the `Lexer` of vendor/tree-sitter/src/lexer.h: `TSLexer data` and the byte of
-/// `Length current_position`. The tool that reads the trace checks the offsets against a known input.
-typedef struct {
-    TSLexer data;
-    uint32_t bytes;
-} TraceLexer;
+//
+// The byte offset comes from `lexer->get_offset(lexer)` of ABI 1019. Before that field this code held a
+// copy of the first two members of the private `Lexer` of vendor/tree-sitter/src/lexer.h and cast the
+// `TSLexer *` to it. The copy was correct only while `Length current_position` stayed the member after
+// `TSLexer data` and started with its byte, and nothing checked either fact.
 
 static _Thread_local char *trace_text;
 static _Thread_local size_t trace_length;
@@ -9811,7 +9809,7 @@ static bool scan_local_boundary(Scanner *scanner, TSLexer *lexer) {
     LocalRecord *record = &scanner->locals;
     int32_t boundary = lexer->lookahead;
 #ifdef TS_CPP_LOCAL_TRACE
-    uint32_t bytes = ((const TraceLexer *)lexer)->bytes;
+    uint32_t bytes = lexer->get_offset(lexer);
 #endif
     mark_end(lexer);
     Reader reader = start_reader(lexer, LOCAL_ITEM_LIMIT, scanner);
@@ -9855,7 +9853,7 @@ static void scan_local_after_directive(Scanner *scanner, TSLexer *lexer) {
     unsigned before = local_entry_count(&next);
     uint8_t saturated = next.saturated;
 #ifdef TS_CPP_LOCAL_TRACE
-    uint32_t bytes = ((const TraceLexer *)lexer)->bytes;
+    uint32_t bytes = lexer->get_offset(lexer);
 #endif
     Reader reader = start_reader(lexer, LOCAL_ITEM_LIMIT, scanner);
     LocalItem item;

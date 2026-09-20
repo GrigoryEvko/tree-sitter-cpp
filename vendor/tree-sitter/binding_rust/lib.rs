@@ -71,22 +71,51 @@ pub const SHAPE_TABLE_LANGUAGE_VERSION: usize = 1016;
 /// that takes the context of the parser (tree-sitter-cpp fork).
 pub const SCANNER_CONTEXT_LANGUAGE_VERSION: usize = 1017;
 
+/// The fourth ABI version of the fork: a scan that changes the state of the scanner and gives no
+/// token, and a serialization buffer of 16,384 bytes (tree-sitter-cpp fork).
+pub const STATE_ONLY_SCAN_LANGUAGE_VERSION: usize = 1018;
+
+/// The fifth ABI version of the fork: `get_offset` as the last field of `TSLexer`, which gives the
+/// external scanner the byte offset of its position (tree-sitter-cpp fork).
+pub const LEXER_OFFSET_LANGUAGE_VERSION: usize = 1019;
+
+/// Every ABI version of the fork that this library reads, oldest first (tree-sitter-cpp fork).
+///
+/// EACH VERSION IS IN THE LIST BY NAME, AND NOT AS [`LANGUAGE_VERSION`]. The list held the current
+/// version in the place of the newest entry until ABI 1019, so each bump silently dropped the ABI
+/// before it from the Rust side while `ts_language_version_is_supported` of the C runtime kept it.
+/// The two lists then disagreed, and [`Parser::set_language`] refused a parser that the runtime
+/// reads, with `LanguageError` and no other sign. Add the new constant to this array when an ABI
+/// arrives, and the last entry of the array is what a test compares with [`LANGUAGE_VERSION`].
+pub const FORK_LANGUAGE_VERSIONS: [usize; 5] = [
+    WIDE_TABLE_LANGUAGE_VERSION,
+    SHAPE_TABLE_LANGUAGE_VERSION,
+    SCANNER_CONTEXT_LANGUAGE_VERSION,
+    STATE_ONLY_SCAN_LANGUAGE_VERSION,
+    LEXER_OFFSET_LANGUAGE_VERSION,
+];
+
 /// True when the library reads the ABI version `version` (tree-sitter-cpp fork).
 ///
-/// The library reads [`MIN_COMPATIBLE_LANGUAGE_VERSION`] thru [`UPSTREAM_LANGUAGE_VERSION`], with 16-bit
-/// parse tables, [`WIDE_TABLE_LANGUAGE_VERSION`], with 32-bit parse tables,
-/// [`SHAPE_TABLE_LANGUAGE_VERSION`], with the parse tables in the shape layout,
-/// [`SCANNER_CONTEXT_LANGUAGE_VERSION`], with the shape layout and the entry point of the external
-/// scanner that takes the context of the parser, and [`LANGUAGE_VERSION`], which adds a scan that
-/// changes the state of the scanner and gives no token, and a serialization buffer of 16,384 bytes.
-/// It does not read the versions between them.
+/// The library reads [`MIN_COMPATIBLE_LANGUAGE_VERSION`] thru [`UPSTREAM_LANGUAGE_VERSION`], with
+/// 16-bit parse tables, and each version of [`FORK_LANGUAGE_VERSIONS`]. It does not read the versions
+/// between them. The list here must hold the versions that `ts_language_version_is_supported` of
+/// vendor/tree-sitter/src/language.h holds, and `the_generator_agrees_with_the_runtime` of the xtask
+/// compares the two.
 #[must_use]
 pub const fn is_supported_language_version(version: usize) -> bool {
-    (version >= MIN_COMPATIBLE_LANGUAGE_VERSION && version <= UPSTREAM_LANGUAGE_VERSION)
-        || version == WIDE_TABLE_LANGUAGE_VERSION
-        || version == SHAPE_TABLE_LANGUAGE_VERSION
-        || version == SCANNER_CONTEXT_LANGUAGE_VERSION
-        || version == LANGUAGE_VERSION
+    if version >= MIN_COMPATIBLE_LANGUAGE_VERSION && version <= UPSTREAM_LANGUAGE_VERSION {
+        return true;
+    }
+    // A `const fn` takes no iterator, so the walk is an index loop.
+    let mut index = 0;
+    while index < FORK_LANGUAGE_VERSIONS.len() {
+        if version == FORK_LANGUAGE_VERSIONS[index] {
+            return true;
+        }
+        index += 1;
+    }
+    false
 }
 
 pub const PARSER_HEADER: &str = include_str!("../src/parser.h");

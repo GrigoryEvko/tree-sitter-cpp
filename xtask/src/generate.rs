@@ -205,11 +205,58 @@ mod tests {
         assert!(tree_sitter::is_supported_language_version(15));
         assert!(!tree_sitter::is_supported_language_version(16));
         assert!(tree_sitter::is_supported_language_version(tree_sitter::LANGUAGE_VERSION));
-        // ABI 1018 adds no field, and a grammar of ABI 1017 still loads by name.
-        assert_eq!(tree_sitter::LANGUAGE_VERSION, 1018);
+        // ABI 1019 adds no field of the language struct, and a grammar of each earlier ABI of this
+        // fork still loads by name. A version that no ABI of this fork uses is refused, which is what
+        // stops a parser of a later generator from loading in this runtime.
+        assert_eq!(tree_sitter::LANGUAGE_VERSION, 1019);
         assert!(tree_sitter::is_supported_language_version(tree_sitter::SCANNER_CONTEXT_LANGUAGE_VERSION));
-        assert!(tree_sitter::is_supported_language_version(1017));
-        assert!(!tree_sitter::is_supported_language_version(1019));
+        for version in tree_sitter::FORK_LANGUAGE_VERSIONS {
+            assert!(tree_sitter::is_supported_language_version(version), "ABI {version} loads by name");
+        }
+        assert!(!tree_sitter::is_supported_language_version(1020));
+
+        // THE TWO LISTS OF ACCEPTED VERSIONS MUST HOLD THE SAME VERSIONS. One is
+        // `ts_language_version_is_supported` of vendor/tree-sitter/src/language.h, which the C
+        // runtime applies. The other is `is_supported_language_version` of the Rust binding, which
+        // `Parser::set_language` applies BEFORE it calls the runtime. A version that only the C list
+        // holds is a parser that the runtime reads and that a Rust consumer cannot load, with
+        // `LanguageError` and no other sign. The Rust list named the current version in the place of
+        // its newest entry until ABI 1019, so each bump dropped the ABI before it from that side.
+        let language_h = include_str!("../../vendor/tree-sitter/src/language.h");
+        let defined = |name: &str| -> usize {
+            language_h
+                .lines()
+                .find_map(|line| line.strip_prefix(&format!("#define {name} ")))
+                .and_then(|value| value.trim().parse().ok())
+                .unwrap_or_else(|| panic!("language.h has no numeric define {name}"))
+        };
+        let mut from_c: Vec<usize> = language_h
+            .lines()
+            .skip_while(|line| !line.contains("ts_language_version_is_supported"))
+            .take_while(|line| !line.trim_start().starts_with('}'))
+            .filter_map(|line| line.split("version ==").nth(1))
+            .map(|rest| defined(rest.trim().trim_end_matches(" ||").trim_end_matches(';')))
+            .collect();
+        from_c.sort_unstable();
+        assert!(
+            from_c.len() >= 4,
+            "the scan of ts_language_version_is_supported found {} versions and it holds at least 4. \
+             The pattern no longer matches language.h, so the two lists are not compared.",
+            from_c.len()
+        );
+        let mut from_rust = tree_sitter::FORK_LANGUAGE_VERSIONS.to_vec();
+        from_rust.sort_unstable();
+        assert_eq!(
+            from_c, from_rust,
+            "ts_language_version_is_supported of language.h and FORK_LANGUAGE_VERSIONS of the Rust \
+             binding hold different versions. A consumer of the Rust binding refuses a parser that \
+             the C runtime reads."
+        );
+        assert_eq!(
+            *from_rust.last().expect("the list is not empty"),
+            tree_sitter::LANGUAGE_VERSION,
+            "the newest ABI of the fork is not the version that the generator writes"
+        );
     }
 
     /// The generator writes the entry point `<name>_external_scanner_set_context` only for a grammar

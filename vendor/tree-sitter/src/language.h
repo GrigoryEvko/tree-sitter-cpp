@@ -27,16 +27,25 @@ extern "C" {
 // scanner only (TREE_SITTER_EXTERNAL_STATE_ONLY in parser.h), and a serialization buffer of 16,384
 // bytes. The language struct has no new field.
 #define LANGUAGE_VERSION_WITH_STATE_ONLY_SCAN 1018
+// The fifth ABI of the tree-sitter-cpp fork: the layout of 1017, and `get_offset` as the last field of
+// TSLexer, which gives the external scanner the byte offset of its position. The language struct has
+// no new field. A scanner of this ABI reads a field that a runtime before this one does not write,
+// and the version is what stops such a pair: the list below is the only guard.
+#define LANGUAGE_VERSION_WITH_LEXER_OFFSET 1019
 
-// True when the runtime reads the ABI version: 13 thru 15, or one of the four versions of the
+// True when the runtime reads the ABI version: 13 thru 15, or one of the five versions of the
 // tree-sitter-cpp fork.
+//
+// EACH VERSION STAYS IN THIS LIST BY NAME. A parser that an earlier generator of this fork wrote is a
+// file that a consumer may already ship, and the runtime reads it with the rules of its own version.
 static inline bool ts_language_version_is_supported(uint32_t version) {
   return
     (version >= TREE_SITTER_MIN_COMPATIBLE_LANGUAGE_VERSION && version <= LANGUAGE_VERSION_UPSTREAM_MAX) ||
     version == LANGUAGE_VERSION_WITH_WIDE_TABLES ||
     version == LANGUAGE_VERSION_WITH_SHAPE_TABLES ||
     version == LANGUAGE_VERSION_WITH_SCANNER_CONTEXT ||
-    version == LANGUAGE_VERSION_WITH_STATE_ONLY_SCAN;
+    version == LANGUAGE_VERSION_WITH_STATE_ONLY_SCAN ||
+    version == LANGUAGE_VERSION_WITH_LEXER_OFFSET;
 }
 
 // True when the runtime stores the state of a scan that gives TREE_SITTER_EXTERNAL_STATE_ONLY

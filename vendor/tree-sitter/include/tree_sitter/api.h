@@ -26,7 +26,7 @@ extern "C" {
  * The Tree-sitter library is generally backwards-compatible with languages
  * generated using older CLI versions, but is not forwards-compatible.
  *
- * The tree-sitter-cpp fork adds four ABI versions, far from the upstream
+ * The tree-sitter-cpp fork adds five ABI versions, far from the upstream
  * versions, and an upstream library does not read a parser of the fork.
  * ABI 1015 is the layout of ABI 15 with 32-bit values in the parse tables,
  * 32-bit primary state ids, and a 32-bit state in a shift action. ABI 1016 adds
@@ -35,12 +35,14 @@ extern "C" {
  * context of the parser, as the last field of the language struct. ABI 1018
  * adds a scan that changes the state of the scanner and gives no token, and a
  * serialization buffer of 16,384 bytes. Refer to
- * TREE_SITTER_EXTERNAL_STATE_ONLY in src/parser.h. This library reads the ABI
- * versions 13 thru 15, 1015, 1016, 1017 and 1018 in the same process, and it
- * reads the tables of each language in the layout of its version. The
- * generator in vendor/tree-sitter-generate writes the version 1018.
+ * TREE_SITTER_EXTERNAL_STATE_ONLY in src/parser.h. ABI 1019 adds `get_offset`
+ * as the last field of TSLexer, which gives the external scanner the byte
+ * offset of its position. This library reads the ABI
+ * versions 13 thru 15, 1015, 1016, 1017, 1018 and 1019 in the same process, and
+ * it reads the tables of each language in the layout of its version. The
+ * generator in vendor/tree-sitter-generate writes the version 1019.
  */
-#define TREE_SITTER_LANGUAGE_VERSION 1018
+#define TREE_SITTER_LANGUAGE_VERSION 1019
 
 /**
  * The earliest ABI version that is supported by the current version of the
