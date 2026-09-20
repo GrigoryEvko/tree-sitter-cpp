@@ -196,6 +196,11 @@ enum TokenType {
     /// the grammar reads the macro in the place of an attribute and gives the group to the declarator.
     /// Refer to `_declarator_object_macro` in grammar/src/cpp.rs.
     DECLARATOR_OBJECT_MACRO_NAME,
+    /// An empty mark before each element of an argument list. The scanner gives no such token, and it
+    /// reads the mark in `valid_symbols` only: the mark says that the position is an argument list,
+    /// where a branch of a conditional group that ends with a comma or with an argument fits the text
+    /// after the group.
+    ARGUMENT_LIST_MARKER,
     /// The count of the external tokens, and not a token. `tree_sitter_cpp_external_scanner_create`
     /// compares it with the count of the parser.
     TOKEN_TYPE_COUNT,
@@ -6245,6 +6250,8 @@ typedef struct {
     bool macro_not_names;
     /// True when the group is in an enumerator list.
     bool enumerators;
+    /// True when the group is in an argument list.
+    bool arguments;
     /// True until the first token of a branch.
     bool at_branch_start;
     /// True when a line break comes before the current token.
@@ -6287,6 +6294,12 @@ typedef struct {
     /// True when a check failed.
     bool failed;
 } GroupScan;
+
+/// True when the group stands in a list whose items a comma divides: an enumerator list or an argument
+/// list. A name of such a list is an item and never a macro invocation line.
+static bool in_comma_list(const GroupScan *scan) {
+    return scan->enumerators || scan->arguments;
+}
 
 /// The keywords that come before a parenthesized part that does not end a construct: `if (x)` needs a body.
 static const char *const CONTROL_KEYWORDS[] = {
@@ -6381,7 +6394,7 @@ static void start_token(GroupScan *scan, int32_t c) {
         return;
     }
     bool line_end = (scan->macro == MACRO_CALL && !scan->macro_lower) ||
-                    (scan->macro == MACRO_LONG_NAME && !scan->enumerators);
+                    (scan->macro == MACRO_LONG_NAME && !in_comma_list(scan));
     if (scan->line_break && line_end) {
         scan->end = END_MACRO;
         scan->at_item_start = true;
@@ -6579,7 +6592,7 @@ static void add_punctuator(TSLexer *lexer, GroupScan *scan) {
             return;
         case ',':
             add_token(scan, END_COMMA, true);
-            scan->at_item_start = scan->enumerators && outside_parentheses(scan);
+            scan->at_item_start = in_comma_list(scan) && outside_parentheses(scan);
             return;
         default:
             // `=`, `==`, `!=`, `>`, `>=`, `>>`, `|`, `||`, `^`, `?`, `#` in a macro, and the compound assignments.
@@ -6638,7 +6651,7 @@ static void add_word(TSLexer *lexer, GroupScan *scan) {
         scan->macro_not_names = false;
         scan->macro_lower = false;
         scan->macro_pragma = false;
-    } else if (item_start && !scan->enumerators && (is_pragma_operator_name(&name) || is_call_line_name(&name))) {
+    } else if (item_start && !in_comma_list(scan) && (is_pragma_operator_name(&name) || is_call_line_name(&name))) {
         // The arguments must start on the line of the name, with no blank before them.
         scan->macro = MACRO_SHORT_NAME;
         scan->macro_not_names = false;
@@ -6666,7 +6679,7 @@ static void add_number(TSLexer *lexer, GroupScan *scan) {
 /// before its body. The scan counts such a last line apart, and `branch_ends_fit` reads the count.
 static void end_branch(GroupScan *scan) {
     bool lower_call = scan->macro == MACRO_CALL && scan->macro_lower;
-    if ((scan->macro == MACRO_CALL && !lower_call) || (scan->macro == MACRO_LONG_NAME && !scan->enumerators)) {
+    if ((scan->macro == MACRO_CALL && !lower_call) || (scan->macro == MACRO_LONG_NAME && !in_comma_list(scan))) {
         scan->end = END_MACRO;
         scan->call_end |= scan->macro == MACRO_CALL && !scan->macro_not_names;
     }
@@ -6887,7 +6900,11 @@ static TokenAfter read_token_after_group(const Scanner *scanner, TSLexer *lexer)
 /// the call is a function head, a declarator, or an expression, and the group stays a group of lines.
 static bool branch_ends_fit(const GroupScan *scan, TokenAfter after) {
     uint32_t ends = scan->branch_ends;
-    if (after == AFTER_CONTINUATION || after == AFTER_CONTINUING_KEYWORD || after == AFTER_CLOSE_PARENTHESIS) {
+    if (after == AFTER_CONTINUATION || after == AFTER_CONTINUING_KEYWORD) {
+        return false;
+    }
+    // A `)` after the group ends an argument list, and it continues each other construct.
+    if (after == AFTER_CLOSE_PARENTHESIS && !scan->arguments) {
         return false;
     }
     if (scan->enumerators) {
@@ -6895,6 +6912,21 @@ static bool branch_ends_fit(const GroupScan *scan, TokenAfter after) {
             return false;
         }
         return !(ends & (1U << END_VALUE)) || after == AFTER_CLOSE_BRACE;
+    }
+    // A BRANCH OF A GROUP IN AN ARGUMENT LIST IS A SEQUENCE OF ARGUMENTS, AND NOTHING ELSE. A `;`, a
+    // `}`, a macro invocation line, and a token that leaves a construct open are no arguments, so the
+    // group keeps the reading of a line group. The grammar gives the group the place of one element
+    // of the list, which holds an argument and the comma after it, so a branch that ends with an
+    // ARGUMENT fits only where the group is the last element and a `)` comes after it. A branch that
+    // ends with a comma fits before an argument and before the `)`.
+    if (scan->arguments) {
+        if (ends & ((1U << END_ITEM) | (1U << END_BRACE) | (1U << END_MACRO) | (1U << END_OPEN))) {
+            return false;
+        }
+        if (after != AFTER_ITEM_START && after != AFTER_CLOSE_PARENTHESIS) {
+            return false;
+        }
+        return !(ends & (1U << END_VALUE)) || after == AFTER_CLOSE_PARENTHESIS;
     }
     bool calls_are_items = scan->value_ends > 0 && scan->value_ends == scan->call_line_value_ends &&
                            (after == AFTER_ITEM_START || after == AFTER_CLOSE_BRACE);
@@ -6922,7 +6954,7 @@ static bool branch_ends_fit(const GroupScan *scan, TokenAfter after) {
 /// condition that is not false. The other branches stay `preproc_skipped` nodes. clang-format also parses the branches
 /// with the tokens after the group (`UnwrappedLineParser::parse`). O(1).
 static uint32_t select_line_branch(const GroupScan *scan, TokenAfter after) {
-    if (scan->enumerators || scan->first_end != END_ITEM || scan->value_branch > MAX_SELECTED_BRANCH) {
+    if (in_comma_list(scan) || scan->first_end != END_ITEM || scan->value_branch > MAX_SELECTED_BRANCH) {
         return 0;
     }
     bool first_fits = after != AFTER_OPEN_BRACE && after != AFTER_CONTINUATION && after != AFTER_SEMICOLON;
@@ -6968,12 +7000,14 @@ static bool elif_condition_is_false(TSLexer *lexer, bool *empty) {
 ///
 /// For a group that is not structured, the scan continues to the `#endif`, and it sets `selected_branch` to the index
 /// of the branch that the parser reads as code (`select_line_branch`). O(n) in the length of the group.
-static bool group_is_structured(const Scanner *scanner, TSLexer *lexer, bool enumerators, bool *has_case_label,
+static bool group_is_structured(const Scanner *scanner, TSLexer *lexer, bool enumerators, bool arguments,
+                                bool *has_case_label,
                                 uint32_t *selected_branch) {
     GroupScan scan = {0};
     scan.at_branch_start = true;
     scan.at_item_start = true;
     scan.enumerators = enumerators;
+    scan.arguments = arguments;
     skip_rest_of_line(lexer, false);
     bool line_start = false;
     for (;;) {
@@ -7262,12 +7296,15 @@ static bool scan_directive(Scanner *scanner, TSLexer *lexer, const bool *valid_s
                 // enumerator list can start with the macro enumerator token.
                 bool error_recovery = valid_symbols[RAW_STRING_DELIMITER] && valid_symbols[RAW_STRING_CONTENT];
                 bool enumerators = valid_symbols[MACRO_ENUMERATOR_START] && !error_recovery;
+                // The mark of an argument list is valid before each element of such a list, and the
+                // scanner gives no such token. Its validity is the evidence of the position.
+                bool arguments = valid_symbols[ARGUMENT_LIST_MARKER] && !error_recovery;
                 bool has_case_label = false;
                 uint32_t selected_branch = 0;
                 // Where no item can start, the group is a line group, and its scan only selects a branch.
                 bool item = valid_symbols[structured] || valid_symbols[in_case];
                 bool is_structured = scanner->group_count < MAX_GROUPS && (item || !is_false) &&
-                                     group_is_structured(scanner, lexer, enumerators, &has_case_label,
+                                     group_is_structured(scanner, lexer, enumerators, arguments, &has_case_label,
                                                          &selected_branch) &&
                                      item;
                 if (is_structured && valid_symbols[in_case] && !has_case_label && !error_recovery) {
@@ -7323,7 +7360,17 @@ static bool scan_directive(Scanner *scanner, TSLexer *lexer, const bool *valid_s
                        : name_is(&name, "include") ? PREPROC_INCLUDE
                                                    : PREPROC_DIRECTIVE;
                 // Where a declaration or a statement can start, an `#embed` is a directive line.
-                if (name_is(&name, "embed") && !valid_symbols[PREPROC_IF]) {
+                //
+                // THE VALIDITY OF `PREPROC_IF` IS A PROXY FOR THAT POSITION, AND AN ARGUMENT LIST BREAKS
+                // IT. Each rule of a conditional family starts with this one external token, so a family
+                // in a new position makes the token valid there. `preproc_if_in_argument_list` puts the
+                // token in an argument list, where an expression starts and a declaration cannot, and the
+                // proxy alone then reads `f(1, #embed "x" limit (2))` as a directive line. The mark of an
+                // argument list is the evidence of that position, and it restores the expression reading.
+                // Six clean files of the compiler tests hold this shape, among them
+                // gcc/testsuite/g++.dg/cpp/embed-3.C and clang/test/Preprocessor/embed_constexpr.cpp.
+                if (name_is(&name, "embed") &&
+                    (!valid_symbols[PREPROC_IF] || valid_symbols[ARGUMENT_LIST_MARKER])) {
                     type = PREPROC_EMBED;
                 }
                 if (!valid_symbols[type]) {

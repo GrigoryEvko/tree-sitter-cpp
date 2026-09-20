@@ -595,6 +595,9 @@ int b = (
 const unsigned char d[] = {
 #embed "x.bin" limit(4) /* c */ suffix(, 0)
 , 0};
+int e = f(1,
+#embed "y.bin" limit(2)
+);
 
 --------------------------------------------------------------------------------
 
@@ -623,7 +626,19 @@ const unsigned char d[] = {
           (preproc_arg)
           (comment)
           (preproc_arg))
-        (number_literal)))))
+        (number_literal))))
+  (declaration
+    (primitive_type)
+    (init_declarator
+      (identifier)
+      (call_expression
+        (identifier)
+        (argument_list
+          (number_literal)
+          (preproc_embed
+            (string_literal
+              (string_content))
+            (preproc_arg)))))))
 
 ================================================================================
 Directive line between the consequence and the else clause
@@ -2974,12 +2989,9 @@ DEFINE_THING(
           function: (identifier)
           arguments: (argument_list
             (identifier)
-            (preproc_call
-              directive: (preproc_directive)
-              argument: (preproc_arg))
-            (identifier)
-            (preproc_call
-              directive: (preproc_directive)))))))
+            (preproc_ifdef
+              name: (identifier)
+              (identifier)))))))
   (macro_invocation
     name: (identifier)
     arguments: (token_tree

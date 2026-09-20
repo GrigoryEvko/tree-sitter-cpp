@@ -226,6 +226,11 @@ pub fn grammar() -> Grammar {
         // declarator reads the group as it reads the group with no macro. Refer to
         // `_declarator_object_macro`.
         s!(_declarator_object_macro_name),
+        // An empty mark before each element of an argument list. The scanner gives no such token, and
+        // it reads the mark in `valid_symbols` only: the mark tells the scan of a conditional group
+        // that the group stands in an argument list, where a branch that ends with a comma or with an
+        // argument fits the text after the group. Refer to `group_is_structured` in src/scanner.c.
+        s!(_argument_list_marker),
     ];
     // The conflict sets of the grammar. Each set names the rules of one ambiguity, and it tells the
     // generator to keep each reading in a GLR split.
@@ -8222,20 +8227,16 @@ fn expressions(g: &mut Grammar) {
         ],
     );
     // The compound statement is for macros that take statements as arguments, for
-    // example `MYFORLOOP(1, 10, i, { foo(i); bar(i); })`.
-    g.define(
-        "argument_list",
-        seq![
-            "(",
-            comma_sep(choice![
-                s!(expression),
-                s!(initializer_list),
-                s!(compound_statement),
-                alias(s!(_macro_type_argument), s!(type_descriptor)),
-            ]),
-            ")",
-        ],
-    );
+    // example `MYFORLOOP(1, 10, i, { foo(i); bar(i); })`. C++ adds the braced list and the type
+    // argument of a macro to the arguments of C. `argument_list` of c.rs holds the shape of the
+    // list, with the conditional groups that stand between two arguments.
+    g.redefine("_argument", |original| {
+        choice![
+            original,
+            s!(initializer_list),
+            alias(s!(_macro_type_argument), s!(type_descriptor)),
+        ]
+    });
     // The alternative token `compl` is `~` also in a destructor name: `compl S()`. GCC reads the
     // name after `~` as a type name, and a type name can be a template-id: `d.~GG<int>()`,
     // `A<T>::~A<T>()`, `p->~Base<T>()`. The copy of `template_type` has a precedence on its name,
@@ -9050,12 +9051,13 @@ const FINAL_DIRECTIVES: [(&str, &str, &str); 4] = [
 ];
 
 /// The name suffixes of the conditional directive families.
-const CONDITIONAL_SUFFIXES: [&str; 5] = [
+const CONDITIONAL_SUFFIXES: [&str; 6] = [
     "",
     "_in_block",
     "_in_declaration_list",
     "_in_field_declaration_list",
     "_in_enumerator_list",
+    "_in_argument_list",
 ];
 
 /// The preprocessor directives.
@@ -9230,6 +9232,20 @@ fn preprocessor(g: &mut Grammar) {
     for rule in CONDITIONAL_RULES {
         g.redefine(&format!("{rule}_in_enumerator_list"), |original| {
             replace_rule(original, &branch_items, &list_items)
+        });
+    }
+    // A branch of a group in an argument list holds the items of the list: arguments with a comma,
+    // and the groups between two arguments. The scanner reads such a group by the validity of the
+    // mark of an argument list, and a group in a branch is then also a structured node. The last
+    // argument of a branch can have no comma, as the last argument of the list can.
+    let Rule::Seq(argument_members) = &g.rules["argument_list"] else {
+        panic!("`argument_list` is a sequence");
+    };
+    let argument_items = argument_members[1].clone();
+    let argument_branch_items = repeat(seq![s!(_argument), ","]);
+    for rule in CONDITIONAL_RULES {
+        g.redefine(&format!("{rule}_in_argument_list"), |original| {
+            replace_rule(original, &argument_branch_items, &argument_items)
         });
     }
     g.redefine("preproc_call", |original| {
