@@ -280,6 +280,7 @@ class A : public B {
       (function_definition
         (type_identifier)
         (reference_declarator
+          (reference_operator)
           (function_declarator
             (operator_name)
             (parameter_list
@@ -291,6 +292,7 @@ class A : public B {
       (function_definition
         (type_identifier)
         (reference_declarator
+          (reference_operator)
           (function_declarator
             (operator_name)
             (parameter_list
@@ -492,6 +494,7 @@ int (max)(int a, int b) { return a; }
   (function_definition
     type: (primitive_type)
     declarator: (reference_declarator
+      operator: (reference_operator)
       declarator: (function_declarator
         declarator: (identifier)
         parameters: (parameter_list)))

@@ -6183,6 +6183,40 @@
     }
   },
   {
+    "type": "lambda_capture",
+    "named": true,
+    "fields": {
+      "name": {
+        "multiple": false,
+        "required": true,
+        "types": [
+          {
+            "type": "identifier",
+            "named": true
+          },
+          {
+            "type": "parameter_pack_expansion",
+            "named": true
+          },
+          {
+            "type": "qualified_identifier",
+            "named": true
+          }
+        ]
+      },
+      "reference": {
+        "multiple": false,
+        "required": false,
+        "types": [
+          {
+            "type": "reference_operator",
+            "named": true
+          }
+        ]
+      }
+    }
+  },
+  {
     "type": "lambda_capture_initializer",
     "named": true,
     "fields": {
@@ -6192,6 +6226,16 @@
         "types": [
           {
             "type": "identifier",
+            "named": true
+          }
+        ]
+      },
+      "reference": {
+        "multiple": false,
+        "required": false,
+        "types": [
+          {
+            "type": "reference_operator",
             "named": true
           }
         ]
@@ -6225,7 +6269,7 @@
       "required": false,
       "types": [
         {
-          "type": "identifier",
+          "type": "lambda_capture",
           "named": true
         },
         {
@@ -6234,14 +6278,6 @@
         },
         {
           "type": "lambda_default_capture",
-          "named": true
-        },
-        {
-          "type": "parameter_pack_expansion",
-          "named": true
-        },
-        {
-          "type": "qualified_identifier",
           "named": true
         },
         {
@@ -9834,6 +9870,16 @@
             "named": true
           }
         ]
+      },
+      "operator": {
+        "multiple": false,
+        "required": true,
+        "types": [
+          {
+            "type": "reference_operator",
+            "named": true
+          }
+        ]
       }
     },
     "children": {
@@ -13337,6 +13383,10 @@
   },
   {
     "type": "raw_string_delimiter",
+    "named": true
+  },
+  {
+    "type": "reference_operator",
     "named": true
   },
   {

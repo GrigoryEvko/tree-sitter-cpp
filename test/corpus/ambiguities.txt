@@ -151,10 +151,12 @@ T6 i{j};
         (parameter_declaration
           (type_identifier)
           (reference_declarator
+            (reference_operator)
             (identifier)))
         (parameter_declaration
           (type_identifier)
           (reference_declarator
+            (reference_operator)
             (identifier))))))
   (comment)
   (declaration
@@ -962,6 +964,7 @@ simdjson_inline document_stream::~document_stream() noexcept {}
         (parameter_declaration
           (type_identifier)
           (reference_declarator
+            (reference_operator)
             (identifier))))
       (noexcept))
     (default_method_clause))
@@ -1678,6 +1681,7 @@ extern "C" { T (*r)[3]; }
       declarator: (function_declarator
         declarator: (parenthesized_declarator
           declarator: (reference_declarator
+            operator: (reference_operator)
             declarator: (identifier)))
         parameters: (parameter_list))
       value: (identifier)))
@@ -3226,6 +3230,7 @@ struct base { virtual void v() = 0; base() = default; base(const base&) = delete
         (storage_class_specifier)
         type: (primitive_type)
         declarator: (reference_declarator
+          operator: (reference_operator)
           declarator: (function_declarator
             declarator: (field_identifier)
             parameters: (parameter_list
@@ -3235,6 +3240,7 @@ struct base { virtual void v() = 0; base() = default; base(const base&) = delete
   (declaration
     type: (primitive_type)
     declarator: (reference_declarator
+      operator: (reference_operator)
       declarator: (function_declarator
         declarator: (identifier)
         parameters: (parameter_list))))
@@ -3250,6 +3256,7 @@ struct base { virtual void v() = 0; base() = default; base(const base&) = delete
           (storage_class_specifier)
           type: (primitive_type)
           declarator: (reference_declarator
+            operator: (reference_operator)
             declarator: (function_declarator
               declarator: (field_identifier)
               parameters: (parameter_list))))
@@ -3262,6 +3269,7 @@ struct base { virtual void v() = 0; base() = default; base(const base&) = delete
               (parameter_declaration
                 type: (type_identifier)
                 declarator: (reference_declarator
+                  operator: (reference_operator)
                   declarator: (identifier)))))
           body: (compound_statement
             (expression_statement

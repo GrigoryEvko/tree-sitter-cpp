@@ -2600,6 +2600,7 @@ void g(bool x) {
               (parameter_declaration
                 type: (type_identifier)
                 declarator: (reference_declarator
+                  operator: (reference_operator)
                   declarator: (identifier)))))
           (preproc_call
             directive: (preproc_directive))

@@ -973,6 +973,7 @@ template for (constexpr int I : std::views::iota(0zu, sizeof...(Ts))) {}
       (auto))
     (type_qualifier)
     (reference_declarator
+      (reference_operator)
       (identifier))
     (initializer_list
       (parameter_pack_expansion

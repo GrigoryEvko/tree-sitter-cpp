@@ -116,6 +116,7 @@ template<class... Ts> void f(Ts*... ts, const Ts * const *... qs, Ts&&... rs);
           (variadic_parameter_declaration
             type: (type_identifier)
             declarator: (reference_declarator
+              operator: (reference_operator)
               declarator: (variadic_declarator
                 (identifier)))))))))
 
@@ -226,6 +227,7 @@ template <class T> concept A = requires(T& t) { requires !std::same_as<T, int>; 
           (parameter_declaration
             type: (type_identifier)
             declarator: (reference_declarator
+              operator: (reference_operator)
               declarator: (identifier))))
         requirements: (requirement_seq
           (nested_requirement

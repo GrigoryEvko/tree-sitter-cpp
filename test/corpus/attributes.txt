@@ -20,6 +20,7 @@ void h(UNUSED const Font &p);
         (parameter_declaration
           type: (type_identifier)
           declarator: (reference_declarator
+            operator: (reference_operator)
             declarator: (identifier))))))
   (declaration
     (storage_class_specifier)
@@ -53,6 +54,7 @@ void h(UNUSED const Font &p);
           (type_qualifier)
           type: (type_identifier)
           declarator: (reference_declarator
+            operator: (reference_operator)
             declarator: (identifier)))))))
 
 ================================================================================
@@ -406,6 +408,7 @@ void f() {
             type: (type_identifier)
             (type_qualifier)
             declarator: (reference_declarator
+              operator: (reference_operator)
               declarator: (identifier)))))
       body: (compound_statement
         (return_statement
@@ -1260,6 +1263,7 @@ void g()
       (field_declaration
         type: (type_identifier)
         declarator: (reference_declarator
+          operator: (reference_operator)
           declarator: (function_declarator
             declarator: (field_identifier)
             parameters: (parameter_list)
@@ -1835,6 +1839,7 @@ struct P { const P& min BOOST_PREVENT_MACRO_SUBSTITUTION () const; };
         (type_qualifier)
         type: (type_identifier)
         declarator: (reference_declarator
+          operator: (reference_operator)
           declarator: (function_declarator
             declarator: (field_identifier)
             (attribute_macro
@@ -2793,6 +2798,7 @@ struct [[nodiscard]] EXPORT_MACRO Before {
               (type_qualifier)
               type: (type_identifier)
               declarator: (reference_declarator
+                operator: (reference_operator)
                 declarator: (identifier))))))
       (function_definition
         declarator: (function_declarator
@@ -3003,6 +3009,7 @@ struct Vec {
               (type_qualifier)
               type: (type_identifier)
               declarator: (reference_declarator
+                operator: (reference_operator)
                 declarator: (identifier))))))))
   (struct_specifier
     name: (type_identifier)
@@ -3291,6 +3298,7 @@ template <typename T> void m(const D *data, const O &op) { T Q_DECL_UNINITIALIZE
             (type_qualifier)
             type: (type_identifier)
             declarator: (reference_declarator
+              operator: (reference_operator)
               declarator: (identifier)))))
       body: (compound_statement
         (declaration
@@ -3406,6 +3414,7 @@ typedef long double NT;
             (type_qualifier)
             type: (type_identifier)
             declarator: (reference_declarator
+              operator: (reference_operator)
               declarator: (identifier)))
           (parameter_declaration
             type: (type_identifier)

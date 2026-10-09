@@ -438,8 +438,10 @@ auto f = [](int i) consteval static noexcept -> int { return i + 1; }(5);
       (identifier)
       (lambda_expression
         (lambda_capture_specifier
-          (identifier)
-          (identifier))
+          (lambda_capture
+            (identifier))
+          (lambda_capture
+            (identifier)))
         (lambda_declarator
           (parameter_list
             (parameter_declaration
@@ -521,6 +523,7 @@ auto f = [](int i) consteval static noexcept -> int { return i + 1; }(5);
               (placeholder_type_specifier
                 (auto))
               (reference_declarator
+                (reference_operator)
                 (identifier))))
           (lambda_specifier))
         (compound_statement
@@ -559,8 +562,11 @@ auto f = [](int i) consteval static noexcept -> int { return i + 1; }(5);
       (identifier)
       (lambda_expression
         (lambda_capture_specifier
-          (identifier)
+          (lambda_capture
+            (reference_operator)
+            (identifier))
           (lambda_capture_initializer
+            (reference_operator)
             (identifier)
             (identifier)))
         (compound_statement))))
@@ -573,8 +579,10 @@ auto f = [](int i) consteval static noexcept -> int { return i + 1; }(5);
         (lambda_capture_specifier
           (lambda_default_capture)
           (this)
-          (parameter_pack_expansion
-            (identifier)))
+          (lambda_capture
+            (reference_operator)
+            (parameter_pack_expansion
+              (identifier))))
         (compound_statement))))
   (declaration
     (placeholder_type_specifier
@@ -1562,8 +1570,9 @@ void f(T...) {}
       value: (lambda_expression
         captures: (lambda_capture_specifier
           (lambda_default_capture)
-          (parameter_pack_expansion
-            pattern: (identifier)))
+          (lambda_capture
+            name: (parameter_pack_expansion
+              pattern: (identifier))))
         body: (compound_statement
           (return_statement
             (call_expression
@@ -1586,6 +1595,7 @@ void f(T...) {}
               (type_qualifier)
               type: (type_identifier)
               declarator: (reference_declarator
+                operator: (reference_operator)
                 declarator: (variadic_declarator
                   (identifier))))))
         (field_initializer_list
@@ -1606,6 +1616,7 @@ void f(T...) {}
           (variadic_parameter_declaration
             type: (type_identifier)
             declarator: (reference_declarator
+              operator: (reference_operator)
               declarator: (variadic_declarator
                 (identifier))))))
       body: (compound_statement
@@ -2294,6 +2305,7 @@ void f() {
             (lambda_expression
               captures: (lambda_capture_specifier
                 (lambda_capture_initializer
+                  reference: (reference_operator)
                   left: (identifier)
                   right: (identifier)))
               declarator: (lambda_declarator
@@ -2313,3 +2325,68 @@ void f() {
                     argument: (identifier))
                   right: (identifier)))
               value: (number_literal))))))))
+
+================================================================================
+The capture node and its reference field
+================================================================================
+
+auto f = [&a, b, &xs..., d = 1, &e = r, &...zs = zs, this, *this] {};
+auto g = [&, x] {};
+auto h = [=, &y] {};
+
+--------------------------------------------------------------------------------
+
+(translation_unit
+  (declaration
+    type: (placeholder_type_specifier
+      (auto))
+    declarator: (init_declarator
+      declarator: (identifier)
+      value: (lambda_expression
+        captures: (lambda_capture_specifier
+          (lambda_capture
+            reference: (reference_operator)
+            name: (identifier))
+          (lambda_capture
+            name: (identifier))
+          (lambda_capture
+            reference: (reference_operator)
+            name: (parameter_pack_expansion
+              pattern: (identifier)))
+          (lambda_capture_initializer
+            left: (identifier)
+            right: (number_literal))
+          (lambda_capture_initializer
+            reference: (reference_operator)
+            left: (identifier)
+            right: (identifier))
+          (lambda_capture_initializer
+            reference: (reference_operator)
+            left: (identifier)
+            right: (identifier))
+          (this)
+          (this))
+        body: (compound_statement))))
+  (declaration
+    type: (placeholder_type_specifier
+      (auto))
+    declarator: (init_declarator
+      declarator: (identifier)
+      value: (lambda_expression
+        captures: (lambda_capture_specifier
+          (lambda_default_capture)
+          (lambda_capture
+            name: (identifier)))
+        body: (compound_statement))))
+  (declaration
+    type: (placeholder_type_specifier
+      (auto))
+    declarator: (init_declarator
+      declarator: (identifier)
+      value: (lambda_expression
+        captures: (lambda_capture_specifier
+          (lambda_default_capture)
+          (lambda_capture
+            reference: (reference_operator)
+            name: (identifier)))
+        body: (compound_statement)))))

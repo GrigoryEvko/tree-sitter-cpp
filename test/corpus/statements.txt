@@ -60,6 +60,7 @@ T main() {
       (for_range_loop
         type: (type_identifier)
         declarator: (reference_declarator
+          operator: (reference_operator)
           declarator: (identifier))
         right: (identifier)
         body: (compound_statement
@@ -72,6 +73,7 @@ T main() {
         type: (placeholder_type_specifier
           (auto))
         declarator: (reference_declarator
+          operator: (reference_operator)
           declarator: (identifier))
         right: (identifier)
         body: (compound_statement
@@ -84,6 +86,7 @@ T main() {
         type: (placeholder_type_specifier
           (auto))
         declarator: (reference_declarator
+          operator: (reference_operator)
           declarator: (identifier))
         right: (initializer_list
           (number_literal)
@@ -292,6 +295,7 @@ void main() {
               (type_qualifier)
               (type_identifier)
               (reference_declarator
+                (reference_operator)
                 (identifier))))
           (compound_statement
             (comment)))
@@ -895,6 +899,7 @@ void g() {
           function: (lambda_expression
             captures: (lambda_capture_specifier
               (lambda_capture_initializer
+                reference: (reference_operator)
                 left: (identifier)
                 right: (identifier)))
             declarator: (lambda_declarator
@@ -918,6 +923,7 @@ void g() {
               function: (lambda_expression
                 captures: (lambda_capture_specifier
                   (lambda_capture_initializer
+                    reference: (reference_operator)
                     left: (identifier)
                     right: (identifier)))
                 body: (compound_statement

@@ -194,6 +194,7 @@ int main() {
         (type_identifier)
         (init_declarator
           (reference_declarator
+            (reference_operator)
             (identifier))
           (call_expression
             (template_function
@@ -233,6 +234,7 @@ int main(T &&t) {
         (parameter_declaration
           (type_identifier)
           (reference_declarator
+            (reference_operator)
             (identifier)))))
     (compound_statement
       (declaration
@@ -240,6 +242,7 @@ int main(T &&t) {
         (type_identifier)
         (init_declarator
           (reference_declarator
+            (reference_operator)
             (identifier))
           (identifier))))))
 
@@ -288,6 +291,7 @@ struct S {
               (parameter_declaration
                 (type_identifier)
                 (reference_declarator
+                  (reference_operator)
                   (identifier))))))
         (compound_statement
           (return_statement
@@ -350,6 +354,7 @@ void k(int, [[maybe_unused]] int y);
               (parameter_declaration
                 type: (type_identifier)
                 declarator: (reference_declarator
+                  operator: (reference_operator)
                   declarator: (identifier)))))))
       (field_declaration
         type: (primitive_type)
@@ -379,6 +384,7 @@ void k(int, [[maybe_unused]] int y);
                 (type_qualifier)
                 type: (type_identifier)
                 declarator: (reference_declarator
+                  operator: (reference_operator)
                   declarator: (identifier)))))))))
   (declaration
     type: (placeholder_type_specifier
@@ -1061,6 +1067,7 @@ void * A::operator delete   [](void * p);
   (declaration
     (type_identifier)
     (reference_declarator
+      (reference_operator)
       (function_declarator
         (operator_name)
         (parameter_list
@@ -1071,6 +1078,7 @@ void * A::operator delete   [](void * p);
             (type_qualifier)
             (type_identifier)
             (reference_declarator
+              (reference_operator)
               (identifier)))))))
   (declaration
     (type_identifier)
@@ -1107,6 +1115,7 @@ void * A::operator delete   [](void * p);
           (type_qualifier)
           (type_identifier)
           (reference_declarator
+            (reference_operator)
             (identifier))))
       (type_qualifier)))
   (declaration
@@ -1120,6 +1129,7 @@ void * A::operator delete   [](void * p);
           (type_qualifier)
           (type_identifier)
           (reference_declarator
+            (reference_operator)
             (identifier))))
       (type_qualifier)))
   (declaration
@@ -1181,6 +1191,7 @@ void A<T>::foo(U&) {}
           (parameter_declaration
             (type_identifier)
             (reference_declarator
+              (reference_operator)
               (identifier)))))))
   (template_declaration
     (template_parameter_list
@@ -1197,6 +1208,7 @@ void A<T>::foo(U&) {}
           (parameter_declaration
             (type_identifier)
             (reference_declarator
+              (reference_operator)
               (identifier)))))
       (compound_statement
         (return_statement
@@ -1417,6 +1429,7 @@ struct foo::bar<T> {};
           (parameter_declaration
             (type_identifier)
             (reference_declarator
+              (reference_operator)
               (identifier)))))))
   (template_declaration
     (template_parameter_list)
@@ -1693,6 +1706,7 @@ int main() {
           (auto))
         declarator: (init_declarator
           declarator: (reference_declarator
+            operator: (reference_operator)
             declarator: (structured_binding_declarator
               (identifier)
               (identifier)))
@@ -1718,6 +1732,7 @@ int main() {
         type: (placeholder_type_specifier
           (auto))
         declarator: (reference_declarator
+          operator: (reference_operator)
           declarator: (structured_binding_declarator
             (identifier)
             (identifier)))
@@ -1778,7 +1793,8 @@ void f(int arr[], int i, int v, P x) {
       (expression_statement
         (lambda_expression
           captures: (lambda_capture_specifier
-            (identifier))
+            (lambda_capture
+              name: (identifier)))
           declarator: (lambda_declarator
             parameters: (parameter_list))
           body: (compound_statement
@@ -1796,7 +1812,8 @@ void f(int arr[], int i, int v, P x) {
           value: (initializer_list
             (lambda_expression
               captures: (lambda_capture_specifier
-                (identifier))
+                (lambda_capture
+                  name: (identifier)))
               declarator: (lambda_declarator
                 parameters: (parameter_list
                   (parameter_declaration
@@ -1821,6 +1838,7 @@ void f(int arr[], int i, int v, P x) {
           (auto))
         declarator: (init_declarator
           declarator: (reference_declarator
+            operator: (reference_operator)
             declarator: (structured_binding_declarator
               (identifier)
               (identifier)))
@@ -1832,6 +1850,7 @@ void f(int arr[], int i, int v, P x) {
         (type_qualifier)
         declarator: (init_declarator
           declarator: (reference_declarator
+            operator: (reference_operator)
             declarator: (structured_binding_declarator
               (identifier)
               (identifier)))
@@ -1860,8 +1879,10 @@ void f(int arr[], int i, int v, P x) {
           declarator: (identifier)
           value: (lambda_expression
             captures: (lambda_capture_specifier
-              (identifier)
-              (identifier))
+              (lambda_capture
+                name: (identifier))
+              (lambda_capture
+                name: (identifier)))
             declarator: (lambda_declarator
               parameters: (parameter_list))
             body: (compound_statement))))
@@ -1899,6 +1920,7 @@ void f() {
           (auto))
         declarator: (init_declarator
           declarator: (reference_declarator
+            operator: (reference_operator)
             (attribute_declaration
               (attribute
                 name: (identifier)))
@@ -1911,6 +1933,7 @@ void f() {
           (auto))
         declarator: (init_declarator
           declarator: (reference_declarator
+            operator: (reference_operator)
             (attribute_declaration
               (attribute
                 name: (identifier)))
@@ -1926,6 +1949,7 @@ void f() {
           (auto))
         declarator: (init_declarator
           declarator: (reference_declarator
+            operator: (reference_operator)
             (attribute_specifier
               (argument_list
                 (identifier)))
@@ -1938,6 +1962,7 @@ void f() {
           (auto))
         declarator: (init_declarator
           declarator: (reference_declarator
+            operator: (reference_operator)
             (attribute_declaration
               (attribute
                 name: (identifier)))
@@ -2033,6 +2058,7 @@ class TT {
               (variadic_parameter_declaration
                 (type_identifier)
                 (reference_declarator
+                  (reference_operator)
                   (variadic_declarator
                     (identifier))))))
           (compound_statement))
@@ -3378,6 +3404,7 @@ void bind(Cache& c) { auto &[a, b] = c; }
   (declaration
     type: (type_identifier)
     declarator: (reference_declarator
+      operator: (reference_operator)
       declarator: (function_declarator
         declarator: (identifier)
         parameters: (parameter_list))))
@@ -3385,6 +3412,7 @@ void bind(Cache& c) { auto &[a, b] = c; }
     (storage_class_specifier)
     type: (type_identifier)
     declarator: (reference_declarator
+      operator: (reference_operator)
       (attribute_macro
         name: (identifier))
       declarator: (function_declarator
@@ -3407,6 +3435,7 @@ void bind(Cache& c) { auto &[a, b] = c; }
         (parameter_declaration
           type: (type_identifier)
           declarator: (reference_declarator
+            operator: (reference_operator)
             declarator: (identifier)))))
     body: (compound_statement
       (declaration
@@ -3414,6 +3443,7 @@ void bind(Cache& c) { auto &[a, b] = c; }
           (auto))
         declarator: (init_declarator
           declarator: (reference_declarator
+            operator: (reference_operator)
             declarator: (structured_binding_declarator
               (identifier)
               (identifier)))
@@ -3531,5 +3561,6 @@ void apply(int (*fn)(int), int (&rows)[8]);
           declarator: (array_declarator
             declarator: (parenthesized_declarator
               declarator: (reference_declarator
+                operator: (reference_operator)
                 declarator: (identifier)))
             size: (number_literal)))))))

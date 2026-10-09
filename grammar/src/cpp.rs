@@ -342,7 +342,7 @@ pub fn grammar() -> Grammar {
         &["_declarator_of_name", "_nested_member_pointer_name_declarator"],
         &["expression", "_declarator_of_name", "type_specifier"],
         &["expression", "identifier_parameter_pack_expansion"],
-        &["expression", "_lambda_capture_identifier"],
+        &["expression", "lambda_capture"],
         // `{ [x(1)] = 2 }` has a GNU array designator, and `{ [x(1)] {} }` has a lambda with an
         // init-capture. Only the token after `]` tells them apart.
         &["expression", "lambda_capture_initializer"],
@@ -1460,6 +1460,24 @@ fn reference_qualifiers() -> Rule {
         s!(ms_call_modifier),
         s!(attribute_declaration)
     ])
+}
+
+/// The `&` or `&&` of a reference declarator, in the field `operator`.
+///
+/// Each token is an alias of the named node `reference_operator`. A consumer that reads only the
+/// named nodes, such as the S-expression of the CLI, then sees the token and tells `&` from `&&`
+/// with no read of the text between the children. The alias keeps the token, so the parse table
+/// does not change.
+fn reference_operator() -> Rule {
+    field(
+        "operator",
+        choice![alias("&", s!(reference_operator)), alias("&&", s!(reference_operator))],
+    )
+}
+
+/// The field `operator` of a reference declarator with one token, `&` or `&&` (`reference_operator`).
+fn reference_operator_of(token: &str) -> Rule {
+    field("operator", alias(token, s!(reference_operator)))
 }
 
 /// The attributes and the cv-qualifiers after the `::*` of a pointer to a member: `int C::*[[a]] p`.
@@ -4803,7 +4821,7 @@ fn declarations(g: &mut Grammar) {
     let reference = |declarator: Rule| {
         prec_dynamic(
             1,
-            prec_right(0, seq![choice!["&", "&&"], reference_qualifiers(), declarator]),
+            prec_right(0, seq![reference_operator(), reference_qualifiers(), declarator]),
         )
     };
     // A macro can come after the `&` and the qualifiers of a named declarator, in the place of a
@@ -4949,7 +4967,7 @@ fn declarations(g: &mut Grammar) {
     g.define(
         "_structured_binding_reference",
         seq![
-            choice!["&", "&&"],
+            reference_operator(),
             repeat(choice![s!(attribute_declaration), s!(attribute_specifier)]),
             field("declarator", s!(structured_binding_declarator))
         ],
@@ -6161,8 +6179,13 @@ fn pointer_init_declarators(g: &mut Grammar) {
             field("declarator", inner())
         ]
     };
-    let reference =
-        |operator: &str| seq![operator, reference_qualifiers(), field("declarator", s!(identifier))];
+    let reference = |operator: &str| {
+        seq![
+            reference_operator_of(operator),
+            reference_qualifiers(),
+            field("declarator", s!(identifier))
+        ]
+    };
     g.define("_pointer_name_declarator", prec_dynamic(-1, pointer()));
     g.define("_member_pointer_name_declarator", prec_dynamic(-1, member_pointer()));
     g.define("_reference_name_declarator", prec_dynamic(-1, reference("&")));
@@ -6465,7 +6488,7 @@ fn block_declaration(g: &mut Grammar) {
         prec_dynamic(
             1,
             seq![
-                choice!["&", "&&"],
+                reference_operator(),
                 field(
                     "declarator",
                     alias(s!(_block_operator_function_declarator), s!(function_declarator))
@@ -8130,15 +8153,21 @@ fn expressions(g: &mut Grammar) {
         ),
     );
     g.define("lambda_default_capture", choice!["=", "&"]);
+    // A simple capture is a node of its own, `[x]`, `[&x]`, `[&xs...]`. The `&` of a capture by
+    // reference is in the field `reference`, as the named node `reference_operator`, so a consumer
+    // that reads only the named nodes tells `[&x]` from `[x]`. The field `name` holds the name.
     g.define(
-        "_lambda_capture_identifier",
+        "lambda_capture",
         seq![
-            optional("&"),
-            choice![
-                s!(identifier),
-                s!(qualified_identifier),
-                alias(s!(identifier_parameter_pack_expansion), s!(parameter_pack_expansion)),
-            ],
+            optional(field("reference", alias("&", s!(reference_operator)))),
+            field(
+                "name",
+                choice![
+                    s!(identifier),
+                    s!(qualified_identifier),
+                    alias(s!(identifier_parameter_pack_expansion), s!(parameter_pack_expansion)),
+                ]
+            ),
         ],
     );
     // GCC `cp_parser_lambda_introducer` and Clang `ParseLambdaIntroducer`: an init-capture is a
@@ -8149,7 +8178,14 @@ fn expressions(g: &mut Grammar) {
     // MayBeDesignationStart). In the designator, the parser reduces `r` to an expression before `=`,
     // and the init-capture shifts `=`. The two actions have no precedence, and the conflict set of
     // `expression` and `lambda_capture_initializer` in `grammar` keeps the two readings.
-    let head = || seq![optional("&"), optional("...")];
+    // The `&` of an init-capture by reference, `[&r = v]`, is in the field `reference`, as in
+    // `lambda_capture`.
+    let head = || {
+        seq![
+            optional(field("reference", alias("&", s!(reference_operator)))),
+            optional("...")
+        ]
+    };
     g.define(
         "lambda_capture_initializer",
         choice![
@@ -8165,7 +8201,7 @@ fn expressions(g: &mut Grammar) {
         "_lambda_capture",
         choice![
             seq![optional("*"), s!(this)],
-            s!(_lambda_capture_identifier),
+            s!(lambda_capture),
             s!(lambda_capture_initializer),
         ],
     );

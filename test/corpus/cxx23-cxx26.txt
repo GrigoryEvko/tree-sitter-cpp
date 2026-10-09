@@ -580,6 +580,7 @@ template <class T> void f(T t) {
               type: (placeholder_type_specifier
                 (auto))
               declarator: (reference_declarator
+                operator: (reference_operator)
                 declarator: (structured_binding_declarator
                   (identifier)
                   (identifier)))
@@ -629,6 +630,7 @@ template <class T> void f(T t) {
           type: (placeholder_type_specifier
             (auto))
           declarator: (reference_declarator
+            operator: (reference_operator)
             declarator: (structured_binding_declarator
               (identifier)
               (identifier)))
